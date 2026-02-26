@@ -570,6 +570,63 @@ describe('runProviderReadinessGate', () => {
     }
   });
 
+  it('clears sticky recent failures after successful forced probe', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-force-probe-'));
+    try {
+      await recordProviderFailure(workspaceRoot, {
+        provider: 'claude',
+        reason: 'rate_limit',
+        message: 'Rate limit exceeded',
+        ttlMs: 15 * 60 * 1000,
+        at: new Date().toISOString(),
+      });
+
+      const authChecker = {
+        checkAll: async () => buildAuthStatus({
+          claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+        }),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+        checkCodexHealth: async () => ({
+          provider: 'codex',
+          available: false,
+          authenticated: false,
+          lastCheck: Date.now(),
+        }),
+      });
+
+      const result = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService,
+        forceProbe: true,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      const claudeStatus = result.providers.find((provider) => provider.provider === 'claude');
+      expect(claudeStatus?.available).toBe(true);
+      expect(result.llmReady).toBe(true);
+      expect(result.selectedProvider).toBe('claude');
+
+      const failuresAfter = await getActiveProviderFailures(workspaceRoot);
+      expect(failuresAfter.claude).toBeUndefined();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it('does not hard-disable provider selection for non-sticky recent failures', async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-'));
     try {

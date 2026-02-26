@@ -14,7 +14,7 @@ import * as llmEnv from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
-import { getActiveProviderFailures } from '../utils/provider_failures.js';
+import { getActiveProviderFailures, recordProviderSuccess } from '../utils/provider_failures.js';
 import { isNetworkAccessDisabled, isPrivacyModeStrict } from '../utils/runtime_controls.js';
 import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
@@ -265,8 +265,17 @@ export async function runProviderReadinessGate(
       if (!provider || !failure) continue;
       if (provider.available && provider.authenticated) {
         if (isStickyFailureReason(failure.reason)) {
-          provider.available = false;
-          provider.error = `recent ${failure.reason}: ${failure.message}`;
+          if (forceProbe) {
+            await recordProviderSuccess(workspaceRoot, providerName as ProviderName).catch(() => {
+              // Non-blocking stale failure cleanup.
+            });
+            remediationSteps.push(
+              `Cleared stale ${providerName} ${failure.reason} marker after successful forced probe.`
+            );
+          } else {
+            provider.available = false;
+            provider.error = `recent ${failure.reason}: ${failure.message}`;
+          }
         }
         switch (failure.reason) {
           case 'rate_limit':

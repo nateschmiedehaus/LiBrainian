@@ -156,6 +156,7 @@ export interface AgenticUseCaseReviewReport {
     initTimeoutMs: number;
     queryTimeoutMs: number;
     maxRunsPerRepo: number;
+    forceProviderProbe: boolean;
   };
   selectedUseCases: AgenticUseCase[];
   plannedUseCases: AgenticUseCasePlanItem[];
@@ -192,6 +193,7 @@ export interface AgenticUseCaseReviewOptions {
   runLabel?: string;
   initTimeoutMs?: number;
   queryTimeoutMs?: number;
+  forceProviderProbe?: boolean;
   signal?: AbortSignal;
 }
 
@@ -1460,6 +1462,7 @@ export async function runAgenticUseCaseReview(
   const ucEnd = options.ucEnd ?? 310;
   const selectionMode = options.selectionMode ?? 'probabilistic';
   const evidenceProfile = options.evidenceProfile ?? 'custom';
+  const forceProviderProbe = options.forceProviderProbe ?? evidenceProfile === 'release';
   const uncertaintyHistoryPath = options.uncertaintyHistoryPath
     ? path.resolve(options.uncertaintyHistoryPath)
     : path.resolve(process.cwd(), 'eval-results', 'agentic-use-case-review.json');
@@ -1552,7 +1555,7 @@ export async function runAgenticUseCaseReview(
     let librarianForCleanup: { shutdown(): Promise<void> } | null = null;
     try {
       const providerGate = await withTimeout(
-        runProviderReadinessGate(repoRoot, { emitReport: true }),
+        runProviderReadinessGate(repoRoot, { emitReport: true, forceProbe: forceProviderProbe }),
         initTimeoutMs,
         { context: `unverified_by_trace(timeout_provider_gate): ${repoName}` }
       );
@@ -1903,6 +1906,7 @@ export async function runAgenticUseCaseReview(
       initTimeoutMs,
       queryTimeoutMs,
       maxRunsPerRepo,
+      forceProviderProbe,
     },
     selectedUseCases,
     plannedUseCases,
