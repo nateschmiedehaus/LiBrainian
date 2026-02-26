@@ -249,6 +249,7 @@ import {
   type SemanticCacheCategory,
 } from './query_semantic_cache_utils.js';
 import { type CachedResponse } from './query_cache_response_utils.js';
+import { hydrateCachedQueryResponse } from './query_cache_hydration.js';
 import {
   getQueryCache,
   setCachedQuery,
@@ -1141,32 +1142,15 @@ export async function queryLibrarian(
       const queryId = cacheKey || generateUUID('qry_');
       errorQueryId = queryId;
       void globalEventBus.emit(createQueryReceivedEvent(queryId, query.intent ?? '', query.depth ?? 'L1', traceSessionId));
-      const cachedResponse = {
-        ...cached,
+      const cachedResponse = hydrateCachedQueryResponse({
+        baseResponse: cached,
         query,
-        cacheHit: true,
         latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
         version,
         traceId,
         disclosures,
         constructionPlan,
-      } as CachedResponse;
-      cachedResponse.synthesisMode = 'cache';
-      if (query.showLlmErrors === false) {
-        cachedResponse.llmError = undefined;
-      }
-      cachedResponse.retrievalEntropy = cachedResponse.retrievalEntropy
-        ?? computeRetrievalEntropy(cachedResponse.packs);
-      cachedResponse.retrievalStatus = cachedResponse.retrievalStatus
-        ?? categorizeRetrievalStatus({
-          totalConfidence: cachedResponse.totalConfidence,
-          packCount: cachedResponse.packs.length,
-        });
-      cachedResponse.retrievalInsufficient = cachedResponse.retrievalInsufficient
-        ?? ((query.depth ?? 'L1') === 'L3' && cachedResponse.totalConfidence < 0.3);
-      if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
-        cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
-      }
+      });
       await logRetrievalConfidenceObservation(storage, workspaceRoot, {
         queryHash: queryId,
         intent: query.intent,
@@ -1218,32 +1202,15 @@ export async function queryLibrarian(
       errorQueryId = queryId;
       void globalEventBus.emit(createQueryReceivedEvent(queryId, query.intent ?? '', query.depth ?? 'L1', traceSessionId));
       const semanticDisclosure = `semantic_cache_hit(category=${semanticCached.category}, similarity=${semanticCached.similarity.toFixed(2)})`;
-      const cachedResponse = {
-        ...semanticCached.response,
+      const cachedResponse = hydrateCachedQueryResponse({
+        baseResponse: semanticCached.response,
         query,
-        cacheHit: true,
         latencyMs: deterministicCtx ? 0 : (Date.now() - startTime),
         version,
         traceId,
         disclosures: [...disclosures, semanticDisclosure],
         constructionPlan,
-      } as CachedResponse;
-      cachedResponse.synthesisMode = 'cache';
-      if (query.showLlmErrors === false) {
-        cachedResponse.llmError = undefined;
-      }
-      cachedResponse.retrievalEntropy = cachedResponse.retrievalEntropy
-        ?? computeRetrievalEntropy(cachedResponse.packs);
-      cachedResponse.retrievalStatus = cachedResponse.retrievalStatus
-        ?? categorizeRetrievalStatus({
-          totalConfidence: cachedResponse.totalConfidence,
-          packCount: cachedResponse.packs.length,
-        });
-      cachedResponse.retrievalInsufficient = cachedResponse.retrievalInsufficient
-        ?? ((query.depth ?? 'L1') === 'L3' && cachedResponse.totalConfidence < 0.3);
-      if (cachedResponse.retrievalInsufficient && !cachedResponse.suggestedClarifyingQuestions?.length) {
-        cachedResponse.suggestedClarifyingQuestions = buildClarifyingQuestions(query.intent ?? '');
-      }
+      });
       await logRetrievalConfidenceObservation(storage, workspaceRoot, {
         queryHash: queryId,
         intent: query.intent,
