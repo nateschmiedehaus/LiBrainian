@@ -47,6 +47,8 @@ const LEGACY_DB_FILENAME = 'librarian.db';
 const DEFAULT_QUERY_TIMEOUT_MS = 120_000;
 const DEFAULT_STORAGE_LOCK_TIMEOUT_MS = 5_000;
 const STORAGE_LOCK_RETRY_INTERVAL_MS = 200;
+const DEFAULT_QUERY_PREFLIGHT_MAX_RECOVERY_ACTIONS = 12;
+const BOOTSTRAP_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -210,9 +212,14 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   await runQueryStorageLockPreflight(workspace, dbPath, {
     timeoutMs: lockTimeoutMs,
     retryIntervalMs: STORAGE_LOCK_RETRY_INTERVAL_MS,
+    maxRecoveryActions: DEFAULT_QUERY_PREFLIGHT_MAX_RECOVERY_ACTIONS,
   });
   let storage = createSqliteStorage(dbPath, workspace);
-  storage = await initializeQueryStorageWithRecovery(storage, dbPath, workspace);
+  storage = await withQueryCommandTimeout(
+    'initialize',
+    effectiveQueryTimeoutMs,
+    () => initializeQueryStorageWithRecovery(storage, dbPath, workspace)
+  );
   const executeQueryWithRecovery = async (queryPayload: LibrarianQuery): Promise<LibrarianResponse> => {
     try {
       return await withQueryCommandTimeout(
@@ -848,6 +855,7 @@ interface StorageLockHolder {
 interface QueryStorageLockPreflightOptions {
   timeoutMs: number;
   retryIntervalMs: number;
+  maxRecoveryActions: number;
 }
 
 async function runQueryStorageLockPreflight(
@@ -859,21 +867,42 @@ async function runQueryStorageLockPreflight(
   const lockPaths = candidateDbPaths.map((candidateDbPath) => `${candidateDbPath}.lock`);
   const timeoutMs = Math.max(0, options.timeoutMs);
   const retryIntervalMs = Math.max(50, options.retryIntervalMs);
+  const maxRecoveryActions = Math.max(1, options.maxRecoveryActions);
   const deadline = Date.now() + timeoutMs;
   let nextRecoveryAt = 0;
+  let recoveryActionCount = 0;
+  let activeBootstrapLock: { lockPath: string; holder: StorageLockHolder } | null = null;
 
   while (true) {
     const now = Date.now();
     if (now >= nextRecoveryAt) {
+      const bootstrapLockState = await reconcileBootstrapWorkspaceLock(workspace);
+      activeBootstrapLock = bootstrapLockState.activeHolder
+        ? { lockPath: bootstrapLockState.lockPath, holder: bootstrapLockState.activeHolder }
+        : null;
+      if (bootstrapLockState.removed) {
+        console.error('[librarian] recovered stale bootstrap lock state: removed_lock');
+      }
+
       for (const candidateDbPath of candidateDbPaths) {
         try {
           const recovery = await attemptStorageRecovery(candidateDbPath);
           if (recovery.recovered && recovery.actions.length > 0) {
+            recoveryActionCount += recovery.actions.length;
             console.error(
               `[librarian] recovered stale lock state for ${path.basename(candidateDbPath)}: ${recovery.actions.join(', ')}`
             );
+            if (recoveryActionCount > maxRecoveryActions) {
+              throw createError(
+                'STORAGE_LOCKED',
+                `Storage recovery exceeded ${maxRecoveryActions} actions without stabilizing lock state. Run \`librarian doctor --heal\` and retry.`
+              );
+            }
           }
-        } catch {
+        } catch (error) {
+          if ((error as { code?: string } | undefined)?.code === 'STORAGE_LOCKED') {
+            throw error;
+          }
           // Preflight is best-effort; initialize() still performs bounded lock handling.
         }
       }
@@ -881,13 +910,14 @@ async function runQueryStorageLockPreflight(
     }
 
     const activeLock = await findActiveStorageLock(lockPaths);
-    if (!activeLock || activeLock.holder.pid === process.pid) return;
+    const activeBlockingLock = activeLock ?? activeBootstrapLock;
+    if (!activeBlockingLock || activeBlockingLock.holder.pid === process.pid) return;
 
     if (Date.now() >= deadline) {
       const nextTimeoutMs = Math.max(timeoutMs * 2, timeoutMs + 1000);
       throw createError(
         'STORAGE_LOCKED',
-        `Storage lock active (pid=${activeLock.holder.pid}, startedAt=${activeLock.holder.startedAt}, lock=${activeLock.lockPath}). Waited ${timeoutMs}ms; run \`librarian doctor --heal\` or retry with \`--lock-timeout-ms ${nextTimeoutMs}\`.`
+        `Storage lock active (pid=${activeBlockingLock.holder.pid}, startedAt=${activeBlockingLock.holder.startedAt}, lock=${activeBlockingLock.lockPath}). Waited ${timeoutMs}ms; run \`librarian doctor --heal\` or retry with \`--lock-timeout-ms ${nextTimeoutMs}\`.`
       );
     }
 
@@ -945,6 +975,72 @@ async function readStorageLockHolder(lockPath: string): Promise<StorageLockHolde
       return null;
     }
     return null;
+  }
+}
+
+interface BootstrapLockReconcileResult {
+  lockPath: string;
+  activeHolder: StorageLockHolder | null;
+  removed: boolean;
+}
+
+async function reconcileBootstrapWorkspaceLock(workspace: string): Promise<BootstrapLockReconcileResult> {
+  const lockPath = path.join(workspace, '.librarian', 'bootstrap.lock');
+  const holder = await readStorageLockHolder(lockPath);
+  if (holder) {
+    if (holder.pid === process.pid || isPidAlive(holder.pid)) {
+      return {
+        lockPath,
+        activeHolder: holder.pid === process.pid ? null : holder,
+        removed: false,
+      };
+    }
+    const removed = await removeLockFileIfExists(lockPath);
+    return {
+      lockPath,
+      activeHolder: null,
+      removed,
+    };
+  }
+
+  const staleUnknown = await isUnknownLockStale(lockPath, BOOTSTRAP_LOCK_UNKNOWN_STALE_TIMEOUT_MS);
+  if (staleUnknown) {
+    const removed = await removeLockFileIfExists(lockPath);
+    return {
+      lockPath,
+      activeHolder: null,
+      removed,
+    };
+  }
+
+  return {
+    lockPath,
+    activeHolder: null,
+    removed: false,
+  };
+}
+
+async function isUnknownLockStale(lockPath: string, staleAfterMs: number): Promise<boolean> {
+  try {
+    const stats = await fs.stat(lockPath);
+    return Date.now() - stats.mtimeMs > staleAfterMs;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+      return false;
+    }
+    return false;
+  }
+}
+
+async function removeLockFileIfExists(lockPath: string): Promise<boolean> {
+  try {
+    await fs.unlink(lockPath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+      return false;
+    }
+    return false;
   }
 }
 
@@ -1038,7 +1134,7 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
 }
 
 async function withQueryCommandTimeout<T>(
-  operation: 'bootstrap' | 'execution',
+  operation: 'bootstrap' | 'execution' | 'initialize',
   timeoutMs: number,
   run: () => Promise<T>
 ): Promise<T> {
@@ -1049,7 +1145,11 @@ async function withQueryCommandTimeout<T>(
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       const nextTimeoutMs = Math.max(Math.round(timeoutMs * 1.5), timeoutMs + 1000);
-      const step = operation === 'bootstrap' ? 'Bootstrap during query' : 'Query execution';
+      const step = operation === 'bootstrap'
+        ? 'Bootstrap during query'
+        : operation === 'initialize'
+          ? 'Storage initialization'
+          : 'Query execution';
       reject(
         createError(
           'QUERY_TIMEOUT',
@@ -1176,7 +1276,11 @@ async function executeQueryBootstrapWithRecovery(
   };
 
   try {
-    await runBootstrap(params.storage, params.timeoutMs, params.config);
+    await withQueryCommandTimeout(
+      'bootstrap',
+      params.timeoutMs,
+      () => runBootstrap(params.storage, params.timeoutMs, params.config)
+    );
     return params.storage;
   } catch (error) {
     const recoveredStorage = await recoverQueryStorageAfterFailure({
@@ -1187,7 +1291,11 @@ async function executeQueryBootstrapWithRecovery(
       phase: 'bootstrap',
     });
     if (!recoveredStorage) throw error;
-    await runBootstrap(recoveredStorage, params.timeoutMs, params.config);
+    await withQueryCommandTimeout(
+      'bootstrap',
+      params.timeoutMs,
+      () => runBootstrap(recoveredStorage, params.timeoutMs, params.config)
+    );
     return recoveredStorage;
   }
 }

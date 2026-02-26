@@ -335,6 +335,38 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
+  it('auto-recovers stale bootstrap lock artifacts before query execution', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-bootstrap-lock-stale-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const bootstrapLockPath = path.join(librarianDir, 'bootstrap.lock');
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(
+        bootstrapLockPath,
+        JSON.stringify({
+          pid: 999999,
+          startedAt: '2026-02-26T00:00:00.000Z',
+        }),
+        'utf8',
+      );
+      vi.mocked(resolveDbPath).mockResolvedValueOnce(sqlitePath);
+
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+
+      await expect(fs.access(bootstrapLockPath)).rejects.toBeDefined();
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('auto-recovers stale legacy lock artifacts before query execution', async () => {
     const { queryCommand } = await import('../query.js');
     const { resolveDbPath } = await import('../../db_path.js');
@@ -767,6 +799,22 @@ describe('queryCommand LLM resolution', () => {
     const { queryLibrarian } = await import('../../../api/query.js');
 
     vi.mocked(queryLibrarian).mockImplementationOnce(
+      () => new Promise<never>(() => {})
+    );
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json', '--timeout', '30'],
+    })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
+  });
+
+  it('fails fast with QUERY_TIMEOUT when bootstrap stage makes no progress', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(bootstrapProject).mockImplementationOnce(
       () => new Promise<never>(() => {})
     );
 
