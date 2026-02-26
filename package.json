@@ -147,6 +147,7 @@
     "format:check": "prettier --check 'src/**/*.ts'",
     "eval:ci": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-corpus.ts",
     "eval:ab": "node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-harness.ts",
+    "eval:test-sequence:impact-aware": "node scripts/run-with-tmpdir.mjs -- tsx scripts/eval-impact-aware-test-sequence.ts",
     "eval:ab:agentic": "node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-harness.ts --taskpack agentic --workers control,treatment --evidenceProfile release --requireAgentCommandTasks --requireBaselineFailureForAgentTasks --minAgentCommandShare 1 --minAgentVerifiedExecutionShare 1 --minAgentCritiqueShare 1 --minArtifactIntegrityShare 1 --maxVerificationFallbackShare 0 --minT3SuccessRateLift 0.25 --requireT3Significance --timeoutMs 420000",
     "eval:ab:agentic-bugfix": "node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-harness.ts --taskpack agentic-bugfix --workers control,treatment --evidenceProfile release --requireAgentCommandTasks --requireBaselineFailureForAgentTasks --minAgentCommandShare 1 --minAgentVerifiedExecutionShare 1 --minAgentCritiqueShare 1 --minArtifactIntegrityShare 1 --maxVerificationFallbackShare 0 --minT3SuccessRateLift 0.25 --requireT3Significance --timeoutMs 420000",
     "eval:ab:agentic-bugfix:codex": "AB_HARNESS_AGENT_CMD=\"node $(pwd)/scripts/ab-agent-codex.mjs\" npm run eval:ab:agentic-bugfix",

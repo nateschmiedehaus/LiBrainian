@@ -69,3 +69,17 @@ Use this construction when a change has non-trivial uncertainty and you want:
 - If `changedFiles`/`changedFunctions`/`intent` are missing, the planner returns fallback-only guidance.
 - If call-graph storage is available, transitive impact is incorporated into candidate ranking.
 - Use `selectedTests`, `skippedTests`, and `escalationPolicy` for decision trace artifacts.
+
+## Evaluation Artifacts
+
+Generate and refresh the #838 acceptance matrix artifacts with:
+
+```bash
+npm run eval:test-sequence:impact-aware
+```
+
+Outputs:
+- `docs/librarian/evals/test_sequence/impact_aware_baseline_vs_planner.csv`
+- `docs/librarian/evals/test_sequence/tasks/Txx/decision_trace.md`
+- `docs/librarian/evals/test_sequence/tasks/Txx/planned_sequence.md`
+- `docs/librarian/evals/test_sequence/impact_aware_methodology.md`
