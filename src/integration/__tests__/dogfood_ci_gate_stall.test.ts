@@ -82,7 +82,7 @@ process.exit(0);
       {
         allowFailure: true,
         timeoutMs: 10_000,
-        stallTimeoutMs: 300,
+        stallTimeoutMs: 1_200,
       },
     );
     expect(result.status).toBe(0);

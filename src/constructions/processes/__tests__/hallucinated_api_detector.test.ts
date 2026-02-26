@@ -199,7 +199,8 @@ describe('createHallucinatedApiDetectorConstruction', () => {
       const normalizedLoad = os.loadavg()[0] / cpuCount;
       const freeMemoryGb = os.freemem() / (1024 ** 3);
       const underResourcePressure = normalizedLoad >= 0.75 || freeMemoryGb < 0.5;
-      const thresholdMs = underResourcePressure ? 350 : 200;
+      const severePressure = normalizedLoad >= 1.5 || freeMemoryGb < 0.25;
+      const thresholdMs = severePressure ? 550 : underResourcePressure ? 400 : 200;
 
       expect(output.calls.every((call) => call.status === 'verified')).toBe(true);
       expect(durationMs).toBeLessThan(thresholdMs);

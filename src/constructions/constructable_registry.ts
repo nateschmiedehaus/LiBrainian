@@ -280,6 +280,15 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
     tags: ['core', 'process', 'preset', 'performance', 'quality', 'agentic'],
   },
   {
+    id: 'dogfood-autolearner',
+    basePriority: 88,
+    isCore: true,
+    availability: READY,
+    description: 'Learns from dogfood artifacts and emits ranked reliability/natural-usage interventions with restraint',
+    motivation: 'Turn recurring dogfood failures into a deterministic improvement loop that ranks highest-impact fixes and avoids ritualized over-optimization.',
+    tags: ['core', 'process', 'preset', 'evaluation', 'agentic'],
+  },
+  {
     id: 'regression-detector',
     basePriority: 76,
     isCore: true,

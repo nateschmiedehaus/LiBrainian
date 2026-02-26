@@ -224,6 +224,15 @@ export {
 } from './performance_regression_sensor.js';
 
 export {
+  createDogfoodAutoLearnerConstruction,
+  type DogfoodRecommendation,
+  type DogfoodOwnerSurface,
+  type DogfoodAutoLearnerInput,
+  type DogfoodIntervention,
+  type DogfoodAutoLearnerOutput,
+} from './dogfood_autolearner.js';
+
+export {
   createBootstrapQualityGateConstruction,
   type BootstrapQualityFixture,
   type BootstrapQualityGateInput,

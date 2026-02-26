@@ -65,6 +65,7 @@ export const OFFICIAL_CONSTRUCTION_SLUGS = [
   'semantic-duplicate-detector',
   'hallucinated-api-detector',
   'performance-regression-sensor',
+  'dogfood-autolearner',
   'regression-detector',
   'onboarding-assistant',
   'release-qualification',

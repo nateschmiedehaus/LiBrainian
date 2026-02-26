@@ -100,6 +100,7 @@ describe('default construction registry', () => {
       'librainian:semantic-duplicate-detector',
       'librainian:hallucinated-api-detector',
       'librainian:performance-regression-sensor',
+      'librainian:dogfood-autolearner',
       'librainian:regression-detector',
       'librainian:onboarding-assistant',
       'librainian:agent-handoff-package',

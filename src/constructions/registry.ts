@@ -14,6 +14,7 @@ import type { IntentBehaviorCoherenceInput } from './processes/intent_behavior_c
 import type { SemanticDuplicateDetectorInput } from './processes/semantic_duplicate_detector.js';
 import type { APIDetectorInput } from './processes/hallucinated_api_detector.js';
 import type { PerformanceSensorInput } from './processes/performance_regression_sensor.js';
+import type { DogfoodAutoLearnerInput } from './processes/dogfood_autolearner.js';
 import type { AgentHandoffPackageInput } from './processes/agent_handoff_package_construction.js';
 import {
   LEGACY_CONSTRUCTION_ALIASES,
@@ -23,6 +24,7 @@ import {
   type ConstructionListFilter,
   type ConstructionManifest,
   type ConstructionSchema,
+  type LegacyConstructionId,
   fail,
   isConstructionOutcome,
   isConstructionId,
@@ -382,7 +384,7 @@ function seedRegistryWithDefaults(): void {
       ],
       construction: createUnavailableConstruction(canonicalId, humanizeSlug(definition.id)),
       available: false,
-      legacyIds: [definition.id],
+      legacyIds: [definition.id as LegacyConstructionId],
     };
     CONSTRUCTION_REGISTRY.register(canonicalId, manifest);
   }
@@ -627,6 +629,46 @@ function activateCoreConstructions(): void {
       agentSummary: { type: 'string' },
     },
     required: ['analyses', 'regressions', 'hotPathRegressions', 'agentSummary'],
+    additionalProperties: true,
+  };
+
+  const DOGFOOD_AUTOLEARNER_INPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      runDir: { type: 'string' },
+      workspaceRoot: { type: 'string' },
+      naturalUsageMetricsPath: { type: 'string' },
+      ablationReplayPath: { type: 'string' },
+      errorTaxonomyPath: { type: 'string' },
+      decisionTraceRoot: { type: 'string' },
+      maxInterventions: { type: 'number' },
+    },
+    additionalProperties: false,
+  };
+
+  const DOGFOOD_AUTOLEARNER_OUTPUT_SCHEMA: ConstructionSchema = {
+    type: 'object',
+    properties: {
+      kind: { type: 'string' },
+      runDir: { type: 'string' },
+      generatedAt: { type: 'string' },
+      healthBand: { type: 'string' },
+      noOpReason: { type: 'string' },
+      applyNow: { type: 'array' },
+      observeOnly: { type: 'array' },
+      topInterventions: { type: 'array' },
+      markdownPlan: { type: 'string' },
+    },
+    required: [
+      'kind',
+      'runDir',
+      'generatedAt',
+      'healthBand',
+      'applyNow',
+      'observeOnly',
+      'topInterventions',
+      'markdownPlan',
+    ],
     additionalProperties: true,
   };
 
@@ -1075,6 +1117,16 @@ function activateCoreConstructions(): void {
       execute: async (input, context) => {
         const { createPerformanceRegressionSensorConstruction } = await import('./processes/performance_regression_sensor.js');
         return createPerformanceRegressionSensorConstruction().execute(input as PerformanceSensorInput, context);
+      },
+    },
+    {
+      id: 'librainian:dogfood-autolearner',
+      inputSchema: DOGFOOD_AUTOLEARNER_INPUT_SCHEMA,
+      outputSchema: DOGFOOD_AUTOLEARNER_OUTPUT_SCHEMA,
+      requiredCapabilities: [],
+      execute: async (input, context) => {
+        const { createDogfoodAutoLearnerConstruction } = await import('./processes/dogfood_autolearner.js');
+        return createDogfoodAutoLearnerConstruction().execute(input as DogfoodAutoLearnerInput, context);
       },
     },
     {

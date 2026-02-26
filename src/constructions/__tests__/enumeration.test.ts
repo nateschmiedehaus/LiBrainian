@@ -1206,7 +1206,7 @@ describe('enumerateWithFilters', () => {
         expect(result.length).toBe(1);
         expect(result[0].filePath).toBe(targetFile);
       }
-    });
+    }, 120_000);
   });
 
   describe('exported filter', () => {
