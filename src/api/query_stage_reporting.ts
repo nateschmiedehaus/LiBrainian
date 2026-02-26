@@ -1,4 +1,5 @@
 import type {
+  CoverageAssessment,
   QueryStageObserver,
   StageIssue,
   StageName,
@@ -15,6 +16,19 @@ type StageContext = {
 };
 
 export type StageTracker = ReturnType<typeof createStageTracker>;
+
+export interface CoverageAssessmentWeights {
+  baseOffset: number;
+  packDivisor: number;
+  gapPenaltyMax: number;
+  gapPenaltyStep: number;
+  totalConfidenceWeight: number;
+  successRatioWeight: number;
+  failedCountWeight: number;
+  confidenceBase: number;
+  confidenceSuccessWeight: number;
+  confidenceFailedWeight: number;
+}
 
 export function normalizeStageObserver(value: unknown): QueryStageObserver | undefined {
   if (value === undefined || value === null) {
@@ -164,5 +178,79 @@ export function buildStageCostSummary(stageReports: StageReport[]): {
     stageStatuses,
     semanticRetrievalTelemetry,
     rerankingTelemetry,
+  };
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function buildCoverageSuggestions(
+  stageReports: StageReport[],
+  gaps: CoverageAssessment['gaps'],
+  packCount: number
+): string[] {
+  const suggestions = new Set<string>();
+  const hasStage = (stageName: StageName, status?: StageReport['status'] | Array<StageReport['status']>) => {
+    const statusSet = Array.isArray(status) ? new Set(status) : null;
+    return stageReports.some((stage) => stage.stage === stageName && (!statusSet || statusSet.has(stage.status)));
+  };
+  if (packCount === 0) suggestions.add('Index the project and include affected files to improve coverage.');
+  if (hasStage('semantic_retrieval', ['partial', 'failed'])) {
+    suggestions.add('Provide a more specific intent or affected files for stronger semantic matches.');
+  }
+  if (hasStage('graph_expansion', ['skipped', 'failed'])) {
+    suggestions.add('Enable graph metrics during bootstrap to improve graph expansion.');
+  }
+  if (hasStage('synthesis', ['skipped', 'failed'])) {
+    suggestions.add('Enable LLM providers to generate synthesized answers.');
+  }
+  if (gaps.some((gap) => gap.severity === 'significant')) {
+    suggestions.add('Increase query depth or broaden affectedFiles to improve coverage.');
+  }
+  return Array.from(suggestions);
+}
+
+export function buildCoverageAssessment(options: {
+  stageReports: StageReport[];
+  totalConfidence: number;
+  packCount: number;
+  coverageGaps: string[];
+  weights: CoverageAssessmentWeights;
+}): CoverageAssessment {
+  const { stageReports, totalConfidence, packCount, coverageGaps, weights } = options;
+  const stageCount = Math.max(1, stageReports.length);
+  const successCount = stageReports.filter((stage) => stage.status === 'success').length;
+  const failedCount = stageReports.filter((stage) => stage.status === 'failed').length;
+  const baseCoverage = packCount > 0 ? Math.min(1, weights.baseOffset + packCount / weights.packDivisor) : 0;
+  const gapPenalty = Math.min(weights.gapPenaltyMax, coverageGaps.length * weights.gapPenaltyStep);
+  const successRatio = successCount / stageCount;
+  const estimatedCoverage = clamp01(
+    baseCoverage +
+      (totalConfidence * weights.totalConfidenceWeight) +
+      (successRatio * weights.successRatioWeight) -
+      gapPenalty -
+      (failedCount * weights.failedCountWeight)
+  );
+  const coverageConfidence = clamp01(
+    weights.confidenceBase +
+      (successRatio * weights.confidenceSuccessWeight) -
+      (failedCount * weights.confidenceFailedWeight)
+  );
+  const gaps = stageReports.flatMap((stage) =>
+    stage.issues.map((issue) => ({
+      source: stage.stage,
+      description: issue.message,
+      severity: issue.severity,
+      remediation: issue.remediation,
+    }))
+  );
+  const suggestions = buildCoverageSuggestions(stageReports, gaps, packCount);
+  return {
+    estimatedCoverage,
+    coverageConfidence,
+    gaps,
+    suggestions,
   };
 }

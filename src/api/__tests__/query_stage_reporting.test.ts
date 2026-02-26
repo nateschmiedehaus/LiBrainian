@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createStageTracker } from '../query_stage_reporting.js';
+import { buildCoverageAssessment, createStageTracker } from '../query_stage_reporting.js';
 
 describe('query stage reporting', () => {
   it('queues issues before start and marks failed when output is empty', () => {
@@ -53,5 +53,55 @@ describe('query stage reporting', () => {
     });
     const report = tracker.report().find((stage) => stage.stage === 'reranking');
     expect(report?.results.telemetry?.rerankWindow).toBe(10);
+  });
+
+  it('builds coverage assessment with bounded metrics and actionable suggestions', () => {
+    const assessment = buildCoverageAssessment({
+      stageReports: [
+        {
+          stage: 'semantic_retrieval',
+          status: 'failed',
+          results: { inputCount: 1, outputCount: 0, filteredCount: 1 },
+          issues: [{ message: 'no semantic candidates', severity: 'significant' }],
+          durationMs: 10,
+        },
+        {
+          stage: 'graph_expansion',
+          status: 'skipped',
+          results: { inputCount: 0, outputCount: 0, filteredCount: 0 },
+          issues: [],
+          durationMs: 0,
+        },
+        {
+          stage: 'synthesis',
+          status: 'skipped',
+          results: { inputCount: 0, outputCount: 0, filteredCount: 0 },
+          issues: [],
+          durationMs: 0,
+        },
+      ],
+      totalConfidence: 0.2,
+      packCount: 0,
+      coverageGaps: ['missing evidence'],
+      weights: {
+        baseOffset: 0.2,
+        packDivisor: 12,
+        gapPenaltyMax: 0.4,
+        gapPenaltyStep: 0.04,
+        totalConfidenceWeight: 0.4,
+        successRatioWeight: 0.2,
+        failedCountWeight: 0.1,
+        confidenceBase: 0.2,
+        confidenceSuccessWeight: 0.6,
+        confidenceFailedWeight: 0.1,
+      },
+    });
+
+    expect(assessment.estimatedCoverage).toBeGreaterThanOrEqual(0);
+    expect(assessment.estimatedCoverage).toBeLessThanOrEqual(1);
+    expect(assessment.coverageConfidence).toBeGreaterThanOrEqual(0);
+    expect(assessment.coverageConfidence).toBeLessThanOrEqual(1);
+    expect(assessment.suggestions).toContain('Index the project and include affected files to improve coverage.');
+    expect(assessment.suggestions).toContain('Enable graph metrics during bootstrap to improve graph expansion.');
   });
 });
