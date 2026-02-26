@@ -74,3 +74,29 @@
 ### Generalizable Improvement Request
 
 - `librainian query` should emit a direct actionable remediation mode when index/bootstrap state is incomplete (for example: one-shot recover + retry), and bootstrap should fail fast with a clear timeout/error instead of silent stalls.
+
+---
+
+## Slice: ingestion helper/type-guard extraction (`query_ingestion_helpers.ts`)
+
+- Task: extract the ingestion payload parsing/type-guard helper cluster from `src/api/query.ts` into a dedicated module.
+- Uncertainty assessment: low (contiguous pure-helper seam with direct test coverage and no orchestration behavior changes).
+
+### Natural Usage Decision
+
+- Skipped LiBrainian query for this slice.
+- Skip reason: `deterministic_edit` (boundary was explicit and local after prior decomposition passes).
+- What would have changed the decision: a fast, deterministic "helper extraction map" primitive that reports movable pure-function clusters from a file without requiring full retrieval/synthesis.
+
+### Causal Decision Impact
+
+- Implemented extraction:
+  - new module `src/api/query_ingestion_helpers.ts`
+  - `query.ts` imports helper/type-guard functions and removes duplicated local implementations.
+- Added tests first:
+  - `src/api/__tests__/query_ingestion_helpers.test.ts` (initial fail when module missing; pass after extraction).
+
+### Verification/Resilience Note
+
+- Full-suite run initially failed with environment pressure (`ENOSPC` on hardcoded `/tmp/workspace` writes in `symbol_lookup_tools.test.ts`).
+- Added test robustness fix by moving that fixture to repo-local temp workspace via `fs.mkdtemp(path.join(process.cwd(), '.tmp', ...))`, then reran full verification successfully.

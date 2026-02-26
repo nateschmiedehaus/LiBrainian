@@ -38,10 +38,7 @@ import { isProjectUnderstandingQuery, PROJECT_UNDERSTANDING_PATTERNS, handleProj
 import { isArchitectureQuery, ARCHITECTURE_QUERY_PATTERNS, handleArchitectureQuery } from './architecture_overview.js';
 import { runEntryPointQueryStage } from './entry_point_query.js';
 import { createDeterministicContext, stableSort } from '../types.js';
-import type { CommitRecord } from '../ingest/commit_indexer.js';
-import type { OwnershipRecord } from '../ingest/ownership_indexer.js';
 import type { AdrRecord } from '../ingest/adr_indexer.js';
-import type { TestMapping as IngestTestMapping } from '../ingest/test_indexer.js';
 import { LIBRARIAN_VERSION } from '../index.js';
 import type { GraphEntityType, GraphMetricsEntry } from '../graphs/metrics.js';
 import { buildMetricEmbeddings, findGraphNeighbors } from '../graphs/embeddings.js';
@@ -250,6 +247,18 @@ import {
 import { type CachedResponse } from './query_cache_response_utils.js';
 import { hydrateCachedQueryResponse } from './query_cache_hydration.js';
 import { buildShortCircuitCachedResponse } from './query_short_circuit_response.js';
+import {
+  compileCodeownerPattern,
+  countFindings,
+  isAdrPayload,
+  isCommitPayload,
+  isOwnershipPayload,
+  isRecord,
+  isTestPayload,
+  readRecordArray,
+  readString,
+  readStringArray,
+} from './query_ingestion_helpers.js';
 import {
   expandPathCandidates,
   normalizePath,
@@ -6164,26 +6173,6 @@ function summarizeIngestionItem(
   }
 }
 
-function readString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
-}
-
-function readRecordArray(value: unknown): Array<Record<string, unknown>> {
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is Record<string, unknown> => isRecord(entry));
-}
-
-function countFindings(value: unknown): number {
-  if (!isRecord(value)) return 0;
-  const findings = Array.isArray(value.findings) ? value.findings.length : 0;
-  return findings;
-}
-
 function collectRelevantFiles(
   response: LibrarianResponse,
   workspace: string | undefined
@@ -6195,45 +6184,6 @@ function collectRelevantFiles(
     map.set(relative, normalizePath(file));
   }
   return map;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function isTestPayload(value: unknown): value is { mappings: IngestTestMapping[] } {
-  return isRecord(value) && Array.isArray(value.mappings);
-}
-
-function isCommitPayload(value: unknown): value is CommitRecord {
-  if (!isRecord(value)) return false;
-  return typeof value.commitHash === 'string' && Array.isArray(value.filesChanged);
-}
-
-function isOwnershipPayload(value: unknown): value is OwnershipRecord {
-  if (!isRecord(value)) return false;
-  return typeof value.path === 'string'
-    && typeof value.primaryOwner === 'string'
-    && Array.isArray(value.contributors);
-}
-
-function isAdrPayload(value: unknown): value is AdrRecord {
-  if (!isRecord(value)) return false;
-  return typeof value.path === 'string' && typeof value.title === 'string';
-}
-
-function compileCodeownerPattern(pattern: string): RegExp | null {
-  let normalized = pattern.trim();
-  if (!normalized || normalized.startsWith('#')) return null;
-  if (normalized.startsWith('!')) normalized = normalized.slice(1);
-  if (normalized.startsWith('/')) normalized = normalized.slice(1);
-  if (normalized.endsWith('/')) normalized = `${normalized}**`;
-  const escaped = normalized.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  const globbed = escaped
-    .replace(/\\\*\\\*/g, '.*')
-    .replace(/\\\*/g, '[^/]*')
-    .replace(/\\\?/g, '.');
-  return new RegExp(`^${globbed}$`);
 }
 
 async function collectIngestionContext(
