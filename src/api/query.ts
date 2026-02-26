@@ -1701,6 +1701,25 @@ export async function queryLibrarian(
     finalPacks = [...stage.packs, ...finalPacks];
     explanationParts.push(stage.explanation);
   };
+  type SpecializedStageResult = {
+    analyzed: boolean;
+    packs: ContextPack[];
+    explanation: string;
+  };
+  const runSpecializedAnalyzedStage = async (stage: {
+    enabled: boolean;
+    execute: () => Promise<SpecializedStageResult>;
+  }): Promise<void> => {
+    if (!stage.enabled) {
+      return;
+    }
+    const result = await stage.execute();
+    prependSpecializedPacks({
+      shouldPrepend: result.analyzed,
+      packs: result.packs,
+      explanation: result.explanation,
+    });
+  };
   // Add explanation for meta-query routing
   if (queryClassification?.isMetaQuery) {
     explanationParts.push('Meta-query detected: boosted documentation in ranking.');
@@ -1776,139 +1795,117 @@ export async function queryLibrarian(
   }
   // Handle refactoring safety queries - analyze impact of changes
   // Check both pattern match AND construction enablement
-  if (queryClassification?.isRefactoringSafetyQuery && queryClassification.refactoringTarget &&
-      isConstructionEnabled('refactoring-safety-checker', query.enabledConstructables)) {
-    const refactoringSafetyResult = await runRefactoringSafetyStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isRefactoringSafetyQuery &&
+      queryClassification.refactoringTarget &&
+      isConstructionEnabled('refactoring-safety-checker', query.enabledConstructables)
+    ),
+    execute: () => runRefactoringSafetyStage({
       storage,
-      target: queryClassification.refactoringTarget,
+      target: queryClassification!.refactoringTarget!,
       intent: query.intent ?? '',
       version,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: refactoringSafetyResult.analyzed,
-      packs: refactoringSafetyResult.packs,
-      explanation: refactoringSafetyResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle bug investigation queries - debug errors and trace issues
-  if (queryClassification?.isBugInvestigationQuery &&
-      isConstructionEnabled('bug-investigation-assistant', query.enabledConstructables)) {
-    const bugInvestigationResult = await runBugInvestigationStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isBugInvestigationQuery &&
+      isConstructionEnabled('bug-investigation-assistant', query.enabledConstructables)
+    ),
+    execute: () => runBugInvestigationStage({
       storage,
       intent: query.intent ?? '',
-      bugContext: queryClassification.bugContext,
+      bugContext: queryClassification?.bugContext,
       version,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: bugInvestigationResult.analyzed,
-      packs: bugInvestigationResult.packs,
-      explanation: bugInvestigationResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle security audit queries - find vulnerabilities
-  if (queryClassification?.isSecurityAuditQuery &&
-      isConstructionEnabled('security-audit-helper', query.enabledConstructables)) {
-    const securityAuditResult = await runSecurityAuditStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isSecurityAuditQuery &&
+      isConstructionEnabled('security-audit-helper', query.enabledConstructables)
+    ),
+    execute: () => runSecurityAuditStage({
       storage,
       intent: query.intent ?? '',
-      checkTypes: queryClassification.securityCheckTypes,
+      checkTypes: queryClassification?.securityCheckTypes,
       version,
       workspaceRoot,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: securityAuditResult.analyzed,
-      packs: securityAuditResult.packs,
-      explanation: securityAuditResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle architecture verification queries - check layer/boundary compliance
-  if (queryClassification?.isArchitectureVerificationQuery &&
-      isConstructionEnabled('architecture-verifier', query.enabledConstructables)) {
-    const architectureResult = await runArchitectureVerificationStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isArchitectureVerificationQuery &&
+      isConstructionEnabled('architecture-verifier', query.enabledConstructables)
+    ),
+    execute: () => runArchitectureVerificationStage({
       storage,
       intent: query.intent ?? '',
       version,
       workspaceRoot,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: architectureResult.analyzed,
-      packs: architectureResult.packs,
-      explanation: architectureResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle code quality queries - analyze complexity, duplication, smells
-  if (queryClassification?.isCodeQualityQuery &&
-      isConstructionEnabled('code-quality-reporter', query.enabledConstructables)) {
-    const codeQualityResult = await runCodeQualityStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isCodeQualityQuery &&
+      isConstructionEnabled('code-quality-reporter', query.enabledConstructables)
+    ),
+    execute: () => runCodeQualityStage({
       storage,
       intent: query.intent ?? '',
       version,
       workspaceRoot,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: codeQualityResult.analyzed,
-      packs: codeQualityResult.packs,
-      explanation: codeQualityResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle feature location queries - find where features are implemented
-  if (queryClassification?.isFeatureLocationQuery && queryClassification.featureTarget &&
-      isConstructionEnabled('feature-location-advisor', query.enabledConstructables)) {
-    const featureLocationResult = await runFeatureLocationStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(
+      queryClassification?.isFeatureLocationQuery &&
+      queryClassification.featureTarget &&
+      isConstructionEnabled('feature-location-advisor', query.enabledConstructables)
+    ),
+    execute: () => runFeatureLocationStage({
       storage,
       intent: query.intent ?? '',
-      featureTarget: queryClassification.featureTarget,
+      featureTarget: queryClassification!.featureTarget!,
       version,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: featureLocationResult.analyzed,
-      packs: featureLocationResult.packs,
-      explanation: featureLocationResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle refactoring opportunities queries - find code that should be refactored
-  if (queryClassification?.isRefactoringOpportunitiesQuery) {
-    const refactoringOpportunitiesResult = await runRefactoringOpportunitiesStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(queryClassification?.isRefactoringOpportunitiesQuery),
+    execute: () => runRefactoringOpportunitiesStage({
       storage,
       intent: query.intent ?? '',
       version,
       workspaceRoot,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: refactoringOpportunitiesResult.analyzed,
-      packs: refactoringOpportunitiesResult.packs,
-      explanation: refactoringOpportunitiesResult.explanation,
-    });
-  }
+    }),
+  });
   // Handle dependency management queries - analyze packages, find unused, outdated, etc.
-  if (queryClassification?.isDependencyManagementQuery) {
-    const dependencyMgmtResult = await runDependencyManagementStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(queryClassification?.isDependencyManagementQuery),
+    execute: () => runDependencyManagementStage({
       storage,
       intent: query.intent ?? '',
       version,
       workspaceRoot,
-      action: queryClassification.dependencyAction,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: dependencyMgmtResult.analyzed,
-      packs: dependencyMgmtResult.packs,
-      explanation: dependencyMgmtResult.explanation,
-    });
-  }
+      action: queryClassification?.dependencyAction,
+    }),
+  });
   // Handle decision support queries - help agents make technical choices
-  if (queryClassification?.isDecisionSupportQuery) {
-    const decisionSupportResult = await runDecisionSupportStage({
+  await runSpecializedAnalyzedStage({
+    enabled: Boolean(queryClassification?.isDecisionSupportQuery),
+    execute: () => runDecisionSupportStage({
       storage,
       intent: query.intent ?? '',
       version,
       workspaceRoot,
-    });
-    prependSpecializedPacks({
-      shouldPrepend: decisionSupportResult.analyzed,
-      packs: decisionSupportResult.packs,
-      explanation: decisionSupportResult.explanation,
-    });
-  }
+    }),
+  });
   // Add explanation for definition query routing
   if (queryClassification?.isDefinitionQuery) {
     explanationParts.push('Definition query detected: boosted interface/type declarations over implementations.');
