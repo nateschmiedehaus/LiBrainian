@@ -1,7 +1,7 @@
 # M1 Release Dry-Run Bundle (2026-02-26)
 
-- Generated at: 2026-02-26T00:49:11.058Z
-- Git SHA: d5b10da
+- Generated at: 2026-02-26T01:30:13.737Z
+- Git SHA: 6bf4906
 - Scope: M1 release-readiness rehearsal for docs + versioning + package release posture
 
 ## Commands
