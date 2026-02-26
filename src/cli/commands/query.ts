@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
+import { attemptStorageRecovery } from '../../storage/storage_recovery.js';
 import { queryLibrarian } from '../../api/query.js';
 import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '../../api/bootstrap.js';
 import { detectLibrarianVersion } from '../../api/versioning.js';
@@ -42,6 +43,7 @@ type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
 type QueryBootstrapDeferReason = 'watch_catchup' | 'stale_git_head';
+const LEGACY_DB_FILENAME = 'librarian.db';
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -194,6 +196,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   // Initialize storage
   const dbPath = await resolveDbPath(workspace);
+  await runQueryStorageLockPreflight(workspace, dbPath);
   const storage = createSqliteStorage(dbPath, workspace);
   await storage.initialize();
   try {
@@ -789,6 +792,101 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   } finally {
     await storage.close();
+  }
+}
+
+interface StorageLockHolder {
+  pid: number;
+  startedAt: string;
+}
+
+async function runQueryStorageLockPreflight(workspace: string, dbPath: string): Promise<void> {
+  const candidateDbPaths = getLockPreflightDbPaths(workspace, dbPath);
+
+  for (const candidateDbPath of candidateDbPaths) {
+    try {
+      const recovery = await attemptStorageRecovery(candidateDbPath);
+      if (recovery.recovered && recovery.actions.length > 0) {
+        console.error(
+          `[librarian] recovered stale lock state for ${path.basename(candidateDbPath)}: ${recovery.actions.join(', ')}`
+        );
+      }
+    } catch {
+      // Preflight is best-effort; initialize() still performs bounded lock handling.
+    }
+  }
+
+  const activeLock = await findActiveStorageLock(
+    candidateDbPaths.map((candidateDbPath) => `${candidateDbPath}.lock`)
+  );
+  if (!activeLock || activeLock.holder.pid === process.pid) return;
+
+  throw createError(
+    'QUERY_FAILED',
+    `Storage lock active (pid=${activeLock.holder.pid}, startedAt=${activeLock.holder.startedAt}). Wait for current run or run \`librarian doctor --heal\`.`
+  );
+}
+
+function getLockPreflightDbPaths(workspace: string, resolvedDbPath: string): string[] {
+  const paths = new Set<string>();
+  const resolved = path.resolve(resolvedDbPath);
+  paths.add(resolved);
+
+  const legacyPath = path.resolve(path.join(workspace, '.librarian', LEGACY_DB_FILENAME));
+  if (legacyPath !== resolved) {
+    paths.add(legacyPath);
+  }
+
+  return Array.from(paths);
+}
+
+async function findActiveStorageLock(
+  lockPaths: string[]
+): Promise<{ lockPath: string; holder: StorageLockHolder } | null> {
+  for (const lockPath of lockPaths) {
+    const holder = await readStorageLockHolder(lockPath);
+    if (!holder) continue;
+    if (isPidAlive(holder.pid)) {
+      return { lockPath, holder };
+    }
+  }
+  return null;
+}
+
+async function readStorageLockHolder(lockPath: string): Promise<StorageLockHolder | null> {
+  try {
+    const raw = await fs.readFile(lockPath, 'utf8');
+    const parsed = safeJsonParse<Record<string, unknown>>(raw);
+    if (parsed.ok) {
+      const pid = parsed.value.pid;
+      const startedAt = parsed.value.startedAt;
+      if (typeof pid === 'number' && Number.isFinite(pid)) {
+        return {
+          pid,
+          startedAt: typeof startedAt === 'string' ? startedAt : 'unknown',
+        };
+      }
+    }
+    const legacyPid = Number.parseInt(raw.trim(), 10);
+    if (Number.isFinite(legacyPid)) {
+      return { pid: legacyPid, startedAt: 'unknown' };
+    }
+    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+      return null;
+    }
+    return null;
+  }
+}
+
+function isPidAlive(pid: number): boolean {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException | undefined)?.code === 'EPERM';
   }
 }
 

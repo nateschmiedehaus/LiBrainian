@@ -30,3 +30,5 @@
   - Stopped at one successful query after the failed/hung attempt and did not force repeated retries.
 - Improvement request:
   - Query command should fail fast with actionable lock-holder diagnostics when lock state is stale/contended instead of producing prolonged no-output sessions.
+- Follow-up tracking:
+  - Filed `#844` for lock-hygiene/no-output stall remediation (legacy+sqlite lock drift).

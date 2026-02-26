@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { spawn } from 'node:child_process';
 
 vi.mock('../../../api/query.js', () => ({
   queryLibrarian: vi.fn().mockResolvedValue({
@@ -189,6 +190,78 @@ describe('queryCommand LLM resolution', () => {
     const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
     expect(call?.embeddingRequirement).toBe('disabled');
     expect(call?.llmRequirement).toBe('disabled');
+  });
+
+  it('fails fast when an active storage lock holder is detected before query execution', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-lock-active-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const lockPath = `${sqlitePath}.lock`;
+    const lockHolder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 15000)'], {
+      stdio: 'ignore',
+    });
+    const holderPid = lockHolder.pid;
+    if (!holderPid) {
+      lockHolder.kill('SIGKILL');
+      throw new Error('expected spawned lock holder pid');
+    }
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(
+        lockPath,
+        JSON.stringify({
+          pid: holderPid,
+          startedAt: '2026-02-26T00:00:00.000Z',
+        }),
+        'utf8',
+      );
+      vi.mocked(resolveDbPath).mockResolvedValueOnce(sqlitePath);
+
+      await expect(queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      })).rejects.toMatchObject({ code: 'QUERY_FAILED' });
+    } finally {
+      lockHolder.kill('SIGKILL');
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('auto-recovers stale legacy lock artifacts before query execution', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-lock-stale-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const legacyPath = path.join(librarianDir, 'librarian.db');
+    const legacyLockPath = `${legacyPath}.lock`;
+    const legacyWalPath = `${legacyPath}-wal`;
+    const legacyShmPath = `${legacyPath}-shm`;
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(legacyLockPath, JSON.stringify({ pid: 999999 }), 'utf8');
+      await fs.writeFile(legacyWalPath, 'wal', 'utf8');
+      await fs.writeFile(legacyShmPath, 'shm', 'utf8');
+      vi.mocked(resolveDbPath).mockResolvedValueOnce(sqlitePath);
+
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+
+      await expect(fs.access(legacyLockPath)).rejects.toBeDefined();
+      await expect(fs.access(legacyWalPath)).rejects.toBeDefined();
+      await expect(fs.access(legacyShmPath)).rejects.toBeDefined();
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   });
 
   it('blocks --strategy semantic when embedding coverage is below threshold', async () => {
