@@ -426,6 +426,9 @@ npx tsx examples/feedback_loop_example.ts
 - Construction testing guide: `docs/constructions/testing.md`
 - Construction migration guide: `docs/constructions/migration.md`
 - Core docs: `docs/librarian/README.md`
+- M1 release charter: `docs/librarian/releases/m1-release-charter.md`
+- Versioning policy: `docs/librarian/releases/versioning-policy.md`
+- Latest M1 dry-run bundle: `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md`
 - Universal integration guide: `docs/integrations/README.md`
 - MCP setup: `docs/mcp-setup.md`
 - MCP design principles: `docs/mcp-design-principles.md`

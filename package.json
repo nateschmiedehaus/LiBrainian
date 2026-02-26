@@ -225,6 +225,8 @@
     "evidence:refresh": "node scripts/refresh-final-verification.mjs --max-samples 6 --benchmark-timeout-ms 45000 && npm run evidence:sync",
     "packs:export": "node scripts/context-pack-export.mjs",
     "packs:diff": "node scripts/context-pack-diff.mjs",
+    "release:m1:checklist": "npm run build && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts src/__tests__/m1_release_charter_docs.test.ts && npm run test:agentic:strict",
+    "release:m1:dry-run-bundle": "node scripts/generate-m1-release-bundle.mjs",
     "release:pack": "npm run package:assert-identity && npm run clean && npm run build && npm run package:install-smoke && npm pack",
     "release:dry-run": "npm run release:pack",
     "dogfood": "node scripts/dogfood-sandbox.mjs",

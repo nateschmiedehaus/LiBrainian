@@ -61,6 +61,9 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Implementation plan -> `docs/librarian/WORKPLAN.md`
 - Integration plan -> `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md`
 - Packaging and onboarding -> `docs/librarian/PACKAGING_AND_ONBOARDING.md`
+- M1 release charter -> `docs/librarian/releases/m1-release-charter.md`
+- Versioning policy -> `docs/librarian/releases/versioning-policy.md`
+- M1 dry-run bundle -> `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md`
 - Model selection policy -> `docs/librarian/MODEL_POLICY.md`
 - Validation and audits -> `docs/librarian/validation.md`, `docs/librarian/AUDIT.md`
 - Target vs reality -> `docs/librarian/STATUS.md`
@@ -100,6 +103,9 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - `docs/librarian/WORKPLAN.md` (phased build plan)
 - `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md` (integration plan)
 - `docs/librarian/PACKAGING_AND_ONBOARDING.md` (packaging + onboarding)
+- `docs/librarian/releases/m1-release-charter.md` (M1 release gates and milestone closeout policy)
+- `docs/librarian/releases/versioning-policy.md` (semver + prerelease promotion policy)
+- `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md` (latest dry-run release bundle)
 - `docs/librarian/pending-items-analysis.md` (pending TODOs and roadmap items)
 
 ### Operations
