@@ -16,6 +16,11 @@ Version: 1.4.6
 - First run initialized: `docs/librarian/evals/dogfood/m0_qualitative_runs/20260225-193500Z/`
 - First completed task artifact: `T02` (strategic contract consumer remediation) recorded in run folder
 - Current state: first qualitative run complete at 12/12 tasks with GO decision; follow-up issues filed: #822, #823, #824
+- #833 natural-usage matrix artifacts captured:
+  - `natural_usage_metrics.csv`
+  - `ablation_replay.csv`
+  - `tasks/T01..T12/decision_trace.md`
+- Real-session natural-failure evidence captured with concrete follow-up: `#834`
 
 ---
 

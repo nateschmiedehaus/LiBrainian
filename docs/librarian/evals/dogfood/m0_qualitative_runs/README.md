@@ -9,10 +9,12 @@ Minimum contents per run:
 
 - `task_matrix.csv`
 - `objective_metrics.csv`
+- `natural_usage_metrics.csv`
+- `ablation_replay.csv`
 - `subjective_scores.csv`
 - `aggregate.md`
 - `incidents.md`
 - `decision.md`
-- `tasks/T01..T12/{prompt.md,session.log,outputs.md,citations.md}`
+- `tasks/T01..T12/{prompt.md,session.log,outputs.md,citations.md,decision_trace.md}`
 
 Use `docs/librarian/evals/dogfood/m0_qualitative_protocol.md` as the canonical procedure and scoring policy.

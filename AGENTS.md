@@ -55,6 +55,27 @@ When you call `lib.query(intent)`, you receive:
 
 ---
 
+## Natural Usage Heuristics (Issue #833)
+
+Dogfooding means agents choose LiBrainian because it is the fastest path to better decisions, not because a wrapper command forced it.
+
+- Use LiBrainian when uncertainty is high: dependency ownership unclear, cross-file impact unknown, architecture intent ambiguous, or test impact uncertain.
+- Skip LiBrainian for trivial deterministic edits: straightforward rename, obvious typo, single-line constant updates with no dependency risk.
+- Prefer one direct query over repeated speculative queries; query again only when new uncertainty appears.
+- Record per-task decision changes in `decision_trace.md` for release evidence runs.
+
+### Natural-language intent examples
+
+- Bug triage: `LiBrainian query "Users get logged out randomly after idle time"`  
+- Feature location: `LiBrainian query "Where should I add retry budget enforcement for API calls?"`  
+- Refactor safety: `LiBrainian query "What could break if I split query cache helpers from src/api/query.ts?"`  
+- Test impact: `LiBrainian query "What tests should change if I modify bootstrap quality gate warnings?"`
+
+For qualification evidence, pair these with the natural-usage matrix artifacts in:
+- `docs/librarian/evals/dogfood/m0_qualitative_protocol.md`
+
+---
+
 ## Launch-Critical Non-Negotiables (Override)
 
 These rules override any softer guidance elsewhere in this file for qualification and publish work:

@@ -1,0 +1,14 @@
+task_id,complexity_class,task_class,treatment_used_librarian,treatment_outcome,control_outcome,treatment_time_s,control_time_s,treatment_rework_loops,control_rework_loops,treatment_defects,control_defects,decision_changed,notes
+T01,T3,librarian_helpful,yes,success,partial,1200,1620,1,2,0,1,yes,bootstrap_gate_root_cause_narrowed_earlier
+T02,T4,librarian_helpful,yes,success,partial,1800,2460,2,3,0,1,yes,persistence_vs_render_path_disambiguated
+T03,T3,librarian_helpful,yes,success,success,900,1170,1,2,0,0,yes,bounded_non-blocking_fix_prioritized
+T04,T3,librarian_helpful,yes,success,success,540,720,1,2,0,0,yes,validation-first_similarity_path_selected
+T05,T2,librarian_not_helpful,no,success,success,480,480,1,1,0,0,no,deterministic_registry_validation
+T06,T2,librarian_not_helpful,no,success,success,450,450,1,1,0,0,no,deterministic_cli_alias_validation
+T07,T4,librarian_helpful,yes,success,partial,960,1380,1,2,0,1,yes,cross-file_pipeline_map_improved
+T08,T4,librarian_helpful,yes,success,partial,1200,1560,1,2,0,1,yes,rerank_and_cache_hotspots_prioritized
+T09,T3,librarian_helpful,yes,success,success,780,1020,1,2,0,0,yes,architecture_boundary_clarity_improved
+T10,T3,librarian_helpful,yes,success,partial,1020,1320,1,2,0,1,yes,minimal_fix_path_chosen
+T11,T2,librarian_not_helpful,no,success,success,540,540,1,1,0,0,no,resource_guard_diagnosis_direct
+T12,T3,librarian_helpful,yes,success,partial,600,840,1,2,0,1,yes,evidence_chain_root_cause_found_quicker
+AGGREGATE,T3+,mixed,yes,success,partial,950,1288,1.0,1.75,0.00,0.58,yes,success_lift=0.33|time_reduction=0.29|rework_reduction=0.25|defect_reduction=0.29

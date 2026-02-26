@@ -1,0 +1,11 @@
+metric,value,threshold,passes,source,notes
+used_librarian_rate,0.75,>=0.70,true,decision_traces_12_tasks,9_of_12_tasks_used_librarian_without_forced_wrapper
+time_to_first_librarian_query_s_p50,150,<=180,true,real_sessions+decision_traces,median_for_tasks_where_librarian_was_used
+queries_per_task_p50,1.0,>=1_and_<=6,true,decision_traces_12_tasks,single_high-signal_query_most_common
+success_lift_t3_plus,0.33,>=0.25,true,ablation_replay,counterfactual_control_replays_vs_treatment
+time_reduction_t3_plus,0.29,>=0.20,true,ablation_replay,median_relative_reduction
+rework_reduction_t3_plus,0.25,>=0.20,true,ablation_replay,relative_reduction_in_rework_loops
+defect_reduction_t3_plus,0.29,>=0.20,true,ablation_replay,relative_reduction_in_missed_or_incorrect_paths
+use_decision_precision,1.00,>=0.80,true,decision_traces_12_tasks,all_use_decisions_were_in_helpful_class
+use_decision_recall,1.00,>=0.75,true,decision_traces_12_tasks,all_helpful_class_tasks_used_librarian
+unnecessary_query_rate,0.00,<=0.20,true,decision_traces_12_tasks,no_queries_on_not_helpful_class_tasks
