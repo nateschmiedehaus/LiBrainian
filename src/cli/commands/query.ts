@@ -44,6 +44,9 @@ type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
 type QueryBootstrapDeferReason = 'watch_catchup' | 'stale_git_head';
 const LEGACY_DB_FILENAME = 'librarian.db';
+const DEFAULT_QUERY_TIMEOUT_MS = 120_000;
+const DEFAULT_STORAGE_LOCK_TIMEOUT_MS = 5_000;
+const STORAGE_LOCK_RETRY_INTERVAL_MS = 200;
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -59,6 +62,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       diversify: { type: 'boolean', default: false },
       'diversity-lambda': { type: 'string' },
       timeout: { type: 'string', default: '0' },
+      'lock-timeout-ms': { type: 'string', default: String(DEFAULT_STORAGE_LOCK_TIMEOUT_MS) },
       json: { type: 'boolean', default: false },
       'no-synthesis': { type: 'boolean', default: false },
       deterministic: { type: 'boolean', default: false },
@@ -119,10 +123,17 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       return raw ? (path.isAbsolute(raw) ? raw : path.resolve(workspace, raw)) : '';
     }).filter(Boolean)
     : undefined;
-  const timeoutMs = parseInt(values.timeout as string, 10);
-  if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for LiBrainian queries');
-  }
+  const timeoutMs = parseNonNegativeInt(
+    typeof values.timeout === 'string' ? values.timeout : String(DEFAULT_QUERY_TIMEOUT_MS),
+    'timeout'
+  );
+  const effectiveQueryTimeoutMs = timeoutMs > 0 ? timeoutMs : DEFAULT_QUERY_TIMEOUT_MS;
+  const lockTimeoutMs = parseNonNegativeInt(
+    typeof values['lock-timeout-ms'] === 'string'
+      ? values['lock-timeout-ms']
+      : String(DEFAULT_STORAGE_LOCK_TIMEOUT_MS),
+    'lock-timeout-ms'
+  );
   const outputJson = values.json as boolean;
   const outputPath = typeof values.out === 'string' && values.out.trim().length > 0
     ? values.out.trim()
@@ -196,7 +207,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
   // Initialize storage
   const dbPath = await resolveDbPath(workspace);
-  await runQueryStorageLockPreflight(workspace, dbPath);
+  await runQueryStorageLockPreflight(workspace, dbPath, {
+    timeoutMs: lockTimeoutMs,
+    retryIntervalMs: STORAGE_LOCK_RETRY_INTERVAL_MS,
+  });
   const storage = createSqliteStorage(dbPath, workspace);
   await storage.initialize();
   try {
@@ -233,7 +247,11 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           skipLlm: true,
           skipEmbeddings,
         });
-        await bootstrapProject(config, storage);
+        await withQueryCommandTimeout(
+          'bootstrap',
+          effectiveQueryTimeoutMs,
+          () => bootstrapProject(config, storage)
+        );
         bootstrapSpinner.succeed('Bootstrap complete');
       } catch (error) {
         bootstrapSpinner.fail('Bootstrap failed');
@@ -508,13 +526,17 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     if (sessionRequested) {
       const sessionManager = new ContextAssemblySessionManager({
-        query: (sessionQuery) => queryLibrarian({
-          ...sessionQuery,
-          llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
-          embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
-          tokenBudget: sessionQuery.tokenBudget ?? tokenBudget,
-          deterministic,
-        }, storage),
+        query: (sessionQuery) => withQueryCommandTimeout(
+          'execution',
+          effectiveQueryTimeoutMs,
+          () => queryLibrarian({
+            ...sessionQuery,
+            llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
+            embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
+            tokenBudget: sessionQuery.tokenBudget ?? tokenBudget,
+            deterministic,
+          }, storage)
+        ),
       });
 
       const requestedSessionId = sessionFlagRaw.toLowerCase() === 'new' ? null : sessionFlagRaw;
@@ -623,7 +645,11 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     try {
       const startTime = Date.now();
-      const rawResponse = await queryLibrarian(query, storage);
+      const rawResponse = await withQueryCommandTimeout(
+        'execution',
+        effectiveQueryTimeoutMs,
+        () => queryLibrarian(query, storage)
+      );
       const { response, droppedCount } = applyPackLimit(rawResponse, limit);
       const strategyInfo = inferRetrievalStrategy(response);
       const displayResponse = sanitizeQueryResponseForOutput(response);
@@ -800,31 +826,54 @@ interface StorageLockHolder {
   startedAt: string;
 }
 
-async function runQueryStorageLockPreflight(workspace: string, dbPath: string): Promise<void> {
+interface QueryStorageLockPreflightOptions {
+  timeoutMs: number;
+  retryIntervalMs: number;
+}
+
+async function runQueryStorageLockPreflight(
+  workspace: string,
+  dbPath: string,
+  options: QueryStorageLockPreflightOptions
+): Promise<void> {
   const candidateDbPaths = getLockPreflightDbPaths(workspace, dbPath);
+  const lockPaths = candidateDbPaths.map((candidateDbPath) => `${candidateDbPath}.lock`);
+  const timeoutMs = Math.max(0, options.timeoutMs);
+  const retryIntervalMs = Math.max(50, options.retryIntervalMs);
+  const deadline = Date.now() + timeoutMs;
+  let nextRecoveryAt = 0;
 
-  for (const candidateDbPath of candidateDbPaths) {
-    try {
-      const recovery = await attemptStorageRecovery(candidateDbPath);
-      if (recovery.recovered && recovery.actions.length > 0) {
-        console.error(
-          `[librarian] recovered stale lock state for ${path.basename(candidateDbPath)}: ${recovery.actions.join(', ')}`
-        );
+  while (true) {
+    const now = Date.now();
+    if (now >= nextRecoveryAt) {
+      for (const candidateDbPath of candidateDbPaths) {
+        try {
+          const recovery = await attemptStorageRecovery(candidateDbPath);
+          if (recovery.recovered && recovery.actions.length > 0) {
+            console.error(
+              `[librarian] recovered stale lock state for ${path.basename(candidateDbPath)}: ${recovery.actions.join(', ')}`
+            );
+          }
+        } catch {
+          // Preflight is best-effort; initialize() still performs bounded lock handling.
+        }
       }
-    } catch {
-      // Preflight is best-effort; initialize() still performs bounded lock handling.
+      nextRecoveryAt = now + 1_000;
     }
+
+    const activeLock = await findActiveStorageLock(lockPaths);
+    if (!activeLock || activeLock.holder.pid === process.pid) return;
+
+    if (Date.now() >= deadline) {
+      const nextTimeoutMs = Math.max(timeoutMs * 2, timeoutMs + 1000);
+      throw createError(
+        'STORAGE_LOCKED',
+        `Storage lock active (pid=${activeLock.holder.pid}, startedAt=${activeLock.holder.startedAt}, lock=${activeLock.lockPath}). Waited ${timeoutMs}ms; run \`librarian doctor --heal\` or retry with \`--lock-timeout-ms ${nextTimeoutMs}\`.`
+      );
+    }
+
+    await sleep(Math.min(retryIntervalMs, Math.max(1, deadline - Date.now())));
   }
-
-  const activeLock = await findActiveStorageLock(
-    candidateDbPaths.map((candidateDbPath) => `${candidateDbPath}.lock`)
-  );
-  if (!activeLock || activeLock.holder.pid === process.pid) return;
-
-  throw createError(
-    'QUERY_FAILED',
-    `Storage lock active (pid=${activeLock.holder.pid}, startedAt=${activeLock.holder.startedAt}). Wait for current run or run \`librarian doctor --heal\`.`
-  );
 }
 
 function getLockPreflightDbPaths(workspace: string, resolvedDbPath: string): string[] {
@@ -967,6 +1016,51 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
       keyFacts: sanitizeMessageList(pack.keyFacts) ?? [],
     })),
   };
+}
+
+async function withQueryCommandTimeout<T>(
+  operation: 'bootstrap' | 'execution',
+  timeoutMs: number,
+  run: () => Promise<T>
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return run();
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const nextTimeoutMs = Math.max(Math.round(timeoutMs * 1.5), timeoutMs + 1000);
+      const step = operation === 'bootstrap' ? 'Bootstrap during query' : 'Query execution';
+      reject(
+        createError(
+          'QUERY_TIMEOUT',
+          `${step} timed out after ${timeoutMs}ms. Run \`librarian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
+        )
+      );
+    }, timeoutMs);
+
+    run()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function parseNonNegativeInt(raw: string, optionName: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw createError('INVALID_ARGUMENT', `--${optionName} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function applyPackLimit(

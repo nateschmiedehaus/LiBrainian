@@ -43,6 +43,8 @@ export interface BootstrapCommandOptions {
   rawArgs: string[];
 }
 
+const DEFAULT_BOOTSTRAP_TIMEOUT_MS = 180_000;
+
 export async function bootstrapCommand(options: BootstrapCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
   let workspaceRoot = path.resolve(workspace);
@@ -63,7 +65,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     options: {
       force: { type: 'boolean', default: false },
       'force-resume': { type: 'boolean', default: false },
-      timeout: { type: 'string', default: '0' },
+      timeout: { type: 'string', default: String(DEFAULT_BOOTSTRAP_TIMEOUT_MS) },
       scope: { type: 'string', default: 'full' },
       mode: { type: 'string', default: 'full' },
       'emit-baseline': { type: 'boolean', default: false },
@@ -81,7 +83,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
 
   const force = values.force as boolean;
   const forceResume = values['force-resume'] as boolean;
-  const timeoutMs = parseInt(values.timeout as string, 10);
+  const timeoutMs = parseNonNegativeInt(values.timeout as string, 'timeout');
   const rawScope = typeof values.scope === 'string' ? values.scope.toLowerCase() : 'full';
   const scope = rawScope === 'librainian' ? 'librarian' : rawScope;
   const bootstrapModeRaw = typeof values.mode === 'string' ? values.mode.toLowerCase().trim() : 'full';
@@ -107,10 +109,6 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   if (force && forceResume) {
     throw createError('INVALID_ARGUMENT', 'Use either --force or --force-resume (not both).');
   }
-  if (timeoutMs > 0) {
-    throw createError('INVALID_ARGUMENT', 'Timeouts are not allowed for LiBrainian bootstrap');
-  }
-
   console.log('LiBrainian Bootstrap');
   console.log('===================\n');
   if (scope !== 'full') {
@@ -353,7 +351,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       const resolvedExclude = excludeOverride ?? scopeOverrides.exclude;
       const configOverrides: Partial<BootstrapConfig> = {
         bootstrapMode,
-        timeoutMs: undefined,
+        timeoutMs,
         skipLlm,
         skipEmbeddings,
         llmProvider,
@@ -377,7 +375,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       }
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
-      const report = await bootstrapProject(config, storage);
+      const report = await withBootstrapCommandTimeout(timeoutMs, () => bootstrapProject(config, storage));
       progressReporter.complete();
 
       const elapsed = Date.now() - startTime;
@@ -624,10 +622,51 @@ function parsePositiveInt(raw: string, optionName: string): number {
   return parsed;
 }
 
+function parseNonNegativeInt(raw: string, optionName: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw createError('INVALID_ARGUMENT', `--${optionName} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+async function withBootstrapCommandTimeout<T>(
+  timeoutMs: number,
+  run: () => Promise<T>
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return run();
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const nextTimeoutMs = Math.max(Math.round(timeoutMs * 1.5), timeoutMs + 1000);
+      reject(
+        createError(
+          'TIMEOUT',
+          `Bootstrap timed out after ${timeoutMs}ms. Run \`librainian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\`.`
+        )
+      );
+    }, timeoutMs);
+
+    run()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 function toSingleLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
 
 export const __testing = {
   resolveScopeOverrides,
+  parseNonNegativeInt,
+  withBootstrapCommandTimeout,
 };

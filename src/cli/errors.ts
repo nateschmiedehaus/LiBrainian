@@ -346,6 +346,8 @@ export type CliErrorCode =
   | 'BOOTSTRAP_FAILED'
   | 'INSUFFICIENT_EMBEDDING_COVERAGE'
   | 'QUERY_FAILED'
+  | 'QUERY_TIMEOUT'
+  | 'STORAGE_LOCKED'
   | 'ENTITY_NOT_FOUND'
   | 'VALIDATION_FAILED'
   | 'STORAGE_ERROR'
@@ -363,6 +365,8 @@ const LegacyCodeMap: Record<CliErrorCode, ErrorCode> = {
   BOOTSTRAP_FAILED: 'EBOOTSTRAP_FAILED',
   INSUFFICIENT_EMBEDDING_COVERAGE: 'EQUERY_INVALID',
   QUERY_FAILED: 'EQUERY_FAILED',
+  QUERY_TIMEOUT: 'EQUERY_TIMEOUT',
+  STORAGE_LOCKED: 'ESTORAGE_LOCKED',
   ENTITY_NOT_FOUND: 'EENTITY_NOT_FOUND',
   VALIDATION_FAILED: 'EINVALID_ARGUMENT',
   STORAGE_ERROR: 'ESTORAGE_CORRUPT',
@@ -381,6 +385,8 @@ export const ERROR_SUGGESTIONS: Record<CliErrorCode, string> = {
   BOOTSTRAP_FAILED: 'Check provider availability with `librarian check-providers` and ensure files are valid.',
   INSUFFICIENT_EMBEDDING_COVERAGE: 'Run `librarian embed --fix` and retry once embedding coverage is at least 80%.',
   QUERY_FAILED: 'Try a simpler query or check `librarian status` for index health.',
+  QUERY_TIMEOUT: 'Retry with a larger timeout via `--timeout <ms>` after running `librarian doctor --heal`.',
+  STORAGE_LOCKED: 'Wait for active indexing to finish or run `librarian doctor --heal` to clear stale locks.',
   ENTITY_NOT_FOUND: 'Run `librarian status` to see available modules and functions.',
   VALIDATION_FAILED: 'Check the file path and ensure it exists in the workspace.',
   STORAGE_ERROR: 'Run `librarian bootstrap --force` to reinitialize the storage.',

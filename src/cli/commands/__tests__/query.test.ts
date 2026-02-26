@@ -224,8 +224,48 @@ describe('queryCommand LLM resolution', () => {
       await expect(queryCommand({
         workspace,
         args: [],
-        rawArgs: ['query', 'hello world', '--json'],
-      })).rejects.toMatchObject({ code: 'QUERY_FAILED' });
+        rawArgs: ['query', 'hello world', '--json', '--lock-timeout-ms', '25'],
+      })).rejects.toMatchObject({ code: 'STORAGE_LOCKED' });
+    } finally {
+      lockHolder.kill('SIGKILL');
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('waits briefly for active lock holders to clear before running query', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-lock-wait-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const lockPath = `${sqlitePath}.lock`;
+    const lockHolder = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 160)'], {
+      stdio: 'ignore',
+    });
+    const holderPid = lockHolder.pid;
+    if (!holderPid) {
+      lockHolder.kill('SIGKILL');
+      throw new Error('expected spawned lock holder pid');
+    }
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(
+        lockPath,
+        JSON.stringify({
+          pid: holderPid,
+          startedAt: '2026-02-26T00:00:00.000Z',
+        }),
+        'utf8',
+      );
+      vi.mocked(resolveDbPath).mockResolvedValueOnce(sqlitePath);
+
+      await expect(queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json', '--lock-timeout-ms', '1200'],
+      })).resolves.toBeUndefined();
     } finally {
       lockHolder.kill('SIGKILL');
       await fs.rm(workspace, { recursive: true, force: true });
@@ -562,5 +602,20 @@ describe('queryCommand LLM resolution', () => {
     expect(lines.some((line) => line.includes('Index structural scan (19% complete). Results may be incomplete.'))).toBe(true);
     expect(lines.some((line) => line.includes('Low confidence (0.094)'))).toBe(true);
     expect(lines.some((line) => line.includes('Result coherence:'))).toBe(true);
+  });
+
+  it('fails fast with QUERY_TIMEOUT when query execution exceeds timeout budget', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockImplementationOnce(
+      () => new Promise<never>(() => {})
+    );
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json', '--timeout', '30'],
+    })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
   });
 });

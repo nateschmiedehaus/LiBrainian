@@ -17,4 +17,25 @@ describe('bootstrap scope overrides', () => {
     expect(overrides.include).toContain('src/__tests__/**/*.ts');
     expect(overrides.exclude).not.toContain('src/**/__tests__/**');
   });
+
+  it('accepts non-negative timeout values', () => {
+    expect(__testing.parseNonNegativeInt('0', 'timeout')).toBe(0);
+    expect(__testing.parseNonNegativeInt('2500', 'timeout')).toBe(2500);
+  });
+
+  it('rejects negative timeout values', () => {
+    expect(() => __testing.parseNonNegativeInt('-1', 'timeout')).toThrow('--timeout must be a non-negative integer');
+  });
+
+  it('fails fast when bootstrap timeout budget is exceeded', async () => {
+    await expect(
+      __testing.withBootstrapCommandTimeout(20, async () => new Promise<never>(() => {}))
+    ).rejects.toMatchObject({ code: 'TIMEOUT' });
+  });
+
+  it('does not time out when bootstrap work completes in budget', async () => {
+    await expect(
+      __testing.withBootstrapCommandTimeout(200, async () => 'ok')
+    ).resolves.toBe('ok');
+  });
 });
