@@ -1,5 +1,3 @@
-import { logWarning } from '../telemetry/logger.js';
-
 export type ModelProvider = 'claude' | 'codex';
 
 export interface ModelPolicyOptions {
@@ -71,7 +69,6 @@ export interface RegisterModelPolicyProviderOptions {
 }
 
 let modelPolicyProvider: ModelPolicyProvider | null = null;
-const warnedMissingProvider = new Set<string>();
 
 function coerceModelProvider(value: string | undefined): ModelProvider | null {
   if (value === 'claude' || value === 'codex') return value;
@@ -97,7 +94,7 @@ function resolveFallbackModelId(provider: ModelProvider): string {
     ?? 'claude-sonnet-4-20250514';
 }
 
-function createFallbackSelection(workspaceRoot: string, options: ModelPolicyOptions): DailyModelSelection {
+function createDefaultSelection(workspaceRoot: string, options: ModelPolicyOptions): DailyModelSelection {
   const now = (options.now ?? (() => new Date()))();
   const provider = resolveFallbackProvider(options);
   const modelId = resolveFallbackModelId(provider);
@@ -105,12 +102,13 @@ function createFallbackSelection(workspaceRoot: string, options: ModelPolicyOpti
     provider,
     model_id: modelId,
     name: modelId,
-    rationale: 'fallback_model_policy_provider_missing',
+    rationale: 'model_policy_default_selection',
     access_method: 'subscription',
     tool_support: true,
   };
   const notes = [
-    'fallback_model_policy_provider_missing',
+    'model_policy_default_selection',
+    `selected_provider=${provider}`,
     `workspace=${workspaceRoot}`,
   ];
   return {
@@ -159,14 +157,7 @@ export async function ensureDailyModelSelection(
   options: ModelPolicyOptions = {}
 ): Promise<DailyModelSelection | null> {
   if (!modelPolicyProvider) {
-    if (!warnedMissingProvider.has(workspaceRoot)) {
-      warnedMissingProvider.add(workspaceRoot);
-      logWarning(
-        'Model policy provider not registered; using fallback model selection.',
-        { workspaceRoot }
-      );
-    }
-    return createFallbackSelection(workspaceRoot, options);
+    return createDefaultSelection(workspaceRoot, options);
   }
   return await modelPolicyProvider.ensureDailyModelSelection(workspaceRoot, options);
 }
