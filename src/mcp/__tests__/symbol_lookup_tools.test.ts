@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
+import path from 'node:path';
 import { createLibrarianMCPServer } from '../server.js';
 
 describe('MCP symbol lookup tools', () => {
@@ -258,10 +259,13 @@ describe('MCP symbol lookup tools', () => {
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
-    const workspace = '/tmp/workspace';
-    await fs.mkdir('/tmp/workspace/src', { recursive: true });
+    const tmpRoot = path.join(process.cwd(), '.tmp');
+    await fs.mkdir(tmpRoot, { recursive: true });
+    const workspace = await fs.mkdtemp(path.join(tmpRoot, 'symbol-lookup-'));
+    const userFile = path.join(workspace, 'src', 'user.ts');
+    await fs.mkdir(path.dirname(userFile), { recursive: true });
     await fs.writeFile(
-      '/tmp/workspace/src/user.ts',
+      userFile,
       [
         'export async function getUserById(req: any, db: any) {',
         '  if (!req?.params?.userId) {',
@@ -281,7 +285,7 @@ describe('MCP symbol lookup tools', () => {
             id: 'fn-target',
             name: 'getUserById',
             signature: 'getUserById(req, db)',
-            filePath: '/tmp/workspace/src/user.ts',
+            filePath: userFile,
           };
         }
         return null;
@@ -292,7 +296,7 @@ describe('MCP symbol lookup tools', () => {
             id: 'fn-target',
             name: 'getUserById',
             signature: 'getUserById(req, db)',
-            filePath: '/tmp/workspace/src/user.ts',
+            filePath: userFile,
           }];
         }
         return [];
@@ -315,6 +319,7 @@ describe('MCP symbol lookup tools', () => {
     expect(Array.isArray(result.basicBlocks)).toBe(true);
     expect(result.totalBlocks).toBeGreaterThan(0);
     expect(Array.isArray(result.edges)).toBe(true);
+    await fs.rm(workspace, { recursive: true, force: true });
   });
 
   it('trace_data_flow finds source-to-sink evidence for request params into db.query', async () => {
@@ -322,10 +327,13 @@ describe('MCP symbol lookup tools', () => {
       authorization: { enabledScopes: ['read'], requireConsent: false },
     });
 
-    const workspace = '/tmp/workspace';
-    await fs.mkdir('/tmp/workspace/src', { recursive: true });
+    const tmpRoot = path.join(process.cwd(), '.tmp');
+    await fs.mkdir(tmpRoot, { recursive: true });
+    const workspace = await fs.mkdtemp(path.join(tmpRoot, 'symbol-lookup-'));
+    const userFile = path.join(workspace, 'src', 'user.ts');
+    await fs.mkdir(path.dirname(userFile), { recursive: true });
     await fs.writeFile(
-      '/tmp/workspace/src/user.ts',
+      userFile,
       [
         'export async function getUserById(req: any, db: any) {',
         '  const userId = req.params.userId;',
@@ -343,7 +351,7 @@ describe('MCP symbol lookup tools', () => {
             id: 'fn-target',
             name: 'getUserById',
             signature: 'getUserById(req, db)',
-            filePath: '/tmp/workspace/src/user.ts',
+            filePath: userFile,
           }];
         }
         if (name === 'query') {
@@ -351,7 +359,7 @@ describe('MCP symbol lookup tools', () => {
             id: 'fn-query',
             name: 'query',
             signature: 'query(sql, params)',
-            filePath: '/tmp/workspace/src/user.ts',
+            filePath: userFile,
           }];
         }
         return [];
@@ -360,7 +368,7 @@ describe('MCP symbol lookup tools', () => {
       getFunctions: vi.fn().mockResolvedValue([]),
       getFiles: vi.fn().mockResolvedValue([
         {
-          path: '/tmp/workspace/src/user.ts',
+          path: userFile,
           relativePath: 'src/user.ts',
           imports: [],
           importedBy: [],
@@ -382,5 +390,6 @@ describe('MCP symbol lookup tools', () => {
     expect(result.success).toBe(true);
     expect(Array.isArray(result.matches)).toBe(true);
     expect(result.totalMatches).toBeGreaterThanOrEqual(1);
+    await fs.rm(workspace, { recursive: true, force: true });
   });
 });
