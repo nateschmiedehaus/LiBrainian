@@ -375,7 +375,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       }
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
-      const report = await withBootstrapCommandTimeout(timeoutMs, () => bootstrapProject(config, storage));
+      const report = await bootstrapProject(config, storage);
       progressReporter.complete();
 
       const elapsed = Date.now() - startTime;

@@ -538,6 +538,13 @@ export function isErrorEnvelope(value: unknown): value is ErrorEnvelope {
 function inferErrorCodeFromMessage(message: string): ErrorCode {
   const lowerMessage = message.toLowerCase();
 
+  if (
+    lowerMessage.includes('budget_exhausted')
+    && (lowerMessage.includes('wall_time') || lowerMessage.includes('wall time'))
+  ) {
+    return 'ETIMEOUT';
+  }
+
   // Provider errors
   if (lowerMessage.includes('provider_unavailable') || lowerMessage.includes('provider unavailable')) {
     return 'EPROVIDER_UNAVAILABLE';

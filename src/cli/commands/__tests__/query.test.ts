@@ -128,6 +128,69 @@ describe('queryCommand LLM resolution', () => {
     const overrides = vi.mocked(createBootstrapConfig).mock.calls[0]?.[1];
     expect(overrides?.bootstrapMode).toBe('fast');
     expect(overrides?.skipLlm).toBe(true);
+    expect(overrides?.timeoutMs).toBe(120000);
+  });
+
+  it('maps governor wall-time bootstrap timeout to QUERY_TIMEOUT', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(bootstrapProject).mockRejectedValueOnce(
+      new Error('unverified_by_trace(budget_exhausted): Exceeded wall_time budget (health: -0.72)')
+    );
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--timeout', '5000', '--json'],
+    })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
+  });
+
+  it('recovers corrupted storage during bootstrap and retries bootstrap once', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-bootstrap-recovery-'));
+    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.writeFile(dbPath, 'corrupt', 'utf8');
+    vi.mocked(resolveDbPath).mockResolvedValueOnce(dbPath);
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+
+    const firstStorage = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const secondStorage = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createSqliteStorage)
+      .mockReturnValueOnce(firstStorage as any)
+      .mockReturnValueOnce(secondStorage as any);
+    vi.mocked(bootstrapProject)
+      .mockRejectedValueOnce(new Error('database disk image is malformed'))
+      .mockResolvedValueOnce({ success: true } as any);
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+      expect(bootstrapProject).toHaveBeenCalledTimes(2);
+      expect(firstStorage.close).toHaveBeenCalledTimes(1);
+      expect(secondStorage.initialize).toHaveBeenCalledTimes(1);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   });
 
   it('fails fast with actionable guidance when watch catch-up is required', async () => {
@@ -299,6 +362,101 @@ describe('queryCommand LLM resolution', () => {
       await expect(fs.access(legacyLockPath)).rejects.toBeDefined();
       await expect(fs.access(legacyWalPath)).rejects.toBeDefined();
       await expect(fs.access(legacyShmPath)).rejects.toBeDefined();
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers corrupted storage during initialization and retries query once', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-init-recovery-'));
+    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.writeFile(dbPath, 'corrupt', 'utf8');
+    vi.mocked(resolveDbPath).mockResolvedValueOnce(dbPath);
+
+    const firstStorage = {
+      initialize: vi.fn().mockRejectedValueOnce(new Error('database disk image is malformed')),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const secondStorage = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createSqliteStorage)
+      .mockReturnValueOnce(firstStorage as any)
+      .mockReturnValueOnce(secondStorage as any);
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+      expect(vi.mocked(queryLibrarian)).toHaveBeenCalledTimes(1);
+      expect(firstStorage.close).toHaveBeenCalledTimes(1);
+      expect(secondStorage.initialize).toHaveBeenCalledTimes(1);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers corrupted storage during query execution and retries once', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-exec-recovery-'));
+    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+    await fs.writeFile(dbPath, 'corrupt', 'utf8');
+    vi.mocked(resolveDbPath).mockResolvedValueOnce(dbPath);
+
+    const firstStorage = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const secondStorage = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createSqliteStorage)
+      .mockReturnValueOnce(firstStorage as any)
+      .mockReturnValueOnce(secondStorage as any);
+
+    vi.mocked(queryLibrarian)
+      .mockRejectedValueOnce(new Error('database disk image is malformed'))
+      .mockResolvedValueOnce({
+        intent: 'test',
+        depth: 'L1',
+        totalConfidence: 0.5,
+        cacheHit: false,
+        latencyMs: 10,
+        packs: [],
+      } as any);
+
+    try {
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+      expect(vi.mocked(queryLibrarian)).toHaveBeenCalledTimes(2);
+      expect(firstStorage.close).toHaveBeenCalledTimes(1);
+      expect(secondStorage.initialize).toHaveBeenCalledTimes(1);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

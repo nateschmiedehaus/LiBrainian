@@ -477,21 +477,32 @@ async function restoreBootstrapArtifactBackup(workspace: string): Promise<boolea
   return restored;
 }
 
+interface StaleBootstrapArtifactRecoveryResult {
+  hadBackup: boolean;
+  restored: boolean;
+}
+
 async function recoverStaleBootstrapArtifactBackup(
   workspace: string,
-  consistencyState: BootstrapConsistencyState | null
-): Promise<boolean> {
+  consistencyState: BootstrapConsistencyState | null,
+  options?: { restoreArtifacts?: boolean }
+): Promise<StaleBootstrapArtifactRecoveryResult> {
   const backupState = await readBootstrapArtifactBackup(workspace);
-  if (!backupState) return false;
+  if (!backupState) {
+    return { hadBackup: false, restored: false };
+  }
 
   if (consistencyState?.status === 'complete') {
     await clearBootstrapArtifactBackup(workspace);
-    return false;
+    return { hadBackup: true, restored: false };
   }
 
-  const restored = await restoreBootstrapArtifactBackup(workspace);
+  const restoreArtifacts = options?.restoreArtifacts !== false;
+  const restored = restoreArtifacts
+    ? await restoreBootstrapArtifactBackup(workspace)
+    : false;
   await clearBootstrapArtifactBackup(workspace);
-  return restored;
+  return { hadBackup: true, restored };
 }
 
 async function readBootstrapRecoveryState(workspace: string): Promise<BootstrapRecoveryState | null> {
@@ -2386,9 +2397,16 @@ export async function bootstrapProject(
     workspaceFingerprint: effectiveFingerprint,
   });
   const existingConsistency = await readBootstrapConsistencyState(workspace);
-  const recoveredFromStaleBackup = await recoverStaleBootstrapArtifactBackup(workspace, existingConsistency);
-  if (recoveredFromStaleBackup) {
+  const staleBackupRecovery = await recoverStaleBootstrapArtifactBackup(workspace, existingConsistency, {
+    restoreArtifacts: !config.forceReindex,
+  });
+  if (staleBackupRecovery.restored) {
     logWarning('Bootstrap: restored stale pre-bootstrap artifact backup before starting new run', {
+      workspace,
+      previousConsistencyStatus: existingConsistency?.status ?? 'missing',
+    });
+  } else if (staleBackupRecovery.hadBackup && config.forceReindex) {
+    logWarning('Bootstrap: discarded stale pre-bootstrap artifact backup before forced reindex', {
       workspace,
       previousConsistencyStatus: existingConsistency?.status ?? 'missing',
     });
@@ -4995,6 +5013,9 @@ export const __testing = {
   readBootstrapRecoveryState,
   writeBootstrapRecoveryState,
   clearBootstrapRecoveryState,
+  bootstrapConsistencyPath,
+  bootstrapArtifactBackupPath,
+  recoverStaleBootstrapArtifactBackup,
   createBootstrapCheckpointWriter,
   computeWorkspaceFingerprint,
   fingerprintsMatch,

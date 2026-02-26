@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
-import { attemptStorageRecovery } from '../../storage/storage_recovery.js';
+import { attemptStorageRecovery, isRecoverableStorageError } from '../../storage/storage_recovery.js';
 import { queryLibrarian } from '../../api/query.js';
 import { bootstrapProject, createBootstrapConfig, isBootstrapRequired } from '../../api/bootstrap.js';
 import { detectLibrarianVersion } from '../../api/versioning.js';
@@ -211,8 +211,32 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     timeoutMs: lockTimeoutMs,
     retryIntervalMs: STORAGE_LOCK_RETRY_INTERVAL_MS,
   });
-  const storage = createSqliteStorage(dbPath, workspace);
-  await storage.initialize();
+  let storage = createSqliteStorage(dbPath, workspace);
+  storage = await initializeQueryStorageWithRecovery(storage, dbPath, workspace);
+  const executeQueryWithRecovery = async (queryPayload: LibrarianQuery): Promise<LibrarianResponse> => {
+    try {
+      return await withQueryCommandTimeout(
+        'execution',
+        effectiveQueryTimeoutMs,
+        () => queryLibrarian(queryPayload, storage)
+      );
+    } catch (error) {
+      const recoveredStorage = await recoverQueryStorageAfterFailure({
+        workspace,
+        dbPath,
+        storage,
+        error,
+        phase: 'execution',
+      });
+      if (!recoveredStorage) throw error;
+      storage = recoveredStorage;
+      return await withQueryCommandTimeout(
+        'execution',
+        effectiveQueryTimeoutMs,
+        () => queryLibrarian(queryPayload, storage)
+      );
+    }
+  };
   try {
     // Check if bootstrapped - detect current tier and use that as target
     // This allows operation on existing data without requiring upgrade
@@ -246,12 +270,15 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           bootstrapMode: 'fast',
           skipLlm: true,
           skipEmbeddings,
+          timeoutMs: effectiveQueryTimeoutMs,
         });
-        await withQueryCommandTimeout(
-          'bootstrap',
-          effectiveQueryTimeoutMs,
-          () => bootstrapProject(config, storage)
-        );
+        storage = await executeQueryBootstrapWithRecovery({
+          workspace,
+          dbPath,
+          storage,
+          config,
+          timeoutMs: effectiveQueryTimeoutMs,
+        });
         bootstrapSpinner.succeed('Bootstrap complete');
       } catch (error) {
         bootstrapSpinner.fail('Bootstrap failed');
@@ -526,17 +553,13 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     if (sessionRequested) {
       const sessionManager = new ContextAssemblySessionManager({
-        query: (sessionQuery) => withQueryCommandTimeout(
-          'execution',
-          effectiveQueryTimeoutMs,
-          () => queryLibrarian({
-            ...sessionQuery,
-            llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
-            embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
-            tokenBudget: sessionQuery.tokenBudget ?? tokenBudget,
-            deterministic,
-          }, storage)
-        ),
+        query: (sessionQuery) => executeQueryWithRecovery({
+          ...sessionQuery,
+          llmRequirement: sessionQuery.llmRequirement ?? llmRequirement,
+          embeddingRequirement: sessionQuery.embeddingRequirement ?? embeddingRequirement,
+          tokenBudget: sessionQuery.tokenBudget ?? tokenBudget,
+          deterministic,
+        }),
       });
 
       const requestedSessionId = sessionFlagRaw.toLowerCase() === 'new' ? null : sessionFlagRaw;
@@ -645,11 +668,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
     try {
       const startTime = Date.now();
-      const rawResponse = await withQueryCommandTimeout(
-        'execution',
-        effectiveQueryTimeoutMs,
-        () => queryLibrarian(query, storage)
-      );
+      const rawResponse = await executeQueryWithRecovery(query);
       const { response, droppedCount } = applyPackLimit(rawResponse, limit);
       const strategyInfo = inferRetrievalStrategy(response);
       const displayResponse = sanitizeQueryResponseForOutput(response);
@@ -1049,6 +1068,128 @@ async function withQueryCommandTimeout<T>(
         reject(error);
       });
   });
+}
+
+function isGovernorWallTimeTimeout(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const lower = message.toLowerCase();
+  return lower.includes('budget_exhausted') && (lower.includes('wall_time') || lower.includes('wall time'));
+}
+
+async function initializeQueryStorageWithRecovery(
+  storage: ReturnType<typeof createSqliteStorage>,
+  dbPath: string,
+  workspace: string
+): Promise<ReturnType<typeof createSqliteStorage>> {
+  try {
+    await storage.initialize();
+    return storage;
+  } catch (error) {
+    const recoveredStorage = await recoverQueryStorageAfterFailure({
+      workspace,
+      dbPath,
+      storage,
+      error,
+      phase: 'initialize',
+    });
+    if (!recoveredStorage) throw error;
+    return recoveredStorage;
+  }
+}
+
+interface QueryStorageRecoveryParams {
+  workspace: string;
+  dbPath: string;
+  storage: ReturnType<typeof createSqliteStorage>;
+  error: unknown;
+  phase: 'initialize' | 'execution' | 'bootstrap';
+}
+
+async function recoverQueryStorageAfterFailure(
+  params: QueryStorageRecoveryParams
+): Promise<ReturnType<typeof createSqliteStorage> | null> {
+  const { workspace, dbPath, storage, error, phase } = params;
+  if (!isRecoverableStorageError(error)) {
+    return null;
+  }
+
+  const recovery = await attemptStorageRecovery(dbPath, { error }).catch((recoveryError) => ({
+    recovered: false,
+    actions: [] as string[],
+    errors: [String(recoveryError)],
+  }));
+  if (!recovery.recovered) {
+    return null;
+  }
+
+  await storage.close().catch(() => undefined);
+
+  const phaseLabel = phase === 'initialize'
+    ? 'storage init'
+    : phase === 'bootstrap'
+      ? 'query bootstrap'
+      : 'query execution';
+  if (recovery.actions.length > 0) {
+    console.error(
+      `[librarian] recovered ${phaseLabel} storage state for ${path.basename(dbPath)}: ${recovery.actions.join(', ')}`
+    );
+  } else {
+    console.error(
+      `[librarian] recovered ${phaseLabel} storage state for ${path.basename(dbPath)}`
+    );
+  }
+
+  const recoveredStorage = createSqliteStorage(dbPath, workspace);
+  await recoveredStorage.initialize();
+  return recoveredStorage;
+}
+
+interface QueryBootstrapRecoveryParams {
+  workspace: string;
+  dbPath: string;
+  storage: ReturnType<typeof createSqliteStorage>;
+  config: ReturnType<typeof createBootstrapConfig>;
+  timeoutMs: number;
+}
+
+async function executeQueryBootstrapWithRecovery(
+  params: QueryBootstrapRecoveryParams
+): Promise<ReturnType<typeof createSqliteStorage>> {
+  const runBootstrap = async (
+    storage: ReturnType<typeof createSqliteStorage>,
+    timeoutMs: number,
+    config: ReturnType<typeof createBootstrapConfig>
+  ): Promise<void> => {
+    const bootstrapConfig = config.timeoutMs === timeoutMs ? config : { ...config, timeoutMs };
+    try {
+      await bootstrapProject(bootstrapConfig, storage);
+    } catch (error) {
+      if (isGovernorWallTimeTimeout(error)) {
+        const nextTimeoutMs = Math.max(Math.round(timeoutMs * 1.5), timeoutMs + 1000);
+        throw createError(
+          'QUERY_TIMEOUT',
+          `Bootstrap during query timed out after ${timeoutMs}ms. Run \`librarian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
+        );
+      }
+      throw error;
+    }
+  };
+
+  try {
+    await runBootstrap(params.storage, params.timeoutMs, params.config);
+    return params.storage;
+  } catch (error) {
+    const recoveredStorage = await recoverQueryStorageAfterFailure({
+      workspace: params.workspace,
+      dbPath: params.dbPath,
+      storage: params.storage,
+      error,
+      phase: 'bootstrap',
+    });
+    if (!recoveredStorage) throw error;
+    await runBootstrap(recoveredStorage, params.timeoutMs, params.config);
+    return recoveredStorage;
+  }
 }
 
 function parseNonNegativeInt(raw: string, optionName: string): number {

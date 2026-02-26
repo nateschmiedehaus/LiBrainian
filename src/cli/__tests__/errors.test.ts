@@ -201,6 +201,7 @@ describe('classifyError', () => {
       { message: 'Database locked', expectedCode: 'ESTORAGE_LOCKED' },
       { message: 'Storage corrupt', expectedCode: 'ESTORAGE_CORRUPT' },
       { message: 'Query timed out', expectedCode: 'EQUERY_TIMEOUT' },
+      { message: 'unverified_by_trace(budget_exhausted): Exceeded wall_time budget (health: -0.72)', expectedCode: 'ETIMEOUT' },
       { message: 'ENOENT: file not found', expectedCode: 'EFILE_NOT_FOUND' },
       { message: 'File is outside workspace', expectedCode: 'EFILE_OUTSIDE_WORKSPACE' },
       { message: 'Invalid argument provided', expectedCode: 'EINVALID_ARGUMENT' },
