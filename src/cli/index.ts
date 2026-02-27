@@ -37,17 +37,12 @@
  *   librarian health              - Show health status (EvolutionOps)
  *   librarian check               - Run diff-aware CI integrity checks
  *   librarian heal                - Run homeostatic healing loop
- *   librarian evolve              - Run evolutionary improvement loop
- *   librarian eval                - Produce FitnessReport.v1
- *   librarian replay              - Replay evolution cycle or variant
  *   librarian constructions       - Browse and validate registry constructions
  *   librarian analyze             - Run static analysis (dead code, complexity)
  *   librarian update              - Hook-friendly alias for incremental indexing
  *   librarian config heal         - Auto-detect and fix suboptimal config
  *   librarian doctor              - Run health diagnostics to identify issues
  *   librarian publish-gate        - Run strict publish-readiness gate checks
- *   librarian repair              - Run DETECT->FIX->VERIFY loop and write an audit report
- *   librarian ralph               - Deprecated alias for `repair`
  *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
  *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
  *   librarian memory-bridge       - Show memory bridge annotation state
@@ -93,9 +88,6 @@ import { healthCommand } from './commands/health.js';
 import { checkCommand } from './commands/check.js';
 import { checkCompletenessCommand } from './commands/check_completeness.js';
 import { healCommand } from './commands/heal.js';
-import { evolveCommand } from './commands/evolve.js';
-import { evalCommand } from './commands/eval.js';
-import { replayCommand } from './commands/replay.js';
 import { watchCommand } from './commands/watch.js';
 import { indexCommand } from './commands/index.js';
 import { scanCommand } from './commands/scan.js';
@@ -108,7 +100,6 @@ import { analyzeCommand } from './commands/analyze.js';
 import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
 import { publishGateCommand } from './commands/publish_gate.js';
-import { ralphCommand, repairCommand } from './commands/ralph.js';
 import { externalReposCommand } from './commands/external_repos.js';
 import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
 import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
@@ -133,7 +124,7 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'calibration' | 'query' | 'context' | 'briefing' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'evolve' | 'eval' | 'replay' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'repair' | 'ralph' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'context' | 'briefing' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
 
 /**
  * Check if --json flag is present in arguments
@@ -276,18 +267,6 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
     description: 'Run homeostatic healing loop until healthy',
     usage: 'librarian heal [--max-cycles N] [--budget-tokens N] [--dry-run]',
   },
-  'evolve': {
-    description: 'Run evolutionary improvement loop',
-    usage: 'librarian evolve [--cycles N] [--candidates N] [--dry-run]',
-  },
-  'eval': {
-    description: 'Produce FitnessReport.v1 for current state',
-    usage: 'librarian eval [--output <path>] [--save-baseline] [--stages 0-4]',
-  },
-  'replay': {
-    description: 'Replay an evolution cycle or variant for analysis',
-    usage: 'librarian replay <cycle-id|variant-id> [--verbose]',
-  },
   'watch': {
     description: 'Watch for file changes and auto-reindex',
     usage: 'librarian watch [--debounce <ms>] [--quiet]',
@@ -339,14 +318,6 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
     usage: 'librarian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
-  },
-  'repair': {
-    description: 'Run DETECT->FIX->VERIFY loop and write an audit report',
-    usage: 'librarian repair [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
-  },
-  'ralph': {
-    description: '[deprecated] alias for repair',
-    usage: 'librarian ralph [--mode fast|full] [--max-cycles N] [--json] [--output <path>] [--skip-eval]',
   },
   'external-repos': {
     description: 'Sync external repo corpus from manifest.json',
@@ -618,34 +589,6 @@ async function main(): Promise<void> {
           dryRun: args.includes('--dry-run'),
         });
         break;
-      case 'evolve':
-        await evolveCommand({
-          workspace,
-          verbose,
-          cycles: getNumericArg(args, '--cycles'),
-          candidates: getNumericArg(args, '--candidates'),
-          dryRun: args.includes('--dry-run'),
-          format: getFormatArg(args) as 'text' | 'json',
-        });
-        break;
-      case 'eval':
-        await evalCommand({
-          workspace,
-          verbose,
-          output: getStringArg(args, '--output'),
-          saveBaseline: args.includes('--save-baseline'),
-          stages: getStringArg(args, '--stages') ?? '0-4',
-          format: getFormatArg(args) as 'text' | 'json',
-        });
-        break;
-      case 'replay':
-        await replayCommand({
-          workspace,
-          target: commandArgs[0] ?? '',
-          verbose,
-          format: getFormatArg(args) as 'text' | 'json',
-        });
-        break;
       case 'watch':
         await watchCommand({
           workspace,
@@ -774,12 +717,6 @@ async function main(): Promise<void> {
 	        break;
       case 'publish-gate':
         await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
-        break;
-      case 'repair':
-        await repairCommand({ workspace, args: commandArgs, rawArgs: args });
-        break;
-      case 'ralph':
-        await ralphCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 	      case 'external-repos':
 	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
