@@ -85,4 +85,11 @@ speculative queries.
 
 ---
 
+## Do Not
+1. Create more spec files, npm scripts, or docs — reduce, don't add
+2. Work on M2/M3/M4 — the product doesn't work at M0
+3. Close issues based on unit tests alone — require reality verification per `docs/LiBrainian/REALITY_VERIFICATION.md`
+4. Mock LLM/embedding calls in integration tests — use `PredeterminedLlmService` or real providers
+5. Modify evaluation infrastructure — keep scorer separate from scored
+
 See `docs/archive/AGENTS_v1.md` for the full historical version of this file.

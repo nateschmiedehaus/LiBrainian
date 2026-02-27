@@ -38,6 +38,28 @@ Describe the tests that you ran to verify your changes:
 
 Add screenshots for UI changes.
 
+## Reality Verification (required for M0 issues)
+
+See [REALITY_VERIFICATION.md](../docs/LiBrainian/REALITY_VERIFICATION.md) for the full protocol.
+
+- [ ] Code merged to main: (this PR)
+- [ ] T0 passes: `npm test` — link CI run or paste output
+- [ ] T0.5 passes: T0.5 reality smoke test result — link or paste
+- [ ] Reality evidence (check one):
+  - [ ] **(a)** Patrol observation — link to `patrol-run-*.json` showing this feature tested
+  - [ ] **(b)** Manual CLI test — paste command + actual output below
+  - [ ] **(c)** T1 predetermined test — name the test that specifically covers the fix path
+
+**Reality evidence artifact:**
+
+```
+(paste command + output, or link patrol report, or name T1 test)
+```
+
+> "Tests pass" alone does not satisfy closure. At least one reality evidence artifact is required.
+
+---
+
 ## Checklist
 
 - [ ] My code follows the project's style guidelines
