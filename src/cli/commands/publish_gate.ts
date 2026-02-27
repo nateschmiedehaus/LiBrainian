@@ -1465,7 +1465,7 @@ async function collectReleaseSignals(input: {
           return {
             ok: false,
             message: 'Final verification report missing validation_results.phase21',
-            hint: 'Run `npm run evidence:refresh` to regenerate final verification evidence.',
+            hint: 'Run the performance benchmarks to regenerate final verification evidence.',
           };
         }
         const measuredMemoryPerKLOCRaw = phase21.memoryPerKLOC;

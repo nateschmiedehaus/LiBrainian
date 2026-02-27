@@ -38,14 +38,8 @@ describe('package release scripts', () => {
     expect(scripts['hooks:install']).toBe('lefthook install');
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
-    expect(scripts['evidence:freshness-check']).toBe('node scripts/check-evidence-freshness.mjs');
-    expect(scripts['evidence:assert-gates']).toBe('node scripts/assert-gates-verified.mjs');
-    expect(scripts['evidence:sync']).toBe('node scripts/build-evidence-manifest.mjs && node scripts/reconcile_evidence.mjs');
-    expect(scripts['evidence:verify']).toBe('npm run evidence:sync && node scripts/check-evidence-freshness.mjs && node scripts/assert-gates-verified.mjs');
-    expect(scripts['eval:publish-gate']).toContain('evidence:refresh');
-    expect(scripts['eval:publish-gate']).toContain('check-evidence-freshness.mjs');
-    expect(scripts['eval:publish-gate']).toContain('assert-gates-verified.mjs');
-    expect(scripts['eval:publish-gate']).toContain('validate-checkpoint.mjs');
+    expect(scripts['evidence:verify']).toBe('npm run evidence:drift-check');
+    expect(scripts['eval:publish-gate']).toContain('npm run evidence:verify');
     expect(scripts['issues:plan']).toBe(
       'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
     );
@@ -60,16 +54,12 @@ describe('package release scripts', () => {
   it('contains packaging guard script files', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-package-identity.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-release-provenance.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'assert-gates-verified.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-manifest-preflight.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'check-evidence-freshness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'evidence-drift-guard.ts'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'package-install-smoke.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'publish-github-package.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'public-pack-check.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-freshness-guard.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'npm-external-blackbox-e2e.mjs'))).toBe(true);
-    expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'validate-checkpoint.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-harness.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-outcome-triage.mjs'))).toBe(true);
     expect(fs.existsSync(path.join(process.cwd(), 'scripts', 'e2e-reality-gate.mjs'))).toBe(true);

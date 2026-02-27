@@ -55,7 +55,7 @@ async function main(): Promise<void> {
     for (const finding of findings) {
       console.error(`- ${finding}`);
     }
-    console.error('Remediation: run `npm run evidence:manifest && npm run evidence:reconcile` and mark non-evidence narrative claims as unverified when needed.');
+    console.error('Remediation: fix STATUS.md / GATES.json drift and mark non-evidence narrative claims as unverified when needed.');
     process.exitCode = 1;
     return;
   }

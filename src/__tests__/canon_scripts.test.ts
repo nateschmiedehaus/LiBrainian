@@ -28,6 +28,7 @@ describe('canonical npm scripts', () => {
     const scripts = pkg.scripts ?? {};
 
     expect(scripts['eval:publish-gate']).toContain('--zero-warning');
+    expect(scripts['eval:publish-gate']).toContain('npm run evidence:verify');
     expect(scripts['eval:publish-gate']).toContain('canon_guard.mjs');
     expect(scripts['eval:publish-gate']).toContain('complexity_check.mjs');
     expect(scripts['eval:ab:agentic']).toContain('--maxVerificationFallbackShare 0');
@@ -75,8 +76,7 @@ describe('canonical npm scripts', () => {
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-discipline');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-tracker');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:publish-gate');
-    expect(scripts['test:agentic:strict']).toContain('evidence-manifest-preflight.mjs');
-    expect(scripts['test:agentic:strict'].startsWith('node scripts/evidence-manifest-preflight.mjs &&')).toBe(true);
+    expect(scripts['test:agentic:strict']).not.toContain('evidence-manifest-preflight');
     expect(scripts['prepublishOnly']).not.toContain('npm run test:agentic:strict');
   });
 

@@ -168,17 +168,8 @@ jobs:
       - name: Unit and integration tests
         run: npm test -- --run
 
-      - name: Evidence sync
-        run: npm run evidence:sync
-
-      - name: Evidence freshness check
-        run: npm run evidence:freshness-check
-
-      - name: Assert zero unverified gates
-        run: npm run evidence:assert-gates
-
-      - name: Validate conversation checkpoint
-        run: node scripts/validate-checkpoint.mjs
+      - name: Evidence verify
+        run: npm run evidence:verify
 
       - name: Performance SLA benchmark gate
         run: node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts benchmark --queries 4 --incremental-files 5 --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block

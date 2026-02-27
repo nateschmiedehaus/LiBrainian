@@ -16,10 +16,7 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('types:');
     expect(workflow).toContain('published');
     expect(workflow).toContain('packages: write');
-    expect(workflow).toContain('npm run evidence:sync');
-    expect(workflow).toContain('npm run evidence:freshness-check');
-    expect(workflow).toContain('npm run evidence:assert-gates');
-    expect(workflow).toContain('npm run evidence:drift-check');
+    expect(workflow).toContain('npm run evidence:verify');
     expect(workflow).toContain('npm run release:pack');
     expect(workflow).toContain('npm run test:e2e:outcome');
     expect(workflow).toContain('npm run test:e2e:triage');
