@@ -208,3 +208,15 @@ body:
         - agent/needs-human
     validations:
       required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Closure Criteria (M0 issues)
+        Before closing, paste this checklist in the closing comment:
+        ```
+        - [ ] Code merged to main: <PR link>
+        - [ ] T0 passes: <CI link or npm test output>
+        - [ ] T0.5 passes: <evidence>
+        - [ ] Reality evidence: <type (a/b/c)> — <artifact or paste>
+        ```
+        See [REALITY_VERIFICATION.md](../../docs/LiBrainian/REALITY_VERIFICATION.md) for what counts as valid evidence.

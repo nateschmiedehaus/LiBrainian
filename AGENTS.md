@@ -95,6 +95,8 @@ These rules override any softer guidance elsewhere in this file for qualificatio
 5. **CONVERSATION-INSIGHTS TRACKING IS REQUIRED**
    - `docs/LiBrainian/CONVERSATION_INSIGHTS.md` must be updated at planning checkpoints and before release-gate runs.
    - Strategy items must map to code/eval/docs/gate work, not passive notes.
+6. **REALITY VERIFICATION REQUIRED FOR M0 CLOSURE**
+   - "Tests pass" alone is not sufficient. See `docs/LiBrainian/REALITY_VERIFICATION.md` for the 4-criteria closure protocol.
 
 ---
 
