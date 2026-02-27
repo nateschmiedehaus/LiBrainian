@@ -5,7 +5,7 @@ import {
   setDefaultLlmServiceFactory,
   type LlmServiceAdapter,
 } from '../adapters/llm_service.js';
-import { createAutoLlmServiceFactory } from '../adapters/api_llm_service.js';
+import { createAutoLlmServiceFactory } from '../adapters/anthropic_api_llm_service.js';
 import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSuccessfulProvider, writeProviderStatusReport, type ProviderName } from './reporting.js';
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';

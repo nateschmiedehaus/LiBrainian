@@ -18,7 +18,14 @@ export {
   withLlmServiceAdapter,
 } from './llm_service.js';
 export { CliLlmService, createCliLlmServiceFactory } from './cli_llm_service.js';
-export { ApiLlmService, createApiLlmServiceFactory, createAutoLlmServiceFactory, isInsideClaudeCodeSession } from './api_llm_service.js';
+export {
+  AnthropicApiLlmService,
+  ApiLlmService,
+  createAnthropicApiLlmServiceFactory,
+  createApiLlmServiceFactory,
+  createAutoLlmServiceFactory,
+  isInsideClaudeCodeSession,
+} from './anthropic_api_llm_service.js';
 export {
   PredeterminedLlmService,
   RecordingLlmService,
