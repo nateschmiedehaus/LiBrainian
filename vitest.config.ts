@@ -142,7 +142,12 @@ export default defineConfig(async () => {
       include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
       exclude: (() => {
         const mode = process.env.LIBRARIAN_TEST_MODE ?? 'unit';
+        // T0.5 reality smoke runs via `npm run test:smoke` only (requires live index).
+        // Set LIBRARIAN_T05_SMOKE=1 to include it.
         const excluded: string[] = [];
+        if (process.env.LIBRARIAN_T05_SMOKE !== '1') {
+          excluded.push('**/t05_reality_smoke.test.ts');
+        }
 
         if (mode === 'unit') {
           excluded.push(

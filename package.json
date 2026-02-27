@@ -133,6 +133,8 @@
     "test:e2e:cadence:full": "npm run test:e2e:full",
     "test:sequential": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_TEST_WORKERS=1 -- vitest",
     "test:conservative": "node scripts/run-with-tmpdir.mjs --set LIBRARIAN_RESOURCE_MODE=conservative -- vitest",
+    "test:smoke": "LIBRARIAN_T05_SMOKE=1 vitest run src/__tests__/t05_reality_smoke.test.ts",
+    "test:smoke:ci": "node scripts/t05-smoke.mjs",
     "test:tier0": "npm test -- --run",
     "test:changed": "node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run --changed",
     "tier1:dogfood": "npm run smoke:external -- --maxRepos 5",
