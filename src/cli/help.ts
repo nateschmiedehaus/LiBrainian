@@ -22,6 +22,7 @@ COMMANDS:
     setup               Alias for quickstart (setup-oriented naming)
     init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
+    context <topic>     Get focused deep context on a topic (alias for query --depth L3)
     repo-map            Generate a compact, ranked symbol map of the repository
     feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
@@ -295,6 +296,39 @@ EXAMPLES:
     librarian query "How does auth work?" --session new --json
     librarian query "What about token refresh?" --session sess_abc123 --json
     librarian query --session sess_abc123 --drill-down src/auth/session.ts --json
+`,
+
+  context: `
+librarian context - Get focused deep context on a topic
+
+USAGE:
+    librarian context "<topic>" [options]
+
+OPTIONS:
+    --depth <level>     Query depth: L0|L1|L2|L3 (default: L3 for comprehensive context)
+    --files <paths>     Comma-separated list of affected files
+    --scope <path>      Workspace-relative scope alias
+    --json              Output results as JSON
+    --out <path>        Write JSON output to file (requires --json)
+    --no-bootstrap      Skip bootstrap check (use existing index)
+
+DESCRIPTION:
+    Alias for \`librarian query "<topic>" --depth L3\`. Provides focused, comprehensive
+    context on a topic, concept, module, or codebase pattern. Designed for use
+    by agents that need deep contextual understanding before acting.
+
+    Use this command when you want the richest possible context on a topic —
+    it defaults to L3 (comprehensive) depth, which includes patterns, decisions,
+    similar tasks, and extended graph analysis.
+
+    All query flags are supported. Pass --depth to override the L3 default.
+
+EXAMPLES:
+    librarian context "error handling"
+    librarian context "authentication flow"
+    librarian context "How does the storage layer work?" --json
+    librarian context "payment processing" --scope src/payments
+    librarian context "database migrations" --depth L2
 `,
 
   'repo-map': `
