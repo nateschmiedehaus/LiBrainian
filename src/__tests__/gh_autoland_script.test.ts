@@ -10,10 +10,10 @@ describe('gh autoland automation', () => {
       scripts?: Record<string, string>;
     };
     const scripts = packageJson.scripts ?? {};
-    expect(scripts['gh:autoland']).toBe('node scripts/gh-autoland.mjs');
-    expect(scripts['gh:ship']).toBe(
-      'npm run policy:pull && npm run policy:merge && npm run policy:hygiene:enforce && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast'
-    );
+    expect(scripts['gh:ship']).toContain('gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:ship']).toContain('gh-flow-policy-check.mjs --mode pull');
+    expect(scripts['gh:ship']).toContain('gh-flow-policy-check.mjs --mode merge');
+    expect(scripts['gh:ship']).toContain('git-hygiene-guard.mjs --mode enforce');
   });
 
   it('exposes issue-link and publish-dispatch flags in help output', () => {

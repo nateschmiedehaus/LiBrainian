@@ -49,7 +49,7 @@ Memory per 1K LOC: unknown (target 50 MB)
 - Provider preflight: `npm run dev -- check-providers --format json`
 - Strict Codex-backed A/B session: `npm run eval:ab:agentic-bugfix:codex`
 - Progressive real-project UC sessions: `npm run eval:use-cases:agentic`
-- Publish-grade chain (agent sessions + strict gates): `npm run eval:trial-by-fire:publish`
+- Release qualification (agent sessions + strict gates): `npm run test:agentic:strict`
 - For custom session commands, `AB_HARNESS_AGENT_CMD` must follow the harness contract in `docs/TEST.md` and `docs/LiBrainian/LIVE_FIRE_E2E.md`.
 
 ### Unit Patrol universal adaptation/proof onboarding

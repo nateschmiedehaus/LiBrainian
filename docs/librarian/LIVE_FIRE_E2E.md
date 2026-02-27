@@ -24,10 +24,8 @@ This guide defines the repeatable, agentic, external-repo evaluation loop for Li
   - `npm run eval:journey:quick`
   - `npm run eval:smoke:quick`
   - `npm run eval:live-fire:quick`
-- One-command quick trial-by-fire chain:
-  - `npm run eval:trial-by-fire:quick`
-- Publish-grade trial-by-fire chain (strict external smoke + hardcore live-fire + real Codex A/B):
-  - `npm run eval:trial-by-fire:publish`
+- Publish-grade release qualification (strict external smoke + hardcore live-fire + real Codex A/B):
+  - `npm run test:agentic:strict`
 - External-repo smoke sample (cross-language, artifacted):
   - `npm run smoke:external:sample`
 - External-repo smoke full set (fail-closed per-repo timeout):
@@ -78,12 +76,7 @@ AB_HARNESS_AGENT_CMD="node $(pwd)/scripts/ab-agent-codex.mjs" \
 npm run eval:use-cases:agentic
 ```
 
-5. Run publish-grade chain:
-```bash
-npm run eval:trial-by-fire:publish
-```
-
-For full release qualification, run:
+5. For full release qualification, run:
 
 ```bash
 npm run test:agentic:strict
