@@ -58,4 +58,30 @@ describe('resolveWorkspaceRoot', () => {
     expect(result.changed).toBe(false);
     expect(result.workspace).toBe(path.resolve(subdir));
   });
+
+  it('does not auto-detect outside configured tmp boundary', async () => {
+    const root = await createTempDir();
+    tempDirs.push(root);
+    await fs.mkdir(path.join(root, '.git'));
+    await writeFile(root, 'src/index.ts');
+
+    const tmpBoundary = path.join(root, '.tmp', 'librainian');
+    await fs.mkdir(tmpBoundary, { recursive: true });
+    const isolatedWorkspace = path.join(tmpBoundary, 'isolated');
+    await fs.mkdir(isolatedWorkspace, { recursive: true });
+
+    const previousBoundary = process.env.LIBRAINIAN_TMPDIR;
+    process.env.LIBRAINIAN_TMPDIR = tmpBoundary;
+    try {
+      const result = resolveWorkspaceRoot(isolatedWorkspace);
+      expect(result.changed).toBe(false);
+      expect(result.workspace).toBe(path.resolve(isolatedWorkspace));
+    } finally {
+      if (previousBoundary === undefined) {
+        delete process.env.LIBRAINIAN_TMPDIR;
+      } else {
+        process.env.LIBRAINIAN_TMPDIR = previousBoundary;
+      }
+    }
+  });
 });

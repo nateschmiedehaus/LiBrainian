@@ -108,6 +108,36 @@ body:
     validations:
       required: true
   - type: textarea
+    id: baseline_runtime_evidence
+    attributes:
+      label: Baseline runtime evidence
+      description: Link patrol artifacts/transcript excerpts and metrics that show present runtime behavior.
+      placeholder: |
+        - Artifact: state/patrol/patrol-run-...
+        - Transcript: state/patrol/transcripts/...
+        - Runtime observations:
+    validations:
+      required: true
+  - type: textarea
+    id: runtime_probe_success_criteria
+    attributes:
+      label: Runtime probe success criteria
+      description: Define measurable runtime probes this feature must pass.
+      placeholder: |
+        - `npm run validate:reality` passes
+        - Patrol comparison shows reduced critical findings for the target class
+        - No contradictions across status/doctor/provider surfaces
+    validations:
+      required: true
+  - type: input
+    id: post_fix_verification_artifact
+    attributes:
+      label: Post-fix verification artifact
+      description: Provide expected post-fix artifact path for validation and closure.
+      placeholder: state/patrol/patrol-run-<label>-post-feature.json
+    validations:
+      required: true
+  - type: textarea
     id: acceptance
     attributes:
       label: Acceptance criteria

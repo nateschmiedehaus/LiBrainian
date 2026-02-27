@@ -137,6 +137,46 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
     input[key] = 'smoke';
   }
 
+  if (manifest.id === 'librainian:architecture-verifier') {
+    input.layers = [
+      {
+        name: 'service',
+        patterns: ['src/service/**'],
+        allowedDependencies: ['data'],
+      },
+      {
+        name: 'data',
+        patterns: ['src/data/**'],
+        allowedDependencies: [],
+      },
+    ];
+    input.boundaries = [
+      {
+        name: 'service-data',
+        description: 'service should access data through stable boundaries',
+        inside: ['src/service'],
+        outside: ['src/data'],
+      },
+    ];
+    input.rules = [
+      {
+        id: 'no-circular',
+        description: 'prevent circular imports',
+        type: 'no-circular',
+        severity: 'error',
+      },
+    ];
+  }
+
+  if (manifest.id === 'librainian:bug-investigation-assistant') {
+    input.description = 'User profile page crashes during request handling';
+    input.errorMessage = "TypeError: Cannot read properties of undefined (reading 'id')";
+    input.stackTrace =
+      "TypeError: Cannot read properties of undefined (reading 'id')\n" +
+      '    at getUser (src/service/user.ts:42:13)\n' +
+      '    at handleRequest (src/api/handler.ts:10:5)';
+  }
+
   return input;
 }
 
@@ -145,17 +185,32 @@ function createLibrarianStub(): Record<string, unknown> {
     workspaceRoot: FIXTURE_REPO,
     rootDir: FIXTURE_REPO,
   };
+  const mockPack = {
+    relatedFiles: ['src/service/user.ts', 'src/data/user_repo.ts'],
+    codeSnippets: [
+      {
+        content:
+          "import { getUserRecord } from '../data/user_repo';\n" +
+          'export function getUser(id: string) {\n' +
+          '  return getUserRecord(id);\n' +
+          '}',
+        startLine: 1,
+        endLine: 4,
+      },
+    ],
+  };
 
   return new Proxy(base, {
     get(target, prop: string | symbol): unknown {
       if (typeof prop !== 'string') return undefined;
       if (prop in target) return target[prop];
-      if (prop === 'query') {
+      if (prop === 'query' || prop === 'queryOptional') {
         return async () => ({
+          packs: [mockPack],
           contextPacks: [],
           snippets: [],
           summary: 'smoke',
-          confidence: 0.5,
+          confidence: 0.8,
         });
       }
       return async () => [];

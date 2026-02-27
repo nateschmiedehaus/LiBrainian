@@ -33,8 +33,11 @@ const STOP_WORDS = new Set([
   'between', 'could', 'does', 'doing', 'from', 'have', 'into', 'just', 'like', 'maybe',
   'might', 'more', 'most', 'only', 'other', 'over', 'really', 'should', 'that', 'their',
   'there', 'these', 'they', 'this', 'those', 'under', 'users', 'using', 'what', 'when',
-  'where', 'which', 'while', 'with', 'without', 'work',
+  'where', 'which', 'while', 'with', 'without', 'work', 'changing', 'change', 'affect',
+  'affected', 'given', 'value', 'values', 'checks', 'matches', 'impact', 'radius',
+  'modules', 'depend', 'depends', 'module', 'public', 'function', 'functions',
 ]);
+const FILE_EXTENSION_STOP_WORDS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'rb', 'php', 'cs', 'swift']);
 
 export function computeRetrievalEntropy(packs: Array<Pick<ContextPack, 'confidence'>>): number {
   if (packs.length === 0) return Number(Math.log2(EMPTY_RESULT_ENTROPY_BASE).toFixed(4));
@@ -92,7 +95,8 @@ export function decideRetrievalEscalation(input: RetrievalEscalationInput): Retr
   }
 
   if (input.retrievalEntropy > VERY_HIGH_ENTROPY) {
-    expandQuery = true;
+    const shouldExpandForEntropy = input.totalConfidence < LOW_CONFIDENCE || (input.packCount ?? 0) === 0;
+    expandQuery = expandQuery || shouldExpandForEntropy;
     reasons.push('entropy_above_2_0');
     if (nextDepth === currentDepth && currentDepth !== 'L3') {
       nextDepth = increaseDepth(currentDepth);
@@ -116,14 +120,32 @@ export function expandEscalationIntent(intent: string, packs: ContextPack[]): st
   const tokens: string[] = [];
 
   for (const pack of packs.slice(0, 4)) {
-    const raw = `${pack.summary} ${(pack.keyFacts ?? []).join(' ')}`.toLowerCase();
-    for (const token of raw.split(/[^a-z0-9_]+/)) {
-      if (token.length < 4) continue;
-      if (STOP_WORDS.has(token)) continue;
-      if (existing.has(token)) continue;
-      if (tokens.includes(token)) continue;
-      tokens.push(token);
+    const identifierSignals = [
+      pack.targetId,
+      ...(Array.isArray(pack.relatedFiles) ? pack.relatedFiles.slice(0, 2) : []),
+    ];
+    for (const signal of identifierSignals) {
+      for (const token of extractIdentifierTokens(signal)) {
+        if (token.length < 4) continue;
+        if (STOP_WORDS.has(token)) continue;
+        if (existing.has(token)) continue;
+        if (tokens.includes(token)) continue;
+        tokens.push(token);
+        if (tokens.length >= 4) break;
+      }
       if (tokens.length >= 4) break;
+    }
+
+    if (tokens.length < 2) {
+      const raw = `${pack.summary} ${(pack.keyFacts ?? []).join(' ')}`.toLowerCase();
+      for (const token of raw.split(/[^a-z0-9_]+/)) {
+        if (token.length < 5) continue;
+        if (STOP_WORDS.has(token)) continue;
+        if (existing.has(token)) continue;
+        if (tokens.includes(token)) continue;
+        tokens.push(token);
+        if (tokens.length >= 4) break;
+      }
     }
     if (tokens.length >= 4) break;
   }
@@ -145,4 +167,41 @@ function increaseDepth(depth: EscalatableDepth): EscalatableDepth {
   if (depth === 'L1') return 'L2';
   if (depth === 'L2') return 'L3';
   return depth;
+}
+
+function extractIdentifierTokens(signal: string | undefined): string[] {
+  const value = String(signal ?? '').trim();
+  if (!value) return [];
+
+  const normalized = value
+    .replace(/\\/g, '/')
+    .replace(/[():]/g, ' ')
+    .replace(/\.[A-Za-z0-9]+/g, (match) => {
+      const ext = match.slice(1).toLowerCase();
+      return FILE_EXTENSION_STOP_WORDS.has(ext) ? ' ' : ` ${ext} `;
+    });
+
+  const parts = normalized
+    .split(/[^A-Za-z0-9_]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const output = new Set<string>();
+  for (const part of parts) {
+    for (const token of splitIdentifier(part)) {
+      if (token.length < 3) continue;
+      if (/^\d+$/.test(token)) continue;
+      if (FILE_EXTENSION_STOP_WORDS.has(token)) continue;
+      output.add(token);
+    }
+  }
+  return Array.from(output);
+}
+
+function splitIdentifier(value: string): string[] {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[_\s-]+/)
+    .map((token) => token.toLowerCase())
+    .filter(Boolean);
 }

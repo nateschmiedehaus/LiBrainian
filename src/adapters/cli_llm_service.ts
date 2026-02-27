@@ -26,6 +26,7 @@ type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: num
 type ChatResult = { content: string; provider: string };
 
 type CliProvider = 'claude' | 'codex';
+type ProviderTransport = 'auto' | 'cli' | 'api';
 
 type HealthState = {
   claude: LlmProviderHealth;
@@ -59,6 +60,11 @@ class AsyncSemaphore {
 
 const claudeSemaphore = new AsyncSemaphore(Number.parseInt(process.env.CLAUDE_MAX_CONCURRENT || '2', 10));
 const codexSemaphore = new AsyncSemaphore(Number.parseInt(process.env.CODEX_MAX_CONCURRENT || '2', 10));
+const DEFAULT_CLAUDE_TIMEOUT_MS = 60_000;
+const DEFAULT_CODEX_TIMEOUT_MS = 60_000;
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_OPENAI_MODEL = 'gpt-5-codex';
+const DEFAULT_API_MAX_TOKENS = 1024;
 
 function coerceTimeout(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
@@ -70,6 +76,17 @@ function coercePositiveTimeout(value: string | undefined, fallback: number): num
   const parsed = Number.parseInt(value ?? '', 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
+}
+
+function resolveRequestScopedTimeout(defaultTimeoutMs: number, requestedTimeoutMs: number | undefined): number {
+  const defaultBudget = Number.isFinite(defaultTimeoutMs) && defaultTimeoutMs > 0
+    ? Math.floor(defaultTimeoutMs)
+    : DEFAULT_CODEX_TIMEOUT_MS;
+  const requestedBudget = Number.isFinite(requestedTimeoutMs ?? NaN) && (requestedTimeoutMs ?? 0) > 0
+    ? Math.floor(requestedTimeoutMs as number)
+    : null;
+  const boundedBudget = requestedBudget !== null ? Math.min(defaultBudget, requestedBudget) : defaultBudget;
+  return Math.max(1, boundedBudget);
 }
 
 function buildFullPrompt(messages: LlmChatOptions['messages']): string {
@@ -113,6 +130,63 @@ function coerceGovernorContext(value: unknown): GovernorContextLike | null {
     : null;
 }
 
+function hasEnvValue(value: string | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isNestedClaudeCodeSession(): boolean {
+  return hasEnvValue(process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    || hasEnvValue(process.env.CLAUDE_CODE_SESSION_ID)
+    || hasEnvValue(process.env.CLAUDECODE);
+}
+
+function parseTransport(value: string | undefined): ProviderTransport {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === 'cli' || normalized === 'api' || normalized === 'auto') {
+    return normalized;
+  }
+  return 'auto';
+}
+
+function resolveClaudeTransportMode(): ProviderTransport {
+  return parseTransport(process.env.LIBRARIAN_CLAUDE_TRANSPORT ?? process.env.LIBRARIAN_LLM_CLAUDE_TRANSPORT);
+}
+
+function resolveCodexTransportMode(): ProviderTransport {
+  return parseTransport(process.env.LIBRARIAN_CODEX_TRANSPORT ?? process.env.LIBRARIAN_LLM_CODEX_TRANSPORT);
+}
+
+function shouldUseAnthropicApiTransport(): boolean {
+  if (!hasEnvValue(process.env.ANTHROPIC_API_KEY)) return false;
+  const mode = resolveClaudeTransportMode();
+  if (mode === 'api') return true;
+  if (mode === 'cli') return false;
+  return true;
+}
+
+function shouldUseOpenAiApiTransport(): boolean {
+  if (!hasEnvValue(process.env.OPENAI_API_KEY)) return false;
+  const mode = resolveCodexTransportMode();
+  if (mode === 'api') return true;
+  if (mode === 'cli') return false;
+  return true;
+}
+
+function buildNestedClaudeUnavailableMessage(): string {
+  return 'Claude CLI cannot run inside nested Claude Code sessions; set ANTHROPIC_API_KEY for API transport or switch provider.';
+}
+
+function normalizeAnthropicModelId(modelId: string | undefined): string {
+  const candidate = modelId?.trim() || process.env.CLAUDE_MODEL?.trim();
+  return candidate || DEFAULT_ANTHROPIC_MODEL;
+}
+
+function normalizeOpenAiModelId(modelId: string | undefined): string {
+  const requested = modelId?.trim() || process.env.CODEX_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+  const resolution = resolveCodexCliOptions(requested);
+  return resolution.model?.trim() || requested;
+}
+
 function resolveForcedProvider(): CliProvider | null {
   const raw =
     process.env.LIBRARIAN_LLM_PROVIDER
@@ -120,6 +194,43 @@ function resolveForcedProvider(): CliProvider | null {
     ?? process.env.LLM_PROVIDER;
   if (raw === 'claude' || raw === 'codex') return raw;
   return null;
+}
+
+function isClaudeModelId(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  return normalized.startsWith('claude') || normalized.includes('claude-');
+}
+
+function isCodexModelId(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  return normalized.includes('codex')
+    || normalized.startsWith('gpt-')
+    || normalized.startsWith('o1')
+    || normalized.startsWith('o3')
+    || normalized.startsWith('o4');
+}
+
+function sanitizeModelIdForProvider(
+  provider: CliProvider,
+  modelId: string | undefined
+): { modelId: string | undefined; repairedFrom?: string } {
+  const requested = modelId?.trim();
+  if (!requested) {
+    return { modelId };
+  }
+  if (provider === 'codex' && isClaudeModelId(requested)) {
+    return {
+      modelId: process.env.CODEX_MODEL?.trim() ?? '',
+      repairedFrom: requested,
+    };
+  }
+  if (provider === 'claude' && isCodexModelId(requested)) {
+    return {
+      modelId: process.env.CLAUDE_MODEL?.trim() ?? '',
+      repairedFrom: requested,
+    };
+  }
+  return { modelId: requested };
 }
 
 function normalizeClaudeErrorMessage(raw: string): string {
@@ -133,13 +244,24 @@ function normalizeClaudeErrorMessage(raw: string): string {
 
 function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   const withoutAnsi = raw.replace(/\u001B\[[0-9;]*m/g, '');
+  const normalizedRaw = withoutAnsi.trim();
+  if (normalizedRaw.length > 0 && /^[-=_\s]+$/.test(normalizedRaw)) {
+    return `${provider} CLI failed without diagnostic output (check auth, model access, and rate limits)`;
+  }
   const lines = withoutAnsi
     .split(/\r?\n+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .slice(0, 25);
+  const isVersionBanner = (line: string): boolean => /^OpenAI Codex v[\d.]+/i.test(line)
+    || /^Claude Code v[\d.]+/i.test(line)
+    || /^claude version/i.test(line);
+  const isSeparatorLine = (line: string): boolean => /^[-=_]{3,}$/.test(line);
+  const meaningfulLines = lines.filter((line) => !isVersionBanner(line) && !isSeparatorLine(line));
   const preferred =
-    lines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate limit|auth)\b/i.test(line))
+    meaningfulLines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate(?:[_ -])?limit|auth)\b/i.test(line))
+    ?? meaningfulLines.find((line) => /\b(limit|denied|blocked)\b/i.test(line))
+    ?? meaningfulLines[0]
     ?? lines[0]
     ?? `${provider} CLI error`;
   const compact = preferred.replace(/\s+/g, ' ').trim();
@@ -155,7 +277,39 @@ function classifyCorruptOutput(result: ProviderChaosResult): string | null {
 
 function isStickyFailureReason(reason: string): boolean {
   const normalized = reason.toLowerCase();
-  return normalized === 'auth_failed' || normalized === 'quota_exceeded';
+  return normalized === 'auth_failed'
+    || normalized === 'quota_exceeded'
+    || normalized === 'unavailable'
+    || normalized === 'invalid_response';
+}
+
+function stickyFailureSeverity(reason: string | undefined): number {
+  if (!reason) return 0;
+  switch (reason.toLowerCase()) {
+    case 'auth_failed':
+    case 'quota_exceeded':
+    case 'invalid_response':
+    case 'unavailable':
+      return 4;
+    case 'rate_limit':
+      return 2;
+    case 'timeout':
+    case 'network_error':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function combineCliErrorStreams(stderr: string, stdout: string, fallback: string): string {
+  const stderrValue = String(stderr ?? '').trim();
+  const stdoutValue = String(stdout ?? '').trim();
+  if (stderrValue && stdoutValue) {
+    return `${stderrValue}\n${stdoutValue}`;
+  }
+  if (stderrValue) return stderrValue;
+  if (stdoutValue) return stdoutValue;
+  return fallback;
 }
 
 function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
@@ -168,8 +322,8 @@ function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
 }
 
 export class CliLlmService {
-  private claudeTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_TIMEOUT_MS, 180000);
-  private codexTimeoutMs = coercePositiveTimeout(process.env.CODEX_TIMEOUT_MS, 180000);
+  private claudeTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_TIMEOUT_MS, DEFAULT_CLAUDE_TIMEOUT_MS);
+  private codexTimeoutMs = coercePositiveTimeout(process.env.CODEX_TIMEOUT_MS, DEFAULT_CODEX_TIMEOUT_MS);
   private claudeHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_HEALTH_CHECK_TIMEOUT_MS, 60000);
   private codexHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
   private healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60000);
@@ -181,20 +335,61 @@ export class CliLlmService {
     codex: buildInitialHealth('codex'),
   };
 
+  private async resolveCandidateOrder(
+    primary: CliProvider,
+    fallback: CliProvider,
+    forcedProvider: CliProvider | null,
+  ): Promise<CliProvider[]> {
+    try {
+      const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
+      const primaryFailure = failures[primary];
+      const fallbackFailure = failures[fallback];
+      const primarySticky = primaryFailure ? isStickyFailureReason(primaryFailure.reason) : false;
+      const fallbackSticky = fallbackFailure ? isStickyFailureReason(fallbackFailure.reason) : false;
+      const primarySeverity = stickyFailureSeverity(primaryFailure?.reason);
+      const fallbackSeverity = stickyFailureSeverity(fallbackFailure?.reason);
+
+      if (primarySticky && !fallbackSticky) {
+        return [fallback, primary];
+      }
+      if (primarySticky && fallbackSticky && primarySeverity > fallbackSeverity) {
+        return [fallback, primary];
+      }
+      if (forcedProvider && primarySticky && fallbackSticky && primarySeverity === fallbackSeverity) {
+        return [primary, fallback];
+      }
+    } catch {
+      // Failure-state reads should not block provider execution.
+    }
+
+    return [primary, fallback];
+  }
+
   async chat(options: LlmChatOptions): Promise<ChatResult> {
     await this.assertPrivacyAllowsRemoteLlm(options);
-    const provider: CliProvider = resolveForcedProvider() ?? (options.provider === 'codex' ? 'codex' : 'claude');
+    const forcedProvider = resolveForcedProvider();
+    const provider: CliProvider = forcedProvider ?? (options.provider === 'codex' ? 'codex' : 'claude');
     const fallback: CliProvider = provider === 'codex' ? 'claude' : 'codex';
+    const candidateOrder = await this.resolveCandidateOrder(provider, fallback, forcedProvider);
     const tried: CliProvider[] = [];
     let lastError: Error | null = null;
 
-    for (const candidate of [provider, fallback]) {
+    for (const candidate of candidateOrder) {
       if (tried.includes(candidate)) continue;
       tried.push(candidate);
       try {
+        const sanitizedModel = sanitizeModelIdForProvider(candidate, options.modelId);
+        if (sanitizedModel.repairedFrom) {
+          logWarning('CLI LLM: auto-repaired model/provider mismatch', {
+            provider: candidate,
+            fromModel: sanitizedModel.repairedFrom,
+            toModel: sanitizedModel.modelId || '(provider-default)',
+          });
+        }
+        const candidateOptions = { ...options, modelId: sanitizedModel.modelId ?? options.modelId };
         return candidate === 'codex'
-          ? await this.callCodex(options)
-          : await this.callClaude(options);
+          ? await this.callCodex(candidateOptions)
+          : await this.callClaude(candidateOptions);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         if (candidate === fallback) break;
@@ -213,6 +408,27 @@ export class CliLlmService {
     const cached = this.health.claude;
     if (!forceCheck && cached.lastCheck && now - cached.lastCheck < this.healthCheckIntervalMs) {
       return cached;
+    }
+
+    if (shouldUseAnthropicApiTransport()) {
+      this.health.claude = {
+        provider: 'claude',
+        available: true,
+        authenticated: true,
+        lastCheck: now,
+      };
+      return this.health.claude;
+    }
+
+    if (isNestedClaudeCodeSession()) {
+      this.health.claude = {
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: now,
+        error: buildNestedClaudeUnavailableMessage(),
+      };
+      return this.health.claude;
     }
 
     const env = withCliPath({ ...process.env });
@@ -276,6 +492,16 @@ export class CliLlmService {
     const cached = this.health.codex;
     if (!forceCheck && cached.lastCheck && now - cached.lastCheck < this.healthCheckIntervalMs) {
       return cached;
+    }
+
+    if (shouldUseOpenAiApiTransport()) {
+      this.health.codex = {
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: now,
+      };
+      return this.health.codex;
     }
 
     const env = withCliPath({ ...process.env });
@@ -350,6 +576,179 @@ export class CliLlmService {
     return this.health.codex;
   }
 
+  private async fetchJsonWithTimeout(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+  ): Promise<{ ok: boolean; status: number; json: unknown; text: string }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      let json: unknown = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = null;
+      }
+      return {
+        ok: response.ok,
+        status: response.status,
+        json,
+        text,
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private extractApiErrorMessage(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const directMessage = (payload as { message?: unknown }).message;
+    if (typeof directMessage === 'string' && directMessage.trim().length > 0) {
+      return directMessage.trim();
+    }
+    const errorMessage = (payload as { error?: { message?: unknown } }).error?.message;
+    if (typeof errorMessage === 'string' && errorMessage.trim().length > 0) {
+      return errorMessage.trim();
+    }
+    return null;
+  }
+
+  private extractAnthropicText(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const content = (payload as { content?: unknown }).content;
+    if (!Array.isArray(content)) return null;
+    const parts = content
+      .map((part) => (part && typeof part === 'object' ? (part as { text?: unknown }).text : null))
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    if (parts.length === 0) return null;
+    return parts.join('\n');
+  }
+
+  private extractOpenAiText(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const choices = (payload as { choices?: unknown }).choices;
+    if (!Array.isArray(choices) || choices.length === 0) return null;
+    const first = choices[0];
+    if (!first || typeof first !== 'object') return null;
+    const content = (first as { message?: { content?: unknown } }).message?.content;
+    if (typeof content === 'string' && content.trim().length > 0) {
+      return content;
+    }
+    if (Array.isArray(content)) {
+      const parts = content
+        .map((part) => (part && typeof part === 'object' ? (part as { text?: unknown }).text : null))
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      if (parts.length > 0) return parts.join('\n');
+    }
+    return null;
+  }
+
+  private async callClaudeApi(
+    options: LlmChatOptions,
+    timeoutMs: number,
+  ): Promise<ChatResult> {
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error('unverified_by_trace(provider_unavailable): ANTHROPIC_API_KEY missing for claude API transport');
+    }
+    const systemPrompt = extractSystemPrompt(options.messages);
+    const messages = options.messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({
+        role: message.role === 'assistant' ? 'assistant' : 'user',
+        content: message.content,
+      }));
+    if (messages.length === 0) {
+      messages.push({ role: 'user', content: '' });
+    }
+    const model = normalizeAnthropicModelId(options.modelId);
+    const payload: Record<string, unknown> = {
+      model,
+      max_tokens: options.maxTokens ?? DEFAULT_API_MAX_TOKENS,
+      messages,
+    };
+    if (typeof options.temperature === 'number') {
+      payload.temperature = options.temperature;
+    }
+    if (systemPrompt) {
+      payload.system = systemPrompt;
+    }
+
+    const response = await this.fetchJsonWithTimeout(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(payload),
+      },
+      timeoutMs,
+    );
+    if (!response.ok) {
+      const apiError = this.extractApiErrorMessage(response.json)
+        ?? sanitizeCliErrorMessage(response.text || `HTTP ${response.status}`, 'claude');
+      throw new Error(apiError);
+    }
+    const content = this.extractAnthropicText(response.json);
+    if (!content) {
+      throw new Error('Anthropic API returned empty response content');
+    }
+    return { provider: 'claude', content };
+  }
+
+  private async callOpenAiApi(
+    options: LlmChatOptions,
+    timeoutMs: number,
+  ): Promise<ChatResult> {
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error('unverified_by_trace(provider_unavailable): OPENAI_API_KEY missing for codex API transport');
+    }
+    const model = normalizeOpenAiModelId(options.modelId);
+    const payload: Record<string, unknown> = {
+      model,
+      messages: options.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      max_tokens: options.maxTokens ?? DEFAULT_API_MAX_TOKENS,
+    };
+    if (typeof options.temperature === 'number') {
+      payload.temperature = options.temperature;
+    }
+    const response = await this.fetchJsonWithTimeout(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      },
+      timeoutMs,
+    );
+    if (!response.ok) {
+      const apiError = this.extractApiErrorMessage(response.json)
+        ?? sanitizeCliErrorMessage(response.text || `HTTP ${response.status}`, 'codex');
+      throw new Error(apiError);
+    }
+    const content = this.extractOpenAiText(response.json);
+    if (!content) {
+      throw new Error('OpenAI API returned empty response content');
+    }
+    return { provider: 'codex', content };
+  }
+
   private async callClaude(options: LlmChatOptions): Promise<ChatResult> {
     await this.assertProviderAvailable('claude');
     const fullPrompt = buildFullPrompt(options.messages);
@@ -361,6 +760,36 @@ export class CliLlmService {
     }
 
     return claudeSemaphore.run(async () => {
+      const timeoutMs = resolveRequestScopedTimeout(this.claudeTimeoutMs, options.timeoutMs);
+      if (shouldUseAnthropicApiTransport()) {
+        try {
+          const result = await this.callClaudeApi(options, timeoutMs);
+          if (governor) {
+            governor.recordTokens(estimateTokenCount(result.content));
+          }
+          await this.recordPrivacyAudit({
+            op: 'synthesize',
+            model: options.modelId || 'claude',
+            local: false,
+            contentSent: true,
+            status: 'allowed',
+          });
+          await this.recordSuccess('claude');
+          return result;
+        } catch (error) {
+          const rawError = normalizeClaudeErrorMessage(String(error instanceof Error ? error.message : error));
+          const errorMsg = sanitizeCliErrorMessage(rawError, 'claude');
+          await this.recordFailure('claude', errorMsg, rawError);
+          throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
+        }
+      }
+
+      if (isNestedClaudeCodeSession()) {
+        const message = buildNestedClaudeUnavailableMessage();
+        await this.recordFailure('claude', message, message);
+        throw new Error(`unverified_by_trace(provider_unavailable): ${message}`);
+      }
+
       const args = ['--print'];
       if (systemPrompt) {
         args.push('--system-prompt', systemPrompt);
@@ -374,7 +803,7 @@ export class CliLlmService {
         const output = await execa('claude', args, {
           input: fullPrompt,
           env,
-          timeout: this.claudeTimeoutMs > 0 ? this.claudeTimeoutMs : undefined,
+          timeout: timeoutMs,
           reject: false,
         });
         return {
@@ -384,7 +813,9 @@ export class CliLlmService {
         };
       });
         if (result.exitCode !== 0) {
-          const rawError = normalizeClaudeErrorMessage(String(result.stderr || result.stdout || 'Claude CLI error'));
+          const rawError = normalizeClaudeErrorMessage(
+            combineCliErrorStreams(result.stderr, result.stdout, 'Claude CLI error')
+          );
           const errorMsg = sanitizeCliErrorMessage(rawError, 'claude');
           logWarning('CLI LLM: Claude call failed', { error: errorMsg });
           await this.recordFailure('claude', errorMsg, rawError);
@@ -422,6 +853,30 @@ export class CliLlmService {
 
     return codexSemaphore.run(async () => {
       const args = ['exec'];
+      const timeoutMs = resolveRequestScopedTimeout(this.codexTimeoutMs, options.timeoutMs);
+      if (shouldUseOpenAiApiTransport()) {
+        try {
+          const result = await this.callOpenAiApi(options, timeoutMs);
+          if (governor) {
+            governor.recordTokens(estimateTokenCount(result.content));
+          }
+          await this.recordPrivacyAudit({
+            op: 'synthesize',
+            model: options.modelId || 'codex',
+            local: false,
+            contentSent: true,
+            status: 'allowed',
+          });
+          await this.recordSuccess('codex');
+          return result;
+        } catch (error) {
+          const rawError = String(error instanceof Error ? error.message : error);
+          const errorMsg = sanitizeCliErrorMessage(rawError, 'codex');
+          await this.recordFailure('codex', errorMsg, rawError);
+          throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
+        }
+      }
+
       const profile = process.env.CODEX_PROFILE || undefined;
       if (profile) {
         args.push('--profile', profile);
@@ -455,7 +910,7 @@ export class CliLlmService {
           const output = await execa('codex', args, {
             input: fullPrompt,
             env: withCliPath({ ...process.env }),
-            timeout: this.codexTimeoutMs,
+            timeout: timeoutMs,
             reject: false,
           });
           return {
@@ -466,7 +921,7 @@ export class CliLlmService {
         });
 
         if (result.exitCode !== 0) {
-          const rawError = String(result.stderr || result.stdout || 'Codex CLI error');
+          const rawError = combineCliErrorStreams(result.stderr, result.stdout, 'Codex CLI error');
           const errorMsg = sanitizeCliErrorMessage(rawError, 'codex');
           logWarning('CLI LLM: Codex call failed', { error: errorMsg });
           await this.recordFailure('codex', errorMsg, rawError);

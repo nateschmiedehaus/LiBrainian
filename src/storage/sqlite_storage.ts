@@ -335,6 +335,34 @@ function maybeRebaseLegacyAbsolutePath(value: string, legacyWorkspaceRoot: strin
   return relative.length > 0 ? relative : normalized;
 }
 
+function maybeRebaseLegacyPathReference(value: string, legacyWorkspaceRoot: string): string {
+  const normalized = normalizeSqlPath(value.trim());
+  if (!normalized) return normalized;
+
+  const absoluteRebased = maybeRebaseLegacyAbsolutePath(normalized, legacyWorkspaceRoot);
+  if (absoluteRebased !== normalized) {
+    return absoluteRebased;
+  }
+
+  const normalizedLegacyRoot = normalizeSqlPath(path.resolve(legacyWorkspaceRoot)).replace(/\/+$/, '');
+  const lowerValue = normalized.toLowerCase();
+  const lowerLegacyRoot = normalizedLegacyRoot.toLowerCase();
+  const embeddedPrefix = `${lowerLegacyRoot}/`;
+  const embeddedIndex = lowerValue.indexOf(embeddedPrefix);
+  if (embeddedIndex < 0) {
+    return normalized;
+  }
+
+  const prefix = normalized.slice(0, embeddedIndex);
+  const suffix = normalized
+    .slice(embeddedIndex + normalizedLegacyRoot.length + 1)
+    .replace(/^\.\/+/, '');
+  if (!suffix) {
+    return normalized;
+  }
+  return `${prefix}${suffix}`;
+}
+
 function normalizeFilterPathPrefix(prefix: string | undefined, workspaceRoot?: string): string[] {
   if (!prefix || prefix.trim().length === 0) return [];
   const candidates = new Set<string>();
@@ -767,7 +795,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       let changed = 0;
       for (const row of rows) {
         if (typeof row.value !== 'string' || row.value.length === 0) continue;
-        const rebased = maybeRebaseLegacyAbsolutePath(row.value, previousWorkspace);
+        const rebased = maybeRebaseLegacyPathReference(row.value, previousWorkspace);
         if (rebased !== row.value) {
           update.run(rebased, row.rowid);
           changed += 1;
@@ -796,27 +824,47 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
       if (this.hasTable('librarian_context_packs')) {
         const rows = db
-          .prepare('SELECT rowid as rowid, related_files, code_snippets, invalidation_triggers FROM librarian_context_packs')
+          .prepare('SELECT rowid as rowid, target_id, pack_id, related_files, code_snippets, invalidation_triggers FROM librarian_context_packs')
           .all() as Array<{
             rowid: number;
+            target_id: string;
+            pack_id: string;
             related_files: string;
             code_snippets: string;
             invalidation_triggers: string;
           }>;
         const update = db.prepare(
-          'UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
+          'UPDATE librarian_context_packs SET target_id = ?, pack_id = ?, related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
         );
 
         for (const row of rows) {
+          let nextTargetId = row.target_id;
+          let nextPackId = row.pack_id;
           let nextRelated = row.related_files;
           let nextSnippets = row.code_snippets;
           let nextTriggers = row.invalidation_triggers;
           let changed = false;
 
+          if (typeof row.target_id === 'string' && row.target_id.length > 0) {
+            const rebased = maybeRebaseLegacyPathReference(row.target_id, previousWorkspace);
+            if (rebased !== row.target_id) {
+              nextTargetId = rebased;
+              changed = true;
+            }
+          }
+
+          if (typeof row.pack_id === 'string' && row.pack_id.length > 0) {
+            const rebased = maybeRebaseLegacyPathReference(row.pack_id, previousWorkspace);
+            if (rebased !== row.pack_id) {
+              nextPackId = rebased;
+              changed = true;
+            }
+          }
+
           const related = parseJsonOrNull<unknown[]>(row.related_files);
           if (Array.isArray(related)) {
             const rebased = related.map((item) =>
-              typeof item === 'string' ? maybeRebaseLegacyAbsolutePath(item, previousWorkspace) : item
+              typeof item === 'string' ? maybeRebaseLegacyPathReference(item, previousWorkspace) : item
             );
             const serialized = JSON.stringify(rebased);
             if (serialized !== row.related_files) {
@@ -833,7 +881,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
               if (!item || typeof item !== 'object') return item;
               const snippet = item as Record<string, unknown>;
               if (typeof snippet.filePath !== 'string') return item;
-              const nextPath = maybeRebaseLegacyAbsolutePath(snippet.filePath, previousWorkspace);
+              const nextPath = maybeRebaseLegacyPathReference(snippet.filePath, previousWorkspace);
               if (nextPath === snippet.filePath) return item;
               return { ...snippet, filePath: nextPath };
             });
@@ -849,7 +897,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           const triggers = parseJsonOrNull<unknown[]>(row.invalidation_triggers);
           if (Array.isArray(triggers)) {
             const rebased = triggers.map((item) =>
-              typeof item === 'string' ? maybeRebaseLegacyAbsolutePath(item, previousWorkspace) : item
+              typeof item === 'string' ? maybeRebaseLegacyPathReference(item, previousWorkspace) : item
             );
             const serialized = JSON.stringify(rebased);
             if (serialized !== row.invalidation_triggers) {
@@ -861,7 +909,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           }
 
           if (changed) {
-            update.run(nextRelated, nextSnippets, nextTriggers, row.rowid);
+            update.run(nextTargetId, nextPackId, nextRelated, nextSnippets, nextTriggers, row.rowid);
             contextPackUpdates += 1;
           }
         }

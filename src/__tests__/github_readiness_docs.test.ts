@@ -33,6 +33,37 @@ describe('github readiness docs', () => {
     expect(contributing).toContain('npm run eval:publish-gate -- --json');
   });
 
+  it('documents inner-loop check command in AGENTS guide', () => {
+    const agentsPath = path.join(process.cwd(), 'AGENTS.md');
+    const agents = fs.readFileSync(agentsPath, 'utf8');
+    expect(agents).toContain('npm run check');
+    expect(agents).toContain('Inner-loop guardrail');
+  });
+
+  it('requires runtime-reality evidence in PR template', () => {
+    const templatePath = path.join(process.cwd(), '.github', 'pull_request_template.md');
+    const template = fs.readFileSync(templatePath, 'utf8');
+    expect(template).toContain('## Runtime Reality Evidence');
+    expect(template).toContain('Patrol artifact link');
+    expect(template).toContain('Transcript excerpt');
+    expect(template).toContain('Post-fix comparison');
+  });
+
+  it('requires baseline and post-fix runtime verification in issue templates', () => {
+    const bugTemplatePath = path.join(process.cwd(), '.github', 'ISSUE_TEMPLATE', 'bug_report.yml');
+    const featureTemplatePath = path.join(process.cwd(), '.github', 'ISSUE_TEMPLATE', 'feature_request.yml');
+    const bugTemplate = fs.readFileSync(bugTemplatePath, 'utf8');
+    const featureTemplate = fs.readFileSync(featureTemplatePath, 'utf8');
+
+    expect(bugTemplate).toContain('Baseline runtime evidence');
+    expect(bugTemplate).toContain('Runtime probe success criteria');
+    expect(bugTemplate).toContain('Post-fix verification artifact');
+
+    expect(featureTemplate).toContain('Baseline runtime evidence');
+    expect(featureTemplate).toContain('Runtime probe success criteria');
+    expect(featureTemplate).toContain('Post-fix verification artifact');
+  });
+
   it('keeps internal orchestration docs out of repository root', () => {
     const root = process.cwd();
     const internalRootArtifacts = [

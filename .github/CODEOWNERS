@@ -7,3 +7,22 @@
 /docs/ @nateschmiedehaus
 /package.json @nateschmiedehaus
 /README.md @nateschmiedehaus
+
+# Provider/runtime reliability
+/src/adapters/ @nateschmiedehaus
+/src/api/provider*.ts @nateschmiedehaus
+/src/__tests__/provider_gate.test.ts @nateschmiedehaus
+
+# Retrieval/query integrity
+/src/api/query*.ts @nateschmiedehaus
+/src/__tests__/retrieval_quality.test.ts @nateschmiedehaus
+
+# Construction integrity
+/src/constructions/ @nateschmiedehaus
+/src/constructions/processes/ @nateschmiedehaus
+
+# Diagnostics/reality gate
+/scripts/validate-reality.mjs @nateschmiedehaus
+/scripts/agent-patrol.mjs @nateschmiedehaus
+/scripts/patrol-post-process.mjs @nateschmiedehaus
+/src/epistemics/ @nateschmiedehaus

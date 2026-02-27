@@ -41,6 +41,38 @@ export interface DiscoveredProvider {
   status: LlmProviderProbeResult;
 }
 
+function hasTruthyEnvValue(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 && normalized !== '0' && normalized !== 'false' && normalized !== 'off' && normalized !== 'no';
+}
+
+function resolveHostPreferredProvider(env: NodeJS.ProcessEnv = process.env): LibrarianLlmProvider | null {
+  const explicit = env.LIBRARIAN_LLM_PROVIDER;
+  if (explicit === 'claude' || explicit === 'codex') {
+    return explicit;
+  }
+
+  const nestedClaudeSession =
+    hasTruthyEnvValue(env.CLAUDE_CODE_ENTRYPOINT)
+    || hasTruthyEnvValue(env.CLAUDE_SESSION)
+    || hasTruthyEnvValue(env.CLAUDECODE);
+  if (nestedClaudeSession) {
+    // Claude CLI cannot reliably spawn from nested Claude Code sessions.
+    return 'codex';
+  }
+
+  const codexHostHints =
+    hasTruthyEnvValue(env.CODEX_HOME)
+    || hasTruthyEnvValue(env.CODEX_PROFILE)
+    || hasTruthyEnvValue(env.CODEX_MODEL);
+  if (codexHostHints) {
+    return 'codex';
+  }
+
+  return null;
+}
+
 const SENSITIVE_METADATA_PATTERN = /(token|secret|password|key|auth|cookie|private_key|session|signature|access|refresh|client_secret|sas)/i;
 const SENSITIVE_METADATA_VALUE_PATTERN =
   /(sk-[A-Za-z0-9]{10,}|gh[pousr]_[A-Za-z0-9]{10,}|xox[baprs]-[A-Za-z0-9-]{10,}|Bearer\s+[A-Za-z0-9\-_.=]+|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|AIzaSy[A-Za-z0-9_-]{10,}|-----BEGIN\s+.*PRIVATE\s+KEY-----|sig=[A-Za-z0-9%/_-]{16,})/i;
@@ -915,13 +947,23 @@ export class LlmProviderRegistry {
     requireEmbeddings?: boolean;
   }): Promise<DiscoveredProvider | null> {
     const results = await this.discoverAll({ forceRefresh: options?.forceRefresh });
+    const preferredProvider = resolveHostPreferredProvider();
     const candidates = this.getAllProbes()
       .filter((probe) => {
         if (options?.requireEmbeddings && !probe.descriptor.supportsEmbeddings) return false;
         const status = results.get(probe.descriptor.id);
         return Boolean(status?.available && status?.authenticated);
       })
-      .sort((left, right) => left.descriptor.priority - right.descriptor.priority);
+      .sort((left, right) => {
+        if (preferredProvider) {
+          const leftPreferred = left.descriptor.id === preferredProvider;
+          const rightPreferred = right.descriptor.id === preferredProvider;
+          if (leftPreferred !== rightPreferred) {
+            return leftPreferred ? -1 : 1;
+          }
+        }
+        return left.descriptor.priority - right.descriptor.priority;
+      });
 
     const selected = candidates[0];
     if (!selected) return null;

@@ -128,4 +128,29 @@ describe('synthesizeQueryAnswer', () => {
     }
     expect(chatMock).toHaveBeenCalledTimes(2);
   });
+
+  it('passes per-query LLM timeout budget to adapter calls', async () => {
+    chatMock.mockReset();
+    chatMock.mockResolvedValueOnce({
+      content: JSON.stringify({
+        answer: 'Layered architecture with explicit module boundaries.',
+        keyInsights: ['Layered boundaries', 'Module contracts'],
+        citations: [{ packId: 'pack-1', content: 'Example module summary.', relevance: 0.91 }],
+        uncertainties: [],
+        confidence: 0.91,
+      }),
+    });
+
+    const result = await synthesizeQueryAnswer({
+      query: { intent: 'Explain architecture with confidence', depth: 'L1' },
+      packs: [samplePack],
+      storage: {} as never,
+      workspace: process.cwd(),
+      llmTimeoutMs: 1_234,
+    });
+
+    expect(result.synthesized).toBe(true);
+    const firstCall = chatMock.mock.calls[0]?.[0] as { timeoutMs?: number } | undefined;
+    expect(firstCall?.timeoutMs).toBe(1_234);
+  });
 });

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 import { Librarian } from '../../api/librarian.js';
@@ -223,7 +224,10 @@ async function runList(params: {
     console.log(`${tier[0]!.toUpperCase()}${tier.slice(1)}`);
     for (const entry of entries) {
       const languagesText = entry.languages.length > 0 ? entry.languages.join(', ') : 'any';
-      console.log(`  ${entry.displayId}  ${entry.description} [${languagesText}]`);
+      const capabilityText = entry.requiredCapabilities.length > 0
+        ? ` requires: ${entry.requiredCapabilities.join(', ')}`
+        : '';
+      console.log(`  ${entry.displayId}  ${entry.description} [${languagesText}]${capabilityText}`);
     }
     console.log('');
   }
@@ -500,6 +504,33 @@ async function runRun(params: {
     );
   }
   const input = parseRunInput(inputFlag, subcommandArgs.slice(1));
+  const inputValidation = validateRunInputAgainstSchema(manifest.inputSchema, input);
+  if (!inputValidation.valid) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `${inputValidation.message} Required fields: ${inputValidation.missingFields.join(', ')}`,
+      {
+        recoveryHints: [
+          `Run \`librarian constructions describe ${manifest.id}\` for expected input schema.`,
+          `Example input: ${buildSchemaExample(manifest.inputSchema)}`,
+        ],
+      },
+    );
+  }
+  const missingRuntimeCapabilities = detectMissingRuntimeCapabilities(
+    workspace,
+    manifest.requiredCapabilities,
+  );
+  if (missingRuntimeCapabilities.length > 0) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      `Missing runtime capabilities: ${missingRuntimeCapabilities.join(', ')}`,
+      {
+        recoveryHints: missingRuntimeCapabilities.map((capability) =>
+          runtimeCapabilityHint(capability)),
+      },
+    );
+  }
   const librarian = new Librarian({
     workspace,
     autoBootstrap: false,
@@ -518,19 +549,20 @@ async function runRun(params: {
         sessionId: randomUUID(),
       },
     );
+    const serializedOutput = serializeConstructionRunOutput(output);
     const payload = {
       command: 'run',
       success: true,
       id: manifest.id,
       input,
-      output,
+      output: serializedOutput,
     };
     if (json) {
       console.log(JSON.stringify(payload));
       return;
     }
     console.log(`Ran ${manifest.id}`);
-    console.log(JSON.stringify(output, null, 2));
+    console.log(JSON.stringify(serializedOutput, null, 2));
   } finally {
     await librarian.shutdown();
   }
@@ -897,6 +929,152 @@ function buildManifestValidationOptions(): ManifestValidationOptions {
 
 function serializeValidationIssues(issues: ManifestValidationIssue[]): string[] {
   return issues.map((issue) => `${issue.path}: ${issue.message}`);
+}
+
+function validateRunInputAgainstSchema(
+  schema: ConstructionSchema,
+  input: unknown,
+): { valid: true } | { valid: false; missingFields: string[]; message: string } {
+  const required = schema.required ?? [];
+  if (schema.type !== 'object' || required.length === 0) {
+    return { valid: true };
+  }
+  if (!isRecord(input)) {
+    return {
+      valid: false,
+      missingFields: required,
+      message: 'Invalid construction input. Expected a JSON object.',
+    };
+  }
+  const missingFields = required.filter((field) => input[field] === undefined);
+  if (missingFields.length === 0) {
+    return { valid: true };
+  }
+  return {
+    valid: false,
+    missingFields,
+    message: 'Invalid construction input. Missing required field(s).',
+  };
+}
+
+function buildSchemaExample(schema: ConstructionSchema): string {
+  if (schema.type !== 'object') {
+    return '{}';
+  }
+  const required = schema.required ?? [];
+  if (required.length === 0) {
+    return '{}';
+  }
+  const sample: Record<string, unknown> = {};
+  for (const field of required) {
+    const fieldSchema = schema.properties?.[field];
+    sample[field] = sampleValueForType(fieldSchema?.type);
+  }
+  return JSON.stringify(sample);
+}
+
+function sampleValueForType(type: string | undefined): unknown {
+  switch (type) {
+    case 'array':
+      return ['value'];
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'object':
+      return {};
+    default:
+      return 'value';
+  }
+}
+
+function detectMissingRuntimeCapabilities(
+  workspace: string,
+  requiredCapabilities: string[],
+): string[] {
+  const missing: string[] = [];
+  for (const capability of requiredCapabilities) {
+    if (capability === 'librainian-eval' && !hasWorkspacePackage(workspace, 'librainian-eval')) {
+      missing.push(capability);
+    }
+  }
+  return missing;
+}
+
+function hasWorkspacePackage(workspace: string, packageName: string): boolean {
+  const requireFromWorkspace = createRequire(path.join(workspace, '__librainian_capability_probe__.js'));
+  try {
+    requireFromWorkspace.resolve(`${packageName}/package.json`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runtimeCapabilityHint(capability: string): string {
+  if (capability === 'librainian-eval') {
+    return 'Install optional dependency: `npm install librainian-eval`';
+  }
+  return `Provide runtime capability: ${capability}`;
+}
+
+function serializeConstructionRunOutput(output: unknown): unknown {
+  if (!isRecord(output)) {
+    return output;
+  }
+  if (!Object.prototype.hasOwnProperty.call(output, 'error')) {
+    return output;
+  }
+  return {
+    ...output,
+    error: serializeErrorForOutput(output.error),
+  };
+}
+
+function serializeErrorForOutput(error: unknown, depth = 0): unknown {
+  if (depth >= 4) {
+    return '[truncated]';
+  }
+  if (error instanceof Error) {
+    const errorRecord = error as unknown as Record<string, unknown>;
+    const serialized: Record<string, unknown> = {
+      name: error.name || 'Error',
+      message: normalizeErrorMessage(error),
+    };
+    for (const key of Object.keys(errorRecord)) {
+      if (key === 'name' || key === 'message') continue;
+      serialized[key] = serializeErrorForOutput(
+        errorRecord[key],
+        depth + 1,
+      );
+    }
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause !== undefined && serialized.cause === undefined) {
+      serialized.cause = serializeErrorForOutput(cause, depth + 1);
+    }
+    return serialized;
+  }
+  if (Array.isArray(error)) {
+    return error.map((item) => serializeErrorForOutput(item, depth + 1));
+  }
+  if (!isRecord(error)) {
+    return error;
+  }
+  const serialized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(error)) {
+    serialized[key] = serializeErrorForOutput(value, depth + 1);
+  }
+  return serialized;
+}
+
+function normalizeErrorMessage(error: Error): string {
+  const message = error.message?.trim();
+  if (message && message.length > 0) {
+    return message;
+  }
+  const fallback = String(error);
+  const prefix = `${error.name}: `;
+  return fallback.startsWith(prefix) ? fallback.slice(prefix.length) : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

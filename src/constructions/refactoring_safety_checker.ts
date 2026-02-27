@@ -1263,6 +1263,47 @@ export function findFileRecursive(dir: string, baseName: string): string | null 
   return null;
 }
 
+function normalizeTempBoundary(candidate: string | undefined): string | null {
+  if (!candidate || candidate.trim().length === 0) {
+    return null;
+  }
+  return path.resolve(candidate);
+}
+
+function collectTempBoundaries(): string[] {
+  const unique = new Set<string>();
+  const candidates = [
+    process.env.LIBRAINIAN_TMPDIR,
+    process.env.LIBRARIAN_TMPDIR,
+    process.env.TMPDIR,
+    process.env.TMP,
+    process.env.TEMP,
+    os.tmpdir(),
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeTempBoundary(candidate);
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+  return Array.from(unique).sort((left, right) => right.length - left.length);
+}
+
+function isWithinBoundary(target: string, boundary: string): boolean {
+  if (target === boundary) return true;
+  return target.startsWith(`${boundary}${path.sep}`);
+}
+
+function findTempAscentBoundary(target: string): string | null {
+  const resolvedTarget = path.resolve(target);
+  for (const boundary of collectTempBoundaries()) {
+    if (isWithinBoundary(resolvedTarget, boundary)) {
+      return boundary;
+    }
+  }
+  return null;
+}
+
 /**
  * Derive the workspace root from a file path by looking for common project markers.
  *
@@ -1303,6 +1344,7 @@ export function deriveWorkspaceFromPath(filePath: string): string {
   ];
   let currentDir = path.dirname(filePath);
   const home = os.homedir();
+  const tempAscentBoundary = findTempAscentBoundary(currentDir);
   const allowHomeRoot =
     process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === '1' ||
     process.env.LIBRARIAN_ALLOW_HOME_WORKSPACE === 'true';
@@ -1324,7 +1366,11 @@ export function deriveWorkspaceFromPath(filePath: string): string {
         // Ignore access errors
       }
     }
-    currentDir = path.dirname(currentDir);
+    const parent = path.dirname(currentDir);
+    if (tempAscentBoundary && !isWithinBoundary(parent, tempAscentBoundary)) {
+      break;
+    }
+    currentDir = parent;
   }
 
   // Fallback to the directory containing the file

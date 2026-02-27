@@ -80,7 +80,11 @@ describe('workspace path portability', () => {
     await storageA.close();
 
     const db = new Database(aDbPath);
-    db.prepare('UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ?').run(
+    db.prepare(
+      'UPDATE librarian_context_packs SET target_id = ?, pack_id = ?, related_files = ?, code_snippets = ?, invalidation_triggers = ?'
+    ).run(
+      `module:${absolutePathA}`,
+      `module_context:${absolutePathA}`,
       JSON.stringify([absolutePathA]),
       JSON.stringify([
         {
@@ -114,6 +118,8 @@ describe('workspace path portability', () => {
 
     const pack = await storageB.getContextPackForTarget('module:src/auth/session.ts', 'module_context');
     expect(pack).toBeTruthy();
+    expect(pack?.targetId).toBe('module:src/auth/session.ts');
+    expect(pack?.packId).toBe('module_context:src/auth/session.ts');
     expect(pack?.relatedFiles).toEqual(['src/auth/session.ts']);
     expect(pack?.invalidationTriggers).toEqual(['src/auth/session.ts']);
     expect(pack?.codeSnippets[0]?.filePath).toBe('src/auth/session.ts');

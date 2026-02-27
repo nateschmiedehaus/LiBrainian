@@ -113,6 +113,7 @@ export async function resolveMethodGuidance(options: {
   storage?: LibrarianStorage;
   llmProvider?: 'claude' | 'codex';
   llmModelId?: string;
+  llmTimeoutMs?: number;
   governorContext?: GovernorContext;
 }): Promise<MethodGuidance | null> {
   const selection = resolveMethodFamilies(options);
@@ -127,6 +128,7 @@ export async function resolveMethodGuidance(options: {
     intent: options.intent,
     llmProvider: options.llmProvider,
     llmModelId: options.llmModelId,
+    llmTimeoutMs: options.llmTimeoutMs,
     governorContext: options.governorContext,
   });
   const maxHints = options.maxHints ?? 6;

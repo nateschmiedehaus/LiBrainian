@@ -25,6 +25,7 @@ export interface QuerySynthesisInput {
   packs: ContextPack[];
   storage: LibrarianStorage;
   workspace: string;
+  llmTimeoutMs?: number;
 }
 
 export interface SynthesizedAnswer {
@@ -95,7 +96,7 @@ export type QuerySynthesisResult = SynthesizedAnswer | SynthesisFailure;
 export async function synthesizeQueryAnswer(
   input: QuerySynthesisInput
 ): Promise<QuerySynthesisResult> {
-  const { query, packs, storage } = input;
+  const { query, packs, storage, llmTimeoutMs } = input;
 
   // Generate query ID for feedback tracking
   const queryId = generateQueryId(query);
@@ -142,6 +143,7 @@ export async function synthesizeQueryAnswer(
       provider: llmConfig.provider,
       modelId: llmConfig.modelId,
       messages,
+      timeoutMs: llmTimeoutMs,
       maxTokens: 2000,
       outputSchema: SYNTHESIS_OUTPUT_SCHEMA,
       maxAttempts: 3,

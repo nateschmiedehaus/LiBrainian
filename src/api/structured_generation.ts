@@ -9,6 +9,7 @@ export interface StructuredGenerateOptions<T> {
   provider: string;
   modelId: string;
   messages: LlmChatMessage[];
+  timeoutMs?: number;
   parse: (response: string) => StructuredParseResult<T>;
   maxTokens?: number;
   temperature?: number;
@@ -68,6 +69,7 @@ export async function generateStructuredWithRetries<T>(
       provider,
       modelId,
       messages: requestMessages,
+      timeoutMs: options.timeoutMs,
       maxTokens,
       temperature,
       outputSchema: outputSchema ? JSON.stringify(outputSchema) : undefined,

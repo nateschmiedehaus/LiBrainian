@@ -355,6 +355,13 @@ describe('classifyQueryIntent', () => {
       expect(result.isProjectUnderstandingQuery).toBe(false);
     });
 
+    it('does not classify "what are the main modules" as an entry point query', () => {
+      const result = classifyQueryIntent('what are the main modules');
+      expect(result.isArchitectureOverviewQuery).toBe(true);
+      expect(result.isEntryPointQuery).toBe(false);
+      expect(result.entryPointBias).toBe(0);
+    });
+
     it('classifies "module dependencies" as architecture overview query', () => {
       const result = classifyQueryIntent('module dependencies');
       expect(result.isArchitectureOverviewQuery).toBe(true);

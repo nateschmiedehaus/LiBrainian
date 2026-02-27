@@ -357,6 +357,67 @@ function ensureLibrarianContext(
   return { librarian };
 }
 
+function readNumericField(value: unknown, key: string): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  if (typeof candidate !== 'number' || !Number.isFinite(candidate)) return null;
+  return candidate;
+}
+
+function readArrayLength(value: unknown, key: string): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return Array.isArray(candidate) ? candidate.length : null;
+}
+
+function hasObjectField(value: unknown, key: string): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = (value as Record<string, unknown>)[key];
+  return candidate !== null && candidate !== undefined;
+}
+
+function enforceTruthfulConstructionOutput(constructionId: ConstructionId, output: unknown): void {
+  if (constructionId === 'librainian:architecture-verifier') {
+    const filesChecked = readNumericField(output, 'filesChecked');
+    if (filesChecked !== null && filesChecked <= 0) {
+      throw new ConstructionError(
+        'insufficient_data: architecture-verifier checked 0 files; refusing vacuous compliance result',
+        constructionId,
+      );
+    }
+    return;
+  }
+
+  if (constructionId === 'librainian:security-audit-helper') {
+    const filesAudited = readNumericField(output, 'filesAudited');
+    if (filesAudited !== null && filesAudited <= 0) {
+      throw new ConstructionError(
+        'insufficient_data: security-audit-helper audited 0 files; refusing vacuous security result',
+        constructionId,
+      );
+    }
+    return;
+  }
+
+  if (constructionId === 'librainian:bug-investigation-assistant') {
+    const hypothesisCount = readArrayLength(output, 'hypotheses');
+    const callChainCount = readArrayLength(output, 'callChain');
+    const hasPrimarySuspect = hasObjectField(output, 'primarySuspect');
+    if (
+      hypothesisCount !== null
+      && callChainCount !== null
+      && hypothesisCount <= 0
+      && callChainCount <= 0
+      && !hasPrimarySuspect
+    ) {
+      throw new ConstructionError(
+        'insufficient_data: bug-investigation-assistant produced no hypotheses/call chain/suspect',
+        constructionId,
+      );
+    }
+  }
+}
+
 function seedRegistryWithDefaults(): void {
   const definitions = listConstructableDefinitions();
   for (const definition of definitions) {
@@ -1146,7 +1207,7 @@ function activateCoreConstructions(): void {
       id: 'librainian:hallucinated-api-detector',
       inputSchema: HALLUCINATED_API_DETECTOR_INPUT_SCHEMA,
       outputSchema: HALLUCINATED_API_DETECTOR_OUTPUT_SCHEMA,
-      requiredCapabilities: [],
+      requiredCapabilities: ['librainian-eval'],
       execute: async (input, context) => {
         const { createHallucinatedApiDetectorConstruction } = await import('./processes/hallucinated_api_detector.js');
         return createHallucinatedApiDetectorConstruction().execute(input as APIDetectorInput, context);
@@ -1252,9 +1313,14 @@ function activateCoreConstructions(): void {
         execute: async (input, context) => {
           try {
             const execution = await runtimeEntry.execute(input, context);
-            return isConstructionOutcome(execution)
-              ? execution
-              : ok(execution);
+            if (isConstructionOutcome(execution)) {
+              if (execution.ok) {
+                enforceTruthfulConstructionOutput(existing.id, execution.value);
+              }
+              return execution;
+            }
+            enforceTruthfulConstructionOutput(existing.id, execution);
+            return ok(execution);
           } catch (error) {
             const normalized = error instanceof ConstructionError
               ? error

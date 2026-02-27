@@ -121,6 +121,21 @@ describe('retrieval escalation policy', () => {
     expect(decision.expandQuery).toBe(true);
   });
 
+  it('does not expand query for entropy-only escalation when confidence is not low', () => {
+    const decision = decideRetrievalEscalation({
+      depth: 'L1',
+      totalConfidence: 0.45,
+      retrievalEntropy: 2.4,
+      escalationAttempts: 0,
+      maxEscalationDepth: 2,
+      packCount: 8,
+    });
+
+    expect(decision.shouldEscalate).toBe(true);
+    expect(decision.nextDepth).toBe('L2');
+    expect(decision.expandQuery).toBe(false);
+  });
+
   it('respects max escalation depth guard', () => {
     const decision = decideRetrievalEscalation({
       depth: 'L2',
@@ -132,6 +147,22 @@ describe('retrieval escalation policy', () => {
 
     expect(decision.shouldEscalate).toBe(false);
     expect(decision.nextDepth).toBe('L2');
+  });
+
+  it('avoids generic summary words when expanding escalation intent', () => {
+    const intent = 'what testing framework does this project use';
+    const expanded = expandEscalationIntent(intent, [
+      pack({
+        packType: 'change_impact',
+        targetId: 'src/validator.ts:check',
+        summary: 'Changing validator may affect volumes checks value matches given',
+        keyFacts: ['Impact radius: 11 modules depend on this'],
+      }),
+    ]);
+
+    expect(expanded).toContain('validator');
+    expect(expanded).not.toContain('changing');
+    expect(expanded).not.toContain('affect');
   });
 
   it('builds actionable clarifying questions and expanded intent', () => {

@@ -23,7 +23,11 @@ const PROVIDER_FALLBACK_CHAIN: ProviderName[] = ['claude', 'codex'];
 
 function isStickyFailureReason(reason: string | undefined): boolean {
   if (!reason) return false;
-  return reason === 'auth_failed' || reason === 'quota_exceeded' || reason === 'rate_limit';
+  return reason === 'auth_failed'
+    || reason === 'quota_exceeded'
+    || reason === 'rate_limit'
+    || reason === 'unavailable'
+    || reason === 'invalid_response';
 }
 
 function toSingleLineMessage(error: unknown): string {
@@ -88,6 +92,11 @@ export interface ProviderGateResult {
   remediationSteps?: string[];
   fallbackChain?: ProviderName[];
   lastSuccessfulProvider?: ProviderName | null;
+  autoRepair?: {
+    from: ProviderName;
+    to: ProviderName;
+    reason: string;
+  } | null;
   reportPath?: string;
 }
 
@@ -305,10 +314,28 @@ export async function runProviderReadinessGate(
 
   const preferred = resolvePreferredProviderFromEnv();
   const isReady = (name: ProviderName | null | undefined) => Boolean(name && providers.some((p) => p.provider === name && p.available && p.authenticated));
-  const pick = (name: ProviderName | null | undefined): ProviderName | null => (isReady(name) ? (name as ProviderName) : null);
+  const selectionOrder = Array.from(
+    new Set<ProviderName>(
+      [preferred, lastSuccessfulProvider, 'claude', 'codex'].filter(
+        (name): name is ProviderName => name === 'claude' || name === 'codex'
+      )
+    )
+  );
+  const preferredSelection = selectionOrder[0] ?? null;
   const selectedProvider = networkDisabled
     ? null
-    : (pick(preferred) ?? pick(lastSuccessfulProvider) ?? pick('claude') ?? pick('codex'));
+    : (selectionOrder.find((candidate) => isReady(candidate)) ?? null);
+  const autoRepair =
+    !networkDisabled && selectedProvider && preferredSelection && selectedProvider !== preferredSelection
+      ? {
+          from: preferredSelection,
+          to: selectedProvider,
+          reason: 'preferred_provider_unavailable',
+        }
+      : null;
+  if (autoRepair) {
+    remediationSteps.push(`Auto-repaired provider selection: ${autoRepair.from} -> ${autoRepair.to}.`);
+  }
 
   const llmReady = networkDisabled ? false : selectedProvider !== null;
   const rawEmbedding = await embeddingHealthCheck();
@@ -352,6 +379,7 @@ export async function runProviderReadinessGate(
     remediationSteps,
     fallbackChain,
     lastSuccessfulProvider,
+    autoRepair,
   };
   if (emitReport) {
     const report = await createProviderStatusReport(workspaceRoot, result, {

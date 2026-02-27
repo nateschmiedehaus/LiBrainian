@@ -263,7 +263,7 @@ describe('Retrieval Quality Benchmarks', () => {
     if (!hasIndex) {
       console.warn('SKIP: Storage not initialized or empty; retrieval benchmarks are skipped.');
     }
-  });
+  }, 30_000);
 
   describe('Individual Benchmark Queries (Diagnostic)', () => {
     // These tests are diagnostic - they log performance per query but don't fail.

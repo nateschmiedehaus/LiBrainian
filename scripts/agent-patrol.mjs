@@ -39,6 +39,14 @@ const PROMPT_TEMPLATE_PATH = path.join(REPO_ROOT, 'scripts/patrol-agent-prompt.m
 const CHILD_OUTPUT_MAX_CHARS = 200_000;
 const OBS_START = 'PATROL_OBSERVATION_JSON_START';
 const OBS_END = 'PATROL_OBSERVATION_JSON_END';
+const DEFAULT_ISSUE_REALITY_REPO = 'nateschmiedehaus/LiBrainian';
+const DEFAULT_ISSUE_REALITY_LIMIT = 200;
+const MAX_ISSUE_CONTEXT_PROMPT_CHARS = 32_000;
+const REQUIRED_PATROL_TARBALL_ENTRIES = [
+  'package/dist/cli/index.js',
+  'package/dist/cli/commands/calibration.js',
+  'package/dist/utils/evaluation_loader.js',
+];
 
 const MODE_DEFAULTS = {
   quick:   { maxRepos: 1, timeoutMs: 2_400_000 },  // 40 min per repo -- agent needs time to finish
@@ -227,6 +235,47 @@ function run(command, args, opts = {}) {
     throw new Error(`${command} ${args.join(' ')} failed${output ? `\n${output}` : ''}`);
   }
   return result.stdout?.trim() ?? '';
+}
+
+function normalizeTarEntry(entry) {
+  return String(entry).trim().replace(/\\/g, '/');
+}
+
+export function findMissingPatrolTarballEntries(
+  entries,
+  requiredEntries = REQUIRED_PATROL_TARBALL_ENTRIES,
+) {
+  const present = new Set((entries ?? []).map(normalizeTarEntry).filter(Boolean));
+  return requiredEntries
+    .map(normalizeTarEntry)
+    .filter((requiredEntry) => requiredEntry.length > 0 && !present.has(requiredEntry));
+}
+
+export function assertPatrolTarballRuntimeContracts(
+  entries,
+  requiredEntries = REQUIRED_PATROL_TARBALL_ENTRIES,
+) {
+  const missing = findMissingPatrolTarballEntries(entries, requiredEntries);
+  if (missing.length > 0) {
+    throw new Error(
+      'Patrol tarball missing required runtime files:\n' +
+      missing.map((entry) => `  - ${entry}`).join('\n') +
+      '\nFix: run `npm run build` and ensure package exports include the files above.'
+    );
+  }
+  return {
+    requiredCount: requiredEntries.length,
+    entryCount: Array.isArray(entries) ? entries.length : 0,
+    missing: [],
+  };
+}
+
+function readTarballEntries(tarballPath) {
+  const listing = run('tar', ['-tf', tarballPath]);
+  return listing
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function requiredEvidenceModeForMode(mode) {
@@ -496,7 +545,90 @@ function selectTaskVariant(index) {
   return TASK_VARIANTS[index % TASK_VARIANTS.length];
 }
 
-function buildPrompt(template, taskVariant, repoName) {
+function parseIssueRealityLimit(rawValue, fallback = DEFAULT_ISSUE_REALITY_LIMIT) {
+  const parsed = Number.parseInt(String(rawValue ?? '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, 1000);
+}
+
+function formatIssueRealityLabels(labels) {
+  if (!Array.isArray(labels) || labels.length === 0) return 'none';
+  return labels
+    .map((label) => String(label?.name ?? '').trim())
+    .filter(Boolean)
+    .join(', ') || 'none';
+}
+
+function buildIssueRealityContext(repo, issues) {
+  const safeIssues = Array.isArray(issues) ? issues : [];
+  if (safeIssues.length === 0) return null;
+  const lines = [
+    `Issue snapshot for ${repo} (closed issues, sampled ${safeIssues.length}):`,
+  ];
+  for (const issue of safeIssues) {
+    const number = Number(issue?.number);
+    const title = String(issue?.title ?? '').trim();
+    const closedAt = String(issue?.closedAt ?? '').trim();
+    const url = String(issue?.url ?? '').trim();
+    if (!Number.isFinite(number) || title.length === 0 || url.length === 0) {
+      continue;
+    }
+    const closedDate = closedAt ? closedAt.slice(0, 10) : 'unknown';
+    const labels = formatIssueRealityLabels(issue?.labels);
+    lines.push(`- #${number} (${closedDate}) ${title} [labels: ${labels}] ${url}`);
+  }
+
+  const joined = lines.join('\n');
+  if (joined.length <= MAX_ISSUE_CONTEXT_PROMPT_CHARS) return joined;
+  return `${joined.slice(0, MAX_ISSUE_CONTEXT_PROMPT_CHARS)}\n...<issue snapshot truncated>`;
+}
+
+function loadIssueRealityContext(
+  repo = process.env.LIBRARIAN_PATROL_ISSUES_REPO ?? DEFAULT_ISSUE_REALITY_REPO,
+  limit = parseIssueRealityLimit(process.env.LIBRARIAN_PATROL_ISSUES_LIMIT),
+) {
+  const normalizedRepo = String(repo ?? '').trim();
+  if (!normalizedRepo) return null;
+  try {
+    const payload = run('gh', [
+      'issue',
+      'list',
+      '--repo',
+      normalizedRepo,
+      '--state',
+      'closed',
+      '--limit',
+      String(limit),
+      '--json',
+      'number,title,closedAt,labels,url',
+    ]);
+    const issues = JSON.parse(payload);
+    return buildIssueRealityContext(normalizedRepo, issues);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[patrol] issue reality context unavailable for ${normalizedRepo}: ${message}`,
+    );
+    return null;
+  }
+}
+
+function buildIssueRealityPromptBlock(issueRealityContext) {
+  if (!issueRealityContext) return '';
+  return [
+    '## Claimed Fix Reality Check (Required)',
+    '',
+    'Cross-check observed behavior against closed GitHub issues from the LiBrainian repository.',
+    '1. Select at least 5 issues from the snapshot below that appear relevant to what you observe.',
+    '2. Verify whether each issue claim still holds in current runtime behavior.',
+    '3. Emit `PATROL_OBS` findings that explicitly reference issue numbers, for example `Issue #123: ...`.',
+    '4. In follow-up recommendations, include issue numbers and concrete next actions.',
+    '',
+    issueRealityContext,
+  ].join('\n');
+}
+
+export function buildPrompt(template, taskVariant, repoName, issueRealityContext = null) {
   let taskBlock;
   if (taskVariant === 'explore') {
     taskBlock = [
@@ -532,7 +664,10 @@ function buildPrompt(template, taskVariant, repoName) {
     ].join('\n');
   }
 
-  return template.replace('{{TASK_BLOCK}}', taskBlock).replace('{{GUIDED_TASK}}', '');
+  const basePrompt = template.replace('{{TASK_BLOCK}}', taskBlock).replace('{{GUIDED_TASK}}', '');
+  const issueRealityBlock = buildIssueRealityPromptBlock(issueRealityContext);
+  if (!issueRealityBlock) return basePrompt;
+  return `${basePrompt}\n\n${issueRealityBlock}\n`;
 }
 
 // ---------------------------------------------------------------------------
@@ -726,6 +861,81 @@ function assembleFromIncremental(incrementalObs) {
   return result;
 }
 
+function extractSection(text, headingPattern) {
+  const match = text.match(headingPattern);
+  if (!match) return '';
+  const start = match.index ?? 0;
+  const heading = match[0] ?? '';
+  const body = text.slice(start + heading.length);
+  const nextHeading = body.search(/\n-\s\*\*[^*]+\*\*:/u);
+  return (nextHeading === -1 ? body : body.slice(0, nextHeading)).trim();
+}
+
+export function fallbackObservationFromNarrative(rawOutput) {
+  const text = String(rawOutput ?? '').trim();
+  if (text.length < 80) return null;
+
+  const hasNarrativeSignals = /\bsummary\b|\bnps\b|\bnegative\b/i.test(text);
+  if (!hasNarrativeSignals) return null;
+
+  const npsMatch = text.match(/\bnps[^0-9]{0,20}(\d{1,2})\b/i) ?? text.match(/\bfrom\s+(\d{1,2})\s+to\s+(\d{1,2})\b/i);
+  const parsedNps = npsMatch ? Number(npsMatch[1]) : 0;
+  const npsScore = Number.isFinite(parsedNps) ? Math.max(0, Math.min(10, parsedNps)) : 0;
+
+  const summaryLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && /summary/i.test(line))
+    ?? text.slice(0, 240);
+
+  const negativesSection = extractSection(
+    text,
+    /-\s\*\*negatives?(?:\s*&\s*fixes)?(?::)?\*\*:?/iu,
+  );
+  const negativeChunks = negativesSection
+    ? negativesSection
+      .split(/\s(?=\d+\)\s)/u)
+      .map((chunk) => chunk.replace(/^\d+\)\s*/u, '').trim())
+      .filter(Boolean)
+    : [];
+
+  const negativeFindingsMandatory = negativeChunks.slice(0, 5).map((chunk, index) => {
+    const [titlePart] = chunk.split(/[.;]/u);
+    return {
+      category: 'other',
+      severity: 'medium',
+      title: titlePart.slice(0, 120) || `Narrative finding ${index + 1}`,
+      detail: chunk.slice(0, 800),
+      reproducible: null,
+      suggestedFix: '',
+    };
+  });
+
+  if (negativeFindingsMandatory.length === 0 && npsScore === 0) return null;
+
+  return {
+    sessionSummary: summaryLine.slice(0, 500),
+    bootstrapExperience: { durationFeeling: 'unknown', errors: [], surprises: [] },
+    featuresUsed: [],
+    constructionsUsed: [],
+    compositionsAttempted: [],
+    registryExperience: { discoveryEasy: null, documentationClear: null, availabilityIssues: [], missingConstructions: [] },
+    negativeFindingsMandatory,
+    positiveFindings: [],
+    implicitBehavior: { fellBackToGrep: false, ignoredResults: false, retriedAfterFailure: false, detail: '' },
+    overallVerdict: {
+      wouldRecommend: null,
+      productionReady: null,
+      biggestStrength: '',
+      biggestWeakness: '',
+      npsScore,
+    },
+    npsImprovementRoadmap: null,
+    pathTo10: null,
+    fixRecommendations: [],
+  };
+}
+
 /**
  * Extract the full observation JSON (PATROL_OBSERVATION_JSON_START/END markers).
  * Falls back to assembling from incremental observations if not found.
@@ -750,6 +960,12 @@ function extractObservation(rawOutput) {
   if (incremental.length > 0) {
     console.log(`[patrol] assembling from ${incremental.length} incremental observations`);
     return assembleFromIncremental(incremental);
+  }
+
+  const narrativeFallback = fallbackObservationFromNarrative(rawOutput);
+  if (narrativeFallback) {
+    console.log('[patrol] assembling from unstructured narrative output');
+    return narrativeFallback;
   }
 
   return null;
@@ -895,7 +1111,80 @@ function detectAgentBin(explicit) {
  *
  * @param {object} cheapModels - resolved cheapest models (from resolveCheapestModels)
  */
-function buildAgentArgs(agentBin, sandboxDir, cheapModels) {
+export function inspectClaudeCliHelp(helpText) {
+  const normalized = String(helpText ?? '');
+  const streamJsonAndVerboseMentioned =
+    /\bstream-json\b[\s\S]*--verbose/iu.test(normalized) ||
+    /--verbose[\s\S]*\bstream-json\b/iu.test(normalized);
+  return {
+    supportsOutputFormat: /--output-format\b/iu.test(normalized),
+    supportsStreamJson: /\bstream-json\b/iu.test(normalized),
+    supportsVerbose: /--verbose\b/iu.test(normalized),
+    requiresVerboseForStreamJson:
+      streamJsonAndVerboseMentioned &&
+      /\brequir(?:e|ed|es|ing)\b/iu.test(normalized),
+  };
+}
+
+function detectAgentCompatibility(agentBin) {
+  const basename = path.basename(agentBin);
+  const isCodex = basename === 'codex' || basename.startsWith('codex');
+  if (isCodex) {
+    return { type: 'codex' };
+  }
+
+  const result = spawnSync(agentBin, ['--help'], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+    shell: false,
+  });
+  const helpText = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  return {
+    type: 'claude',
+    ...inspectClaudeCliHelp(helpText),
+  };
+}
+
+export function resolveCodexModelFallbackOrder(cheapModels = {}) {
+  const ordered = [];
+  const seen = new Set();
+  const addModel = (value) => {
+    if (value === null) {
+      if (!seen.has('__default__')) {
+        seen.add('__default__');
+        ordered.push(null);
+      }
+      return;
+    }
+    const model = typeof value === 'string' ? value.trim() : '';
+    if (!model || seen.has(model)) return;
+    seen.add(model);
+    ordered.push(model);
+  };
+
+  addModel(cheapModels?.llmModel);
+  addModel(cheapModels?.internalLlmModel);
+  addModel(null);
+  return ordered;
+}
+
+export function isCodexUnsupportedModelError(stderrText) {
+  const text = String(stderrText ?? '').toLowerCase();
+  if (!text) return false;
+  return (
+    text.includes('model is not supported when using codex with a chatgpt account')
+    || (text.includes('chatgpt account') && text.includes('model') && text.includes('not supported'))
+    || (text.includes('unsupported model') && text.includes('codex'))
+  );
+}
+
+export function buildAgentArgs(
+  agentBin,
+  sandboxDir,
+  cheapModels,
+  agentCompatibility = null,
+  options = {},
+) {
   const basename = path.basename(agentBin);
 
   if (basename === 'codex' || basename.startsWith('codex')) {
@@ -907,9 +1196,16 @@ function buildAgentArgs(agentBin, sandboxDir, cheapModels) {
       '--color', 'never',
       '-C', sandboxDir,
     ];
-    // Force cheapest model for the agent itself
-    if (cheapModels?.llmModel) {
-      args.push('--model', cheapModels.llmModel);
+    const modelOverrideProvided = Object.prototype.hasOwnProperty.call(options, 'modelOverride');
+    const modelOverrideValue = modelOverrideProvided ? options.modelOverride : undefined;
+    const selectedModel = typeof modelOverrideValue === 'string'
+      ? modelOverrideValue.trim()
+      : modelOverrideValue === null
+        ? ''
+        : (cheapModels?.llmModel ?? '');
+    // Force model unless explicitly using provider default (null override)
+    if (selectedModel) {
+      args.push('--model', selectedModel);
     }
     args.push('-');  // codex uses `-` to read from stdin
     return args;
@@ -922,8 +1218,25 @@ function buildAgentArgs(agentBin, sandboxDir, cheapModels) {
   const args = [
     '--print',
     '--dangerously-skip-permissions',
-    '--output-format', 'stream-json',
   ];
+  const claudeCompatibility =
+    agentCompatibility && agentCompatibility.type === 'claude'
+      ? agentCompatibility
+      : {
+          supportsOutputFormat: true,
+          supportsStreamJson: true,
+          supportsVerbose: true,
+          requiresVerboseForStreamJson: true,
+        };
+  const useStreamJson =
+    claudeCompatibility.supportsOutputFormat && claudeCompatibility.supportsStreamJson;
+  if (useStreamJson) {
+    args.push('--output-format', 'stream-json');
+    // Newer Claude CLIs require --verbose for stream-json.
+    if (claudeCompatibility.supportsVerbose) {
+      args.push('--verbose');
+    }
+  }
   // The agent "test user" should be competent enough to follow the patrol prompt,
   // exercise features thoroughly, and produce quality observations. Use Sonnet.
   // LiBrainian's internal operations (indexing, embeddings, queries) are separately
@@ -942,17 +1255,24 @@ function buildAgentArgs(agentBin, sandboxDir, cheapModels) {
  *
  * Returns: { exitCode, stdout (assembled text), stderr, timedOut, error }
  */
-async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}, cheapModels = null) {
+async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}, cheapModels = null, agentCompatibility = null) {
   const basename = path.basename(agentBin);
-  const isClaude = !(basename === 'codex' || basename.startsWith('codex'));
+  const isCodex = basename === 'codex' || basename.startsWith('codex');
+  const isClaude = !isCodex;
 
   // Write prompt to file (more reliable than stdin pipe for large prompts)
   const promptFile = path.join(sandboxDir, '.patrol-prompt.md');
   await fs.writeFile(promptFile, prompt, 'utf8');
 
-  return new Promise((resolve) => {
+  const spawnAgentAttempt = (modelOverride) => new Promise((resolve) => {
     const supportsProcessGroups = process.platform !== 'win32';
-    const args = buildAgentArgs(agentBin, sandboxDir, cheapModels);
+    const args = buildAgentArgs(
+      agentBin,
+      sandboxDir,
+      cheapModels,
+      agentCompatibility,
+      { modelOverride },
+    );
 
     // For Claude, pass the prompt as a positional argument (file contents)
     // For Codex, we'll pipe via stdin
@@ -990,21 +1310,6 @@ async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}
       killChildTree();
     }, timeoutMs);
 
-    // Heartbeat: log a status line every 60s so we know the run is alive
-    const spawnTime = Date.now();
-    const heartbeat = setInterval(() => {
-      const elapsed = Math.round((Date.now() - spawnTime) / 1000);
-      console.log(`[patrol:heartbeat] agent running ${elapsed}s... assembled=${assembledText.length}chars stdout=${stdoutBuffer.length}chars stderr=${stderrBuffer.length}chars`);
-    }, 60_000);
-
-    // Handle stdin errors (e.g. EPIPE if child exits before we finish writing)
-    child.stdin.on('error', () => {});
-    if (!isClaude) {
-      // Codex reads from stdin
-      child.stdin.write(prompt);
-    }
-    child.stdin.end();
-
     let stdoutBuffer = '';
     let stderrBuffer = '';
     let stdoutOverflow = false;
@@ -1013,6 +1318,23 @@ async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}
     let assembledText = '';
     // Line buffer for stream-json parsing: chunks may split across lines
     let streamLineBuf = '';
+
+    // Heartbeat: log a status line every 60s so we know the run is alive
+    const spawnTime = Date.now();
+    const heartbeat = setInterval(() => {
+      const elapsed = Math.round((Date.now() - spawnTime) / 1000);
+      console.log(
+        `[patrol:heartbeat] agent running ${elapsed}s... assembled=${assembledText.length}chars stdout=${stdoutBuffer.length}chars stderr=${stderrBuffer.length}chars`,
+      );
+    }, 60_000);
+
+    // Handle stdin errors (e.g. EPIPE if child exits before we finish writing)
+    child.stdin.on('error', () => {});
+    if (isCodex) {
+      // Codex reads from stdin
+      child.stdin.write(prompt);
+    }
+    child.stdin.end();
 
     child.stdout?.on('data', (chunk) => {
       const text = chunk.toString();
@@ -1112,6 +1434,32 @@ async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}
       });
     });
   });
+
+  if (isCodex) {
+    const modelFallbackOrder = resolveCodexModelFallbackOrder(cheapModels);
+    let lastResult = null;
+    for (let index = 0; index < modelFallbackOrder.length; index += 1) {
+      const modelOverride = modelFallbackOrder[index];
+      const result = await spawnAgentAttempt(modelOverride);
+      lastResult = result;
+      if (result.exitCode === 0 || !isCodexUnsupportedModelError(result.stderr)) {
+        return result;
+      }
+
+      const nextModel = modelFallbackOrder[index + 1];
+      if (typeof nextModel === 'undefined') {
+        return result;
+      }
+      const currentLabel = modelOverride ?? '(provider-default)';
+      const nextLabel = nextModel ?? '(provider-default)';
+      console.warn(
+        `[patrol] codex model '${currentLabel}' incompatible in this environment; retrying with ${nextLabel}`,
+      );
+    }
+    return lastResult ?? { exitCode: 1, stdout: '', stderr: '', timedOut: false, error: 'unknown' };
+  }
+
+  return spawnAgentAttempt(undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -1310,7 +1658,14 @@ async function main() {
 
   // Detect agent binary (auto-detect from local env, supports claude or codex OAuth)
   const agentBin = detectAgentBin(opts.agentBin);
+  const agentCompatibility = detectAgentCompatibility(agentBin);
   console.log(`[patrol] mode=${opts.mode} maxRepos=${opts.maxRepos} timeoutMs=${opts.timeoutMs} agent=${agentBin}`);
+  if (agentCompatibility.type === 'claude') {
+    console.log(
+      `[patrol] claude compatibility: stream-json=${agentCompatibility.supportsStreamJson} ` +
+      `output-format=${agentCompatibility.supportsOutputFormat} verbose=${agentCompatibility.supportsVerbose}`,
+    );
+  }
 
   // Read manifest
   const manifest = JSON.parse(await fs.readFile(MANIFEST_PATH, 'utf8'));
@@ -1319,6 +1674,12 @@ async function main() {
 
   // Read prompt template
   const promptTemplate = await fs.readFile(PROMPT_TEMPLATE_PATH, 'utf8');
+  const issueRealityContext = opts.noIssues ? null : loadIssueRealityContext();
+  if (issueRealityContext) {
+    console.log(
+      `[patrol] issue reality context loaded (${issueRealityContext.split('\n').length - 1} issues sampled)`,
+    );
+  }
 
   // Pack tarball
   console.log('[patrol] creating tarball...');
@@ -1326,6 +1687,11 @@ async function main() {
   if (!packedName) throw new Error('npm pack did not return a tarball name');
   const tarballPath = path.join(REPO_ROOT, packedName);
   console.log(`[patrol] tarball: ${packedName}`);
+  const tarballEntries = readTarballEntries(tarballPath);
+  const tarballContract = assertPatrolTarballRuntimeContracts(tarballEntries);
+  console.log(
+    `[patrol] tarball preflight passed: required=${tarballContract.requiredCount} entries=${tarballContract.entryCount}`,
+  );
 
   // Resolve cheapest available models for the detected provider
   const cheapModels = resolveCheapestModels(agentBin);
@@ -1356,22 +1722,31 @@ async function main() {
         console.log(`[patrol] sandbox ready: ${sandbox.sandboxDir}`);
 
         // Build prompt
-        prompt = buildPrompt(promptTemplate, taskVariant, repo.name);
+        prompt = buildPrompt(promptTemplate, taskVariant, repo.name, issueRealityContext);
 
         // Spawn agent
         console.log(`[patrol] dispatching agent (timeout=${opts.timeoutMs}ms)...`);
-        const result = await spawnAgent(prompt, sandbox.sandboxDir, agentBin, opts.timeoutMs, cheapModelEnv, cheapModels);
+        const result = await spawnAgent(
+          prompt,
+          sandbox.sandboxDir,
+          agentBin,
+          opts.timeoutMs,
+          cheapModelEnv,
+          cheapModels,
+          agentCompatibility,
+        );
 
         const durationMs = Date.now() - startMs;
         console.log(`[patrol] agent finished: exit=${result.exitCode} timeout=${result.timedOut} duration=${durationMs}ms output=${result.stdout.length}chars`);
 
-        // For Claude, result.stdout is the assembled text from stream-json events.
-        // For Codex, it's the raw stdout. Either way, this is the primary text to analyze.
+        // For Claude, result.stdout is assembled stream-json text.
+        // For Codex, stderr may carry actionable output on model/runtime failures.
         const agentOutput = result.stdout;
+        const extractionOutput = agentOutput.length > 0 ? agentOutput : result.stderr;
 
         // Extract observation from agent output
-        const observations = extractObservation(agentOutput);
-        const implicitSignals = detectImplicitSignals(agentOutput);
+        const observations = extractObservation(extractionOutput);
+        const implicitSignals = detectImplicitSignals(extractionOutput);
         const transcriptPath = await writeRunTranscript({
           transcriptDir,
           runIndex: i,
@@ -1392,7 +1767,7 @@ async function main() {
         } else {
           console.log('[patrol] no observation found in agent output');
           // Show output preview for debugging
-          const preview = agentOutput.trim().slice(0, 2000);
+          const preview = extractionOutput.trim().slice(0, 2000);
           if (preview) {
             console.log(`[patrol] output preview (first 2000 chars):\n${preview}`);
           } else {
@@ -1413,7 +1788,7 @@ async function main() {
           implicitSignals,
           agentExitCode: result.exitCode,
           durationMs,
-          rawOutputTruncated: agentOutput.length >= CHILD_OUTPUT_MAX_CHARS,
+          rawOutputTruncated: extractionOutput.length >= CHILD_OUTPUT_MAX_CHARS,
           timedOut: result.timedOut,
           transcriptPath,
         });

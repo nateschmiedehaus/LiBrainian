@@ -69,9 +69,10 @@ export const DEFINITION_QUERY_PATTERNS: RegExp[] = [
  */
 export const ENTRY_POINT_QUERY_PATTERNS: RegExp[] = [
   /\bentry\s*point/i,
-  /\bmain\s*(file|module|entry|function)?/i,
+  /\bmain\s+(entry\s*point|entry|file|function|module\s+entry)\b/i,
   /\bstart(ing)?\s*(point|file)?/i,
-  /\binitialize?\b/i,
+  /\binitialize\s+(the\s+)?(app|application|program|service|server|cli)\b/i,
+  /\bhow\s+to\s+initialize\b/i,
   /\bwhere\s+(to\s+)?start/i,
   /\bhow\s+to\s+(use|start|run|begin)/i,
   /\bAPI\s*(entry|main)/i,

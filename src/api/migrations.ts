@@ -171,8 +171,18 @@ function isVolatileSqliteSidecar(srcPath: string): boolean {
 function isTransientBackupCopyError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code = (error as NodeJS.ErrnoException).code;
-  if (code !== 'ENOENT') return false;
-  return error.message.includes('librarian.sqlite-shm') || error.message.includes('librarian.sqlite-wal');
+  if (code === 'ENOENT') {
+    return error.message.includes('librarian.sqlite-shm') || error.message.includes('librarian.sqlite-wal');
+  }
+  return code === 'ENOTEMPTY' || code === 'EBUSY' || code === 'EPERM';
+}
+
+async function removePartialBackupDirectory(backupDir: string): Promise<void> {
+  try {
+    await fs.rm(backupDir, { recursive: true, force: true });
+  } catch {
+    // Best-effort cleanup before retrying backup copy.
+  }
 }
 
 async function backupLibrarianState(workspaceRoot: string, fromVersion: number): Promise<string | null> {
@@ -188,6 +198,7 @@ async function backupLibrarianState(workspaceRoot: string, fromVersion: number):
     await backupCopyDirectory(librarianDir, backupDir, { recursive: true, force: false, errorOnExist: true });
   } catch (error) {
     if (!isTransientBackupCopyError(error)) throw error;
+    await removePartialBackupDirectory(backupDir);
     await backupCopyDirectory(librarianDir, backupDir, {
       recursive: true,
       force: false,

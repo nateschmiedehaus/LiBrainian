@@ -34,6 +34,14 @@ Describe the tests that you ran to verify your changes:
 - [ ] CLI quickstart manually verified (`npx librainian quickstart`)
 - [ ] Query manually verified (`npx librainian query "..."`)
 
+## Runtime Reality Evidence
+
+Required for runtime-affecting changes (retrieval, provider/runtime, constructions, diagnostics).
+
+- [ ] Patrol artifact link:
+- [ ] Transcript excerpt:
+- [ ] Post-fix comparison:
+
 ## Screenshots (if applicable)
 
 Add screenshots for UI changes.

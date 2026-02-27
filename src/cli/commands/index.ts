@@ -51,6 +51,15 @@ function isStorageLockError(message: string): boolean {
     || normalized.includes('database is locked');
 }
 
+function isAdapterBootstrapError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('ebootstrap_failed')
+    || normalized.includes('default llm service factory not registered')
+    || normalized.includes('llm_adapter_unavailable')
+    || normalized.includes('llm_adapter_unregistered')
+    || normalized.includes('model policy provider not registered');
+}
+
 function buildIndexFailureGuidance(
   errorMessage: string,
   finalStatus: { stats: { totalFunctions: number; totalModules: number } } | null,
@@ -216,13 +225,22 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   }
   console.log('');
 
+  const hookFriendlyUpdate = options.allowLockSkip === true;
   const envProvider = process.env.LIBRARIAN_LLM_PROVIDER;
   const envModel = process.env.LIBRARIAN_LLM_MODEL;
-  const llmProvider = envProvider === 'claude' || envProvider === 'codex' ? envProvider : undefined;
-  const llmModelId = typeof envModel === 'string' && envModel.trim().length > 0 ? envModel : undefined;
+  const llmProvider = !hookFriendlyUpdate && (envProvider === 'claude' || envProvider === 'codex')
+    ? envProvider
+    : undefined;
+  const llmModelId = !hookFriendlyUpdate && typeof envModel === 'string' && envModel.trim().length > 0
+    ? envModel
+    : undefined;
   const hasLlmConfig = Boolean(llmProvider && llmModelId);
   if (verbose && !hasLlmConfig) {
-    console.log('\u26A0\uFE0F  LLM not configured - proceeding without LLM enrichment. Context packs will not be regenerated.');
+    if (hookFriendlyUpdate) {
+      console.log('\u26A0\uFE0F  Hook/update mode: forcing structural-only indexing (LLM discovery disabled).');
+    } else {
+      console.log('\u26A0\uFE0F  LLM not configured - proceeding without LLM enrichment. Context packs will not be regenerated.');
+    }
   }
 
   // Initialize librarian with proper error handling
@@ -231,6 +249,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     workspace,
     autoBootstrap: false,
     autoWatch: false,
+    disableLlmDiscovery: hookFriendlyUpdate,
     llmProvider: hasLlmConfig ? llmProvider : undefined,
     llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
@@ -240,6 +259,16 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     initialized = true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    if (options.allowLockSkip && isAdapterBootstrapError(errorMessage)) {
+      console.warn(
+        'LiBrainian update skipped (non-blocking:adapter_unavailable). ' +
+        'Run "librarian check-providers" and "librarian bootstrap" to restore full update behavior.',
+      );
+      if (verbose) {
+        console.warn(`Details: ${errorMessage}`);
+      }
+      return;
+    }
     if (options.allowLockSkip && isStorageLockError(errorMessage)) {
       console.warn('LiBrainian index is busy (another process is indexing); skipping update. Retry shortly.');
       if (verbose) {
@@ -297,6 +326,16 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
       await librarian.reindexFiles(resolvedFiles);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      if (options.allowLockSkip && isAdapterBootstrapError(errorMessage)) {
+        console.warn(
+          'LiBrainian update skipped (non-blocking:adapter_unavailable). ' +
+          'Run "librarian check-providers" and "librarian bootstrap" to restore full update behavior.',
+        );
+        if (verbose) {
+          console.warn(`Details: ${errorMessage}`);
+        }
+        return;
+      }
       const finalStatus = await librarian.getStatus().catch(() => null);
       const guidance = buildIndexFailureGuidance(errorMessage, finalStatus);
 

@@ -570,6 +570,64 @@ describe('runProviderReadinessGate', () => {
     }
   });
 
+  it('treats recent unavailable provider failures as sticky and auto-repairs selection', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-unavailable-'));
+    try {
+      await recordProviderFailure(workspaceRoot, {
+        provider: 'claude',
+        reason: 'unavailable',
+        message: 'cannot be launched inside another Claude Code session',
+        ttlMs: 10 * 60 * 1000,
+        at: new Date().toISOString(),
+      });
+
+      const authChecker = {
+        checkAll: async () =>
+          buildAuthStatus({
+            claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+            codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+          }),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: async () => ({
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+        checkCodexHealth: async () => ({
+          provider: 'codex',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+      });
+
+      const result = await runProviderReadinessGate(workspaceRoot, {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      const claudeStatus = result.providers.find((provider) => provider.provider === 'claude');
+      expect(claudeStatus?.available).toBe(false);
+      expect(result.selectedProvider).toBe('codex');
+      expect(result.autoRepair).toMatchObject({
+        from: 'claude',
+        to: 'codex',
+      });
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it('clears sticky recent failures after successful forced probe', async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-gate-force-probe-'));
     try {
@@ -624,6 +682,61 @@ describe('runProviderReadinessGate', () => {
       expect(failuresAfter.claude).toBeUndefined();
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('auto-repairs provider selection by falling back to the next healthy provider', async () => {
+    const previousProvider = process.env.LIBRARIAN_LLM_PROVIDER;
+    process.env.LIBRARIAN_LLM_PROVIDER = 'claude';
+    try {
+      const authChecker = {
+        checkAll: async () =>
+          buildAuthStatus({
+            claude_code: { provider: 'claude_code', authenticated: true, lastChecked: 'now', source: 'test' },
+            codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+          }),
+        getAuthGuidance: () => [],
+      } as unknown as AuthChecker;
+
+      const llmService = buildAdapter({
+        checkClaudeHealth: async () => ({
+          provider: 'claude',
+          available: false,
+          authenticated: false,
+          lastCheck: Date.now(),
+          error: 'provider temporarily unavailable',
+        }),
+        checkCodexHealth: async () => ({
+          provider: 'codex',
+          available: true,
+          authenticated: true,
+          lastCheck: Date.now(),
+        }),
+      });
+
+      const result = await runProviderReadinessGate('/tmp', {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      expect(result.ready).toBe(true);
+      expect(result.selectedProvider).toBe('codex');
+      expect(result.autoRepair).toMatchObject({
+        from: 'claude',
+        to: 'codex',
+      });
+      expect(result.remediationSteps).toEqual(
+        expect.arrayContaining([expect.stringContaining('Auto-repaired provider selection: claude -> codex')])
+      );
+    } finally {
+      if (typeof previousProvider === 'string') process.env.LIBRARIAN_LLM_PROVIDER = previousProvider;
+      else delete process.env.LIBRARIAN_LLM_PROVIDER;
     }
   });
 

@@ -1,13 +1,11 @@
 name: e2e-cadence
 
 on:
-  push:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
+  # Runs nightly at 6 AM UTC. LLM evaluations are expensive and slow; keeping
+  # them off the push path reduces API cost and CI latency. Push CI retains
+  # the T0.5 smoke test (closure-policy.yml) for fast reality checks.
+  schedule:
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:

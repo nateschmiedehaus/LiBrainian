@@ -3,6 +3,7 @@ import {
   extractBugContext,
   extractCodeReviewFilePath,
   extractFeatureTarget,
+  extractReferencedFilePath,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
   extractWhyQueryTopics,
@@ -36,6 +37,12 @@ describe('query intent target extractors', () => {
     expect(extractCodeReviewFilePath('review file src/api/query.ts')).toBe('src/api/query.ts');
     expect(extractCodeReviewFilePath('please check "src/storage/types.ts"')).toBe('src/storage/types.ts');
     expect(extractCodeReviewFilePath('review this change')).toBeUndefined();
+  });
+
+  it('extracts file-path mentions from generic intents', () => {
+    expect(extractReferencedFilePath('What does reccmp/compare/core.py do?')).toBe('reccmp/compare/core.py');
+    expect(extractReferencedFilePath('inspect `src/api/query.ts` and summarize')).toBe('src/api/query.ts');
+    expect(extractReferencedFilePath('why use sqlite')).toBeUndefined();
   });
 
   it('extracts why-query topics and comparison targets', () => {

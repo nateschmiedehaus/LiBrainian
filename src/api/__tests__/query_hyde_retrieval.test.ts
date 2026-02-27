@@ -79,6 +79,61 @@ describe('HyDE retrieval helpers', () => {
     expect(__testing.shouldBypassEnumerationForIntent('List all functions in this file')).toBe(false);
   });
 
+  it('uses stricter candidate materialization limits for caller probes at L0', async () => {
+    const { __testing } = await import('../query.js');
+    const callerLimit = __testing.resolveCandidateMaterializationLimit(
+      'L0',
+      'What functions or methods are callers of queryLibrarian?',
+      false,
+    );
+    const genericLimit = __testing.resolveCandidateMaterializationLimit(
+      'L0',
+      'What does queryLibrarian do?',
+      false,
+    );
+    expect(callerLimit).toBeLessThanOrEqual(genericLimit);
+    expect(callerLimit).toBeGreaterThan(0);
+  });
+
+  it('caps candidate materialization to the top scored entries', async () => {
+    const { __testing } = await import('../query.js');
+    const capped = __testing.capCandidatesForMaterialization([
+      {
+        entityId: 'low',
+        entityType: 'function',
+        semanticSimilarity: 0.1,
+        confidence: 0.2,
+        recency: 0,
+        pagerank: 0,
+        centrality: 0,
+        communityId: null,
+      },
+      {
+        entityId: 'high',
+        entityType: 'function',
+        semanticSimilarity: 0.8,
+        confidence: 0.9,
+        recency: 0,
+        pagerank: 0,
+        centrality: 0,
+        communityId: null,
+      },
+      {
+        entityId: 'mid',
+        entityType: 'function',
+        semanticSimilarity: 0.5,
+        confidence: 0.6,
+        recency: 0,
+        pagerank: 0,
+        centrality: 0,
+        communityId: null,
+      },
+    ], 2);
+    expect(capped).toHaveLength(2);
+    expect(capped[0]?.entityId).toBe('high');
+    expect(capped.some((item: { entityId: string }) => item.entityId === 'low')).toBe(false);
+  });
+
   it('fuses multiple expansion result lists into one RRF ranking', async () => {
     const { __testing } = await import('../query.js');
     const fused = __testing.fuseSimilarityResultListsWithRrf([

@@ -159,6 +159,36 @@ body:
     validations:
       required: true
   - type: textarea
+    id: baseline_runtime_evidence
+    attributes:
+      label: Baseline runtime evidence
+      description: Link or paste patrol artifact paths, transcript excerpts, and metrics showing current reality before the fix.
+      placeholder: |
+        - Artifact: state/patrol/patrol-run-...
+        - Transcript: state/patrol/transcripts/...
+        - Key runtime metrics/failures:
+    validations:
+      required: true
+  - type: textarea
+    id: runtime_probe_success_criteria
+    attributes:
+      label: Runtime probe success criteria
+      description: Define runtime probes and pass criteria that will verify closure.
+      placeholder: |
+        - `npm run validate:reality` passes
+        - Query smoke probe exits 0 with no error payload
+        - Post-fix patrol no longer reproduces this failure class
+    validations:
+      required: true
+  - type: input
+    id: post_fix_verification_artifact
+    attributes:
+      label: Post-fix verification artifact
+      description: Provide expected post-fix artifact path for closure verification.
+      placeholder: state/patrol/patrol-run-<label>-post-fix.json
+    validations:
+      required: true
+  - type: textarea
     id: acceptance
     attributes:
       label: Acceptance criteria

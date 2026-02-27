@@ -6,6 +6,7 @@ import type { Construction, ConstructionManifest } from '../types.js';
 import {
   ConstructionRegistry,
   getConstructionManifest,
+  invokeConstruction,
   listConstructions,
 } from '../registry.js';
 import { isConstructionId } from '../types.js';
@@ -131,6 +132,40 @@ describe('default construction registry', () => {
     expect(manifest).toBeTruthy();
     expect(manifest?.available).toBe(true);
     expect(construction.id).toBe('registry-auto-generated-test');
+  });
+
+  it('fails architecture verifier when it checks zero files', async () => {
+    const mockLibrarian = {
+      queryOptional: async () => ({ packs: [] }),
+      queryRequired: async () => ({ packs: [] }),
+      query: async () => ({ packs: [] }),
+    } as const;
+
+    const outcome = await invokeConstruction(
+      'librainian:architecture-verifier',
+      { layers: [], boundaries: [], rules: [] },
+      { deps: { librarian: mockLibrarian } },
+    ) as { ok: boolean; error?: { message?: string } };
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error?.message ?? '').toContain('insufficient_data');
+  });
+
+  it('fails security audit helper when it audits zero files', async () => {
+    const mockLibrarian = {
+      queryOptional: async () => ({ packs: [] }),
+      queryRequired: async () => ({ packs: [] }),
+      query: async () => ({ packs: [] }),
+    } as const;
+
+    const outcome = await invokeConstruction(
+      'librainian:security-audit-helper',
+      { files: [], checkTypes: ['injection'] },
+      { deps: { librarian: mockLibrarian } },
+    ) as { ok: boolean; error?: { message?: string } };
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error?.message ?? '').toContain('insufficient_data');
   });
 });
 

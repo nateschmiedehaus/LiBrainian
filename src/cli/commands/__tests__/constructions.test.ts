@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { constructionsCommand } from '../constructions.js';
 import { invokeConstruction } from '../../../constructions/registry.js';
+import { ConstructionError } from '../../../constructions/base/construction_base.js';
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
@@ -68,6 +69,18 @@ describe('constructionsCommand', () => {
     const constructions = payload.constructions as Array<{ id: string }>;
     expect(constructions.some((construction) => construction.id === 'librainian:patrol-process')).toBe(true);
     expect(constructions.some((construction) => construction.id === 'librainian:code-review-pipeline')).toBe(true);
+  });
+
+  it('surfaces required runtime capabilities in human-readable list output', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['list'],
+      rawArgs: ['constructions', 'list'],
+    });
+
+    const combined = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(combined).toContain('hallucinated-api-detector');
+    expect(combined).toContain('requires: librainian-eval');
   });
 
   it('returns ranked search results in JSON mode', async () => {
@@ -235,6 +248,40 @@ describe('constructionsCommand', () => {
     expect(invokeConstruction).toHaveBeenCalled();
   });
 
+  it('serializes construction failures with non-empty error and cause messages', async () => {
+    (invokeConstruction as unknown as Mock).mockResolvedValueOnce({
+      ok: false,
+      error: new ConstructionError(
+        'provider unavailable',
+        'librainian:architecture-verifier',
+        new Error('claude unavailable in nested session'),
+      ),
+    });
+
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:architecture-verifier'],
+      rawArgs: ['constructions', 'run', 'librainian:architecture-verifier', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as {
+      success: boolean;
+      output: {
+        ok: boolean;
+        error?: {
+          message?: string;
+          cause?: {
+            message?: string;
+          };
+        };
+      };
+    };
+    expect(payload.success).toBe(true);
+    expect(payload.output.ok).toBe(false);
+    expect(payload.output.error?.message).toContain('provider unavailable');
+    expect(payload.output.error?.cause?.message).toContain('claude unavailable');
+  });
+
   it('runs code-review-pipeline preset via legacy slug alias', async () => {
     await constructionsCommand({
       workspace: '/tmp/workspace',
@@ -246,5 +293,36 @@ describe('constructionsCommand', () => {
     expect(payload.success).toBe(true);
     expect(payload.id).toBe('librainian:code-review-pipeline');
     expect(invokeConstruction).toHaveBeenCalled();
+  });
+
+  it('fails fast with actionable guidance when required construction input is missing', async () => {
+    await expect(
+      constructionsCommand({
+        workspace: '/tmp/workspace',
+        args: ['run', 'librainian:code-quality-reporter'],
+        rawArgs: ['constructions', 'run', 'librainian:code-quality-reporter', '--json'],
+      }),
+    ).rejects.toThrow('Required fields: files, aspects');
+
+    expect(invokeConstruction).not.toHaveBeenCalled();
+  });
+
+  it('fails fast when runtime-only construction capability is missing', async () => {
+    await expect(
+      constructionsCommand({
+        workspace: '/tmp/workspace',
+        args: ['run', 'librainian:hallucinated-api-detector'],
+        rawArgs: [
+          'constructions',
+          'run',
+          'librainian:hallucinated-api-detector',
+          '--input',
+          '{"generatedCode":"const x = 1;","projectRoot":"."}',
+          '--json',
+        ],
+      }),
+    ).rejects.toThrow('Missing runtime capabilities: librainian-eval');
+
+    expect(invokeConstruction).not.toHaveBeenCalled();
   });
 });

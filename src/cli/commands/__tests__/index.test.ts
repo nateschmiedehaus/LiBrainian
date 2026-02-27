@@ -600,6 +600,46 @@ describe('indexCommand', () => {
       delete process.env.LIBRARIAN_LLM_MODEL;
     });
 
+    it('forces structural-only update mode when allowLockSkip is enabled', async () => {
+      process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+      process.env.LIBRARIAN_LLM_MODEL = 'gpt-5.1-codex-mini';
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(LiBrainian).toHaveBeenCalledWith(
+        expect.objectContaining({
+          disableLlmDiscovery: true,
+          llmProvider: undefined,
+          llmModelId: undefined,
+        }),
+      );
+    });
+
+    it('skips update gracefully when adapter bootstrap fails and allowLockSkip is true', async () => {
+      mockLiBrainian.initialize.mockRejectedValue(
+        new Error('EBOOTSTRAP_FAILED: Default LLM service factory not registered')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('non-blocking:adapter_unavailable')
+      );
+      expect(mockLiBrainian.getStatus).not.toHaveBeenCalled();
+    });
+
     it('skips update gracefully when index lock is active and allowLockSkip is true', async () => {
       mockLiBrainian.initialize.mockRejectedValue(
         new Error('unverified_by_trace:storage_locked:indexing in progress (pid=1234, startedAt=2026-02-21T00:00:00.000Z)')
@@ -717,6 +757,25 @@ describe('indexCommand', () => {
           stack: expect.stringContaining('at test.js:1:1'),
         }),
       });
+    });
+
+    it('skips update when adapter bootstrap fails during reindex and allowLockSkip is true', async () => {
+      mockLiBrainian.reindexFiles.mockRejectedValue(
+        new Error('llm_adapter_unavailable: provider bootstrap failed')
+      );
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('non-blocking:adapter_unavailable')
+      );
+      expect(mockLiBrainian.shutdown).toHaveBeenCalled();
     });
 
     it('should ensure librarian.shutdown is called even on failure', async () => {

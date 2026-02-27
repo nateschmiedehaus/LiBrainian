@@ -59,7 +59,7 @@ type StatusReport = {
     availableFeatures: string[];
     unavailableFeatures: string[];
   };
-  storage: { status: 'ready' | 'not_initialized'; reason?: string };
+  storage: { status: 'ready' | 'degraded' | 'not_initialized'; reason?: string };
   schema?: {
     current: number | null;
     expected: number;
@@ -100,6 +100,9 @@ type StatusReport = {
     staleFiles: number;
     activePidFiles: number;
     unknownFreshFiles: number;
+    databaseLockActive?: boolean;
+    databaseLockPid?: number | null;
+    databaseLockPath?: string | null;
   };
   stats?: {
     totalFunctions: number;
@@ -287,8 +290,12 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   }
 
   let storage;
+  let resolvedDbPath: string | null = null;
+  let databaseLockInspection: { active: boolean; pid: number | null; lockPath: string | null; startedAt: string | null } | null = null;
   try {
     const dbPath = await resolveDbPath(workspaceRoot);
+    resolvedDbPath = dbPath;
+    databaseLockInspection = await inspectDatabaseLock(dbPath);
     storage = createSqliteStorage(dbPath, workspaceRoot, { useProcessLock: false });
     await storage.initialize();
     report.storage = { status: 'ready' };
@@ -483,7 +490,23 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       staleFiles: workspaceLocks.staleFiles,
       activePidFiles: workspaceLocks.activePidFiles,
       unknownFreshFiles: workspaceLocks.unknownFreshFiles,
+      databaseLockActive: databaseLockInspection?.active ?? false,
+      databaseLockPid: databaseLockInspection?.pid ?? null,
+      databaseLockPath: databaseLockInspection?.lockPath ?? (resolvedDbPath ? `${resolvedDbPath}.lock` : null),
     };
+    if (report.storage.status === 'ready' && workspaceLocks.activePidFiles > 0) {
+      report.storage = {
+        status: 'degraded',
+        reason: `active storage lock(s) detected (${workspaceLocks.activePidFiles})`,
+      };
+    }
+    if (report.storage.status === 'ready' && databaseLockInspection?.active) {
+      const pidSuffix = databaseLockInspection.pid ? ` pid=${databaseLockInspection.pid}` : '';
+      report.storage = {
+        status: 'degraded',
+        reason: `active database lock detected${pidSuffix}`,
+      };
+    }
     report.server = serverStatus;
     report.config = configStatus;
     if (format === 'text') {
@@ -493,9 +516,18 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'Stale Lock Files', value: workspaceLocks.staleFiles },
         { key: 'Active PID Locks', value: workspaceLocks.activePidFiles },
         { key: 'Fresh Unknown Locks', value: workspaceLocks.unknownFreshFiles },
+        { key: 'DB Lock Active', value: databaseLockInspection?.active ?? false },
+        { key: 'DB Lock PID', value: databaseLockInspection?.pid ?? 'none' },
+        { key: 'DB Lock Path', value: databaseLockInspection?.lockPath ?? (resolvedDbPath ? `${resolvedDbPath}.lock` : 'unknown') },
       ]);
       if (workspaceLocks.staleFiles > 0) {
         console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
+      }
+      if (workspaceLocks.activePidFiles > 0) {
+        console.log('\nTip: Storage is degraded while active locks exist. Wait for indexing to finish or run `librarian doctor --heal` if stuck.');
+      }
+      if (databaseLockInspection?.active) {
+        console.log('\nTip: Active database lock detected. Wait for ongoing indexing/query work to finish before trusting read/write health.');
       }
       console.log();
 
@@ -823,7 +855,8 @@ async function statusWorkspaceSet(options: {
 }
 
 function deriveStatusExitCode(report: StatusReport): number {
-  if (report.storage.status !== 'ready') return 2;
+  if (report.storage.status === 'not_initialized') return 2;
+  if (report.storage.status === 'degraded') return 1;
   if (report.bootstrap?.required.full) return 1;
   if (report.watch?.health?.suspectedDead) return 1;
   return 0;
@@ -967,6 +1000,45 @@ function isPidAlive(pid: number): boolean {
     if (code === 'EPERM') return true;
     return false;
   }
+}
+
+async function inspectDatabaseLock(dbPath: string): Promise<{
+  active: boolean;
+  pid: number | null;
+  lockPath: string | null;
+  startedAt: string | null;
+}> {
+  const lockPath = `${dbPath}.lock`;
+  let raw: string;
+  try {
+    raw = await fs.readFile(lockPath, 'utf8');
+  } catch {
+    return { active: false, pid: null, lockPath, startedAt: null };
+  }
+
+  const parsed = safeJsonParse<Record<string, unknown>>(raw);
+  if (!parsed.ok) {
+    const asNumber = Number.parseInt(raw.trim(), 10);
+    const pid = Number.isFinite(asNumber) ? asNumber : null;
+    return {
+      active: pid !== null ? isPidAlive(pid) : false,
+      pid,
+      lockPath,
+      startedAt: null,
+    };
+  }
+
+  const payload = parsed.value;
+  const pid = typeof payload.pid === 'number' && Number.isFinite(payload.pid)
+    ? payload.pid
+    : null;
+  const startedAt = typeof payload.startedAt === 'string' ? payload.startedAt : null;
+  return {
+    active: pid !== null ? isPidAlive(pid) : false,
+    pid,
+    lockPath,
+    startedAt,
+  };
 }
 
 async function detectConfigPath(workspaceRoot: string): Promise<ConfigStatus> {

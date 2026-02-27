@@ -3,6 +3,7 @@ import { __testing, getQueryPipelineStages, queryLibrarianWithObserver } from '.
 import type { ContextPack, StageIssueSeverity, StageName } from '../../types.js';
 import type { LibrarianStorage } from '../../storage/types.js';
 import { GovernorContext } from '../governor_context.js';
+import type { QuerySynthesisResult } from '../query_synthesis.js';
 
 const baseVersion = {
   major: 1,
@@ -83,6 +84,27 @@ describe('query pipeline definition', () => {
         onStage: 'nope' as unknown as () => void,
       })
     ).rejects.toThrow(/onStage must be a function/);
+  });
+
+  it('anchors direct-pack retrieval from file paths mentioned in intent text', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-path',
+        relatedFiles: ['reccmp/compare/core.py'],
+      }),
+    ]);
+    const storage = { getContextPacks } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      { intent: 'What does reccmp/compare/core.py do?', depth: 'L1' },
+      '/tmp/workspace',
+    );
+
+    expect(packs).toHaveLength(1);
+    expect(getContextPacks).toHaveBeenCalledTimes(1);
+    const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[] };
+    expect(queryOptions.relatedFilesAny).toContain('reccmp/compare/core.py');
   });
 
   it('falls back when rerank output is invalid', async () => {
@@ -366,6 +388,9 @@ describe('query pipeline definition', () => {
 
     expect(result?.hints).toEqual(['Check the entry point']);
     expect(resolveMethodGuidanceFn).toHaveBeenCalledTimes(1);
+    const methodGuidanceCall = resolveMethodGuidanceFn.mock.calls[0]?.[0] as { llmTimeoutMs?: number } | undefined;
+    expect((methodGuidanceCall?.llmTimeoutMs ?? 0)).toBeGreaterThan(0);
+    expect((methodGuidanceCall?.llmTimeoutMs ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(10_000);
     const report = stageTracker.report().find((stage) => stage.stage === 'method_guidance');
     expect(report?.status).toBe('success');
     expect(coverageGaps).toHaveLength(0);
@@ -570,8 +595,77 @@ describe('query pipeline definition', () => {
     expect(result.synthesis?.answer).toBe('full');
     expect(result.synthesisMode).toBe('llm');
     expect(synthesizeQueryAnswerFn).toHaveBeenCalledTimes(1);
+    const synthesisCall = synthesizeQueryAnswerFn.mock.calls[0]?.[0] as { llmTimeoutMs?: number } | undefined;
+    expect((synthesisCall?.llmTimeoutMs ?? 0)).toBeGreaterThan(0);
+    expect((synthesisCall?.llmTimeoutMs ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(60_000);
     const report = stageTracker.report().find((stage) => stage.stage === 'synthesis');
     expect(report?.status).toBe('success');
+  });
+
+  it('falls back when full synthesis exceeds the stage timeout budget', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const coverageGaps: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      coverageGaps.push(message);
+      stageTracker.issue(stage, { message, severity: severity ?? 'moderate' });
+    };
+    const synthesizeQueryAnswerFn = vi.fn().mockImplementation(
+      () => new Promise<QuerySynthesisResult>(() => {})
+    );
+
+    const result = await __testing.runSynthesisStage({
+      query: { intent: 'test synthesis timeout', depth: 'L1' },
+      storage: {} as LibrarianStorage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+      synthesisTimeoutMs: 25,
+      canAnswerFromSummariesFn: () => false,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesis).toBeUndefined();
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.llmError).toMatch(/timed out/i);
+    expect(coverageGaps.join(' ')).toMatch(/timed out/i);
+  });
+
+  it('uses a 60s default synthesis timeout budget when query timeout is larger', async () => {
+    vi.useFakeTimers();
+    try {
+      const stageTracker = __testing.createStageTracker();
+      const coverageGaps: string[] = [];
+      const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+        coverageGaps.push(message);
+        stageTracker.issue(stage, { message, severity: severity ?? 'moderate' });
+      };
+      const synthesizeQueryAnswerFn = vi.fn().mockImplementation(
+        () => new Promise<QuerySynthesisResult>(() => {})
+      );
+
+      const runPromise = __testing.runSynthesisStage({
+        query: { intent: 'test default synthesis timeout', depth: 'L1', timeoutMs: 120_000 },
+        storage: {} as LibrarianStorage,
+        finalPacks: [createPack({})],
+        stageTracker,
+        recordCoverageGap,
+        explanationParts: [],
+        synthesisEnabled: true,
+        workspaceRoot: process.cwd(),
+        canAnswerFromSummariesFn: () => false,
+        synthesizeQueryAnswerFn,
+      });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      const result = await runPromise;
+      expect(result.llmError).toContain('60000ms');
+      expect(coverageGaps.join(' ')).toContain('60000ms');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('falls back when synthesis returns unavailable', async () => {

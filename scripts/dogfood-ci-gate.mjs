@@ -1294,6 +1294,8 @@ async function main() {
       'librainian',
       '--mode',
       'fast',
+      '--timeout',
+      String(bootstrapTimeoutMs),
       '--no-claude-md',
       '--force-resume',
     ], {

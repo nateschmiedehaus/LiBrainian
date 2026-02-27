@@ -49,6 +49,7 @@ const DEFAULT_STORAGE_LOCK_TIMEOUT_MS = 5_000;
 const STORAGE_LOCK_RETRY_INTERVAL_MS = 200;
 const DEFAULT_QUERY_PREFLIGHT_MAX_RECOVERY_ACTIONS = 12;
 const BOOTSTRAP_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
+const QUERY_READ_STORAGE_OPTIONS = { useProcessLock: false } as const;
 
 export async function queryCommand(options: QueryCommandOptions): Promise<void> {
   const { workspace, rawArgs, args } = options;
@@ -59,6 +60,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     args: commandArgs,
     options: {
       depth: { type: 'string', default: 'L1' },
+      format: { type: 'string' },
       files: { type: 'string' },
       scope: { type: 'string' },
       diversify: { type: 'boolean', default: false },
@@ -136,7 +138,15 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       : String(DEFAULT_STORAGE_LOCK_TIMEOUT_MS),
     'lock-timeout-ms'
   );
-  const outputJson = values.json as boolean;
+  const formatRaw = typeof values.format === 'string' ? values.format.trim().toLowerCase() : '';
+  if (formatRaw && formatRaw !== 'json' && formatRaw !== 'text') {
+    throw createError('INVALID_ARGUMENT', `Invalid --format "${values.format as string}" (use text|json).`);
+  }
+  const jsonFlag = values.json as boolean;
+  if (jsonFlag && formatRaw === 'text') {
+    throw createError('INVALID_ARGUMENT', '--json cannot be combined with --format text.');
+  }
+  const outputJson = jsonFlag || formatRaw === 'json';
   const outputPath = typeof values.out === 'string' && values.out.trim().length > 0
     ? values.out.trim()
     : undefined;
@@ -213,8 +223,9 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     timeoutMs: lockTimeoutMs,
     retryIntervalMs: STORAGE_LOCK_RETRY_INTERVAL_MS,
     maxRecoveryActions: DEFAULT_QUERY_PREFLIGHT_MAX_RECOVERY_ACTIONS,
+    allowConcurrentReads: true,
   });
-  let storage = createSqliteStorage(dbPath, workspace);
+  let storage = createQueryStorage(dbPath, workspace);
   storage = await withQueryCommandTimeout(
     'initialize',
     effectiveQueryTimeoutMs,
@@ -555,6 +566,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       llmRequirement,
       embeddingRequirement,
       tokenBudget,
+      timeoutMs: effectiveQueryTimeoutMs,
       deterministic,
     };
 
@@ -856,6 +868,7 @@ interface QueryStorageLockPreflightOptions {
   timeoutMs: number;
   retryIntervalMs: number;
   maxRecoveryActions: number;
+  allowConcurrentReads?: boolean;
 }
 
 async function runQueryStorageLockPreflight(
@@ -868,6 +881,7 @@ async function runQueryStorageLockPreflight(
   const timeoutMs = Math.max(0, options.timeoutMs);
   const retryIntervalMs = Math.max(50, options.retryIntervalMs);
   const maxRecoveryActions = Math.max(1, options.maxRecoveryActions);
+  const allowConcurrentReads = options.allowConcurrentReads === true;
   const deadline = Date.now() + timeoutMs;
   let nextRecoveryAt = 0;
   let recoveryActionCount = 0;
@@ -909,9 +923,26 @@ async function runQueryStorageLockPreflight(
       nextRecoveryAt = now + 1_000;
     }
 
-    const activeLock = await findActiveStorageLock(lockPaths);
-    const activeBlockingLock = activeLock ?? activeBootstrapLock;
-    if (!activeBlockingLock || activeBlockingLock.holder.pid === process.pid) return;
+    const activeStorageLock = await findActiveStorageLock(lockPaths);
+    const activeBootstrapBlockingLock =
+      activeBootstrapLock && activeBootstrapLock.holder.pid !== process.pid
+        ? activeBootstrapLock
+        : null;
+    const activeStorageBlockingLock =
+      activeStorageLock && activeStorageLock.holder.pid !== process.pid
+        ? activeStorageLock
+        : null;
+
+    if (!activeBootstrapBlockingLock) {
+      if (!activeStorageBlockingLock || allowConcurrentReads) {
+        return;
+      }
+    }
+
+    const activeBlockingLock = activeBootstrapBlockingLock ?? activeStorageBlockingLock;
+    if (!activeBlockingLock) {
+      return;
+    }
 
     if (Date.now() >= deadline) {
       const nextTimeoutMs = Math.max(timeoutMs * 2, timeoutMs + 1000);
@@ -1055,9 +1086,9 @@ function isPidAlive(pid: number): boolean {
 }
 
 function resolveQueryCommandArgs(rawArgs: string[], args: string[]): string[] {
-  const queryIndex = rawArgs.findIndex((arg) => arg === 'query');
-  if (queryIndex >= 0) {
-    const sliced = rawArgs.slice(queryIndex + 1);
+  const commandIndex = rawArgs.findIndex((arg) => arg === 'query' || arg === 'context');
+  if (commandIndex >= 0) {
+    const sliced = rawArgs.slice(commandIndex + 1);
     if (sliced.length > 0) {
       return sliced;
     }
@@ -1197,6 +1228,13 @@ async function initializeQueryStorageWithRecovery(
   }
 }
 
+function createQueryStorage(
+  dbPath: string,
+  workspace: string
+): ReturnType<typeof createSqliteStorage> {
+  return createSqliteStorage(dbPath, workspace, QUERY_READ_STORAGE_OPTIONS);
+}
+
 interface QueryStorageRecoveryParams {
   workspace: string;
   dbPath: string;
@@ -1239,7 +1277,7 @@ async function recoverQueryStorageAfterFailure(
     );
   }
 
-  const recoveredStorage = createSqliteStorage(dbPath, workspace);
+  const recoveredStorage = createQueryStorage(dbPath, workspace);
   await recoveredStorage.initialize();
   return recoveredStorage;
 }

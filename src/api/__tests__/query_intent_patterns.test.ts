@@ -42,6 +42,11 @@ describe('query_intent_patterns', () => {
     expect(hasMatch(ENTRY_POINT_QUERY_PATTERNS, 'main entry point')).toBe(true);
   });
 
+  it('does not over-match architecture overview intents as entry-point intents', () => {
+    expect(hasMatch(ENTRY_POINT_QUERY_PATTERNS, 'what are the main modules')).toBe(false);
+    expect(hasMatch(ENTRY_POINT_QUERY_PATTERNS, 'architecture overview')).toBe(false);
+  });
+
   it('matches canonical why-query intents', () => {
     expect(hasMatch(WHY_QUERY_PATTERNS, 'why use sqlite')).toBe(true);
     expect(hasMatch(WHY_QUERY_PATTERNS, 'rationale for caching')).toBe(true);

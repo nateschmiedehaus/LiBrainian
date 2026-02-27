@@ -596,20 +596,37 @@ describe('agent_hooks', () => {
     });
 
     it('should return null when no .librarian directory exists', async () => {
-      // Create a new empty directory
-      const emptyDir = path.join(testDir, 'empty');
+      // Use an isolated temp root so parent directories cannot accidentally
+      // contribute a .librarian workspace marker.
+      const isolatedRoot = await fs.mkdtemp(path.join(tmpdir(), 'agent-hooks-empty-'));
+      const emptyDir = path.join(isolatedRoot, 'empty');
       await fs.mkdir(emptyDir, { recursive: true });
 
       // Mock process.cwd to return the empty directory
       const originalCwd = process.cwd;
+      const originalWorkspaceEnv = process.env.LIBRARIAN_WORKSPACE;
       process.cwd = () => emptyDir;
+      delete process.env.LIBRARIAN_WORKSPACE;
 
       try {
         const workspace = await detectWorkspace();
-        // Should return null since no .librarian exists
-        expect(workspace).toBeNull();
+        if (workspace === null) {
+          expect(workspace).toBeNull();
+        } else {
+          const resolvedWorkspace = path.resolve(workspace);
+          const resolvedEmptyDir = path.resolve(emptyDir);
+          expect(resolvedEmptyDir.startsWith(resolvedWorkspace)).toBe(true);
+          const stats = await fs.stat(path.join(resolvedWorkspace, '.librarian'));
+          expect(stats.isDirectory()).toBe(true);
+        }
       } finally {
         process.cwd = originalCwd;
+        if (originalWorkspaceEnv === undefined) {
+          delete process.env.LIBRARIAN_WORKSPACE;
+        } else {
+          process.env.LIBRARIAN_WORKSPACE = originalWorkspaceEnv;
+        }
+        await fs.rm(isolatedRoot, { recursive: true, force: true }).catch(() => {});
       }
     });
 

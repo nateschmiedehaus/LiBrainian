@@ -36,7 +36,9 @@ const SOFT_FAILURE_CLASSES = [
     patterns: [
       'ebootstrap_failed',
       'model policy provider not registered',
+      'default llm service factory not registered',
       'llm adapter is not registered',
+      'llm_adapter_unavailable',
       'llm_adapter_unregistered',
       'providerunavailable',
     ],

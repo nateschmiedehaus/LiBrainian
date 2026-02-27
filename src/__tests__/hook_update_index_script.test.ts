@@ -63,6 +63,21 @@ describe('hook-update-index script', () => {
     expect(output).toContain('EBOOTSTRAP_FAILED');
   });
 
+  it('treats default llm service factory bootstrap failures as non-blocking', () => {
+    const { root, binDir } = createNpmStub();
+    cleanupDirs.push(root);
+    const result = runHook(binDir, {
+      STUB_NPM_EXIT_CODE: '41',
+      STUB_NPM_STDERR: 'EBOOTSTRAP_FAILED: Default LLM service factory not registered\\n',
+    });
+
+    expect(result.status).toBe(0);
+    const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
+    expect(output).toContain('LiBrainian staged index update skipped (non-blocking:adapter_unavailable)');
+    expect(output).toContain('npx tsx src/cli/index.ts bootstrap');
+    expect(output).toContain('Default LLM service factory not registered');
+  });
+
   it('treats unverified llm adapter unregistered failures as non-blocking', () => {
     const { root, binDir } = createNpmStub();
     cleanupDirs.push(root);

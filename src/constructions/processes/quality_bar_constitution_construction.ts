@@ -400,6 +400,16 @@ function tokenizePath(value: string): Set<string> {
   );
 }
 
+function shouldIgnoreDirectoryName(name: string): boolean {
+  return IGNORED_DIRECTORIES.has(name) || name.startsWith('.librarian.backup');
+}
+
+function isRecoverableDirectoryReadError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
 async function collectSourceFiles(workspace: string): Promise<string[]> {
   const root = path.resolve(workspace);
   const discovered: string[] = [];
@@ -407,11 +417,19 @@ async function collectSourceFiles(workspace: string): Promise<string[]> {
   while (queue.length > 0) {
     const current = queue.pop();
     if (!current) continue;
-    const entries = await fs.readdir(current, { withFileTypes: true });
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch (error) {
+      if (isRecoverableDirectoryReadError(error)) {
+        continue;
+      }
+      throw error;
+    }
     for (const entry of entries) {
       const absolute = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        if (IGNORED_DIRECTORIES.has(entry.name)) continue;
+        if (shouldIgnoreDirectoryName(entry.name)) continue;
         queue.push(absolute);
         continue;
       }

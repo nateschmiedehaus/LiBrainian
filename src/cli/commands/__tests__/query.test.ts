@@ -240,6 +240,57 @@ describe('queryCommand LLM resolution', () => {
     expect(call?.intent).toBe('hello world');
   });
 
+  it('preserves --files values when raw argv includes pre-command globals', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = '/tmp/workspace';
+
+    await queryCommand({
+      workspace,
+      args: ['hello world', '--files', 'src/a.ts,src/b.ts', '--json'],
+      rawArgs: ['--workspace', workspace, 'query', 'hello world', '--files', 'src/a.ts,src/b.ts', '--json'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+    expect(call?.affectedFiles).toEqual([
+      path.resolve(workspace, 'src/a.ts'),
+      path.resolve(workspace, 'src/b.ts'),
+    ]);
+  });
+
+  it('does not swallow mixed-order query flags into intent text', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = '/tmp/workspace';
+
+    await queryCommand({
+      workspace,
+      args: ['--strategy', 'heuristic', 'hello world', '--json'],
+      rawArgs: ['--workspace', workspace, 'query', '--strategy', 'heuristic', 'hello world', '--json'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+    expect(call?.embeddingRequirement).toBe('disabled');
+    expect(call?.llmRequirement).toBe('disabled');
+  });
+
+  it('does not swallow --format json into intent text', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const workspace = '/tmp/workspace';
+
+    await queryCommand({
+      workspace,
+      args: ['--format', 'json', 'hello world'],
+      rawArgs: ['--workspace', workspace, 'query', '--format', 'json', 'hello world'],
+    });
+
+    const call = vi.mocked(queryLibrarian).mock.calls[0]?.[0];
+    expect(call?.intent).toBe('hello world');
+  });
+
   it('maps --strategy heuristic to disabled embeddings and synthesis', async () => {
     const { queryCommand } = await import('../query.js');
     const { queryLibrarian } = await import('../../../api/query.js');
@@ -255,9 +306,10 @@ describe('queryCommand LLM resolution', () => {
     expect(call?.llmRequirement).toBe('disabled');
   });
 
-  it('fails fast when an active storage lock holder is detected before query execution', async () => {
+  it('allows query execution when an active storage lock holder exists (read-concurrent mode)', async () => {
     const { queryCommand } = await import('../query.js');
     const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
 
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-lock-active-'));
     const librarianDir = path.join(workspace, '.librarian');
@@ -288,7 +340,10 @@ describe('queryCommand LLM resolution', () => {
         workspace,
         args: [],
         rawArgs: ['query', 'hello world', '--json', '--lock-timeout-ms', '25'],
-      })).rejects.toMatchObject({ code: 'STORAGE_LOCKED' });
+      })).resolves.toBeUndefined();
+
+      const storageCall = vi.mocked(createSqliteStorage).mock.calls[0];
+      expect(storageCall?.[2]).toMatchObject({ useProcessLock: false });
     } finally {
       lockHolder.kill('SIGKILL');
       await fs.rm(workspace, { recursive: true, force: true });
@@ -624,6 +679,18 @@ describe('queryCommand LLM resolution', () => {
       args: [],
       rawArgs: ['query', 'hello world', '--out', '/tmp/query.json'],
     })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
+  it('allows --out when --format json is used', async () => {
+    const { queryCommand } = await import('../query.js');
+    const workspace = '/tmp/workspace';
+    const outPath = path.join(workspace, 'query-output.json');
+
+    await expect(queryCommand({
+      workspace,
+      args: ['hello world', '--format', 'json', '--out', outPath],
+      rawArgs: ['query', 'hello world', '--format', 'json', '--out', outPath],
+    })).resolves.toBeUndefined();
   });
 
   it('starts a persistent session with --session new', async () => {

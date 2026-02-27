@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 
 export interface WorkspaceResolution {
@@ -52,6 +53,46 @@ const SKIP_DIRS = new Set([
   'venv',
 ]);
 
+function normalizeBoundary(candidate: string | undefined): string | null {
+  if (!candidate || candidate.trim().length === 0) {
+    return null;
+  }
+  return path.resolve(candidate);
+}
+
+function collectAscentBoundaries(): string[] {
+  const candidates = [
+    process.env.LIBRAINIAN_TMPDIR,
+    process.env.LIBRARIAN_TMPDIR,
+    process.env.TMPDIR,
+    process.env.TMP,
+    process.env.TEMP,
+    os.tmpdir(),
+  ];
+  const unique = new Set<string>();
+  for (const candidate of candidates) {
+    const normalized = normalizeBoundary(candidate);
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+  return Array.from(unique).sort((left, right) => right.length - left.length);
+}
+
+function isWithinBoundary(target: string, boundary: string): boolean {
+  if (target === boundary) return true;
+  return target.startsWith(`${boundary}${path.sep}`);
+}
+
+function findAscentBoundary(target: string, boundaries: string[]): string | null {
+  for (const boundary of boundaries) {
+    if (isWithinBoundary(target, boundary)) {
+      return boundary;
+    }
+  }
+  return null;
+}
+
 function findMarker(dir: string): string | null {
   for (const marker of PROJECT_MARKERS) {
     try {
@@ -97,6 +138,7 @@ export function resolveWorkspaceRoot(
   options: { maxDepthUp?: number; fileDepth?: number; limit?: number } = {}
 ): WorkspaceResolution {
   const original = path.resolve(workspaceRoot);
+  const ascentBoundary = findAscentBoundary(original, collectAscentBoundaries());
   const maxDepthUp = options.maxDepthUp ?? 4;
   const fileDepth = options.fileDepth ?? 3;
   const limit = options.limit ?? 200;
@@ -128,6 +170,7 @@ export function resolveWorkspaceRoot(
   for (let depth = 0; depth < maxDepthUp; depth += 1) {
     const parent = path.dirname(current);
     if (parent === current) break;
+    if (ascentBoundary && !isWithinBoundary(parent, ascentBoundary)) break;
     current = parent;
     const candidateMarker = findMarker(current);
     const candidateFileCount = countSourceFiles(current, fileDepth, limit);

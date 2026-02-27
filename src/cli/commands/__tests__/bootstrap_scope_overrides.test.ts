@@ -11,11 +11,13 @@ describe('bootstrap scope overrides', () => {
     expect(overrides.exclude).toContain('src/**/*.spec.ts');
   });
 
-  it('keeps src/__tests__ include pattern for librarian scope in full mode', () => {
+  it('omits src/__tests__ include pattern for librarian scope in full mode', () => {
     const overrides = __testing.resolveScopeOverrides('librarian', 'full');
     expect(overrides.include).toBeDefined();
-    expect(overrides.include).toContain('src/__tests__/**/*.ts');
-    expect(overrides.exclude).not.toContain('src/**/__tests__/**');
+    expect(overrides.include).not.toContain('src/__tests__/**/*.ts');
+    expect(overrides.exclude).toContain('src/**/__tests__/**');
+    expect(overrides.exclude).toContain('src/**/*.test.ts');
+    expect(overrides.exclude).toContain('src/**/*.spec.ts');
   });
 
   it('accepts non-negative timeout values', () => {

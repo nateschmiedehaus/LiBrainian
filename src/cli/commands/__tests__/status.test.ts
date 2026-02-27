@@ -253,6 +253,66 @@ describe('statusCommand', () => {
     expect(exitCode).toBe(0);
   });
 
+  it('marks storage as degraded when active lock pids are present', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
+      lockDirs: ['/tmp/locks'],
+      scannedFiles: 2,
+      staleFiles: 0,
+      activePidFiles: 2,
+      unknownFreshFiles: 0,
+      stalePaths: [],
+    });
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      storage?: { status?: string; reason?: string };
+      locks?: { activePidFiles?: number };
+    };
+    expect(parsed.storage?.status).toBe('degraded');
+    expect(parsed.storage?.reason).toContain('active storage lock');
+    expect(parsed.locks?.activePidFiles).toBe(2);
+    expect(exitCode).toBe(1);
+  });
+
+  it('marks storage as degraded when active database lock file is present', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
+      lockDirs: ['/tmp/locks'],
+      scannedFiles: 0,
+      staleFiles: 0,
+      activePidFiles: 0,
+      unknownFreshFiles: 0,
+      stalePaths: [],
+    });
+
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'status-db-lock-'));
+    const dbPath = path.join(tempRoot, 'librarian.sqlite');
+    vi.mocked(resolveDbPath).mockResolvedValue(dbPath);
+    await fs.writeFile(
+      `${dbPath}.lock`,
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }),
+      'utf8',
+    );
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      storage?: { status?: string; reason?: string };
+      locks?: { databaseLockActive?: boolean; databaseLockPid?: number | null };
+    };
+    expect(parsed.storage?.status).toBe('degraded');
+    expect(parsed.storage?.reason).toContain('active database lock');
+    expect(parsed.locks?.databaseLockActive).toBe(true);
+    expect(parsed.locks?.databaseLockPid).toBe(process.pid);
+    expect(exitCode).toBe(1);
+
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
   it('includes cost telemetry in JSON output when --costs is enabled', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     vi.mocked(readQueryCostTelemetry).mockResolvedValue({

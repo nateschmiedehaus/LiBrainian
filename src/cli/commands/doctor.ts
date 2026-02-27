@@ -457,6 +457,20 @@ function removeStaleBootstrapLock(workspace: string): { removed: boolean; path?:
   }
 }
 
+async function withDoctorStorage<T>(
+  dbPath: string,
+  workspace: string,
+  run: (storage: ReturnType<typeof createSqliteStorage>) => Promise<T>
+): Promise<T> {
+  const storage = createSqliteStorage(dbPath, workspace);
+  await storage.initialize();
+  try {
+    return await run(storage);
+  } finally {
+    await storage.close().catch(() => undefined);
+  }
+}
+
 // ============================================================================
 // DIAGNOSTIC CHECKS
 // ============================================================================
@@ -493,13 +507,12 @@ async function checkDatabase(
       lastModified: stats.mtime.toISOString(),
     };
 
-    // Try to open and query the database
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
     // Quick health check - can we query?
-    const metadata = await storage.getMetadata();
-    await storage.close();
+    const metadata = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => storage.getMetadata()
+    );
 
     if (metadata) {
       check.message = `Database accessible (${formatBytes(stats.size)})`;
@@ -534,11 +547,11 @@ async function checkFunctionsVsEmbeddings(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const stats = await storage.getStats();
-    await storage.close();
+    const stats = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => storage.getStats()
+    );
 
     const { totalFunctions, totalEmbeddings } = stats;
     check.details = {
@@ -598,12 +611,17 @@ async function checkPacksCorrelation(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const stats = await storage.getStats();
-    const packs = await storage.getContextPacks({ limit: 1000 });
-    await storage.close();
+    const { stats, packs } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const [stats, packs] = await Promise.all([
+          storage.getStats(),
+          storage.getContextPacks({ limit: 1000 }),
+        ]);
+        return { stats, packs };
+      }
+    );
 
     const totalPacks = stats.totalContextPacks;
     const invalidatedPacks = packs.filter(p => p.confidence < 0.1).length;
@@ -659,13 +677,17 @@ async function checkContextPackReferences(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-    const [stats, packs] = await Promise.all([
-      storage.getStats(),
-      storage.getContextPacks({ limit: CONTEXT_PACK_REFERENCE_SCAN_LIMIT }),
-    ]);
-    await storage.close();
+    const { stats, packs } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const [stats, packs] = await Promise.all([
+          storage.getStats(),
+          storage.getContextPacks({ limit: CONTEXT_PACK_REFERENCE_SCAN_LIMIT }),
+        ]);
+        return { stats, packs };
+      }
+    );
 
     const missingRefs: string[] = [];
     let missingCount = 0;
@@ -728,14 +750,17 @@ async function checkVectorIndex(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const stats = await storage.getStats();
-
-    // Try to get multi-vector records which indicate HNSW index population
-    const multiVectors = await storage.getMultiVectors({ limit: 1 });
-    await storage.close();
+    const { stats, multiVectors } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const [stats, multiVectors] = await Promise.all([
+          storage.getStats(),
+          storage.getMultiVectors({ limit: 1 }),
+        ]);
+        return { stats, multiVectors };
+      }
+    );
 
     const { totalEmbeddings } = stats;
     const hasMultiVectors = multiVectors.length > 0;
@@ -782,20 +807,26 @@ async function checkEmbeddingIntegrity(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace) as EmbeddingIntegrityStorage;
-    await storage.initialize();
-    const inspect = storage.inspectEmbeddingIntegrity;
-    if (typeof inspect !== 'function') {
-      await storage.close();
+    const integrityResult = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storageRaw) => {
+        const storage = storageRaw as EmbeddingIntegrityStorage;
+        if (typeof storage.inspectEmbeddingIntegrity !== 'function') {
+          return { unsupported: true as const };
+        }
+        const integrity = await storage.inspectEmbeddingIntegrity({
+          normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
+          sampleLimit: EMBEDDING_INTEGRITY_SAMPLE_LIMIT,
+        });
+        return { unsupported: false as const, integrity };
+      }
+    );
+    if (integrityResult.unsupported) {
       check.message = 'Embedding integrity scan unavailable for this storage backend';
       return check;
     }
-
-    const integrity = await inspect({
-      normTolerance: EMBEDDING_INVALID_NORM_TOLERANCE,
-      sampleLimit: EMBEDDING_INTEGRITY_SAMPLE_LIMIT,
-    });
-    await storage.close();
+    const integrity = integrityResult.integrity;
 
     check.details = {
       totalEmbeddings: integrity.totalEmbeddings,
@@ -835,12 +866,17 @@ async function checkGraphEdges(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const edges = await storage.getGraphEdges({ limit: 10000 });
-    const stats = await storage.getStats();
-    await storage.close();
+    const { edges, stats } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const [edges, stats] = await Promise.all([
+          storage.getGraphEdges({ limit: 10000 }),
+          storage.getStats(),
+        ]);
+        return { edges, stats };
+      }
+    );
 
     const edgeCount = edges.length;
     const edgeTypes = new Map<string, number>();
@@ -898,17 +934,19 @@ async function checkBootstrapStatus(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const [mvpCheck, fullCheck, lastBootstrap] = await Promise.all([
-      isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' }),
-      isBootstrapRequired(workspace, storage, { targetQualityTier: 'full' }),
-      storage.getLastBootstrapReport(),
-    ]);
-
+    const { mvpCheck, fullCheck, lastBootstrap } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const [mvpCheck, fullCheck, lastBootstrap] = await Promise.all([
+          isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' }),
+          isBootstrapRequired(workspace, storage, { targetQualityTier: 'full' }),
+          storage.getLastBootstrapReport(),
+        ]);
+        return { mvpCheck, fullCheck, lastBootstrap };
+      }
+    );
     const bootstrapState = getBootstrapStatus(workspace);
-    await storage.close();
 
     check.details = {
       mvpRequired: mvpCheck.required,
@@ -965,10 +1003,11 @@ async function checkIndexFreshness(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-    const metadata = await storage.getMetadata();
-    await storage.close();
+    const metadata = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => storage.getMetadata()
+    );
 
     const lastIndexing = metadata?.lastIndexing
       ? new Date(metadata.lastIndexing).getTime()
@@ -1631,11 +1670,11 @@ async function checkModules(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const stats = await storage.getStats();
-    await storage.close();
+    const stats = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => storage.getStats()
+    );
 
     check.details = {
       totalModules: stats.totalModules,
@@ -1680,11 +1719,11 @@ async function checkConfidenceLevel(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-
-    const stats = await storage.getStats();
-    await storage.close();
+    const stats = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => storage.getStats()
+    );
 
     const avgConfidence = stats.averageConfidence;
 
@@ -1742,11 +1781,15 @@ async function checkWatchFreshness(
   };
 
   try {
-    const storage = createSqliteStorage(dbPath, workspace);
-    await storage.initialize();
-    const state = await getWatchState(storage);
-    const health = deriveWatchHealth(state);
-    await storage.close();
+    const { state, health } = await withDoctorStorage(
+      dbPath,
+      workspace,
+      async (storage) => {
+        const state = await getWatchState(storage);
+        const health = deriveWatchHealth(state);
+        return { state, health };
+      }
+    );
 
     const reconcileAgeMs = (() => {
       const cursor = state?.cursor;
@@ -2117,30 +2160,37 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     healChecks.push(...embeddingFixChecks);
   }
 
-  // Run all diagnostic checks
-  const checks = await Promise.all([
-    checkDatabase(workspaceRoot),
-    checkBootstrapStatus(workspaceRoot, dbPath),
-    checkIndexFreshness(workspaceRoot, dbPath),
-    checkWatchFreshness(workspaceRoot, dbPath),
-    checkSessionMemory(workspaceRoot),
-    checkLockFileStaleness(workspaceRoot),
-    checkFunctionsVsEmbeddings(workspaceRoot, dbPath),
-    checkCrossDbConsistency(workspaceRoot, dbPath),
-    checkModules(workspaceRoot, dbPath),
-    checkPacksCorrelation(workspaceRoot, dbPath),
-    checkContextPackReferences(workspaceRoot, dbPath),
-    checkVectorIndex(workspaceRoot, dbPath),
-    checkEmbeddingIntegrity(workspaceRoot, dbPath),
-    checkGraphEdges(workspaceRoot, dbPath),
-    checkConfidenceLevel(workspaceRoot, dbPath),
-    checkEmbeddingProvider(workspaceRoot),
-    checkLLMProvider(workspaceRoot),
-    checkMcpRegistration(),
-    checkInstallFootprint(workspaceRoot),
-    checkGrammarCoverage(workspaceRoot, installGrammars, json),
-    ...(checkConsistency ? [checkCrossDbReferentialIntegrity(workspaceRoot, dbPath)] : []),
-  ]);
+  // Run diagnostic checks sequentially to avoid self-inflicted storage lock contention.
+  const checkRunners: Array<() => Promise<DiagnosticCheck>> = [
+    () => checkDatabase(workspaceRoot),
+    () => checkBootstrapStatus(workspaceRoot, dbPath),
+    () => checkIndexFreshness(workspaceRoot, dbPath),
+    () => checkWatchFreshness(workspaceRoot, dbPath),
+    () => checkSessionMemory(workspaceRoot),
+    () => checkLockFileStaleness(workspaceRoot),
+    () => checkFunctionsVsEmbeddings(workspaceRoot, dbPath),
+    () => checkCrossDbConsistency(workspaceRoot, dbPath),
+    () => checkModules(workspaceRoot, dbPath),
+    () => checkPacksCorrelation(workspaceRoot, dbPath),
+    () => checkContextPackReferences(workspaceRoot, dbPath),
+    () => checkVectorIndex(workspaceRoot, dbPath),
+    () => checkEmbeddingIntegrity(workspaceRoot, dbPath),
+    () => checkGraphEdges(workspaceRoot, dbPath),
+    () => checkConfidenceLevel(workspaceRoot, dbPath),
+    () => checkEmbeddingProvider(workspaceRoot),
+    () => checkLLMProvider(workspaceRoot),
+    () => checkMcpRegistration(),
+    () => checkInstallFootprint(workspaceRoot),
+    () => checkGrammarCoverage(workspaceRoot, installGrammars, json),
+  ];
+  if (checkConsistency) {
+    checkRunners.push(() => checkCrossDbReferentialIntegrity(workspaceRoot, dbPath));
+  }
+
+  const checks: DiagnosticCheck[] = [];
+  for (const runCheck of checkRunners) {
+    checks.push(await runCheck());
+  }
 
   report.checks = healChecks.length > 0 ? [...healChecks, ...checks] : checks;
 

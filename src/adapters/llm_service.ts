@@ -11,6 +11,7 @@ export interface LlmChatOptions {
   messages: LlmChatMessage[];
   maxTokens?: number;
   temperature?: number;
+  timeoutMs?: number;
   governorContext?: unknown;
   outputSchema?: string;
   disableTools?: boolean;

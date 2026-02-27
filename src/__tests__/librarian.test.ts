@@ -243,6 +243,47 @@ describe('Librarian Storage', () => {
     expect(backupContent.trim()).toBe('seed');
   });
 
+  it('recovers from transient ENOTEMPTY while creating migration backup', async () => {
+    const librarianDir = path.join(workspace, '.librarian');
+    const dbPath = path.join(librarianDir, 'librarian.sqlite');
+    await fs.mkdir(librarianDir, { recursive: true });
+    await fs.writeFile(path.join(librarianDir, 'preexisting.txt'), 'seed\n', 'utf8');
+
+    let shouldFailInitialCopy = true;
+    const copyDirectory = fs.cp.bind(fs);
+    __setMigrationBackupCopyForTests(async (src, dest, options) => {
+      const isInitialBackupCopy =
+        shouldFailInitialCopy &&
+        src === librarianDir &&
+        options !== undefined &&
+        !('filter' in options);
+      if (isInitialBackupCopy) {
+        shouldFailInitialCopy = false;
+        const err = new Error(
+          `ENOTEMPTY: directory not empty, rmdir '${path.join(String(dest), 'packs')}'`,
+        ) as NodeJS.ErrnoException;
+        err.code = 'ENOTEMPTY';
+        throw err;
+      }
+      return copyDirectory(src, dest, options);
+    });
+
+    try {
+      const storage = createSqliteStorage(dbPath, workspace);
+      await storage.initialize();
+      await storage.close();
+    } finally {
+      __setMigrationBackupCopyForTests(null);
+    }
+
+    const rootEntries = await fs.readdir(workspace);
+    const backupDir = rootEntries.find((entry) => entry.startsWith('.librarian.backup.v0.'));
+    expect(backupDir).toBeTruthy();
+    const backupFile = path.join(workspace, backupDir ?? '', 'preexisting.txt');
+    const backupContent = await fs.readFile(backupFile, 'utf8');
+    expect(backupContent.trim()).toBe('seed');
+  });
+
   it('retains only the newest pre-migration backup directory', async () => {
     const librarianDir = path.join(workspace, '.librarian');
     const dbPath = path.join(librarianDir, 'librarian.sqlite');

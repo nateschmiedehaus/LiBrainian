@@ -55,7 +55,20 @@ export function resolveProviderWorkspaceRoot(cwd: string = process.cwd()): strin
 
 export function classifyProviderFailure(message: string): { reason: ProviderFailureReason; ttlMs: number } {
   const normalized = message.toLowerCase();
-  if (normalized.includes('rate limit') || normalized.includes('429') || normalized.includes('limit reached')) {
+  if (
+    normalized.includes('inside another claude code session')
+    || normalized.includes('cannot be launched inside another')
+    || normalized.includes('nested session')
+    || normalized.includes('agent-inside-agent')
+  ) {
+    return { reason: 'unavailable', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_UNAVAILABLE_MS', DEFAULT_TTL_MS) };
+  }
+  if (
+    normalized.includes('rate limit')
+    || normalized.includes('rate_limit')
+    || normalized.includes('429')
+    || normalized.includes('limit reached')
+  ) {
     return { reason: 'rate_limit', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_RATE_LIMIT_MS', RATE_LIMIT_TTL_MS) };
   }
   if (normalized.includes('quota') || normalized.includes('exceeded')) {
@@ -71,6 +84,9 @@ export function classifyProviderFailure(message: string): { reason: ProviderFail
     return { reason: 'network_error', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_NETWORK_MS', SHORT_TTL_MS) };
   }
   if (normalized.includes('invalid') || normalized.includes('schema')) {
+    return { reason: 'invalid_response', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_INVALID_MS', DEFAULT_TTL_MS) };
+  }
+  if (normalized.includes('unknown model') || normalized.includes('unsupported model')) {
     return { reason: 'invalid_response', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_INVALID_MS', DEFAULT_TTL_MS) };
   }
   if (normalized.includes('unavailable')) {
@@ -155,4 +171,3 @@ export async function recordProviderSuccess(workspaceRoot: string, provider: Pro
     failures,
   });
 }
-

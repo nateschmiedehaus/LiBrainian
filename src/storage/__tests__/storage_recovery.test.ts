@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
@@ -157,6 +157,34 @@ describe('attemptStorageRecovery', () => {
 
     const entries = await fs.readdir(dir);
     expect(entries.some((entry) => entry.startsWith('librarian.sqlite.corrupt.'))).toBe(true);
+  });
+
+  it('deduplicates repeated no-action recovery warnings for the same lock state', async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const dbPath = path.join(dir, 'librarian.sqlite');
+    await fs.writeFile(dbPath, '');
+    await fs.writeFile(dbPath + '.lock', JSON.stringify({ pid: process.pid }));
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const previousLevel = process.env.LIBRARIAN_LOG_LEVEL;
+    process.env.LIBRARIAN_LOG_LEVEL = 'warn';
+    try {
+      await attemptStorageRecovery(dbPath);
+      await attemptStorageRecovery(dbPath);
+
+      const noActionWarnings = warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes('[storage-recovery] no recovery actions applied')
+      );
+      expect(noActionWarnings).toHaveLength(1);
+    } finally {
+      warnSpy.mockRestore();
+      if (previousLevel === undefined) {
+        delete process.env.LIBRARIAN_LOG_LEVEL;
+      } else {
+        process.env.LIBRARIAN_LOG_LEVEL = previousLevel;
+      }
+    }
   });
 
   it('detects stale lock files under .librarian/locks and .librarian/swarm/locks', async () => {

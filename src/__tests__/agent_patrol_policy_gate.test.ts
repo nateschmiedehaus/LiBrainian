@@ -40,5 +40,7 @@ describe('agent patrol policy gate', () => {
     expect(workflow).toContain('name: Enforce patrol policy gate');
     expect(workflow).toContain('node scripts/patrol-policy-ci-gate.mjs');
     expect(workflow).toContain('state/patrol/patrol-policy-gate.json');
+    expect(workflow).toContain('Preflight patrol runtime contracts');
+    expect(workflow).toContain('npm run public:pack');
   });
 });

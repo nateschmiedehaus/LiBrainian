@@ -639,6 +639,26 @@ describe('FeatureLocationAdvisor', () => {
 
       expect(result.analysisTimeMs).toBeLessThan(5000);
     });
+
+    it('uses bounded LLM-disabled query settings for location probes', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const boundedAdvisor = new FeatureLocationAdvisor({
+        queryOptional,
+        queryRequired: queryOptional,
+        query: queryOptional,
+      } as unknown as Librarian);
+
+      await boundedAdvisor.locate({
+        description: 'Find login flow',
+        keywords: ['auth'],
+      });
+
+      expect(queryOptional).toHaveBeenCalled();
+      for (const [request] of queryOptional.mock.calls) {
+        expect(request.llmRequirement).toBe('disabled');
+        expect(request.timeoutMs).toBe(20_000);
+      }
+    });
   });
 });
 

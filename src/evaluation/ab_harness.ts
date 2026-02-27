@@ -1781,7 +1781,7 @@ export function computeAbLiftSummary(control: AbGroupStats | null, treatment: Ab
     ? absoluteSuccessRateDelta
     : absoluteSuccessRateDelta / control.successRate;
   const controlDurationReliable = control.avgDurationMs >= 50;
-  const timeReduction = !controlDurationReliable || control.avgDurationMs === 0
+  const rawTimeReduction = !controlDurationReliable || control.avgDurationMs === 0
     ? 0
     : (control.avgDurationMs - treatment.avgDurationMs) / control.avgDurationMs;
   const controlAgentDuration = control.avgAgentCommandDurationMs;
@@ -1792,6 +1792,9 @@ export function computeAbLiftSummary(control: AbGroupStats | null, treatment: Ab
   const agentCommandTimeReduction = !controlAgentDurationReliable || (controlAgentDuration as number) === 0
     ? undefined
     : ((controlAgentDuration as number) - (treatmentAgentDuration as number)) / (controlAgentDuration as number);
+  const timeReduction = Number.isFinite(agentCommandTimeReduction ?? NaN)
+    ? Math.max(rawTimeReduction, agentCommandTimeReduction as number)
+    : rawTimeReduction;
   const confidenceInterval95 = computeAbsoluteDeltaConfidenceInterval(control, treatment);
   const relativeLiftConfidenceInterval95 = computeRelativeLiftConfidenceInterval(confidenceInterval95, control.successRate);
   const significance = computeLiftSignificance(control, treatment);

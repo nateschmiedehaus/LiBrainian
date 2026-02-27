@@ -768,8 +768,6 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
       CREATE INDEX IF NOT EXISTS idx_ledger_kind ON evidence_ledger(kind);
       CREATE INDEX IF NOT EXISTS idx_ledger_session ON evidence_ledger(session_id);
       CREATE INDEX IF NOT EXISTS idx_ledger_kind_timestamp ON evidence_ledger(kind, timestamp);
-      CREATE INDEX IF NOT EXISTS idx_ledger_tool_cost ON evidence_ledger(kind, cost_usd);
-      CREATE INDEX IF NOT EXISTS idx_ledger_tool_agent ON evidence_ledger(kind, agent_id);
     `);
 
     this.ensureColumn('cost_usd', 'REAL');
@@ -777,6 +775,11 @@ export class SqliteEvidenceLedger implements IEvidenceLedger {
     this.ensureColumn('agent_id', 'TEXT');
     this.ensureColumn('attempt_number', 'INTEGER');
     this.ensureColumn('cache_hit', 'INTEGER');
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ledger_tool_cost ON evidence_ledger(kind, cost_usd);
+      CREATE INDEX IF NOT EXISTS idx_ledger_tool_agent ON evidence_ledger(kind, agent_id);
+    `);
   }
 
   private ensureColumn(columnName: string, columnType: string): void {

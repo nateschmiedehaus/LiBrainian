@@ -79,6 +79,7 @@ export interface FeatureLocationReport {
 
 export class FeatureLocationAdvisor {
   private librarian: Librarian;
+  private static readonly QUERY_TIMEOUT_MS = 20_000;
 
   constructor(librarian: Librarian) {
     this.librarian = librarian;
@@ -143,6 +144,8 @@ export class FeatureLocationAdvisor {
       depth: 'L2',
       taskType: 'understand',
       perspective: 'navigation',
+      llmRequirement: 'disabled',
+      timeoutMs: FeatureLocationAdvisor.QUERY_TIMEOUT_MS,
     });
 
     const locations: FeatureLocation[] = [];
@@ -169,6 +172,8 @@ export class FeatureLocationAdvisor {
         depth: 'L1',
         taskType: 'understand',
         perspective: 'navigation',
+        llmRequirement: 'disabled',
+        timeoutMs: FeatureLocationAdvisor.QUERY_TIMEOUT_MS,
       });
 
       if (queryResult.packs) {
@@ -202,6 +207,8 @@ export class FeatureLocationAdvisor {
         depth: 'L1',
         taskType: 'understand',
         perspective: 'navigation',
+        llmRequirement: 'disabled',
+        timeoutMs: FeatureLocationAdvisor.QUERY_TIMEOUT_MS,
       });
 
       if (queryResult.packs) {

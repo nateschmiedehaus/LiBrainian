@@ -188,6 +188,57 @@ describe('doctorCommand', () => {
     expect(vi.mocked(bootstrapProject)).not.toHaveBeenCalled();
   });
 
+  it('runs DB-backed checks sequentially to avoid self-lock contention', async () => {
+    let activeInitializations = 0;
+    let maxConcurrentInitializations = 0;
+
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as { initialize: Mock };
+      storage.initialize = vi.fn(async () => {
+        activeInitializations += 1;
+        maxConcurrentInitializations = Math.max(maxConcurrentInitializations, activeInitializations);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        activeInitializations -= 1;
+      });
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    expect(maxConcurrentInitializations).toBe(1);
+    const report = parseJsonReport(consoleLogSpy);
+    const dbCheck = report.checks.find((check: { name: string }) => check.name === 'Database Access');
+    expect(dbCheck).toBeTruthy();
+    expect(dbCheck.status).toBe('OK');
+  });
+
+  it('releases storage handles when DB-backed checks throw after initialize', async () => {
+    const storages: Array<{
+      initialize: Mock;
+      close: Mock;
+      getStats: Mock;
+    }> = [];
+
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as {
+        initialize: Mock;
+        close: Mock;
+        getStats: Mock;
+      };
+      storage.getStats = vi.fn().mockRejectedValue(new Error('forced-get-stats-failure'));
+      storages.push(storage);
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    expect(storages.length).toBeGreaterThan(0);
+    const leaked = storages.filter((storage) =>
+      storage.initialize.mock.calls.length > 0 && storage.close.mock.calls.length === 0
+    );
+    expect(leaked).toHaveLength(0);
+  });
+
   it('runs strict referential integrity checks when requested', async () => {
     await doctorCommand({ workspace, json: true, checkConsistency: true });
 
@@ -491,5 +542,30 @@ describe('doctorCommand', () => {
 
     expect(storage.purgeInvalidEmbeddings).toHaveBeenCalled();
     expect(vi.mocked(bootstrapProject)).toHaveBeenCalled();
+  });
+
+  it('binds storage context when inspecting embedding integrity', async () => {
+    const storage = createStorageStub() as unknown as {
+      ensureDb: Mock;
+      inspectEmbeddingIntegrity: Mock;
+    };
+    storage.ensureDb = vi.fn();
+    storage.inspectEmbeddingIntegrity = vi.fn(function (this: { ensureDb?: Mock }) {
+      this.ensureDb?.();
+      return Promise.resolve({
+        totalEmbeddings: 4,
+        invalidEmbeddings: 0,
+        sampleEntityIds: [],
+      });
+    });
+    vi.mocked(createSqliteStorage).mockImplementation(() => storage as unknown as LibrarianStorage);
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const integrityCheck = report.checks.find((check: any) => check.name === 'Embedding Integrity');
+    expect(integrityCheck).toBeTruthy();
+    expect(integrityCheck.status).toBe('OK');
+    expect(storage.ensureDb).toHaveBeenCalled();
   });
 });

@@ -90,6 +90,7 @@ export async function getMethodPack(options: {
   intent?: string | null;
   llmProvider: 'claude' | 'codex';
   llmModelId: string;
+  llmTimeoutMs?: number;
   governorContext?: GovernorContext;
   maxAgeDays?: number;
 }): Promise<MethodPackCacheEntry> {
@@ -119,6 +120,7 @@ export async function getMethodPack(options: {
     intent,
     llmProvider: options.llmProvider,
     llmModelId: options.llmModelId,
+    llmTimeoutMs: options.llmTimeoutMs,
     governorContext: options.governorContext,
   });
   const entry: MethodPackCacheEntry = {
@@ -138,6 +140,7 @@ export async function preloadMethodPacks(options: {
   families: MethodFamilyId[];
   llmProvider: 'claude' | 'codex';
   llmModelId: string;
+  llmTimeoutMs?: number;
   governorContext?: GovernorContext;
 }): Promise<number> {
   let created = 0;
@@ -147,6 +150,7 @@ export async function preloadMethodPacks(options: {
       families: [family],
       llmProvider: options.llmProvider,
       llmModelId: options.llmModelId,
+      llmTimeoutMs: options.llmTimeoutMs,
       governorContext: options.governorContext,
     });
     created += 1;
@@ -160,6 +164,7 @@ async function generateMethodPack(options: {
   intent: string | null;
   llmProvider: 'claude' | 'codex';
   llmModelId: string;
+  llmTimeoutMs?: number;
   governorContext?: GovernorContext;
 }): Promise<MethodPack> {
   const llm = resolveLlmServiceAdapter();
@@ -197,6 +202,7 @@ async function generateMethodPack(options: {
       { role: 'system', content: 'Return JSON only. Follow the schema exactly.' },
       { role: 'user', content: prompt },
     ],
+    timeoutMs: options.llmTimeoutMs,
     governorContext: options.governorContext ?? undefined,
   });
 

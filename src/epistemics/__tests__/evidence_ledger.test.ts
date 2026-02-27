@@ -145,6 +145,52 @@ describe('EvidenceLedger', () => {
         db.close();
       }
     });
+
+    it('migrates legacy tables missing cost_usd before creating dependent indexes', async () => {
+      await ledger.close();
+      if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+      }
+
+      const BetterSqlite3 = (await import('better-sqlite3')).default;
+      const legacyDb = new BetterSqlite3(dbPath);
+      try {
+        legacyDb.exec(`
+          CREATE TABLE evidence_ledger (
+            id TEXT PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            provenance TEXT NOT NULL,
+            confidence TEXT,
+            related_entries TEXT NOT NULL DEFAULT '[]',
+            session_id TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_ledger_timestamp ON evidence_ledger(timestamp);
+          CREATE INDEX IF NOT EXISTS idx_ledger_kind ON evidence_ledger(kind);
+          CREATE INDEX IF NOT EXISTS idx_ledger_session ON evidence_ledger(session_id);
+        `);
+      } finally {
+        legacyDb.close();
+      }
+
+      ledger = new SqliteEvidenceLedger(dbPath);
+      await expect(ledger.initialize()).resolves.toBeUndefined();
+
+      const migratedDb = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        const columns = migratedDb.prepare('PRAGMA table_info(evidence_ledger)').all() as Array<{ name: string }>;
+        expect(columns.some((column) => column.name === 'cost_usd')).toBe(true);
+        const toolCostIndex = migratedDb.prepare(`
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'index' AND name = 'idx_ledger_tool_cost'
+        `).get() as { name?: string } | undefined;
+        expect(toolCostIndex?.name).toBe('idx_ledger_tool_cost');
+      } finally {
+        migratedDb.close();
+      }
+    });
   });
 
   describe('appendBatch', () => {

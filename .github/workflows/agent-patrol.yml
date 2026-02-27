@@ -49,6 +49,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+      - name: Preflight patrol runtime contracts
+        run: npm run public:pack
 
       - name: Install agent CLIs
         run: |
@@ -95,6 +97,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+      - name: Preflight patrol runtime contracts
+        run: npm run public:pack
 
       - name: Install agent CLIs
         run: |
@@ -145,6 +149,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+      - name: Preflight patrol runtime contracts
+        run: npm run public:pack
 
       - name: Install agent CLIs
         run: |

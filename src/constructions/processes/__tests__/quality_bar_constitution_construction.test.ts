@@ -88,4 +88,22 @@ describe('QualityBarConstitutionConstruction', () => {
     expect(depth.withNorms).toBeGreaterThan(depth.withoutNorms);
     expect(depth.improvement).toBeGreaterThan(0);
   });
+
+  it('ignores transient librarian backup directories when mining source files', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-quality-bar-workspace-'));
+    const localOutput = path.join(workspace, '.librarian', 'constitution.json');
+    const backupDir = path.join(workspace, '.librarian.backup.v0.test');
+
+    try {
+      await fs.mkdir(path.join(workspace, 'src'), { recursive: true });
+      await fs.mkdir(backupDir, { recursive: true });
+      await fs.writeFile(path.join(workspace, 'src', 'main.ts'), 'export function runTask() { return 1; }\n', 'utf8');
+      await fs.writeFile(path.join(backupDir, 'stale.ts'), 'export const stale = true;\n', 'utf8');
+
+      const regenerated = await regenerateQualityBarConstitution(workspace, { outputPath: localOutput });
+      expect(regenerated.sourceFileCount).toBe(1);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
 });

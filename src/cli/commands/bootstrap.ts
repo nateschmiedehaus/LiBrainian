@@ -375,7 +375,10 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       }
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
-      const report = await bootstrapProject(config, storage);
+      const report = await withBootstrapCommandTimeout(
+        timeoutMs,
+        () => bootstrapProject(config, storage)
+      );
       progressReporter.complete();
 
       const elapsed = Date.now() - startTime;
@@ -601,11 +604,9 @@ function resolveScopeOverrides(scope: string, bootstrapMode: 'fast' | 'full' = '
       'docs/**/*.md',
     ];
     const exclude = [...EXCLUDE_PATTERNS];
-    if (bootstrapMode !== 'fast') {
-      include.push('src/__tests__/**/*.ts');
-    } else {
-      exclude.push('src/**/__tests__/**', 'src/**/*.test.ts', 'src/**/*.spec.ts');
-    }
+    // Keep bootstrap runtime bounded for dogfood/clean-clone flows by excluding tests.
+    // Tests are high-volume and not required for core runtime retrieval bootstrap.
+    exclude.push('src/**/__tests__/**', 'src/**/*.test.ts', 'src/**/*.spec.ts');
     return {
       include,
       exclude,

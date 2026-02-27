@@ -19,6 +19,9 @@ const LOCK_EMPTY_DIR_RECOVERY_TIMEOUT_MS = 20_000;
 const LOCK_PID_UNKNOWN_RECOVERY_TIMEOUT_MS = 5_000;
 const WORKSPACE_LOCK_UNKNOWN_STALE_TIMEOUT_MS = 2 * 60 * 60_000;
 const WORKSPACE_LOCK_DIRECTORIES = ['.librarian/locks', '.librarian/swarm/locks'] as const;
+const NO_ACTION_WARNING_DEDUPE_WINDOW_MS = 10_000;
+
+const noActionWarningState = new Map<string, { timestamp: number; suppressedCount: number }>();
 
 export interface WorkspaceLockInspection {
   lockDirs: string[];
@@ -220,7 +223,21 @@ export async function attemptStorageRecovery(
   if (actions.length > 0) {
     logInfo('[storage-recovery] applied recovery actions', { dbPath, actions });
   } else if (errors.length > 0) {
-    logWarning('[storage-recovery] no recovery actions applied', { dbPath, errors });
+    const signature = `${dbPath}|${errors.join(',')}`;
+    const now = Date.now();
+    const previous = noActionWarningState.get(signature);
+    if (previous && now - previous.timestamp < NO_ACTION_WARNING_DEDUPE_WINDOW_MS) {
+      previous.suppressedCount += 1;
+      previous.timestamp = now;
+      noActionWarningState.set(signature, previous);
+    } else {
+      logWarning('[storage-recovery] no recovery actions applied', {
+        dbPath,
+        errors,
+        ...(previous && previous.suppressedCount > 0 ? { suppressedDuplicates: previous.suppressedCount } : {}),
+      });
+      noActionWarningState.set(signature, { timestamp: now, suppressedCount: 0 });
+    }
   }
 
   return { recovered: actions.length > 0 && !lockBlocked, actions, errors };

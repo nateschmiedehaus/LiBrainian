@@ -1,3 +1,16 @@
+const FILE_PATH_EXTENSION_PATTERN = '(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala|md|json|yaml|yml|toml|ini|sql|sh)';
+
+function sanitizeExtractedPath(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value
+    .trim()
+    .replace(/^[`"'([{]+/, '')
+    .replace(/[`"'\])},.:;!?]+$/, '')
+    .replace(/\\/g, '/');
+  if (!normalized || normalized.includes('://')) return undefined;
+  return normalized;
+}
+
 /**
  * Extract the refactoring target from a refactoring safety query.
  * Returns the entity name/identifier that the user wants to refactor.
@@ -90,16 +103,36 @@ export function extractFeatureTarget(intent: string): string | undefined {
  */
 export function extractCodeReviewFilePath(intent: string): string | undefined {
   const patterns = [
-    /review\s+(?:file\s+)?["']?([^\s"']+\.(?:ts|js|tsx|jsx|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala))["']?/i,
-    /check\s+["']?([^\s"']+\.(?:ts|js|tsx|jsx|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala))["']?/i,
-    /code\s+review\s+(?:for\s+)?["']?([^\s"']+\.(?:ts|js|tsx|jsx|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala))["']?/i,
-    /["']([^\s"']+\.(?:ts|js|tsx|jsx|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala))["']/i,
+    new RegExp(`review\\s+(?:file\\s+)?["']?([^\\s"']+\\.${FILE_PATH_EXTENSION_PATTERN})["']?`, 'i'),
+    new RegExp(`check\\s+["']?([^\\s"']+\\.${FILE_PATH_EXTENSION_PATTERN})["']?`, 'i'),
+    new RegExp(`code\\s+review\\s+(?:for\\s+)?["']?([^\\s"']+\\.${FILE_PATH_EXTENSION_PATTERN})["']?`, 'i'),
+    new RegExp(`["']([^\\s"']+\\.${FILE_PATH_EXTENSION_PATTERN})["']`, 'i'),
   ];
 
   for (const pattern of patterns) {
     const match = pattern.exec(intent);
     if (match?.[1]) {
-      return match[1];
+      return sanitizeExtractedPath(match[1]);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract an explicit file path mention from any intent text.
+ * Used to deterministically anchor retrieval for file-specific queries.
+ */
+export function extractReferencedFilePath(intent: string): string | undefined {
+  const patterns = [
+    new RegExp(`["'\`]((?:[A-Za-z]:[\\\\/])?(?:[A-Za-z0-9._@-]+[\\\\/])+[A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})["'\`]`, 'i'),
+    new RegExp(`((?:[A-Za-z]:[\\\\/])?(?:[A-Za-z0-9._@-]+[\\\\/])+[A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})`, 'i'),
+    new RegExp(`["'\`]([A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})["'\`]`, 'i'),
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(intent);
+    if (match?.[1]) {
+      return sanitizeExtractedPath(match[1]);
     }
   }
   return undefined;

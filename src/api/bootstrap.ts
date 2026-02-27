@@ -3563,6 +3563,114 @@ function appendSymbolEntries(target: SymbolEntry[], entries: SymbolEntry[]): voi
   }
 }
 
+interface SemanticSlowFileSample {
+  file: string;
+  durationMs: number;
+  completedAt: number;
+}
+
+interface SemanticTelemetrySnapshot {
+  totalFiles: number;
+  filesCompleted: number;
+  elapsedMs: number;
+  overallThroughputFilesPerSec: number;
+  currentFile?: string;
+  currentFileDurationMs?: number;
+  slowestFiles: SemanticSlowFileSample[];
+}
+
+interface SemanticTelemetryTracker {
+  observe(progress: { total: number; completed: number; currentFile?: string }): {
+    shouldLog: boolean;
+    snapshot: SemanticTelemetrySnapshot;
+  };
+  snapshot(): SemanticTelemetrySnapshot;
+}
+
+function createSemanticTelemetryTracker(options?: {
+  now?: () => number;
+  logIntervalMs?: number;
+  maxSlowFiles?: number;
+}): SemanticTelemetryTracker {
+  const now = options?.now ?? Date.now;
+  const logIntervalMs = Math.max(250, options?.logIntervalMs ?? 15_000);
+  const maxSlowFiles = Math.max(1, options?.maxSlowFiles ?? 5);
+
+  const startedAtMs = now();
+  let lastLogAtMs = startedAtMs;
+  let lastLoggedCompleted = 0;
+  let totalFiles = 0;
+  let filesCompleted = 0;
+  let currentFile: string | undefined;
+  let currentFileStartedAtMs: number | undefined;
+  const slowestFiles: SemanticSlowFileSample[] = [];
+
+  const maybeTrackFileCompletion = (nextFile: string | undefined, nowMs: number): void => {
+    if (!currentFile || currentFileStartedAtMs === undefined) return;
+    if (nextFile === currentFile) return;
+    const durationMs = Math.max(0, nowMs - currentFileStartedAtMs);
+    slowestFiles.push({
+      file: currentFile,
+      durationMs,
+      completedAt: filesCompleted,
+    });
+    slowestFiles.sort((a, b) => b.durationMs - a.durationMs);
+    if (slowestFiles.length > maxSlowFiles) {
+      slowestFiles.length = maxSlowFiles;
+    }
+    currentFile = nextFile;
+    currentFileStartedAtMs = nextFile ? nowMs : undefined;
+  };
+
+  const buildSnapshot = (nowMs: number): SemanticTelemetrySnapshot => {
+    const elapsedMs = Math.max(1, nowMs - startedAtMs);
+    const overallThroughputFilesPerSec = (filesCompleted * 1000) / elapsedMs;
+    return {
+      totalFiles,
+      filesCompleted,
+      elapsedMs,
+      overallThroughputFilesPerSec,
+      currentFile,
+      currentFileDurationMs:
+        currentFile && currentFileStartedAtMs !== undefined
+          ? Math.max(0, nowMs - currentFileStartedAtMs)
+          : undefined,
+      slowestFiles: [...slowestFiles],
+    };
+  };
+
+  return {
+    observe(progress) {
+      const nowMs = now();
+      totalFiles = Math.max(totalFiles, progress.total);
+      filesCompleted = Math.max(filesCompleted, progress.completed);
+      if (!currentFile && progress.currentFile) {
+        currentFile = progress.currentFile;
+        currentFileStartedAtMs = nowMs;
+      } else {
+        maybeTrackFileCompletion(progress.currentFile, nowMs);
+      }
+
+      const shouldLog =
+        filesCompleted > lastLoggedCompleted &&
+        (nowMs - lastLogAtMs >= logIntervalMs || (totalFiles > 0 && filesCompleted >= totalFiles));
+
+      if (shouldLog) {
+        lastLogAtMs = nowMs;
+        lastLoggedCompleted = filesCompleted;
+      }
+
+      return {
+        shouldLog,
+        snapshot: buildSnapshot(nowMs),
+      };
+    },
+    snapshot() {
+      return buildSnapshot(now());
+    },
+  };
+}
+
 async function runSemanticIndexing(
   config: BootstrapConfig,
   storage: LibrarianStorage,
@@ -3570,6 +3678,7 @@ async function runSemanticIndexing(
   progress?: { onProgress?: IndexProgressCallback }
 ): Promise<{ files: number; functions: number; totalFiles: number; errors: string[] }> {
   const phaseConfig = await withPhaseLlmConfig(config, 'semantic_indexing');
+  const semanticTelemetry = createSemanticTelemetryTracker();
   // Get all indexable files
   const files = await glob(phaseConfig.include, {
     cwd: phaseConfig.workspace,
@@ -3588,8 +3697,24 @@ async function runSemanticIndexing(
   // docs-only), we still index embeddable non-AST files to avoid empty-storage.
   const semanticFiles = astFiles.length > 0 ? astFiles : nonAstEmbeddableFiles;
   const totalFiles = semanticFiles.length;
+  const progressCallback: IndexProgressCallback | undefined = progress?.onProgress
+    ? async (state) => {
+      const telemetry = semanticTelemetry.observe(state);
+      if (telemetry.shouldLog) {
+        logInfo('Bootstrap semantic indexing progress', {
+          completed: telemetry.snapshot.filesCompleted,
+          total: telemetry.snapshot.totalFiles,
+          throughputFilesPerSec: Number(telemetry.snapshot.overallThroughputFilesPerSec.toFixed(2)),
+          currentFile: telemetry.snapshot.currentFile,
+          currentFileDurationMs: telemetry.snapshot.currentFileDurationMs,
+          slowestFiles: telemetry.snapshot.slowestFiles,
+        });
+      }
+      await progress.onProgress?.(state);
+    }
+    : undefined;
   if (progress?.onProgress) {
-    await progress.onProgress({ total: totalFiles, completed: 0 });
+    await progressCallback?.({ total: totalFiles, completed: 0 });
   }
   if (totalFiles === 0) {
     return { files: 0, functions: 0, totalFiles: 0, errors: [] };
@@ -3656,9 +3781,17 @@ async function runSemanticIndexing(
       fileTimeoutRetries: phaseConfig.fileTimeoutRetries,
       fileTimeoutPolicy: phaseConfig.fileTimeoutPolicy,
       governor,
-      progressCallback: progress?.onProgress,
+      progressCallback,
       forceReindex: phaseConfig.forceReindex,
     }).run(semanticFiles);
+    const finalTelemetry = semanticTelemetry.snapshot();
+    logInfo('Bootstrap semantic indexing summary', {
+      completed: finalTelemetry.filesCompleted,
+      total: finalTelemetry.totalFiles,
+      elapsedMs: finalTelemetry.elapsedMs,
+      throughputFilesPerSec: Number(finalTelemetry.overallThroughputFilesPerSec.toFixed(2)),
+      slowestFiles: finalTelemetry.slowestFiles,
+    });
     return { ...swarmResult, totalFiles };
   }
 
@@ -3681,7 +3814,7 @@ async function runSemanticIndexing(
     governorContext: governor,
     workspaceRoot: phaseConfig.workspace,
     computeGraphMetrics: true,
-    progressCallback: progress?.onProgress,
+    progressCallback,
     forceReindex: phaseConfig.forceReindex,
     fileTimeoutMs: phaseConfig.fileTimeoutMs,
     fileTimeoutRetries: phaseConfig.fileTimeoutRetries,
@@ -3700,6 +3833,14 @@ async function runSemanticIndexing(
 
   const result = await indexer.processTask(task);
   await indexer.shutdown();
+  const finalTelemetry = semanticTelemetry.snapshot();
+  logInfo('Bootstrap semantic indexing summary', {
+    completed: finalTelemetry.filesCompleted,
+    total: finalTelemetry.totalFiles,
+    elapsedMs: finalTelemetry.elapsedMs,
+    throughputFilesPerSec: Number(finalTelemetry.overallThroughputFilesPerSec.toFixed(2)),
+    slowestFiles: finalTelemetry.slowestFiles,
+  });
 
   return {
     files: result.filesProcessed,
@@ -5039,4 +5180,5 @@ export const __testing = {
   detectFrameworks,
   generateAndPersistCodebaseBriefing,
   appendSymbolEntries,
+  createSemanticTelemetryTracker,
 };

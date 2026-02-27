@@ -213,6 +213,7 @@ import {
   extractBugContext,
   extractCodeReviewFilePath,
   extractFeatureTarget,
+  extractReferencedFilePath,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
   extractWhyQueryTopics,
@@ -350,6 +351,8 @@ const SEMANTIC_CACHE_THRESHOLDS: Record<SemanticCacheCategory, number> = {
   diagnostic: 0.8,
 };
 const SEMANTIC_CACHE_CANDIDATE_LIMIT = 120;
+const DEFAULT_METHOD_GUIDANCE_STAGE_TIMEOUT_MS = 10_000;
+const DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS = 60_000;
 
 export interface QueryTraceOptions {
   evidenceLedger?: IEvidenceLedger;
@@ -666,7 +669,7 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const isMetaQuery = (metaMatches > 0 && metaMatches >= codeMatches && !isTestQuery && !isWhyQuery) || isProjectUnderstanding;
   const isCodeQuery = codeMatches > 0 && codeMatches > metaMatches && !isTestQuery && !isProjectUnderstanding && !isWhyQuery;
   const isDefinitionQuery = definitionMatches > 0 && !isTestQuery;
-  const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery;
+  const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery && !isArchitectureOverviewQuery;
 
   const whyTopics = isWhyQuery ? extractWhyQueryTopics(intent) : {};
   const whyQueryTopic = whyTopics.topic;
@@ -1636,6 +1639,18 @@ export async function queryLibrarian(
   } else {
     candidates = semanticResult.candidates;
   }
+  const candidateMaterializationLimit = resolveCandidateMaterializationLimit(
+    query.depth,
+    query.intent ?? '',
+    shouldRunExhaustive,
+  );
+  if (candidates.length > candidateMaterializationLimit) {
+    const before = candidates.length;
+    candidates = capCandidatesForMaterialization(candidates, candidateMaterializationLimit);
+    explanationParts.push(
+      `Bounded candidate materialization to ${candidateMaterializationLimit}/${before} entities to keep retrieval latency stable.`
+    );
+  }
   candidates = await runGraphExpansionStage({
     storage,
     query,
@@ -1661,6 +1676,7 @@ export async function queryLibrarian(
   const packStageResult = await runCandidatePackStage({
     storage,
     query,
+    workspaceRoot,
     candidates,
     directPacks,
     candidateScoreMap,
@@ -1935,6 +1951,15 @@ export async function queryLibrarian(
     explanationParts,
     recordCoverageGap,
   });
+  const hardPackCap = Math.max(
+    contextLevel.packLimit,
+    isCallerProbeIntent(query.intent ?? '') ? 12 : contextLevel.packLimit * 3,
+  );
+  if (finalPacks.length > hardPackCap) {
+    const before = finalPacks.length;
+    finalPacks = finalPacks.slice(0, hardPackCap);
+    explanationParts.push(`Bounded response packs to ${hardPackCap}/${before} for stable agent-facing output size.`);
+  }
   const calibration = await getConfidenceCalibration(storage);
   finalPacks = applyCalibrationToPacks(finalPacks, calibration);
 
@@ -3297,6 +3322,7 @@ async function runScoringStage(options: {
 async function runCandidatePackStage(options: {
   storage: LibrarianStorage;
   query: LibrarianQuery;
+  workspaceRoot: string;
   candidates: Candidate[];
   directPacks: ContextPack[];
   candidateScoreMap: Map<string, number>;
@@ -3308,6 +3334,7 @@ async function runCandidatePackStage(options: {
   const {
     storage,
     query,
+    workspaceRoot,
     candidates,
     directPacks,
     candidateScoreMap,
@@ -3349,7 +3376,17 @@ async function runCandidatePackStage(options: {
         candidateScoreMap.set(pack.targetId, Math.max(existing, CANDIDATE_SCORE_FLOOR));
     }
   }
-  return { allPacks };
+  const workspaceScoped = filterPacksToWorkspace(allPacks, workspaceRoot);
+  if (workspaceScoped.dropped > 0) {
+    recordCoverageGap(
+      'post_processing',
+      `Filtered ${workspaceScoped.dropped} context packs that were outside the current workspace root.`,
+      'significant',
+      'Run `librarian bootstrap --force` to rebuild workspace-scoped packs.'
+    );
+    explanationParts.push(`Filtered ${workspaceScoped.dropped} out-of-workspace packs.`);
+  }
+  return { allPacks: workspaceScoped.packs };
 }
 
 function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): ContextPack[] {
@@ -5220,6 +5257,67 @@ async function runDefeaterStage(options: {
   return finalPacks;
 }
 
+function parsePositiveTimeoutValue(raw: string | undefined): number | null {
+  const parsed = Number.parseInt(String(raw ?? '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function resolveStageTimeoutMs(options: {
+  explicitMs?: number;
+  queryTimeoutMs?: number;
+  envVars?: Array<string | undefined>;
+  fallbackMs: number;
+}): number {
+  const explicit = Number.isFinite(options.explicitMs ?? NaN) && (options.explicitMs ?? 0) > 0
+    ? Math.floor(options.explicitMs as number)
+    : null;
+  const envValue = (options.envVars ?? [])
+    .map(parsePositiveTimeoutValue)
+    .find((value): value is number => value !== null);
+  const fallback = explicit ?? envValue ?? options.fallbackMs;
+  const queryBudget = Number.isFinite(options.queryTimeoutMs ?? NaN) && (options.queryTimeoutMs ?? 0) > 0
+    ? Math.floor(options.queryTimeoutMs as number)
+    : null;
+  const bounded = queryBudget ? Math.min(fallback, queryBudget) : fallback;
+  return Math.max(1, bounded);
+}
+
+function resolveProviderCallTimeoutMs(stageTimeoutMs: number): number {
+  const boundedStageTimeout = Number.isFinite(stageTimeoutMs) && stageTimeoutMs > 0
+    ? Math.floor(stageTimeoutMs)
+    : DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS;
+  // Keep provider subprocess timeout slightly below stage budget so timed-out stages
+  // do not leave long-running provider calls behind.
+  return Math.max(1_000, boundedStageTimeout - 250);
+}
+
+async function withStageTimeout<T>(
+  run: () => Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return run();
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    run()
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 async function runMethodGuidanceStage(options: {
   query: LibrarianQuery;
   storage: LibrarianStorage;
@@ -5227,6 +5325,7 @@ async function runMethodGuidanceStage(options: {
   stageTracker: StageTracker;
   recordCoverageGap: RecordCoverageGap;
   synthesisEnabled: boolean;
+  methodGuidanceTimeoutMs?: number;
   resolveMethodGuidanceFn?: typeof resolveMethodGuidance;
   resolveLlmConfig?: typeof resolveLibrarianModelConfigWithDiscovery;
 }): Promise<Awaited<ReturnType<typeof resolveMethodGuidance>> | null> {
@@ -5237,6 +5336,7 @@ async function runMethodGuidanceStage(options: {
     stageTracker,
     recordCoverageGap,
     synthesisEnabled,
+    methodGuidanceTimeoutMs,
     resolveMethodGuidanceFn,
     resolveLlmConfig,
   } = options;
@@ -5249,15 +5349,30 @@ async function runMethodGuidanceStage(options: {
     try {
       const llmConfig = await readLlmConfig();
       if (llmConfig.provider?.trim() && llmConfig.modelId?.trim()) {
-        methodGuidance = await resolveGuidance({
-          ucIds: query.ucRequirements?.ucIds,
-          taskType: query.taskType,
-          intent: query.intent,
-          storage,
-          llmProvider: llmConfig.provider,
-          llmModelId: llmConfig.modelId,
-          governorContext: governor,
+        const timeoutMs = resolveStageTimeoutMs({
+          explicitMs: methodGuidanceTimeoutMs,
+          queryTimeoutMs: query.timeoutMs,
+          envVars: [
+            process.env.LIBRARIAN_QUERY_METHOD_GUIDANCE_TIMEOUT_MS,
+            process.env.LIBRAINIAN_QUERY_METHOD_GUIDANCE_TIMEOUT_MS,
+          ],
+          fallbackMs: DEFAULT_METHOD_GUIDANCE_STAGE_TIMEOUT_MS,
         });
+        const llmTimeoutMs = resolveProviderCallTimeoutMs(timeoutMs);
+        methodGuidance = await withStageTimeout(
+          () => resolveGuidance({
+            ucIds: query.ucRequirements?.ucIds,
+            taskType: query.taskType,
+            intent: query.intent,
+            storage,
+            llmProvider: llmConfig.provider,
+            llmModelId: llmConfig.modelId,
+            llmTimeoutMs,
+            governorContext: governor,
+          }),
+          timeoutMs,
+          `method guidance timed out after ${timeoutMs}ms`
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -5299,6 +5414,7 @@ async function runSynthesisStage(options: {
   recordCoverageGap: RecordCoverageGap;
   explanationParts: string[];
   synthesisEnabled: boolean;
+  synthesisTimeoutMs?: number;
   workspaceRoot?: string;
   resolveWorkspaceRootFn?: typeof resolveWorkspaceRoot;
   canAnswerFromSummariesFn?: typeof canAnswerFromSummaries;
@@ -5313,6 +5429,7 @@ async function runSynthesisStage(options: {
     recordCoverageGap,
     explanationParts,
     synthesisEnabled,
+    synthesisTimeoutMs,
     workspaceRoot,
     resolveWorkspaceRootFn,
     canAnswerFromSummariesFn,
@@ -5380,12 +5497,27 @@ async function runSynthesisStage(options: {
         }
       } else {
         // Full LLM synthesis
-        const synthesisResult = await synthesizeAnswer({
-          query,
-          packs: finalPacks,
-          storage,
-          workspace: resolvedWorkspaceRoot,
+        const timeoutMs = resolveStageTimeoutMs({
+          explicitMs: synthesisTimeoutMs,
+          queryTimeoutMs: query.timeoutMs,
+          envVars: [
+            process.env.LIBRARIAN_QUERY_SYNTHESIS_TIMEOUT_MS,
+            process.env.LIBRAINIAN_QUERY_SYNTHESIS_TIMEOUT_MS,
+          ],
+          fallbackMs: DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS,
         });
+        const llmTimeoutMs = resolveProviderCallTimeoutMs(timeoutMs);
+        const synthesisResult = await withStageTimeout(
+          () => synthesizeAnswer({
+            query,
+            packs: finalPacks,
+            storage,
+            workspace: resolvedWorkspaceRoot,
+            llmTimeoutMs,
+          }),
+          timeoutMs,
+          `query synthesis timed out after ${timeoutMs}ms`
+        );
 
         if (synthesisResult.synthesized) {
           synthesis = {
@@ -5583,7 +5715,9 @@ async function collectDirectPacks(
   query: LibrarianQuery,
   workspaceRoot: string,
 ): Promise<ContextPack[]> {
-  const hasAnchors = Boolean(query.affectedFiles?.length);
+  const inferredIntentPath = extractReferencedFilePath(query.intent ?? '');
+  const anchorPaths = query.affectedFiles?.slice(0, 12) ?? [];
+  const hasAnchors = Boolean(anchorPaths.length || inferredIntentPath);
   const hasFilter = Boolean(
     query.filter?.pathPrefix
     || query.filter?.excludeTests
@@ -5594,7 +5728,10 @@ async function collectDirectPacks(
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
   const relatedFilesAny = new Set<string>();
-  for (const filePath of query.affectedFiles?.slice(0, 12) ?? []) {
+  const anchoredPaths = inferredIntentPath
+    ? [inferredIntentPath, ...anchorPaths]
+    : anchorPaths;
+  for (const filePath of anchoredPaths) {
     for (const candidate of expandPathCandidates(filePath, workspaceRoot)) {
       relatedFilesAny.add(candidate);
     }
@@ -6538,6 +6675,40 @@ function normalizeCochangePath(value: string, workspaceRoot: string): string | n
   if (!relative || relative.startsWith('..')) return null;
   return relative;
 }
+
+function isPathWithinWorkspace(candidatePath: string, workspaceRoot: string): boolean {
+  if (!candidatePath) return false;
+  const trimmed = candidatePath.trim();
+  if (!trimmed) return false;
+  const absolute = path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.resolve(workspaceRoot, trimmed);
+  const relative = path.relative(workspaceRoot, absolute).replace(/\\/g, '/');
+  return relative !== '' && relative !== '.' && !relative.startsWith('..');
+}
+
+function filterPacksToWorkspace(
+  packs: ContextPack[],
+  workspaceRoot: string,
+): { packs: ContextPack[]; dropped: number } {
+  if (!workspaceRoot.trim()) return { packs, dropped: 0 };
+  const kept: ContextPack[] = [];
+  let dropped = 0;
+  for (const pack of packs) {
+    const relatedFiles = Array.isArray(pack.relatedFiles)
+      ? pack.relatedFiles.filter((file): file is string => typeof file === 'string' && file.trim().length > 0)
+      : [];
+    if (relatedFiles.length === 0) {
+      kept.push(pack);
+      continue;
+    }
+    const hasWorkspaceScopedFile = relatedFiles.some((file) => isPathWithinWorkspace(file, workspaceRoot));
+    if (hasWorkspaceScopedFile) {
+      kept.push(pack);
+    } else {
+      dropped += 1;
+    }
+  }
+  return { packs: kept, dropped };
+}
 async function collectCandidatePacks(storage: LibrarianStorage, candidates: Candidate[], depth: LibrarianQuery['depth']): Promise<ContextPack[]> {
   const packs: ContextPack[] = [];
   for (const candidate of candidates) {
@@ -6896,6 +7067,38 @@ function shouldBypassEnumerationForIntent(intent: string): boolean {
   return /\b(function|functions|method|methods)\b/.test(normalized);
 }
 
+function isCallerProbeIntent(intent: string): boolean {
+  const normalized = intent.toLowerCase();
+  if (!normalized) return false;
+  return /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(normalized);
+}
+
+function resolveCandidateMaterializationLimit(
+  depth: LibrarianQuery['depth'],
+  intent: string,
+  exhaustive: boolean,
+): number {
+  if (exhaustive) return 1000;
+  const profile = resolveQueryDepthProfile(depth);
+  const base = profile === 'L0' ? 48 : profile === 'L1' ? 72 : profile === 'L2' ? 96 : 128;
+  if (isCallerProbeIntent(intent)) {
+    return profile === 'L0' ? 24 : Math.min(base, 48);
+  }
+  return base;
+}
+
+function capCandidatesForMaterialization(candidates: Candidate[], maxCandidates: number): Candidate[] {
+  if (maxCandidates <= 0 || candidates.length <= maxCandidates) {
+    return candidates;
+  }
+  const sorted = [...candidates].sort((left, right) => {
+    const leftScore = left.score ?? (left.semanticSimilarity * 0.7 + left.confidence * 0.3);
+    const rightScore = right.score ?? (right.semanticSimilarity * 0.7 + right.confidence * 0.3);
+    return rightScore - leftScore;
+  });
+  return sorted.slice(0, maxCandidates);
+}
+
 export const __testing = {
   createStageTracker,
   buildCoverageAssessment,
@@ -6912,12 +7115,17 @@ export const __testing = {
   classifySemanticCacheCategory,
   computeSemanticIntentSimilarity,
   buildSemanticCacheScopeSignature,
+  collectDirectPacks,
   buildHydePrompt,
   normalizeHydeExpansion,
   buildIdentifierExpansionVariants,
   shouldBypassEnumerationForIntent,
   fuseSimilarityResultListsWithRrf,
   fuseSimilarityResultsWithRrf,
+  filterPacksToWorkspace,
+  isCallerProbeIntent,
+  resolveCandidateMaterializationLimit,
+  capCandidatesForMaterialization,
 };
 
 /**
