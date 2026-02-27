@@ -309,7 +309,7 @@ export async function runProviderReadinessGate(
   };
   const embeddingReady = embedding.available;
   if (!embeddingReady) {
-    remediationSteps.push('Embeddings: install @xenova/transformers (npm) or sentence-transformers (python)');
+    remediationSteps.push('Embeddings: install @huggingface/transformers (npm) or sentence-transformers (python)');
   }
   const ready = networkDisabled ? embeddingReady : llmReady && embeddingReady;
   const reason = ready

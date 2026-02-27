@@ -239,7 +239,7 @@ const checkEmbeddingProvider: CheckFunction = async (options) => {
         passed: false,
         severity: 'critical',
         message: `Embedding provider unavailable: ${status.embedding.error || 'Unknown error'}`,
-        suggestedFix: 'Install a real embedding provider (e.g. @xenova/transformers) and retry',
+        suggestedFix: 'Install a real embedding provider (e.g. @huggingface/transformers) and retry',
         durationMs: Date.now() - startTime,
       };
     }

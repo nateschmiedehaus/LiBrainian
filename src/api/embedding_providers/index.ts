@@ -2,7 +2,7 @@
  * @fileoverview Embedding Provider Abstraction Layer
  *
  * This module provides a unified interface for the embedding system.
- * It wraps the real embedding providers (@xenova/transformers, sentence-transformers)
+ * It wraps the real embedding providers (@huggingface/transformers, sentence-transformers)
  * with a provider-style interface for consistency with the rest of the librarian.
  *
  * POLICY (VISION.md 8.5):
@@ -11,7 +11,7 @@
  * - NO TIMEOUTS - operations complete or fail, never timeout
  * - NO RETRY LIMITS - retry until success or unrecoverable error
  *
- * Provider priority: @xenova/transformers → sentence-transformers
+ * Provider priority: @huggingface/transformers → sentence-transformers
  */
 
 import { EmbeddingService, type EmbeddingKind, type EmbeddingResult, type EmbeddingProvider } from '../embeddings.js';
@@ -46,7 +46,7 @@ export interface ProviderStatus {
 
 /**
  * Unified embedding provider that wraps the real embedding service.
- * Uses @xenova/transformers or sentence-transformers for real semantic embeddings.
+ * Uses @huggingface/transformers or sentence-transformers for real semantic embeddings.
  */
 export class UnifiedEmbeddingProvider {
   private readonly service: EmbeddingService;
@@ -146,8 +146,8 @@ export class UnifiedEmbeddingProvider {
     return {
       available,
       reason: available
-        ? 'Real embedding provider available (@xenova/transformers or sentence-transformers)'
-        : 'No embedding provider available. Install @xenova/transformers (npm) or sentence-transformers (Python).',
+        ? 'Real embedding provider available (@huggingface/transformers or sentence-transformers)'
+        : 'No embedding provider available. Install @huggingface/transformers (npm) or sentence-transformers (Python).',
       lastSuccess: this.lastSuccess,
       lastError: this.lastError,
       avgLatencyMs: this.getAverageLatency(),

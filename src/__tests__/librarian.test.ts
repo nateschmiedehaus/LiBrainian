@@ -389,7 +389,7 @@ it('redacts secrets and minimizes snippets', () => {
 });
 // NOTE: EmbeddingService tests have been updated to reflect the new real embedding implementation.
 // The old tests used custom embedder functions which are no longer supported - the new service
-// uses @xenova/transformers or sentence-transformers exclusively per VISION.md 8.5 policy.
+// uses @huggingface/transformers or sentence-transformers exclusively per VISION.md 8.5 policy.
 // LLM-generated "embeddings" are FORBIDDEN as they're hallucinated numbers, not real vectors.
 describe('EmbeddingService', () => {
   it('creates service with default configuration', () => {

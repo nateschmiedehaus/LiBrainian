@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const pipelineMock = vi.fn();
 const createPipelineMock = vi.fn(async () => pipelineMock);
 
-vi.mock('@xenova/transformers', () => ({
+vi.mock('@huggingface/transformers', () => ({
   pipeline: createPipelineMock,
 }));
 

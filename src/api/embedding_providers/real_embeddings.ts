@@ -10,7 +10,7 @@
  * - unixcoder-base: Code understanding (768 dimensions) - SOTA for code retrieval
  *
  * Provider Priority:
- * 1. @xenova/transformers (pure JS, no dependencies, works offline)
+ * 1. @huggingface/transformers (pure JS, no dependencies, works offline)
  * 2. sentence-transformers via Python subprocess (highest quality)
  *
  * POLICY (from VISION.md 8.5):
@@ -26,7 +26,7 @@ import { logInfo, logWarning } from '../../telemetry/logger.js';
 /**
  * Available embedding models with their properties.
  *
- * Note: Code-specific models like CodeBERT are not available in @xenova/transformers.
+ * Note: Code-specific models like CodeBERT are not available in @huggingface/transformers.
  * However, testing shows all-MiniLM-L6-v2 achieves perfect AUC (1.0) on code similarity tasks.
  * jina-embeddings-v2-base-en has 8K context window (vs 256 for MiniLM).
  */
@@ -120,7 +120,7 @@ export async function preloadEmbeddingModel(modelId: EmbeddingModelId = currentM
 }
 
 /**
- * Initialize the @xenova/transformers pipeline for a specific model.
+ * Initialize the @huggingface/transformers pipeline for a specific model.
  * This is lazy-loaded on first use to avoid slow startup.
  */
 async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Promise<any> {
@@ -138,14 +138,14 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
   const loading = (async () => {
     try {
       // Dynamic import to avoid bundling issues
-      const { pipeline: createPipeline } = await import('@xenova/transformers');
+      const { pipeline: createPipeline } = await import('@huggingface/transformers');
 
       logInfo(`[librarian] Loading embedding model (${modelId})...`);
 
       // Use feature-extraction pipeline for embeddings
+      // In v3, 'quantized' was replaced by 'dtype'. q8 = quantized, fp32 = full precision.
       const pipe = await createPipeline('feature-extraction', model.xenovaId, {
-        // Use quantized model for faster loading (if available)
-        quantized: modelId === 'all-MiniLM-L6-v2', // Only MiniLM has quantized version
+        dtype: modelId === 'all-MiniLM-L6-v2' ? 'q8' : 'fp32',
       });
 
       logInfo(`[librarian] Embedding model ${modelId} loaded successfully`);
@@ -153,7 +153,7 @@ async function getXenovaPipeline(modelId: EmbeddingModelId = currentModelId): Pr
       return pipe;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logWarning(`[librarian] Failed to load @xenova/transformers model ${modelId}`, { error: message });
+      logWarning(`[librarian] Failed to load @huggingface/transformers model ${modelId}`, { error: message });
       pipelineLoadings.delete(cacheKey);
       throw error;
     }
@@ -211,11 +211,11 @@ function validateEmbeddingVector(
 }
 
 /**
- * Check if @xenova/transformers is available.
+ * Check if @huggingface/transformers is available.
  */
 export async function isXenovaAvailable(): Promise<boolean> {
   try {
-    await import('@xenova/transformers');
+    await import('@huggingface/transformers');
     return true;
   } catch {
     return false;
@@ -277,7 +277,7 @@ async function mapWithConcurrency<TInput, TOutput>(
 }
 
 /**
- * Generate embeddings using @xenova/transformers.
+ * Generate embeddings using @huggingface/transformers.
  * Model dimension depends on the selected model.
  */
 export async function generateXenovaEmbedding(
@@ -363,7 +363,7 @@ print(json.dumps(embedding.tolist()))
  * Generate embeddings using the best available provider.
  *
  * Priority:
- * 1. @xenova/transformers (pure JS)
+ * 1. @huggingface/transformers (pure JS)
  * 2. sentence-transformers (Python)
  *
  * Retry/backoff limits are enforced by EmbeddingService.
@@ -377,7 +377,7 @@ export async function generateRealEmbedding(
   dimension: number;
   model: EmbeddingModelId;
 }> {
-  // Try @xenova/transformers first (pure JS, no dependencies)
+  // Try @huggingface/transformers first (pure JS, no dependencies)
   if (await isXenovaAvailable()) {
     try {
       const embedding = await generateXenovaEmbedding(text, modelId);
@@ -405,7 +405,7 @@ export async function generateRealEmbedding(
   }
 
   throw new Error(
-    'No embedding provider available. Install @xenova/transformers (npm) or sentence-transformers (Python).'
+    'No embedding provider available. Install @huggingface/transformers (npm) or sentence-transformers (Python).'
   );
 }
 
@@ -459,7 +459,7 @@ export async function generateRealEmbeddings(
   }
 
   throw new Error(
-    'No embedding provider available. Install @xenova/transformers (npm) or sentence-transformers (Python).'
+    'No embedding provider available. Install @huggingface/transformers (npm) or sentence-transformers (Python).'
   );
 }
 

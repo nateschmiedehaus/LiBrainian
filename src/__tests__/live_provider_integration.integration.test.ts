@@ -6,7 +6,7 @@
  *
  * Requirements:
  * - Authenticated CLI providers (Claude: `claude setup-token` or run `claude`; Codex: `codex login`)
- * - Embedding provider installed (@xenova/transformers or sentence-transformers)
+ * - Embedding provider installed (@huggingface/transformers or sentence-transformers)
  *
  * Run with: npx vitest run src/__tests__/live_provider_integration.integration.test.ts
  */

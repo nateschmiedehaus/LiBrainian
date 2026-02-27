@@ -449,7 +449,7 @@ export interface BootstrapConfig {
   useAstIndexer?: boolean;
 
   // Embedding Configuration (required)
-  // Real embedding providers: @xenova/transformers or sentence-transformers
+  // Real embedding providers: @huggingface/transformers or sentence-transformers
   // NO LLM-generated embeddings (they're hallucinated numbers, not real vectors)
   embeddingProvider?: EmbeddingProvider;
   embeddingModelId?: string;

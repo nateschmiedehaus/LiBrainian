@@ -81,9 +81,9 @@ if (LIBRARIAN_TEST_MODE === 'unit') {
   // 2. Mock llm_env.js (discovery entry point) - which we do above
   // 3. Add their own specific mocks if they need different behavior
 
-  // Prevent unit tests from pulling the real Xenova model into memory.
+  // Prevent unit tests from pulling the real model into memory.
   // Tests that need real model loading should run under heavy/system tiers.
-  vi.mock('@xenova/transformers', () => ({
+  vi.mock('@huggingface/transformers', () => ({
     AutoTokenizer: {
       from_pretrained: vi.fn(async () => {
         // Callable tokenizer stub
