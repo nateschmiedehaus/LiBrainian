@@ -43,7 +43,7 @@ export interface BootstrapCommandOptions {
   rawArgs: string[];
 }
 
-const DEFAULT_BOOTSTRAP_TIMEOUT_MS = 600_000;
+const DEFAULT_BOOTSTRAP_TIMEOUT_MS = 1_200_000;
 
 export async function bootstrapCommand(options: BootstrapCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
