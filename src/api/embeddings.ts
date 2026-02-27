@@ -10,7 +10,7 @@
  * ║  - Time budgets/cancellation are imposed by callers (governor/worker)         ║
  * ║                                                                               ║
  * ║  Provider Priority:                                                           ║
- * ║  1. @huggingface/transformers (pure JS, all-MiniLM-L6-v2, 384 dimensions)     ║
+ * ║  1. @huggingface/transformers (pure JS, bge-small-en-v1.5, 384 dimensions)     ║
  * ║  2. sentence-transformers via Python subprocess (fallback)                    ║
  * ║                                                                               ║
  * ║  See: src/EMBEDDING_RULES.md and docs/LIVE_PROVIDERS_PLAYBOOK.md              ║
@@ -69,13 +69,21 @@ export interface EmbeddingConfig {
  */
 export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
   // Xenova models (pure JS, offline)
+  'xenova:bge-small-en-v1.5': {
+    model: 'bge-small-en-v1.5',
+    dimensions: 384,
+    provider: 'xenova',
+    contextWindow: 512,
+    batchSize: 32,
+    description: 'BGE small v1.5 - recommended for code retrieval (#865)',
+  },
   'xenova:all-MiniLM-L6-v2': {
     model: 'all-MiniLM-L6-v2',
     dimensions: 384,
     provider: 'xenova',
     contextWindow: 256,
     batchSize: 32,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
+    description: 'Legacy NL model - 256 token limit causes truncation (#662)',
   },
   'xenova:jina-embeddings-v2-base-en': {
     model: 'jina-embeddings-v2-base-en',
@@ -83,24 +91,24 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 8192,
     batchSize: 16,
-    description: 'Large context (8K tokens) - good for full files',
+    description: 'Large context (8K tokens, 768d) - needs dimension migration',
   },
-  'xenova:bge-small-en-v1.5': {
+  // Shorthand aliases (default to xenova provider)
+  'bge-small-en-v1.5': {
     model: 'bge-small-en-v1.5',
     dimensions: 384,
     provider: 'xenova',
     contextWindow: 512,
     batchSize: 32,
-    description: 'BGE small - efficient and effective',
+    description: 'BGE small v1.5 - recommended for code retrieval (#865)',
   },
-  // Shorthand aliases (default to xenova provider)
   'all-MiniLM-L6-v2': {
     model: 'all-MiniLM-L6-v2',
     dimensions: 384,
     provider: 'xenova',
     contextWindow: 256,
     batchSize: 32,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
+    description: 'Legacy NL model - 256 token limit causes truncation (#662)',
   },
   'jina-embeddings-v2-base-en': {
     model: 'jina-embeddings-v2-base-en',
@@ -108,15 +116,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
     provider: 'xenova',
     contextWindow: 8192,
     batchSize: 16,
-    description: 'Large context (8K tokens) - good for full files',
-  },
-  'bge-small-en-v1.5': {
-    model: 'bge-small-en-v1.5',
-    dimensions: 384,
-    provider: 'xenova',
-    contextWindow: 512,
-    batchSize: 32,
-    description: 'BGE small - efficient and effective',
+    description: 'Large context (8K tokens, 768d) - needs dimension migration',
   },
 };
 
@@ -126,7 +126,7 @@ export const DEFAULT_EMBEDDING_CONFIGS: Record<string, EmbeddingConfig> = {
  * Resolution order:
  * 1. If modelId provided, use it directly
  * 2. Check LIBRARIAN_EMBEDDING_MODEL environment variable
- * 3. Fall back to 'all-MiniLM-L6-v2' (default)
+ * 3. Fall back to 'bge-small-en-v1.5' (default, #865)
  *
  * @param modelId - Optional model identifier
  * @returns Embedding configuration for the model
@@ -149,7 +149,7 @@ export function getEmbeddingConfig(modelId?: string): EmbeddingConfig {
   const id = modelId
     || process.env.LIBRAINIAN_EMBEDDING_MODEL
     || process.env.LIBRARIAN_EMBEDDING_MODEL
-    || 'all-MiniLM-L6-v2';
+    || 'bge-small-en-v1.5';
 
   const config = DEFAULT_EMBEDDING_CONFIGS[id];
 
@@ -275,8 +275,9 @@ type GovernorContextLike = {
 // POLICY: Use dedicated embedding models, NOT LLMs.
 // LLM-generated "embeddings" are hallucinated numbers without semantic meaning.
 //
-// all-MiniLM-L6-v2 provides 384-dimensional embeddings with genuine semantic
-// understanding based on contrastive learning on sentence pairs.
+// Default model: bge-small-en-v1.5 (384d, 512 tokens) - selected in #865.
+// Provides 384-dimensional embeddings trained with contrastive learning on
+// diverse retrieval tasks. Same dimension as legacy MiniLM (no migration needed).
 //
 const DEFAULT_EMBEDDING_DIMENSION = REAL_EMBEDDING_DIMENSION; // 384
 const DEFAULT_BATCH_SIZE = configurable(10, [1, 128], 'Default batch size for embedding generation.');
@@ -358,7 +359,9 @@ export class EmbeddingService {
       modelConfig = getEmbeddingConfig(explicitModelId);
       resolvedModelId = modelConfig.model;
     } catch {
-      modelConfig = getEmbeddingConfig('all-MiniLM-L6-v2');
+      // Fallback to bge-small-en-v1.5 (384d, same as MiniLM); if that also
+      // fails somehow, the outer getEmbeddingConfig will throw.
+      modelConfig = getEmbeddingConfig('bge-small-en-v1.5');
       resolvedModelId = explicitModelId ?? modelConfig.model;
     }
 

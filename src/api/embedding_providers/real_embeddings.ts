@@ -4,10 +4,21 @@
  * This module provides REAL semantic embeddings using dedicated embedding models.
  * These are NOT LLM-generated "embeddings" (which are hallucinated numbers).
  *
- * Available Models:
- * - all-MiniLM-L6-v2: General NLP (384 dimensions) - good for natural language
- * - codebert-base: Code understanding (768 dimensions) - trained on code
- * - unixcoder-base: Code understanding (768 dimensions) - SOTA for code retrieval
+ * Available Models (evaluated in #865 via scripts/eval-embedding-models.mjs):
+ * - bge-small-en-v1.5: RECOMMENDED for code retrieval (384d, 512 tokens, MTEB-ranked)
+ * - all-MiniLM-L6-v2: General NLP fallback (384d, 256 tokens)
+ * - jina-embeddings-v2-base-en: Large context (768d, 8192 tokens, requires dimension migration)
+ *
+ * Model Selection Rationale (#865):
+ *   bge-small-en-v1.5 is preferred over all-MiniLM-L6-v2 because:
+ *   - Same 384-dimensional output (no database migration needed)
+ *   - 512-token context window (2x the 256-token MiniLM limit)
+ *   - Trained with contrastive learning on diverse retrieval tasks (BAAI)
+ *   - Top-ranked on MTEB retrieval benchmarks
+ *   - Reduces truncation rate for typical code functions (most are 100-400 tokens)
+ *
+ *   jina-embeddings-v2-base-en and nomic-embed-text-v1.5 offer 8K context
+ *   but require 768-dimensional embeddings (a separate database migration).
  *
  * Provider Priority:
  * 1. @huggingface/transformers (pure JS, no dependencies, works offline)
@@ -26,42 +37,60 @@ import { logInfo, logWarning } from '../../telemetry/logger.js';
 /**
  * Available embedding models with their properties.
  *
- * Note: Code-specific models like CodeBERT are not available in @huggingface/transformers.
- * However, testing shows all-MiniLM-L6-v2 achieves perfect AUC (1.0) on code similarity tasks.
- * jina-embeddings-v2-base-en has 8K context window (vs 256 for MiniLM).
+ * Evaluated in #865 (scripts/eval-embedding-models.mjs) using 31 real LiBrainian
+ * source files and 15 code retrieval test cases:
+ *
+ *   Model                   | R@5   | R@10  | MRR   | Trunc | Embed/fn
+ *   bge-small-en-v1.5       | 68.4% | 79.6% | 0.905 | 96.8% | 185ms
+ *   nomic-embed-text-v1.5   | 64.9% | 78.2% | 0.933 |  0.0% | 4.02s
+ *   jina-embeddings-v2-base  | 62.7% | 77.3% | 0.933 |  0.0% | 6.27s
+ *
+ * bge-small-en-v1.5 is the recommended default: best Recall@5/10 for code
+ * retrieval, same 384d dimension as MiniLM (no migration), 20-30x faster
+ * than 768d models. The high truncation rate (96.8%) occurs because we
+ * embed first-200-lines snippets (~1500 tokens avg) which exceed the 512-
+ * token window. In practice, individual functions are shorter and fit better.
+ *
+ * 768d models (jina-v2, nomic-v1.5) eliminate truncation entirely but
+ * require a database schema migration for the embedding dimension change.
  */
 export const EMBEDDING_MODELS = {
-  // General NLP model - small and fast (256 token context)
-  // Validated: AUC 1.0, 100% accuracy on code similarity task
-  'all-MiniLM-L6-v2': {
-    xenovaId: 'Xenova/all-MiniLM-L6-v2',
-    pythonId: 'all-MiniLM-L6-v2',
-    dimension: 384,
-    contextWindow: 256,
-    description: 'Fast, small model - validated for code similarity (AUC 1.0)',
-  },
-  // Jina embeddings - 8K context window, good for longer documents
-  'jina-embeddings-v2-base-en': {
-    xenovaId: 'Xenova/jina-embeddings-v2-base-en',
-    pythonId: 'jinaai/jina-embeddings-v2-base-en',
-    dimension: 768,
-    contextWindow: 8192,
-    description: 'Large context (8K tokens) - good for full files',
-  },
-  // BGE small - efficient and effective
+  // BGE small v1.5 - RECOMMENDED for code retrieval (#865)
+  // 384d (same as MiniLM), 512-token context (2x MiniLM), MTEB top-ranked
   'bge-small-en-v1.5': {
     xenovaId: 'Xenova/bge-small-en-v1.5',
     pythonId: 'BAAI/bge-small-en-v1.5',
     dimension: 384,
     contextWindow: 512,
-    description: 'BGE small - efficient and effective',
+    description: 'BGE small v1.5 - recommended for code retrieval (384d, 512 tokens, MTEB-ranked)',
+  },
+  // General NLP model - legacy/fallback (256 token context)
+  // Note: "AUC 1.0" claim was from a trivial 3-sample test, not meaningful.
+  // 256-token limit causes silent truncation on most real code functions (#662).
+  'all-MiniLM-L6-v2': {
+    xenovaId: 'Xenova/all-MiniLM-L6-v2',
+    pythonId: 'all-MiniLM-L6-v2',
+    dimension: 384,
+    contextWindow: 256,
+    description: 'Legacy NL model - 256 token limit causes truncation on code (#662)',
+  },
+  // Jina embeddings v2 - 8K context window, good for full files
+  // Requires 768d dimension (database migration needed before use as default)
+  'jina-embeddings-v2-base-en': {
+    xenovaId: 'Xenova/jina-embeddings-v2-base-en',
+    pythonId: 'jinaai/jina-embeddings-v2-base-en',
+    dimension: 768,
+    contextWindow: 8192,
+    description: 'Large context (8K tokens, 768d) - needs dimension migration',
   },
 } as const;
 
 export type EmbeddingModelId = keyof typeof EMBEDDING_MODELS;
 
-// Default model - all-MiniLM-L6-v2 validated with perfect AUC on code
-export const DEFAULT_CODE_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
+// Default model - bge-small-en-v1.5 recommended by #865 evaluation
+// Same 384d dimension as MiniLM so no database migration needed.
+// Fallback: all-MiniLM-L6-v2 (if BGE model fails to load)
+export const DEFAULT_CODE_MODEL: EmbeddingModelId = 'bge-small-en-v1.5';
 export const DEFAULT_NLP_MODEL: EmbeddingModelId = 'all-MiniLM-L6-v2';
 
 // Current active model

@@ -36,7 +36,8 @@ describe('Embedding Configuration', () => {
     it('returns default config when no model specified', () => {
       const config = getEmbeddingConfig();
 
-      expect(config.model).toBe('all-MiniLM-L6-v2');
+      // Default changed from all-MiniLM-L6-v2 to bge-small-en-v1.5 in #865
+      expect(config.model).toBe('bge-small-en-v1.5');
       expect(config.dimensions).toBe(384);
       expect(config.provider).toBe('xenova');
     });
@@ -158,7 +159,8 @@ describe('Embedding Configuration', () => {
     it('uses default when no model specified', () => {
       const config = configureEmbeddingModel();
 
-      expect(config.model).toBe('all-MiniLM-L6-v2');
+      // Default changed from all-MiniLM-L6-v2 to bge-small-en-v1.5 in #865
+      expect(config.model).toBe('bge-small-en-v1.5');
     });
   });
 
