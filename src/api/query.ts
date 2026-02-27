@@ -1685,10 +1685,13 @@ export async function queryLibrarian(
     explanationParts,
     version,
   });
-  // Determine task type for ranking: use 'guidance' for meta-queries to boost documentation
+  // Determine task type for ranking: use 'guidance' for meta-queries to boost documentation,
+  // 'implementation' for code-seeking queries to penalize docs and prefer functions
   const rankingTaskType = queryClassification?.isMetaQuery
     ? 'guidance'
-    : query.taskType;
+    : queryClassification?.isCodeQuery
+      ? (query.taskType ?? 'implementation')
+      : query.taskType;
   // Use context level's pack limit for agent ergonomics (L0=3, L1=6, L2=8, L3=10)
   const contextLevel = resolveContextLevel(query.depth);
   const ranked = rankContextPacks({
@@ -6386,7 +6389,7 @@ async function hydrateCandidates(results: SimilarityResult[], storage: Librarian
   return Promise.all(results.map(async (result) => {
     // Map embeddable entity type to graph entity type
     const graphEntityType = result.entityType === 'document' ? 'file' : result.entityType;
-    const stats = await getEntityStats(result.entityId, result.entityType, storage);
+    const stats = await getEntityStats(result.entityId, result.entityType, storage, result.similarity);
     return {
       entityId: result.entityId,
       entityType: graphEntityType,
@@ -6401,7 +6404,7 @@ async function hydrateCandidates(results: SimilarityResult[], storage: Librarian
     } as Candidate & { isDocument?: boolean };
   }));
 }
-async function getEntityStats(entityId: string, entityType: GraphEntityType | 'document', storage: LibrarianStorage): Promise<{ confidence: number; recency: number; path?: string }> {
+async function getEntityStats(entityId: string, entityType: GraphEntityType | 'document', storage: LibrarianStorage, similarityScore?: number): Promise<{ confidence: number; recency: number; path?: string }> {
   try {
     if (entityType === 'function') {
       const fn = await storage.getFunction(entityId);
@@ -6412,11 +6415,14 @@ async function getEntityStats(entityId: string, entityType: GraphEntityType | 'd
       };
     }
     if (entityType === 'document') {
-      // Documents get from ingestion items or default high confidence
+      // Use actual embedding similarity score for document confidence instead of
+      // a hardcoded value. This prevents docs from having a built-in scoring advantage
+      // over functions (which use their actual stored confidence of 0.4-0.7).
+      // Fall back to 0.5 (neutral) when no similarity score is available.
       const docItem = await storage.getIngestionItem(entityId);
       const payload = docItem?.payload as { path?: string } | undefined;
       return {
-        confidence: 0.85, // High confidence for documentation
+        confidence: similarityScore ?? 0.5,
         recency: 0.9, // Documents considered fresh
         path: payload?.path ?? entityId.replace(/^doc:/, ''),
       };
@@ -6810,7 +6816,9 @@ async function maybeRerankWithCrossEncoder(
   recordCoverageGap: RecordCoverageGap
 ): Promise<ContextPack[]> {
   if (!query.intent || packs.length < 2) return packs;
-  if (query.depth !== 'L2' && query.depth !== 'L3') return packs;
+  // Enable cross-encoder at L1+ (L0 still skipped for speed).
+  // L1 uses a smaller candidate pool (5) vs L2 (10) / L3 (14) via resolveRerankWindow.
+  if (query.depth === 'L0') return packs;
   if (!isCrossEncoderEnabled()) return packs;
 
   const rerankTop = Math.min(packs.length, resolveRerankWindow(query.depth));

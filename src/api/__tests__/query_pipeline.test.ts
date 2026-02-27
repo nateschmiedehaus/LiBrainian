@@ -213,8 +213,9 @@ describe('query pipeline definition', () => {
     };
     const rerank = vi.fn();
 
+    // Use L0 which has rerank window = 0 (depth profile disabled)
     const result = await __testing.runRerankStage({
-      query: { intent: 'test rerank', depth: 'L1' },
+      query: { intent: 'test rerank', depth: 'L0' },
       finalPacks: [
         createPack({ packId: 'pack-a', targetId: 'module-a' }),
         createPack({ packId: 'pack-b', targetId: 'module-b' }),

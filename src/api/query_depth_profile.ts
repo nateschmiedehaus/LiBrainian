@@ -27,7 +27,7 @@ const SEMANTIC_META_CANDIDATE_WINDOW_MAX = Math.max(
 
 const RERANK_WINDOW_BY_DEPTH: Record<QueryDepthProfile, number> = {
   L0: Math.max(0, Math.round(q(0, [0, 40], 'Cross-encoder rerank window for L0 depth.'))),
-  L1: Math.max(0, Math.round(q(0, [0, 40], 'Cross-encoder rerank window for L1 depth.'))),
+  L1: Math.max(0, Math.round(q(5, [0, 40], 'Cross-encoder rerank window for L1 depth.'))),
   L2: Math.max(0, Math.round(q(10, [0, 40], 'Cross-encoder rerank window for L2 depth.'))),
   L3: Math.max(0, Math.round(q(14, [0, 40], 'Cross-encoder rerank window for L3 depth.'))),
 };

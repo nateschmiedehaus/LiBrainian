@@ -28,7 +28,7 @@ describe('query depth profile helpers', () => {
 
   it('computes rerank windows by depth', () => {
     expect(resolveRerankWindow('L0')).toBe(0);
-    expect(resolveRerankWindow('L1')).toBe(0);
+    expect(resolveRerankWindow('L1')).toBe(5);
     expect(resolveRerankWindow('L2')).toBe(10);
     expect(resolveRerankWindow('L3')).toBe(14);
   });

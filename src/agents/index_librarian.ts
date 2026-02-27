@@ -1812,23 +1812,107 @@ export function buildModuleEmbeddingInput(
   fileContent: string,
   maxChars: number = DEFAULT_EMBEDDING_INPUT_LIMIT,
 ): string {
-  const topFunctions = functions.map((fn) => fn.name).slice(0, 8).join(', ');
   const exports = mod.exports.slice(0, 8).join(', ') || 'none';
   const dependencies = mod.dependencies.slice(0, 8).join(', ') || 'none';
-  const snippet = fileContent.split('\n').slice(0, 80).join('\n');
+
+  // Build function signatures instead of just names for richer semantic signal
+  const functionSignatures = functions
+    .slice(0, 12)
+    .map((fn) => {
+      const sig = fn.signature ? `${fn.name}${fn.signature}` : fn.name;
+      const purpose = fn.purpose ? ` — ${fn.purpose}` : '';
+      return `  ${sig}${purpose}`;
+    })
+    .join('\n');
+
+  // Build a smart code snippet instead of blind first-80-lines:
+  // 1. Extract JSDoc header comment (if present at top of file)
+  // 2. Skip import/from lines
+  // 3. Include non-import lines up to 80 lines
+  const snippet = buildSmartSnippet(fileContent, 80);
 
   const parts = [
     `Module: ${path.basename(mod.path)}`,
     `Purpose: ${mod.purpose || 'n/a'}`,
     `Exports: ${exports}`,
     `Dependencies: ${dependencies}`,
-    topFunctions ? `Functions: ${topFunctions}` : '',
+    functionSignatures ? `Function signatures:\n${functionSignatures}` : '',
     `File: ${mod.path}`,
-    'Code:',
-    snippet,
+    snippet ? `Code:\n${snippet}` : '',
   ].filter(Boolean);
 
   return truncateEmbeddingInput(parts.join('\n'), maxChars);
+}
+
+/**
+ * Builds a semantically meaningful code snippet by:
+ * 1. Preserving the JSDoc file header comment (if any)
+ * 2. Skipping import/from lines that carry no semantic signal
+ * 3. Collecting the first N non-import lines of actual code
+ */
+function buildSmartSnippet(fileContent: string, maxLines: number): string {
+  const lines = fileContent.split('\n');
+  const result: string[] = [];
+  let inHeaderComment = false;
+  let headerDone = false;
+  let importsDone = false;
+
+  for (const line of lines) {
+    if (result.length >= maxLines) break;
+
+    // Phase 1: Capture leading JSDoc/block comment header
+    if (!headerDone) {
+      const trimmed = line.trimStart();
+      if (!inHeaderComment && (trimmed.startsWith('/**') || trimmed.startsWith('/*'))) {
+        inHeaderComment = true;
+        result.push(line);
+        if (trimmed.includes('*/') && trimmed.indexOf('*/') > trimmed.indexOf('/*') + 1) {
+          inHeaderComment = false;
+          headerDone = true;
+        }
+        continue;
+      }
+      if (inHeaderComment) {
+        result.push(line);
+        if (trimmed.includes('*/')) {
+          inHeaderComment = false;
+          headerDone = true;
+        }
+        continue;
+      }
+      // If the file doesn't start with a comment, header phase is done
+      if (trimmed.length > 0 && !trimmed.startsWith('//')) {
+        headerDone = true;
+      } else if (trimmed.startsWith('//')) {
+        // Include leading single-line comments as part of header
+        result.push(line);
+        continue;
+      }
+    }
+
+    // Phase 2: Skip import lines
+    if (!importsDone) {
+      const trimmed = line.trimStart();
+      if (
+        trimmed.startsWith('import ') ||
+        trimmed.startsWith('import{') ||
+        trimmed.startsWith('from ') ||
+        // Multi-line import continuation (starts with } or has only closing brace + from)
+        /^\s*\}\s*from\s+/.test(line) ||
+        // Blank lines between imports
+        (trimmed === '' && !importsDone)
+      ) {
+        // Check if next non-blank, non-import line exists to end imports
+        continue;
+      }
+      importsDone = true;
+    }
+
+    // Phase 3: Collect non-import code lines
+    result.push(line);
+  }
+
+  return result.join('\n');
 }
 
 function truncateEmbeddingInput(text: string, limit: number): string {

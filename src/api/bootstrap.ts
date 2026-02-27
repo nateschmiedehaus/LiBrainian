@@ -4797,9 +4797,10 @@ async function generateDocumentEmbeddings(
     // Classify document for relevance
     const classification = classifyDocument(relativePath);
 
-    // Only generate embeddings for high-relevance documents (boost >= 0.5)
-    // or all meta-docs (agent instructions, integration guides)
-    if (classification.relevanceBoost < 0.5 && !classification.isMetaDoc) {
+    // Only generate embeddings for high-relevance documents (boost > 0.5)
+    // or all meta-docs (agent instructions, integration guides).
+    // Using <= 0.5 so that archive docs with exactly 0.5 boost are excluded.
+    if (classification.relevanceBoost <= 0.5 && !classification.isMetaDoc) {
       continue;
     }
 
