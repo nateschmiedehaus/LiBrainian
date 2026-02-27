@@ -85,6 +85,59 @@ speculative queries.
 
 ---
 
+## Milestone Proof Protocol
+
+Milestones (M0, M1, etc.) are only "passed" when structural proof validates product
+quality, not just plumbing. This protocol exists because we falsely declared M0
+passed by testing exit codes instead of actual query quality.
+
+### Rules
+
+1. **Proof tests BEFORE fixes.** Write the proof test (with specific expected outputs)
+   before implementing the fix. The test must fail first, then pass after the fix.
+2. **Structural validation required.** Before any milestone is declared passed, run:
+   ```bash
+   node scripts/proof-review-gate.mjs state/<milestone>/self-dev-proof.json
+   ```
+   This script checks for red flags: file dominance, low diversity, missing quality
+   metrics, suspiciously broad patterns, and inconsistent pass/fail states.
+3. **Test rigor validation.** Proof test source code must pass adversarial review:
+   ```bash
+   node scripts/adversarial-proof-validator.mjs src/__tests__/<proof_test>.test.ts
+   ```
+   This catches gameable tests: short patterns, missing assertions, silent skips.
+4. **quality_issues must be empty AND structural checks must pass.** A proof artifact
+   with `all_passed: true` but missing `quality_issues`, `cross_query_metrics`, or
+   `mustIncludeMatched` fields is a structural failure regardless of `all_passed`.
+5. **Include gate output in evidence.** Any agent declaring a milestone "passed" must
+   paste the full output of `proof-review-gate.mjs` into their evidence. A clean bill
+   of health from this script is the minimum bar.
+6. **Pre-push enforcement.** The `lefthook.yml` pre-push hook runs `proof-review-gate.mjs`
+   on any proof artifacts in `state/`. You cannot push a false-pass.
+
+### What the proof-review-gate checks
+
+- Fewer than 6 distinct files across all query results
+- Any single file appearing in >50% of result sets (dominance)
+- Missing `quality_issues` array or non-empty quality issues
+- Missing `cross_query_metrics` (Jaccard pairs, dominant files)
+- Missing `mustIncludeMatched` on individual results
+- Jaccard similarity >0.5 between any pair of result sets
+- Result sets with <3 unique base files
+- `all_passed: true` with non-empty quality issues (inconsistent)
+
+### What the adversarial-proof-validator checks
+
+- mustInclude/expectFiles patterns shorter than 8 characters
+- Missing anti-dominance assertions in test code
+- Missing Jaccard diversity assertions in test code
+- Missing minimum file count assertions
+- Unconditional skip() calls that silently pass
+- Soft assertions (warnings without expect/assert)
+- Fewer than 3 distinct query intents
+
+---
+
 ## Do Not
 1. Create more spec files, npm scripts, or docs — reduce, don't add
 2. Work on M2/M3/M4 — the product doesn't work at M0

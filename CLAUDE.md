@@ -21,6 +21,11 @@ This file is the Claude-specific entrypoint. It adopts all repository rules from
    - Run `npm run test:agentic:strict` for publish-grade qualification.
 5. `CONVERSATION INTELLIGENCE REQUIRED`
    - Update `docs/LiBrainian/CONVERSATION_INSIGHTS.md` at major planning checkpoints and before release-gate runs.
+6. `PROOF_ARTIFACT_GATE_REQUIRED`
+   - Never declare a milestone passed without running `node scripts/proof-review-gate.mjs` on the proof artifact and including its full output in the evidence.
+   - The gate must exit 0 (zero failures). Warnings are acceptable; failures are not.
+   - If the gate fails, the milestone is NOT passed regardless of what `all_passed` says in the artifact.
+   - Also run `node scripts/adversarial-proof-validator.mjs` on the proof test source to verify test rigor.
 
 ## Disallowed for Release Evidence
 

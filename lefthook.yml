@@ -15,3 +15,6 @@ pre-push:
     patrol-smoke:
       run: node scripts/prepush-patrol-smoke.mjs
       optional: true
+    proof-review-gate:
+      glob: "state/*/self-dev-proof.json"
+      run: node scripts/proof-review-gate.mjs --all
