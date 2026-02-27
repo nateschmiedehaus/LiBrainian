@@ -300,6 +300,7 @@ import {
   DEFINITION_QUERY_PATTERNS,
   ENTRY_POINT_QUERY_PATTERNS,
   FEATURE_LOCATION_PATTERNS,
+  IMPLEMENTATION_SEEKING_PATTERNS,
   META_QUERY_PATTERNS,
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
@@ -597,7 +598,11 @@ export interface QueryClassification {
  * WHY queries should prefer ADRs, design docs, and rationale content.
  */
 export function classifyQueryIntent(intent: string): QueryClassification {
-  const metaMatches = META_QUERY_PATTERNS.filter(p => p.test(intent)).length;
+  const rawMetaMatches = META_QUERY_PATTERNS.filter(p => p.test(intent)).length;
+  const implementationSeekingMatches = IMPLEMENTATION_SEEKING_PATTERNS.filter(p => p.test(intent)).length;
+  // When the query is seeking implementation details (e.g., "how does the query pipeline work"),
+  // suppress meta classification by zeroing out meta matches.
+  const metaMatches = implementationSeekingMatches > 0 ? 0 : rawMetaMatches;
   const codeMatches = CODE_QUERY_PATTERNS.filter(p => p.test(intent)).length;
   const definitionMatches = DEFINITION_QUERY_PATTERNS.filter(p => p.test(intent)).length;
   const entryPointMatches = ENTRY_POINT_QUERY_PATTERNS.filter(p => p.test(intent)).length;

@@ -286,9 +286,25 @@ export function rankContextPacks(input: PackRankingInput): PackRankingResult {
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const selected = scored.slice(0, maxPacks).map((entry) => entry.pack);
+
+  // Per-file dominance guard: no more than MAX_PACKS_PER_FILE packs from the
+  // same source file. This prevents generic files with broad embeddings from
+  // monopolizing every result set.
+  const MAX_PACKS_PER_FILE = 2;
+  const filePackCounts = new Map<string, number>();
+  const selected: ContextPack[] = [];
+  for (const entry of scored) {
+    if (selected.length >= maxPacks) break;
+    const primaryFile = entry.pack.relatedFiles[0] ?? '';
+    const currentCount = primaryFile ? (filePackCounts.get(primaryFile) ?? 0) : 0;
+    if (primaryFile && currentCount >= MAX_PACKS_PER_FILE) continue;
+    selected.push(entry.pack);
+    if (primaryFile) filePackCounts.set(primaryFile, currentCount + 1);
+  }
+
+  const selectedScores = scored.filter((entry) => selected.includes(entry.pack));
   const averageScore = selected.length
-    ? scored.slice(0, maxPacks).reduce((sum, entry) => sum + entry.score, 0) / selected.length
+    ? selectedScores.reduce((sum, entry) => sum + entry.score, 0) / selected.length
     : 0;
 
   return { packs: selected, averageScore };
