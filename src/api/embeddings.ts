@@ -10,7 +10,7 @@
  * ║  - Time budgets/cancellation are imposed by callers (governor/worker)         ║
  * ║                                                                               ║
  * ║  Provider Priority:                                                           ║
- * ║  1. @xenova/transformers (pure JS, all-MiniLM-L6-v2, 384 dimensions)          ║
+ * ║  1. @huggingface/transformers (pure JS, all-MiniLM-L6-v2, 384 dimensions)     ║
  * ║  2. sentence-transformers via Python subprocess (fallback)                    ║
  * ║                                                                               ║
  * ║  See: src/EMBEDDING_RULES.md and docs/LIVE_PROVIDERS_PLAYBOOK.md              ║
@@ -400,7 +400,7 @@ export class EmbeddingService {
    * Generates an embedding vector for a single text input.
    *
    * This is a convenience wrapper around generateEmbeddings for single requests.
-   * Uses a real embedding provider (default: `@xenova/transformers` all-MiniLM-L6-v2).
+   * Uses a real embedding provider (default: `@huggingface/transformers` all-MiniLM-L6-v2).
    *
    * @param request - The embedding request with text and optional kind/id
    * @param options - Optional governor context for resource tracking

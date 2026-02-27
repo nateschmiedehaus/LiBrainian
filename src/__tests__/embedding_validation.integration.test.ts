@@ -506,7 +506,7 @@ function computeAccuracy(relatedScores: number[], unrelatedScores: number[]): nu
 // ============================================================================
 
 describe('Embedding Model Validation', () => {
-  // Models to test - using models that actually exist in @xenova/transformers
+  // Models to test - using models that actually exist in @huggingface/transformers
   const MODELS_TO_TEST: EmbeddingModelId[] = ['all-MiniLM-L6-v2', 'jina-embeddings-v2-base-en', 'bge-small-en-v1.5'];
 
   // Store results for comparison

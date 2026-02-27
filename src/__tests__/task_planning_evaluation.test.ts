@@ -408,7 +408,7 @@ const MOCK_MODULES: ModuleRecord[] = [
     path: path.join(WORKSPACE, 'src/api/embeddings.ts'),
     purpose: 'Embedding service for generating vector embeddings',
     exports: ['EmbeddingService', 'generateEmbedding', 'cosineSimilarity'],
-    dependencies: ['@xenova/transformers', '../types.js'],
+    dependencies: ['@huggingface/transformers', '../types.js'],
     confidence: 0.85,
   },
   {

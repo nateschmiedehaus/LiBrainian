@@ -30,7 +30,7 @@ import {
   AutoModelForSequenceClassification,
   type PreTrainedTokenizer,
   type PreTrainedModel
-} from '@xenova/transformers';
+} from '@huggingface/transformers';
 
 // ============================================================================
 // TYPES
@@ -167,7 +167,7 @@ async function getCrossEncoder(
       const tokenizer = await AutoTokenizer.from_pretrained(modelConfig.xenovaId);
       const model = await AutoModelForSequenceClassification.from_pretrained(
         modelConfig.xenovaId,
-        { quantized: true }
+        { dtype: 'q8' }
       );
 
       return { tokenizer, model };

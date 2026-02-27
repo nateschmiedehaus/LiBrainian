@@ -124,7 +124,7 @@ export async function checkProvidersCommand(options: CheckProvidersCommandOption
       console.log('  - Authenticate via CLI: Claude (`claude setup-token` or run `claude`), Codex (`codex login`)');
     }
     if (!status.embedding.available) {
-      console.log('  - Install a real embedding provider: @xenova/transformers or sentence-transformers');
+      console.log('  - Install a real embedding provider: @huggingface/transformers or sentence-transformers');
     }
     console.log();
   } else {
