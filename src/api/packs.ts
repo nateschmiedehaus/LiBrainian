@@ -57,7 +57,7 @@ export interface PackRankingResult {
 
 const DEFAULT_MAX_PACKS = 2000;
 const SUMMARY_CHAR_LIMIT = 240;
-type TaskTaxonomy = 'bug_fix' | 'feature' | 'refactor' | 'review' | 'guidance';
+type TaskTaxonomy = 'bug_fix' | 'feature' | 'refactor' | 'review' | 'guidance' | 'implementation';
 type PackDepth = 'L0' | 'L1' | 'L2' | 'L3';
 
 const DEPTH_PACK_WEIGHTS: Record<PackDepth, Partial<Record<ContextPackType, number>>> = {
@@ -73,6 +73,7 @@ const TASK_PACK_WEIGHTS: Record<TaskTaxonomy, Partial<Record<ContextPackType, nu
   refactor: { function_context: 0.8, module_context: 1.1, change_impact: 1.4, decision_context: 0.8, pattern_context: 1.0, similar_tasks: 1.0, doc_context: 0.6, project_understanding: 0.4 },
   review: { function_context: 0.9, module_context: 1.0, change_impact: 1.1, decision_context: 1.2, pattern_context: 1.2, similar_tasks: 1.2, doc_context: 1.1, project_understanding: 0.8 },
   guidance: { function_context: 0.4, module_context: 0.6, change_impact: 0.3, decision_context: 1.0, pattern_context: 0.8, similar_tasks: 0.5, doc_context: 2.0, project_understanding: 2.5 },
+  implementation: { function_context: 1.2, module_context: 1.0, change_impact: 0.8, decision_context: 0.6, pattern_context: 0.9, similar_tasks: 0.7, doc_context: 0.5, project_understanding: 0.3 },
 };
 
 const BUG_KEYWORDS = ['error', 'exception', 'regression', 'failure', 'bug', 'fix', 'crash', 'panic'];
@@ -321,6 +322,11 @@ function normalizeTaskType(taskType?: string): TaskTaxonomy {
       normalized.includes('project') || normalized.includes('purpose') || normalized.includes('architecture') ||
       normalized.includes('codebase') || normalized.includes('what_does')) return 'guidance';
   if (normalized.includes('bug') || normalized.includes('fix') || normalized.includes('issue')) return 'bug_fix';
+  // Implementation-seeking queries should strongly prefer code over docs
+  if (normalized.includes('implementation') || normalized.includes('implement') ||
+      normalized.includes('code_query') || normalized.includes('function_lookup') ||
+      normalized.includes('where_is') || normalized.includes('find_function') ||
+      normalized.includes('call_graph') || normalized.includes('dependency')) return 'implementation';
   if (normalized.includes('refactor') || normalized.includes('cleanup') || normalized.includes('migrate')) return 'refactor';
   if (normalized.includes('review') || normalized.includes('audit') || normalized.includes('analysis')) return 'review';
   return 'feature';
