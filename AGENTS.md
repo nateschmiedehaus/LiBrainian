@@ -585,6 +585,7 @@ If your environment supports spawning sub-agents:
 - Wait for human input or approval
 - Summarize progress and wait for response
 - Stop at end of a phase and ask for next steps
+- Close an issue without satisfying the closure policy (see below)
 
 ### ALWAYS Do These
 - Continue to next work unit after completing one
@@ -599,6 +600,39 @@ If your session/context is ending:
 2. Update STATUS.md with checkpoint
 3. The next session reads STATUS.md and continues
 4. There is NO human handoff — next session picks up automatically
+
+---
+
+## Issue Closure Policy (Issue #862)
+
+An issue MUST NOT be closed unless ALL three conditions are satisfied:
+
+1. **Merged PR**: A PR that addresses the issue has been merged to `main`. If no code change is needed (docs-only), the docs change must be merged.
+2. **CI passing**: The PR passed CI at merge time (no failed required checks).
+3. **Reality verification**: The PR body contains at least one of:
+   - A "Reality Verification" or "Verification" section with evidence, OR
+   - The closure comment template:
+     ```
+     Closing: <PR link or "docs-only">
+     T0.5: <pass/fail/not-applicable>
+     Verification: <patrol-observation/manual-test/t1-test-name>
+     ```
+
+### Checking Before Closure
+
+Before closing any issue, run:
+```bash
+node scripts/closure-check.mjs <issue-number>
+```
+Exit 0 means all checks pass and it is safe to close. Exit 1 means requirements are not yet met.
+
+### Enforcement
+
+- The `closure-policy` CI workflow comments a warning on PRs that close issues without reality verification evidence.
+- Patrol agents are expected to flag recently closed issues that lack verification comments.
+- Premature closures must be reopened. "Tests pass" alone is not sufficient.
+
+See: `docs/LiBrainian/E2E_REALITY_POLICY.md`
 
 ---
 
