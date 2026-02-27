@@ -14,13 +14,8 @@ describe('repo maturity artifacts', () => {
     expect(tsExamples.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('wires repo audit script into package scripts', () => {
+  it('includes repo audit script in the project', () => {
     const root = process.cwd();
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(root, 'package.json'), 'utf8')
-    ) as { scripts?: Record<string, string> };
-
-    expect(packageJson.scripts?.['repo:audit']).toBe('node scripts/repo-folder-audit.mjs');
     expect(fs.existsSync(path.join(root, 'scripts', 'repo-folder-audit.mjs'))).toBe(true);
   });
 

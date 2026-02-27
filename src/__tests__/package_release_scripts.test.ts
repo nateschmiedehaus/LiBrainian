@@ -15,33 +15,22 @@ describe('package release scripts', () => {
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
     expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
     expect(scripts['test:e2e:outcome']).toBe('node scripts/e2e-outcome-harness.mjs --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/outcome-report.json --markdown state/e2e/outcome-report.md');
-    expect(scripts['test:e2e:outcome:quick']).toBe('node scripts/e2e-outcome-harness.mjs --strict --agentic-report eval-results/agentic-use-case-review.quick.json --artifact state/e2e/outcome-report.json --markdown state/e2e/outcome-report.md');
     expect(scripts['test:e2e:triage']).toBe('node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.json --markdown state/e2e/outcome-triage.md');
     expect(scripts['test:e2e:dev-truth']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/reality-dev-truth.json --outcome-artifact state/e2e/outcome-report.dev-truth.json');
-    expect(scripts['test:e2e:dev-truth:quick']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --agentic-report eval-results/agentic-use-case-review.quick.json --artifact state/e2e/reality-dev-truth.json --outcome-artifact state/e2e/outcome-report.dev-truth.json');
-    expect(scripts['test:e2e:reality']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/reality-latest.json');
-    expect(scripts['test:e2e:reality:quick']).toBe('npm run policy:npm:fresh && node scripts/e2e-reality-gate.mjs --source latest --strict --agentic-report eval-results/agentic-use-case-review.quick.json --artifact state/e2e/reality-latest.json');
-    expect(scripts['test:e2e:reality:tarball']).toBe('node scripts/e2e-reality-gate.mjs --source tarball --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/reality-tarball.json');
-    expect(scripts['test:e2e:diagnostic:ab:quick']).toBe('npm run eval:ab:agentic-bugfix:quick');
-    expect(scripts['test:e2e:diagnostic:ab:release']).toBe('npm run eval:ab:agentic-bugfix:codex');
-    expect(scripts['eval:ab:diagnose']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/ab-diagnosis.ts');
-    expect(scripts['eval:external-corpus:refresh']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus.ts');
-    expect(scripts['eval:external-corpus:refresh:batched']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/refresh-external-eval-corpus-batched.ts');
-    expect(scripts['test:e2e:full:quick']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic:quick && npm run test:e2e:outcome:quick && npm run test:e2e:triage && npm run test:e2e:dev-truth:quick && npm run test:e2e:reality:quick && npm run test:e2e:acceptance');
+    expect(scripts['test:e2e:reality']).toContain('npm-freshness-guard.mjs');
+    expect(scripts['test:e2e:reality']).toContain('e2e-reality-gate.mjs --source latest --strict');
+    expect(scripts['eval:ab:diagnose']).toBeUndefined();
     expect(scripts['test:e2e:full']).toBe('npm run policy:e2e:mainline && npm run eval:use-cases:agentic && npm run test:e2e:outcome && npm run test:e2e:triage && npm run test:e2e:dev-truth && npm run test:e2e:reality && npm run test:e2e:acceptance');
-    expect(scripts['test:e2e:cadence']).toBe('npm run test:e2e:full:quick');
-    expect(scripts['test:e2e:cadence:full']).toBe('npm run test:e2e:full');
     expect(scripts['release:github-packages']).toBe('node scripts/publish-github-package.mjs');
-    expect(scripts['policy:hygiene']).toBe('node scripts/git-hygiene-guard.mjs --mode warn');
-    expect(scripts['policy:hygiene:enforce']).toBe('node scripts/git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
     expect(scripts['policy:e2e:mainline']).toBe('node scripts/e2e-mainline-guard.mjs --base main --prefix codex/');
-    expect(scripts['packs:export']).toBe('node scripts/context-pack-export.mjs');
-    expect(scripts['packs:diff']).toBe('node scripts/context-pack-diff.mjs');
-    expect(scripts['gh:ship']).toBe('npm run policy:pull && npm run policy:merge && npm run policy:hygiene:enforce && node scripts/gh-autoland.mjs --preflight-npm-script validate:fast');
-    expect(scripts['gh:prs:stabilize:dry-run']).toBe('node scripts/gh-pr-stabilize.mjs --dry-run');
-    expect(scripts['gh:prs:stabilize']).toBe('node scripts/gh-pr-stabilize.mjs');
-    expect(scripts['gh:cadence']).toBe('npm run policy:pull && npm run policy:hygiene:enforce && npm run gh:prs:stabilize && npm run gh:branches:cleanup');
-    expect(scripts['gh:branches:dry-run']).toBe('node scripts/gh-branch-hygiene.mjs --dry-run');
+    expect(scripts['gh:ship']).toContain('gh-flow-policy-check.mjs --mode pull');
+    expect(scripts['gh:ship']).toContain('gh-flow-policy-check.mjs --mode merge');
+    expect(scripts['gh:ship']).toContain('git-hygiene-guard.mjs --mode enforce --check-pr --require-issue-link');
+    expect(scripts['gh:ship']).toContain('gh-autoland.mjs --preflight-npm-script validate:fast');
+    expect(scripts['gh:cadence']).toContain('gh-flow-policy-check.mjs --mode pull');
+    expect(scripts['gh:cadence']).toContain('git-hygiene-guard.mjs --mode enforce');
+    expect(scripts['gh:cadence']).toContain('gh-pr-stabilize.mjs');
+    expect(scripts['gh:cadence']).toContain('gh-branch-hygiene.mjs');
     expect(scripts['gh:branches:cleanup']).toBe('node scripts/gh-branch-hygiene.mjs');
     expect(scripts['librainian:update']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update');
     expect(scripts['librainian:update:staged']).toBe('node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts update --staged');
@@ -49,17 +38,14 @@ describe('package release scripts', () => {
     expect(scripts['hooks:install']).toBe('lefthook install');
     expect(scripts.prepare).toBe('npm run hooks:install');
     expect(scripts['evidence:drift-check']).toBe('node scripts/run-with-tmpdir.mjs -- tsx scripts/evidence-drift-guard.ts');
-    expect(scripts['evidence:preflight']).toBe('node scripts/evidence-manifest-preflight.mjs');
     expect(scripts['evidence:freshness-check']).toBe('node scripts/check-evidence-freshness.mjs');
     expect(scripts['evidence:assert-gates']).toBe('node scripts/assert-gates-verified.mjs');
-    expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
-    expect(scripts['evidence:sync']).toBe('npm run evidence:manifest && npm run evidence:reconcile');
-    expect(scripts['evidence:verify']).toBe('npm run evidence:sync && npm run evidence:freshness-check && npm run evidence:assert-gates');
-    expect(scripts['eval:publish-gate']).toContain('npm run evidence:refresh');
-    expect(scripts['eval:publish-gate']).toContain('npm run evidence:freshness-check');
-    expect(scripts['eval:publish-gate']).toContain('npm run evidence:assert-gates');
-    expect(scripts['eval:publish-gate']).toContain('npm run validate:checkpoint');
-    expect(scripts['eval:trial-by-fire:publish']).toContain('npm run evidence:verify');
+    expect(scripts['evidence:sync']).toBe('node scripts/build-evidence-manifest.mjs && node scripts/reconcile_evidence.mjs');
+    expect(scripts['evidence:verify']).toBe('npm run evidence:sync && node scripts/check-evidence-freshness.mjs && node scripts/assert-gates-verified.mjs');
+    expect(scripts['eval:publish-gate']).toContain('evidence:refresh');
+    expect(scripts['eval:publish-gate']).toContain('check-evidence-freshness.mjs');
+    expect(scripts['eval:publish-gate']).toContain('assert-gates-verified.mjs');
+    expect(scripts['eval:publish-gate']).toContain('validate-checkpoint.mjs');
     expect(scripts['issues:plan']).toBe(
       'node scripts/run-with-tmpdir.mjs -- tsx scripts/issue-feedback-loop.ts --repo nateschmiedehaus/LiBrainian --state open --out state/plans/agent-issue-fix-plan.json'
     );
@@ -225,7 +211,7 @@ describe('package release scripts', () => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'issue-feedback-loop.ts');
     const script = fs.readFileSync(scriptPath, 'utf8');
     expect(script).toContain("default: '0'");
-    expect(script).toContain('0 means \"no cap\"');
+    expect(script).toContain('0 means "no cap"');
   });
 
   it('defines staged validation scripts for daily, PR, and release gates', () => {
@@ -238,10 +224,12 @@ describe('package release scripts', () => {
     expect(scripts['test:changed']).toBe(
       'node scripts/run-with-tmpdir.mjs --set LIBRAINIAN_TEST_MODE=unit -- vitest --run --changed'
     );
-    expect(scripts['validate:public']).toBe(
-      'npm run hygiene:generated-artifacts && npm run repo:audit && npm run public:pack && npm run evidence:drift-check && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts'
-    );
-    expect(scripts['validate:fast']).toBe('npm run typecheck && npm run test:changed && npm run validate:public');
+    expect(scripts['validate:fast']).toContain('npm run typecheck');
+    expect(scripts['validate:fast']).toContain('npm run test:changed');
+    expect(scripts['validate:fast']).toContain('guard-generated-artifacts.mjs');
+    expect(scripts['validate:fast']).toContain('repo-folder-audit.mjs');
+    expect(scripts['validate:fast']).toContain('public-pack-check.mjs');
+    expect(scripts['validate:fast']).toContain('evidence-drift-guard.ts');
   });
 
   it('ships a focused npm package surface', () => {

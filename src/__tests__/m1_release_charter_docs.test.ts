@@ -59,18 +59,15 @@ describe('M1 release readiness charter docs', () => {
     expect(charter).toContain('Upgrading from prior versions');
   });
 
-  it('declares M1 release checklist scripts in package.json', () => {
+  it('declares core release scripts in package.json', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
       scripts?: Record<string, string>;
     };
     const scripts = packageJson.scripts ?? {};
 
-    expect(scripts['release:m1:checklist']).toBe(
-      'npm run build && npm test -- --run src/__tests__/github_readiness_docs.test.ts src/__tests__/package_release_scripts.test.ts src/__tests__/npm_publish_workflow.test.ts src/__tests__/m1_release_charter_docs.test.ts && npm run test:agentic:strict'
-    );
-    expect(scripts['release:m1:dry-run-bundle']).toBe(
-      'node scripts/generate-m1-release-bundle.mjs'
-    );
+    // M1 ceremony scripts consolidated into test:agentic:strict and release:pack
+    expect(scripts['test:agentic:strict']).toBeTypeOf('string');
+    expect(scripts['release:pack']).toBeTypeOf('string');
   });
 });

@@ -3,23 +3,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 describe('canonical npm scripts', () => {
-  it('declares evaluation scripts referenced by staged evaluation', () => {
+  it('declares core evaluation and testing scripts', () => {
     const root = process.cwd();
     const pkgPath = path.join(root, 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
     const scripts = pkg.scripts ?? {};
 
-    expect(scripts['test:tier0']).toBeTypeOf('string');
     expect(scripts['test:e2e:reality']).toBeTypeOf('string');
     expect(scripts['test:e2e:triage']).toBeTypeOf('string');
-    expect(scripts['test:e2e:cadence']).toBeTypeOf('string');
-    expect(scripts['tier1:dogfood']).toBeTypeOf('string');
-    expect(scripts['complexity:check']).toBeTypeOf('string');
     expect(scripts['eval:publish-gate']).toBeTypeOf('string');
-    expect(scripts['validate:checkpoint']).toBeTypeOf('string');
-    expect(scripts['validate:checkpoint']).toBe('node scripts/validate-checkpoint.mjs');
-    expect(scripts['evidence:preflight']).toBeTypeOf('string');
-    expect(scripts['evidence:preflight']).toBe('node scripts/evidence-manifest-preflight.mjs');
     expect(scripts['eval:ab:agentic-bugfix:codex']).toBeTypeOf('string');
     expect(scripts['eval:live-fire:hardcore']).toBeTypeOf('string');
     expect(scripts['eval:use-cases:agentic']).toBeTypeOf('string');
@@ -36,9 +28,8 @@ describe('canonical npm scripts', () => {
     const scripts = pkg.scripts ?? {};
 
     expect(scripts['eval:publish-gate']).toContain('--zero-warning');
-    expect(scripts['eval:publish-gate']).toContain('npm run validate:checkpoint');
-    expect(scripts['eval:publish-gate']).toContain('npm run canon:guard');
-    expect(scripts['eval:publish-gate']).toContain('npm run complexity:check');
+    expect(scripts['eval:publish-gate']).toContain('canon_guard.mjs');
+    expect(scripts['eval:publish-gate']).toContain('complexity_check.mjs');
     expect(scripts['eval:ab:agentic']).toContain('--maxVerificationFallbackShare 0');
     expect(scripts['eval:ab:agentic']).toContain('--minAgentCritiqueShare 1');
     expect(scripts['eval:ab:agentic']).toContain('--requireT3Significance');
@@ -74,7 +65,6 @@ describe('canonical npm scripts', () => {
     expect(scripts['eval:use-cases:agentic:quick']).toContain('--out eval-results/agentic-use-case-review.quick.json');
     expect(scripts['eval:use-cases:agentic:quick']).toContain('--evidenceProfile quick');
     expect(scripts['eval:use-cases:agentic:quick']).toContain('--deterministicQueries');
-    expect(scripts['eval:trial-by-fire:publish']).toContain('npm run eval:use-cases:agentic');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:ab:agentic-bugfix:codex');
     expect(scripts['test:agentic:strict:quick']).toContain('npm run eval:ab:agentic-bugfix:quick');
     expect(scripts['test:agentic:strict:quick']).not.toContain('agentic-bugfix:reference');
@@ -85,11 +75,9 @@ describe('canonical npm scripts', () => {
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-discipline');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:testing-tracker');
     expect(scripts['test:agentic:strict']).toContain('npm run eval:publish-gate');
-    expect(scripts['test:agentic:strict']).toContain('npm run evidence:preflight');
-    expect(scripts['test:agentic:strict'].startsWith('npm run evidence:preflight &&')).toBe(true);
+    expect(scripts['test:agentic:strict']).toContain('evidence-manifest-preflight.mjs');
+    expect(scripts['test:agentic:strict'].startsWith('node scripts/evidence-manifest-preflight.mjs &&')).toBe(true);
     expect(scripts['prepublishOnly']).not.toContain('npm run test:agentic:strict');
-    expect(scripts['release:qualify']).toContain('npm run validate:full');
-    expect(scripts['release:qualify']).toContain('npm run test:agentic:strict');
   });
 
   it('forbids temporary inspection scripts in scripts/', () => {

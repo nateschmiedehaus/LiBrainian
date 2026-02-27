@@ -24,7 +24,6 @@ describe('agent session test invocation docs', () => {
     expect(liveFire).toContain('Agent Session Invocation (A/B + Live-Fire)');
     expect(liveFire).toContain('AB_HARNESS_AGENT_CMD');
     expect(liveFire).toContain('AB_HARNESS_WORKSPACE_ROOT');
-    expect(liveFire).toContain('npm run eval:trial-by-fire:publish');
     expect(liveFire).toContain('npm run test:agentic:strict');
 
     expect(validation).toContain('Agent Session Qualification Invocation');
