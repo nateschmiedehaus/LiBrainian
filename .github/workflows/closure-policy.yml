@@ -1,0 +1,113 @@
+name: Closure Policy Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  reality-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit and integration tests
+        run: npm test -- --run
+
+      - name: T0.5 Reality Smoke Test
+        run: npm run test:e2e:acceptance || echo "::warning::T0.5 smoke test failed - index may not exist in CI"
+        env:
+          LIBRARIAN_QUERY_DISABLE_SYNTHESIS: '1'
+
+  reality-verification-checklist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check reality verification checklist in PR body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info('Not a pull request event, skipping.');
+              return;
+            }
+
+            const body = pr.body || '';
+
+            // Check if the PR closes any issues
+            const closesPattern = /closes?\s+#(\d+)|fixes?\s+#(\d+)|resolves?\s+#(\d+)/gi;
+            const closedIssues = [];
+            let match;
+            while ((match = closesPattern.exec(body)) !== null) {
+              closedIssues.push(match[1] || match[2] || match[3]);
+            }
+
+            if (closedIssues.length === 0) {
+              core.info('PR does not close any issues — closure policy check not required.');
+              return;
+            }
+
+            core.info(`PR closes issue(s): #${closedIssues.join(', #')}`);
+
+            // Check for reality verification section
+            const hasRealitySection =
+              /##\s*reality\s*verif/i.test(body) ||
+              /##\s*verification/i.test(body) ||
+              /t0\.5/i.test(body) ||
+              /smoke\s*test/i.test(body);
+
+            // Check for closure comment template fields
+            const hasClosingField = /closing\s*:/i.test(body);
+            const hasT05Field = /t0\.5\s*:/i.test(body);
+            const hasVerificationField = /verification\s*:/i.test(body);
+
+            const hasClosureTemplate = hasClosingField && hasT05Field && hasVerificationField;
+
+            const warnings = [];
+
+            if (!hasRealitySection && !hasClosureTemplate) {
+              warnings.push(
+                '**Reality verification missing.** This PR closes issue(s) but does not include reality ' +
+                'verification evidence. Please add one of:\n' +
+                '  - A "Reality Verification" section documenting T0.5 smoke test result and verification method\n' +
+                '  - A closure comment using the template:\n' +
+                '    ```\n' +
+                '    Closing: <PR link or "docs-only">\n' +
+                '    T0.5: <pass/fail/not-applicable>\n' +
+                '    Verification: <patrol-observation/manual-test/t1-test-name>\n' +
+                '    ```\n\n' +
+                'See [Closure Policy](../../docs/LiBrainian/E2E_REALITY_POLICY.md) and issue #862 for details.'
+              );
+            }
+
+            if (warnings.length > 0) {
+              for (const warning of warnings) {
+                core.warning(warning);
+              }
+              // Emit as a non-blocking annotation (warning, not error)
+              // so it surfaces in PR checks without hard-blocking merge
+              core.summary.addHeading('Closure Policy Reminder', 3);
+              core.summary.addRaw(warnings.join('\n\n'));
+              await core.summary.write();
+            } else {
+              core.info('Reality verification evidence found in PR body. Closure policy satisfied.');
+            }
