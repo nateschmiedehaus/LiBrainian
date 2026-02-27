@@ -15,7 +15,7 @@
  * References:
  * - Bratman, M.E. (1987) "Intention, Plans, and Practical Reason"
  * - Rao, A.S. & Georgeff, M.P. (1995) "BDI Agents: From Theory to Practice"
- * - docs/librarian/specs/adversarial/synthesis/03-action-theory.md
+ * - docs/archive/specs/adversarial/synthesis/03-action-theory.md
  *
  * @packageDocumentation
  */

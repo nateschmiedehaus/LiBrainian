@@ -1,7 +1,7 @@
 /**
  * @fileoverview Retrieval Quality Measurement
  *
- * Per docs/librarian/validation.md: Multi-vector scoring must be verified
+ * Per docs/archive/validation.md: Multi-vector scoring must be verified
  * with ranking-comparison tests. This module provides:
  * 1. Curated evaluation dataset format (query → relevant_files/targets)
  * 2. Compute Recall@k, Precision@k, nDCG

@@ -2,7 +2,7 @@
  * @fileoverview Template Registry for Construction Templates
  *
  * Provides a single interface for template dispatch as specified in
- * docs/librarian/specs/core/construction-templates.md Section 2.
+ * docs/archive/specs/core/construction-templates.md Section 2.
  *
  * This registry implements the "elegance mechanism" that prevents
  * "one-off handler creep" by mapping use cases to a small set of

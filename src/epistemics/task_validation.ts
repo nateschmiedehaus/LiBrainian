@@ -14,7 +14,7 @@
  * - Coherentism: Beliefs justified by coherence with other beliefs
  * - Bayesian Epistemology: Beliefs as credences updated by evidence
  *
- * @see docs/librarian/specs/epistemic-task-validation.md for full specification
+ * @see docs/archive/specs/epistemic-task-validation.md for full specification
  *
  * @packageDocumentation
  */

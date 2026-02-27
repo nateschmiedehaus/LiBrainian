@@ -70,7 +70,7 @@ describe('impact-aware test sequence evaluation artifacts (issue #838)', () => {
     const csvPath = path.join(
       process.cwd(),
       'docs',
-      'librarian',
+      'archive',
       'evals',
       'test_sequence',
       'impact_aware_baseline_vs_planner.csv',

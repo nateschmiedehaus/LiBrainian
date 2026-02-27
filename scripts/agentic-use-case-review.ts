@@ -18,7 +18,7 @@ function parseList(value: string | undefined): string[] | undefined {
 const args = parseArgs({
   options: {
     reposRoot: { type: 'string', default: 'eval-corpus/external-repos' },
-    matrixPath: { type: 'string', default: 'docs/librarian/USE_CASE_MATRIX.md' },
+    matrixPath: { type: 'string', default: 'docs/archive/USE_CASE_MATRIX.md' },
     out: { type: 'string', default: 'eval-results/agentic-use-case-review.json' },
     maxRepos: { type: 'string' },
     maxUseCases: { type: 'string' },
@@ -66,7 +66,7 @@ if (
 }
 
 const reposRoot = path.resolve(process.cwd(), args.values.reposRoot ?? 'eval-corpus/external-repos');
-const matrixPath = path.resolve(process.cwd(), args.values.matrixPath ?? 'docs/librarian/USE_CASE_MATRIX.md');
+const matrixPath = path.resolve(process.cwd(), args.values.matrixPath ?? 'docs/archive/USE_CASE_MATRIX.md');
 const outPath = path.resolve(process.cwd(), args.values.out ?? 'eval-results/agentic-use-case-review.json');
 const artifactRoot = path.resolve(process.cwd(), args.values.artifactRoot ?? 'state/eval/use-case-review');
 const thresholdValues = {

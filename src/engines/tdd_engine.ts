@@ -5,7 +5,7 @@
  * Provides capabilities for test discovery, generation, coverage analysis,
  * mock identification, property-based testing suggestions, and TDD workflow guidance.
  *
- * @see docs/librarian/TDD_ENGINE.md for detailed documentation
+ * @see docs/archive/TDD_ENGINE.md for detailed documentation (archived)
  */
 
 import * as path from 'node:path';

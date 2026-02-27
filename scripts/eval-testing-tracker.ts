@@ -84,7 +84,7 @@ function buildMarkdown(report: ReturnType<typeof buildTestingTrackerReport>): st
 const args = parseArgs({
   options: {
     out: { type: 'string', default: 'state/eval/testing-discipline/testing-tracker.json' },
-    markdownOut: { type: 'string', default: 'docs/librarian/TESTING_TRACKER.md' },
+    markdownOut: { type: 'string', default: 'docs/archive/TESTING_TRACKER.md' },
     abReport: { type: 'string', default: 'eval-results/ab-harness-report.json' },
     useCaseReport: { type: 'string', default: 'eval-results/agentic-use-case-review.json' },
     liveFireReport: { type: 'string', default: 'state/eval/live-fire/hardcore/report.json' },
@@ -100,7 +100,7 @@ const resolvePath = (value: string | undefined, fallback: string): string =>
   path.resolve(workspaceRoot, value ?? fallback);
 
 const outPath = resolvePath(args.values.out, 'state/eval/testing-discipline/testing-tracker.json');
-const markdownOutPath = resolvePath(args.values.markdownOut, 'docs/librarian/TESTING_TRACKER.md');
+const markdownOutPath = resolvePath(args.values.markdownOut, 'docs/archive/TESTING_TRACKER.md');
 
 const input: TestingTrackerInput = {
   generatedAt: new Date().toISOString(),

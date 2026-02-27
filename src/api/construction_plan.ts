@@ -90,7 +90,7 @@ export async function loadUcDomainMap(workspaceRoot: string): Promise<Map<string
   const cached = ucDomainCache.get(root);
   if (cached) return cached;
 
-  const matrixPath = path.join(root, 'docs', 'librarian', 'USE_CASE_MATRIX.md');
+  const matrixPath = path.join(root, 'docs', 'archive', 'USE_CASE_MATRIX.md');
   const markdown = await fs.readFile(matrixPath, 'utf8');
   const rows = parseUseCaseRows(markdown);
   const map = new Map<string, string>();
@@ -106,7 +106,7 @@ export async function loadDomainTemplateMap(workspaceRoot: string): Promise<Map<
   const cached = domainTemplateCache.get(root);
   if (cached) return cached;
 
-  const specPath = path.join(root, 'docs', 'librarian', 'specs', 'core', 'construction-templates.md');
+  const specPath = path.join(root, 'docs', 'archive', 'specs', 'core', 'construction-templates.md');
   const markdown = await fs.readFile(specPath, 'utf8');
   const map = parseDomainTemplateMap(markdown);
   domainTemplateCache.set(root, map);

@@ -1455,7 +1455,7 @@ export async function runAgenticUseCaseReview(
 ): Promise<AgenticUseCaseReviewReport> {
   throwIfAborted(options.signal, 'agentic_use_case_review');
   const reposRoot = path.resolve(options.reposRoot);
-  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'librarian', 'USE_CASE_MATRIX.md'));
+  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'archive', 'USE_CASE_MATRIX.md'));
   const ucStart = options.ucStart ?? 1;
   const ucEnd = options.ucEnd ?? 310;
   const selectionMode = options.selectionMode ?? 'probabilistic';

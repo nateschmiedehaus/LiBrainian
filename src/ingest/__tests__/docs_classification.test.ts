@@ -31,8 +31,8 @@ describe('classifyDocument', () => {
       expect(result.audience).toBe('agent');
     });
 
-    it('classifies docs/librarian/AGENT_INTEGRATION.md as agent doc', () => {
-      const result = classifyDocument('docs/librarian/AGENT_INTEGRATION.md');
+    it('classifies docs/archive/AGENT_INTEGRATION.md as agent doc', () => {
+      const result = classifyDocument('docs/archive/AGENT_INTEGRATION.md');
       expect(result.isMetaDoc).toBe(true);
       expect(result.relevanceBoost).toBe(1.0);
       expect(result.audience).toBe('agent');

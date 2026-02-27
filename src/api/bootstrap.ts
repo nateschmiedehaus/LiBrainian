@@ -4752,7 +4752,7 @@ function estimateCompletion(startedAtMs: number, progress: { total: number; comp
  * - Degraded mode may skip embeddings (skipEmbeddings) with explicit disclosures
  *
  * See src/librarian/universal_patterns.ts for the complete file type list.
- * See docs/librarian/VISION.md section 6.3 for bootstrap modes.
+ * See docs/archive/VISION.md section 6.3 for bootstrap modes.
  */
 export const DEFAULT_BOOTSTRAP_CONFIG: Omit<BootstrapConfig, 'workspace'> = {
   bootstrapMode: 'full',

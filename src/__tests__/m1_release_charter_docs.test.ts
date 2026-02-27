@@ -5,12 +5,12 @@ import path from 'node:path';
 describe('M1 release readiness charter docs', () => {
   it('publishes charter, versioning policy, and dry-run bundle artifacts', () => {
     const root = process.cwd();
-    const charterPath = path.join(root, 'docs', 'librarian', 'releases', 'm1-release-charter.md');
-    const versioningPath = path.join(root, 'docs', 'librarian', 'releases', 'versioning-policy.md');
+    const charterPath = path.join(root, 'docs', 'archive', 'releases', 'm1-release-charter.md');
+    const versioningPath = path.join(root, 'docs', 'archive', 'releases', 'versioning-policy.md');
     const dryRunPath = path.join(
       root,
       'docs',
-      'librarian',
+      'archive',
       'releases',
       'dry-runs',
       'm1-release-dry-run-2026-02-26.md'
@@ -25,7 +25,7 @@ describe('M1 release readiness charter docs', () => {
     const charterPath = path.join(
       process.cwd(),
       'docs',
-      'librarian',
+      'archive',
       'releases',
       'm1-release-charter.md'
     );
@@ -45,7 +45,7 @@ describe('M1 release readiness charter docs', () => {
     const charterPath = path.join(
       process.cwd(),
       'docs',
-      'librarian',
+      'archive',
       'releases',
       'm1-release-charter.md'
     );

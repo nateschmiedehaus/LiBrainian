@@ -26,7 +26,7 @@ describe('repo maturity artifacts', () => {
 
   it('documents folder review with benchmark references', () => {
     const root = process.cwd();
-    const reviewPath = path.join(root, 'docs', 'librarian', 'REPO_FOLDER_REVIEW.md');
+    const reviewPath = path.join(root, 'docs', 'archive', 'REPO_FOLDER_REVIEW.md');
     const review = fs.readFileSync(reviewPath, 'utf8');
 
     expect(review).toContain('claude-code');

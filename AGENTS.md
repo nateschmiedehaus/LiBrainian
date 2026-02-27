@@ -72,7 +72,7 @@ Dogfooding means agents choose LiBrainian because it is the fastest path to bett
 - Test impact: `LiBrainian query "What tests should change if I modify bootstrap quality gate warnings?"`
 
 For qualification evidence, pair these with the natural-usage matrix artifacts in:
-- `docs/librarian/evals/dogfood/m0_qualitative_protocol.md`
+- `docs/archive/evals/dogfood/m0_qualitative_protocol.md`
 
 ---
 
@@ -268,7 +268,7 @@ The old Phase 8 work units (WU-801-806) are **INVALID** — they used synthetic 
 - Citation verifier (verify file/line/identifier claims)
 - Consistency checker (same question, different phrasing → same answer)
 
-See: `docs/LiBrainian/specs/track-eval-machine-verifiable.md`
+See: `docs/archive/specs/track-eval-machine-verifiable.md`
 
 ### Step 3: Phase 9 — Agent Performance Evaluation
 **The TRUE test: Do agents perform better WITH LiBrainian than WITHOUT?**
@@ -284,7 +284,7 @@ Success criteria:
 - >25% success rate lift on T3+ tasks
 - L0 Treatment (no LiBrainian mention) still beats Control
 
-See: `docs/LiBrainian/specs/track-eval-agent-performance.md`
+See: `docs/archive/specs/track-eval-agent-performance.md`
 
 ### Step 4: Phase 10 — Scientific Self-Improvement Loop
 Based on AutoSD, RLVR (DeepSeek R1), SWE-agent research.
@@ -296,13 +296,13 @@ Loop: DETECT → HYPOTHESIZE → TEST → FIX → VERIFY → EVOLVE
 - Reward = 0: Fix rejected, try another hypothesis
 - No partial credit — binary verifiable rewards
 
-See: `docs/LiBrainian/specs/track-eval-scientific-loop.md`
+See: `docs/archive/specs/track-eval-scientific-loop.md`
 
 ---
 
 ## CRITICAL: Orchestration Mode
 
-**Use `docs/librarian/WORKPLAN.md` + `docs/librarian/specs/README.md` as the orchestration source of truth.**
+**Use `docs/archive/WORKPLAN.md` + `docs/archive/specs/README.md` as the orchestration source of truth.**
 
 Your mission is to implement the ENTIRE spec system from 0% to 100% completion.
 - Use sub-agents if available (up to 3 concurrent)
@@ -314,9 +314,9 @@ Your mission is to implement the ENTIRE spec system from 0% to 100% completion.
 
 | Document | Purpose |
 |----------|---------|
-| `docs/librarian/WORKPLAN.md` | Master orchestration — phases, checkpoints, work progression |
-| `docs/LiBrainian/specs/README.md` | Full Build Charter, Council of 30 mandates |
-| `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md` | How to resolve ANY blocker |
+| `docs/archive/WORKPLAN.md` | Master orchestration — phases, checkpoints, work progression |
+| `docs/archive/specs/README.md` | Full Build Charter, Council of 30 mandates |
+| `docs/archive/specs/BLOCKER_RESOLUTION.md` | How to resolve ANY blocker |
 
 ---
 
@@ -326,7 +326,7 @@ You have **full permission** to perform any operation necessary to implement the
 
 ### CRITICAL: Never Stop on Blockers
 
-**You must NEVER stop on a blocker.** Every blocker has a resolution. See `docs/LiBrainian/specs/BLOCKER_RESOLUTION.md` for exhaustive resolution guide.
+**You must NEVER stop on a blocker.** Every blocker has a resolution. See `docs/archive/specs/BLOCKER_RESOLUTION.md` for exhaustive resolution guide.
 
 If you encounter a blocker:
 1. Resolve it immediately using the guide
@@ -570,7 +570,7 @@ If your environment supports spawning sub-agents:
 4. Update STATUS.md with work evidence
 
 ### Handoff Protocol
-- Each sub-agent gets a COMPLETE prompt from `docs/librarian/WORKPLAN.md` + relevant spec docs
+- Each sub-agent gets a COMPLETE prompt from `docs/archive/WORKPLAN.md` + relevant spec docs
 - Sub-agent returns structured output with status and evidence
 - Main agent verifies and spawns next work unit
 - No human involvement at any stage
@@ -640,9 +640,8 @@ const prompt = `Given this context:\n${context}\nImplement...`;
 - **Functions indexed**: 9266
 - **Context packs**: 3327
 ### Key Documentation
-- **Entry point**: `docs/LiBrainian/README.md`
-- **API reference**: `src/LiBrainian/api/README.md`
-- **Query guide**: `docs/LiBrainian/query-guide.md`
+- **Entry point**: `docs/librarian/README.md`
+- **API reference**: `docs/librarian/API.md`
 ### When to Re-index
 LiBrainian auto-watches for changes. Manual reindex needed when:
 - Major refactoring (>50 files changed)

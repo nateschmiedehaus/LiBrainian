@@ -7,7 +7,7 @@
  * - Phase 3: Feedback loop persists and affects queries
  * - Phase 4: Confidence correlates with quality
  *
- * @see docs/librarian/E2E_VALIDATION_PLAN.md
+ * @see docs/archive/E2E_VALIDATION_PLAN.md
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

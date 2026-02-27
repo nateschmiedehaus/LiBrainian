@@ -15,7 +15,7 @@
  * IMPORTANT: These tests require real providers and should be skipped in unit test mode.
  * Run with LIBRARIAN_TEST_MODE=integration to execute these tests.
  *
- * @see docs/librarian/IMPLEMENTATION-PLAN.md for context on why these tests exist
+ * @see docs/archive/IMPLEMENTATION-PLAN.md for context on why these tests exist
  */
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';

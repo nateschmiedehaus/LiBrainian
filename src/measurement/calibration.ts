@@ -11,7 +11,7 @@
  * - 0.5-0.7 range: ≤ 15% calibration error
  * - 0.0-0.5 range: N/A (low confidence acceptable)
  *
- * Schema: CalibrationReport.v1 per docs/librarian/SCHEMAS.md
+ * Schema: CalibrationReport.v1 per docs/archive/SCHEMAS.md
  */
 
 // ============================================================================

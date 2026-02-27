@@ -85,8 +85,8 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
   const workspaceRoot = path.resolve(workspace);
   const outputPath = path.resolve(workspaceRoot, values.output as string || DEFAULT_OUTPUT);
 
-  const ucIds = await readUcIds(path.join(workspaceRoot, 'docs', 'librarian', 'USE_CASE_MATRIX.md'));
-  const scenarioIds = await readScenarioIds(path.join(workspaceRoot, 'docs', 'librarian', 'scenarios.md'));
+  const ucIds = await readUcIds(path.join(workspaceRoot, 'docs', 'archive', 'USE_CASE_MATRIX.md'));
+  const scenarioIds = await readScenarioIds(path.join(workspaceRoot, 'docs', 'archive', 'scenarios.md'));
 
   if (ucIds.length === 0) {
     throw createError('VALIDATION_FAILED', 'No UC IDs found in USE_CASE_MATRIX.md');

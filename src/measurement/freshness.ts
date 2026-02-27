@@ -13,7 +13,7 @@
  * 2. Relative Staleness: source mtime > generatedAt
  * 3. Dependency Staleness: any dependency stale → propagate with penalty
  *
- * Schema: FreshnessReport.v1 per docs/librarian/SCHEMAS.md
+ * Schema: FreshnessReport.v1 per docs/archive/SCHEMAS.md
  */
 
 import type { Defeater } from '../knowledge/universal_types.js';

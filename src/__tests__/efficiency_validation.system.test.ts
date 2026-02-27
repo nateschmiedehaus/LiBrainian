@@ -9,7 +9,7 @@
  * TIER-2 (system): These tests require live providers.
  * Run with: LIBRARIAN_TEST_MODE=system npm test -- --run src/__tests__/efficiency_validation.system.test.ts
  *
- * @see docs/librarian/IMPLEMENTATION_PLAN.md
+ * @see docs/archive/IMPLEMENTATION_PLAN.md
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

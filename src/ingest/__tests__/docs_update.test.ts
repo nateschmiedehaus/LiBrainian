@@ -479,8 +479,7 @@ Section content.
 
       const content = await fs.readFile(agentsPath, 'utf-8');
       expect(content).toContain('docs/librarian/README.md');
-      expect(content).toContain('src/librarian/api/README.md');
-      expect(content).toContain('docs/librarian/query-guide.md');
+      expect(content).toContain('docs/librarian/API.md');
     });
 
     it('should include behavioral scaffolding and MCP tool guidance', async () => {

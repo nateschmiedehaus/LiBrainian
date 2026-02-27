@@ -11,7 +11,7 @@
  * - Input hashes + config hashes = deterministic input specification
  * - Output hashes = verification target for replay
  *
- * Schema reference: docs/librarian/SCHEMAS.md (DeterminismProvenance.v1)
+ * Schema reference: docs/archive/SCHEMAS.md (DeterminismProvenance.v1)
  */
 
 import { createContentHash, createContentHashSync } from './contracts.js';
