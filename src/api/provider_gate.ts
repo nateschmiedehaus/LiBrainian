@@ -5,7 +5,7 @@ import {
   setDefaultLlmServiceFactory,
   type LlmServiceAdapter,
 } from '../adapters/llm_service.js';
-import { createCliLlmServiceFactory } from '../adapters/cli_llm_service.js';
+import { createAutoLlmServiceFactory } from '../adapters/api_llm_service.js';
 import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSuccessfulProvider, writeProviderStatusReport, type ProviderName } from './reporting.js';
 import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
@@ -114,7 +114,7 @@ function isLlmServiceAdapter(value: unknown): value is LlmServiceAdapter {
 
 function ensureDefaultLlmFactoryRegistered(): void {
   try {
-    setDefaultLlmServiceFactory(createCliLlmServiceFactory());
+    setDefaultLlmServiceFactory(createAutoLlmServiceFactory());
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('llm_adapter_default_factory_already_registered')) {
