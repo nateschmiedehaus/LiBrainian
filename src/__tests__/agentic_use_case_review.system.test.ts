@@ -6,7 +6,7 @@ import { runAgenticUseCaseReview } from '../evaluation/agentic_use_case_review.j
 
 const IS_UNIT_MODE = process.env.LIBRARIAN_TEST_MODE === 'unit' || (!process.env.LIBRARIAN_TEST_MODE && process.env.LIBRARIAN_TIER0 !== '1');
 const EXTERNAL_REPOS_ROOT = path.join(process.cwd(), 'eval-corpus', 'external-repos');
-const USE_CASE_MATRIX_PATH = path.join(process.cwd(), 'docs', 'librarian', 'USE_CASE_MATRIX.md');
+const USE_CASE_MATRIX_PATH = path.join(process.cwd(), 'docs', 'archive', 'USE_CASE_MATRIX.md');
 
 describe('Agentic use-case review (system)', () => {
   it('runs a bounded real-project use-case review and emits report artifacts', async (ctx) => {

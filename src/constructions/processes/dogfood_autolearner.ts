@@ -155,7 +155,7 @@ async function exists(filePath: string): Promise<boolean> {
 }
 
 async function detectLatestRunDir(workspaceRoot: string): Promise<string | null> {
-  const runsRoot = path.join(workspaceRoot, 'docs', 'librarian', 'evals', 'dogfood', 'm0_qualitative_runs');
+  const runsRoot = path.join(workspaceRoot, 'docs', 'archive', 'evals', 'dogfood', 'm0_qualitative_runs');
   try {
     const entries = await readdir(runsRoot, { withFileTypes: true });
     const candidates = entries
@@ -286,8 +286,8 @@ function ensureTopThree(interventions: DogfoodIntervention[]): DogfoodInterventi
       causalRationale: 'Trend monitoring prevents silent regressions when active failure classes are low-frequency.',
       expectedMetricMovement: ['stability_of_used_librarian_rate:+0.03'],
       evidence: ['artifact_gap:insufficient_ranked_interventions'],
-      files: ['docs/librarian/evals/dogfood/m0_qualitative_summary.md'],
-      tests: ['src/__tests__/dogfood_natural_usage_docs.test.ts'],
+      files: ['docs/archive/evals/dogfood/m0_qualitative_summary.md'],
+      tests: ['src/constructions/processes/__tests__/dogfood_autolearner.test.ts'],
     }),
     interventionTemplate({
       id: 'tighten-decision-trace-quality',
@@ -300,8 +300,8 @@ function ensureTopThree(interventions: DogfoodIntervention[]): DogfoodInterventi
       causalRationale: 'Stable decision traces improve causal attribution and reduce noisy replay interpretation.',
       expectedMetricMovement: ['ablation_replay_consistency:+0.05'],
       evidence: ['artifact_type:decision_trace'],
-      files: ['docs/librarian/evals/dogfood/m0_qualitative_protocol.md'],
-      tests: ['src/__tests__/dogfood_natural_usage_docs.test.ts'],
+      files: ['docs/archive/evals/dogfood/m0_qualitative_protocol.md'],
+      tests: ['src/constructions/processes/__tests__/dogfood_autolearner.test.ts'],
     }),
   ];
 
@@ -500,8 +500,8 @@ export function createDogfoodAutoLearnerConstruction(): Construction<
           causalRationale: `used_librarian_rate=${usedRate.toFixed(2)} below ${THRESHOLDS.used_librarian_rate.toFixed(2)} indicates discovery/friction gaps.`,
           expectedMetricMovement: ['used_librarian_rate:+0.10'],
           evidence: ['natural_usage_metrics:used_librarian_rate'],
-          files: ['AGENTS.md', 'docs/librarian/evals/dogfood/natural_usage_query_patterns.md'],
-          tests: ['src/__tests__/dogfood_natural_usage_docs.test.ts'],
+          files: ['AGENTS.md', 'docs/archive/evals/dogfood/natural_usage_query_patterns.md'],
+          tests: ['src/constructions/processes/__tests__/dogfood_autolearner.test.ts'],
         }));
       }
 
@@ -519,7 +519,7 @@ export function createDogfoodAutoLearnerConstruction(): Construction<
           causalRationale: `success_lift_t3_plus=${successLift.toFixed(2)} below ${THRESHOLDS.success_lift_t3_plus.toFixed(2)}; interventions should target decision-changing query quality.`,
           expectedMetricMovement: ['success_lift_t3_plus:+0.08', 'rework_reduction_t3_plus:+0.06'],
           evidence: ['ablation_replay:aggregate', 'natural_usage_metrics:success_lift_t3_plus'],
-          files: ['src/evaluation/ab_harness.ts', 'docs/librarian/evals/dogfood/m0_qualitative_protocol.md'],
+          files: ['src/evaluation/ab_harness.ts', 'docs/archive/evals/dogfood/m0_qualitative_protocol.md'],
           tests: ['src/__tests__/ab_harness.test.ts'],
         }));
       }
@@ -537,8 +537,8 @@ export function createDogfoodAutoLearnerConstruction(): Construction<
           causalRationale: `precision=${precision.toFixed(2)}, unnecessary_query_rate=${unnecessaryRate.toFixed(2)}; restraint guidance should be sharpened in planning flow.`,
           expectedMetricMovement: ['use_decision_precision:+0.06', 'unnecessary_query_rate:-0.08'],
           evidence: ['natural_usage_metrics:restraint'],
-          files: ['AGENTS.md', 'docs/librarian/evals/dogfood/m0_qualitative_protocol.md'],
-          tests: ['src/__tests__/dogfood_natural_usage_docs.test.ts'],
+          files: ['AGENTS.md', 'docs/archive/evals/dogfood/m0_qualitative_protocol.md'],
+          tests: ['src/constructions/processes/__tests__/dogfood_autolearner.test.ts'],
         }));
       }
 
@@ -573,8 +573,8 @@ export function createDogfoodAutoLearnerConstruction(): Construction<
           causalRationale: 'Applying additional interventions now risks ceremonial over-optimization without measurable lift.',
           expectedMetricMovement: ['maintain_current_band'],
           evidence: ['natural_usage_metrics:healthy_band', 'error_taxonomy:low_or_zero_severe_errors'],
-          files: ['docs/librarian/evals/dogfood/m0_qualitative_summary.md'],
-          tests: ['src/__tests__/dogfood_natural_usage_docs.test.ts'],
+          files: ['docs/archive/evals/dogfood/m0_qualitative_summary.md'],
+          tests: ['src/constructions/processes/__tests__/dogfood_autolearner.test.ts'],
         });
         interventions.push(noOp);
         noOpReason = noOp.rootCause;

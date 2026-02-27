@@ -53,4 +53,4 @@ LiBrainian scripts are grouped by function:
 - Keep scripts deterministic and machine-readable where possible.
 - Prefer JSON artifact output for anything consumed by gates/CI.
 - Temporary one-off scripts should not remain in this directory.
-- Hook bypass policy (`--no-verify`) is documented in `docs/librarian/policies/hook-fallback-policy.md`.
+- Hook bypass policy (`--no-verify`) is documented in `docs/archive/policies/hook-fallback-policy.md`.

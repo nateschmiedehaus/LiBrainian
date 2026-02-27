@@ -60,7 +60,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'LLM enrichment and synthesis-aware context-pack generation.',
       requiresConfig: !llmConfigured,
       configHint: llmConfigured ? undefined : 'Set LIBRARIAN_LLM_PROVIDER/LIBRARIAN_LLM_MODEL and provider API keys.',
-      docs: 'docs/librarian/query-guide.md',
+      docs: 'docs/librarian/README.md',
     },
     {
       id: 'knowledge_graph',
@@ -70,7 +70,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Call/import/usage graph and symbol relationship traversal.',
       requiresConfig: !hasIndex,
       configHint: hasIndex ? undefined : 'Requires bootstrap to materialize graph data.',
-      docs: 'docs/librarian/SYSTEM_ARCHITECTURE.md',
+      docs: 'docs/librarian/README.md',
     },
     {
       id: 'semantic_search',
@@ -80,7 +80,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Embedding-assisted retrieval and ranking for intent-driven questions.',
       requiresConfig: !hasHnsw,
       configHint: hasHnsw ? undefined : 'Run `librarian embed --fix` after bootstrap to maximize vector coverage.',
-      docs: 'docs/librarian/query-guide.md',
+      docs: 'docs/librarian/README.md',
     },
     {
       id: 'lexical_search',
@@ -90,7 +90,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Keyword/BM25-style retrieval fallback for deterministic lookups.',
       requiresConfig: !hasIndex,
       configHint: hasIndex ? undefined : 'Requires bootstrap to build lexical corpus.',
-      docs: 'docs/librarian/query-guide.md',
+      docs: 'docs/librarian/README.md',
     },
     {
       id: 'mcp_server',

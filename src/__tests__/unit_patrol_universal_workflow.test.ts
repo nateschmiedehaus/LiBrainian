@@ -24,7 +24,7 @@ describe('unit patrol universal adaptation/proof workflow', () => {
   });
 
   it('documents onboarding path for adding new domain/task mappings', () => {
-    const docsPath = path.join(process.cwd(), 'docs', 'librarian', 'validation.md');
+    const docsPath = path.join(process.cwd(), 'docs', 'archive', 'validation.md');
     const docs = fs.readFileSync(docsPath, 'utf8');
     expect(docs).toContain('Unit Patrol universal adaptation/proof onboarding');
     expect(docs).toContain('src/constructions/processes/unit_patrol_selector.ts');

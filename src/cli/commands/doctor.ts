@@ -1485,7 +1485,7 @@ async function checkMcpRegistration(): Promise<DiagnosticCheck> {
     if (existingConfigs.length === 0) {
       check.status = 'WARNING';
       check.message = 'No MCP client config files found';
-      check.suggestion = 'Add librarian to MCP client config (see docs/librarian/MCP_SERVER.md)';
+      check.suggestion = 'Add librarian to MCP client config (see docs/archive/MCP_SERVER.md)';
       return check;
     }
 
@@ -1521,7 +1521,7 @@ async function checkInstallFootprint(
     const bloatCandidates = [
       'src/epistemics',
       'src/evaluation',
-      'docs/librarian/legacy',
+      'docs/archive/legacy',
     ];
 
     const bloatedPaths: string[] = [];

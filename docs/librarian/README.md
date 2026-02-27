@@ -1,15 +1,4 @@
-# LiBrainian Documentation (Canonical)
-
-Status: infrastructure complete, validation pending
-Scope: entrypoint for the LiBrainian knowledge system docs and decision tree.
-Last Verified: 2026-01-26
-Owner: librarianship
-Evidence: docs only (implementation evidence lives in STATUS.md)
-
-> **Current State (2026-01-26)**
-> - Infrastructure (Phases 0-11): ✅ Complete (~3,500+ tests)
-> - Validation (Phases 12-22): ⏳ Pending (57 work units)
-> - See `docs/librarian/WORKPLAN.md` for full roadmap
+# LiBrainian Documentation
 
 ## What LiBrainian Is
 LiBrainian is the knowledge and understanding layer for any codebase. It
@@ -24,15 +13,22 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - Full lifecycle support: onboarding, change, debug, refactor, release.
 - Universal codebase support: immediate onboarding for new languages.
 
-## Construction Metadata: `description` vs `motivation`
-- `description` captures **what** a construction does mechanically.
-- `motivation` captures **why** the construction exists and what goal it serves.
-- Process-evolution features (linting, alternative discovery, and composition guidance) should rely on `motivation`, not only `description`.
-
 ## What LiBrainian Is Not
 - Not a general-purpose orchestrator or task runner.
 - Not a replacement for tests, reviews, or CI.
 - Not a fake-embedding system or heuristic-only retrieval.
+
+## Essential Documents
+
+| Document | Purpose |
+|----------|---------|
+| `docs/librarian/STATUS.md` | Machine-verified project status |
+| `docs/librarian/GATES.json` | Machine-readable gate metrics |
+| `docs/librarian/CONVERSATION_INSIGHTS.md` | Strategy tracker (required at release checkpoints) |
+| `docs/librarian/DIAGNOSIS_AND_PLAN.md` | Recovery plan |
+| `docs/librarian/ROADMAP.md` | Milestone plan |
+| `docs/librarian/API.md` | API reference |
+| `docs/TEST.md` | Testing policy |
 
 ## Launch Evidence Rule
 - `REAL_AGENT_REAL_LIBRARIAN_ONLY`: launch and publish claims must come from real agents operating on the real LiBrainian repository.
@@ -40,113 +36,11 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - `NO_RETRY_NO_FALLBACK_FOR_RELEASE_EVIDENCE`: any retry/fallback/degraded path in release artifacts is a release failure.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: launch evidence is accepted only when strict gates pass with zero strict-failure markers.
 
-## Agentic Interaction Contract
-- LiBrainian is built for agents that are actively changing software, not passive Q&A bots.
-- The core interaction loop is: `intent -> evidence-grounded context -> agent action -> verification -> updated context`.
-- Treatment agents must demonstrate that LiBrainian-provided context materially informs execution (not just deterministic file edits).
-- Release qualification requires this loop to succeed on real repositories with explicit evidence artifacts, not simulated transcripts.
-- Real-project use-case vetting command: `npm run eval:use-cases:agentic` (docs-derived intents against external repos, progressive prerequisite chain enforced, fail-closed thresholds).
-- Testing-discipline hardening command: `npm run eval:testing-discipline` (10 fail-closed checks across AB/use-case/live-fire/smoke/composition/constructables).
-- Publish-grade qualification command: `npm run test:agentic:strict`.
-
-## Start Here (Decision Tree)
-- **Orchestration & Validation Roadmap** -> `docs/librarian/WORKPLAN.md` (Phases 0-22)
-- Doc architecture + governance -> `docs/librarian/DOCS_ARCHITECTURE.md`
-- Non-negotiable mission -> `docs/librarian/VISION.md`
-- System architecture + directory map -> `docs/librarian/SYSTEM_ARCHITECTURE.md`
-- Knowledge ontology + mappings -> `docs/librarian/UNDERSTANDING_LAYER.md`
-- Use-case coverage -> `docs/librarian/scenarios.md`
-- Use-case matrix (250+ needs + method catalog + coverage audit) -> `docs/librarian/USE_CASE_MATRIX.md`
-- Wiring and pipelines -> `docs/librarian/PIPELINES_AND_WIRING.md`
-- Implementation plan -> `docs/librarian/WORKPLAN.md`
-- Integration plan -> `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md`
-- Packaging and onboarding -> `docs/librarian/PACKAGING_AND_ONBOARDING.md`
-- M1 release charter -> `docs/librarian/releases/m1-release-charter.md`
-- Versioning policy -> `docs/librarian/releases/versioning-policy.md`
-- M1 dry-run bundle -> `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md`
-- Model selection policy -> `docs/librarian/MODEL_POLICY.md`
-- Validation and audits -> `docs/librarian/validation.md`, `docs/librarian/AUDIT.md`
-- Target vs reality -> `docs/librarian/STATUS.md`
-- Conversation intelligence tracker -> `docs/librarian/CONVERSATION_INSIGHTS.md`
-- Phase 6+ (super-brain roadmap; planned) -> `docs/librarian/SUPER_BRAIN_PLAN.md`
-- Super-brain implementation protocol -> `docs/librarian/SUPER_BRAIN_IMPLEMENTATION_PROTOCOL.md`
-- Repo maturity audit -> `docs/librarian/REPO_FOLDER_REVIEW.md`
-
-## Canonical Doc Map
-
-### User-Facing Documentation
-- `docs/librarian/API.md` (comprehensive API reference)
-- `docs/librarian/EPISTEMICS.md` (epistemics framework guide - conative, temporal, intuitive, inference, quality gates)
-- `docs/librarian/AGENT_INTEGRATION.md` (agent integration patterns)
-- `docs/librarian/MCP_SERVER.md` (MCP server setup)
-- `docs/mcp-setup.md` (MCP client setup + troubleshooting)
-- `docs/mcp-design-principles.md` (MCP tool design principles + audit)
-
-### Verification Reports
-- `docs/librarian/test-verification-report.md` (780 tests across 10 new modules - 100% passing)
-- `state/audits/librarian/manifest.json` (evidence manifest; generated by `npm run evidence:manifest`)
-
-### Architecture & Design
-- `docs/librarian/WORKPLAN.md` (full implementation + validation roadmap, Phases 0-22)
-- `docs/librarian/DOCS_ARCHITECTURE.md` (doc governance)
-- `docs/librarian/VISION.md` (why we exist)
-- `docs/librarian/SYSTEM_ARCHITECTURE.md` (components, boundaries, directory map)
-- `docs/librarian/ARCHITECTURE_EXCELLENCE_REVIEW.md` (architecture analysis)
-- `docs/librarian/UNDERSTANDING_LAYER.md` (knowledge primitives + constructions)
-
-### Use Cases & Scenarios
-- `docs/librarian/scenarios.md` (use-case taxonomy + prompts)
-- `docs/librarian/USE_CASE_MATRIX.md` (use-case matrix + dependencies + method catalog)
-
-### Implementation
-- `docs/librarian/PIPELINES_AND_WIRING.md` (end-to-end system wiring)
-- `docs/librarian/WORKPLAN.md` (phased build plan)
-- `docs/librarian/IMPLEMENTATION_INTEGRATION_PLAN.md` (integration plan)
-- `docs/librarian/PACKAGING_AND_ONBOARDING.md` (packaging + onboarding)
-- `docs/librarian/releases/m1-release-charter.md` (M1 release gates and milestone closeout policy)
-- `docs/librarian/releases/versioning-policy.md` (semver + prerelease promotion policy)
-- `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md` (latest dry-run release bundle)
-- `docs/librarian/pending-items-analysis.md` (pending TODOs and roadmap items)
-
-### Operations
-- `docs/librarian/MODEL_POLICY.md` (daily model selection)
-- `docs/librarian/validation.md` (test and evidence gates, RAGAS-style metrics)
-- `docs/librarian/AUDIT.md` (audit runbook)
-- `docs/librarian/STATUS.md` (target vs reality, evidence linked)
-- `docs/librarian/GATES.json` (machine-readable gate status, layers 0-7)
-- `docs/librarian/hazard_register.md` (failure modes + preventive controls)
-- `docs/librarian/CONVERSATION_INSIGHTS.md` (strategy signal tracker required at release checkpoints)
-
-### Research & Planning
-- `docs/librarian/SUPER_BRAIN_PLAN.md` (Phase 6+: super-brain roadmap; planned)
-- `docs/librarian/MASTER.md` (working synthesis notes; not canonical)
-
 ## How to Interpret Docs
 - `STATUS.md` is reality with evidence; treat it as truth.
-- `WORKPLAN.md` is forward-looking; treat it as intent until verified.
-- `legacy/` is research-only; do not treat it as current guidance.
+- `ROADMAP.md` is forward-looking; treat it as intent until verified.
+- `docs/archive/` contains historical docs; do not treat as current guidance.
 
-## System Success Criteria
-- Every answer includes evidence, confidence, and defeaters.
-- Every scenario in `docs/librarian/scenarios.md` is answerable end-to-end.
-- Every row in `docs/librarian/USE_CASE_MATRIX.md` maps to architecture or plans.
-- No provider bypass, no fake embeddings, no unverified claims.
-- LiBrainian is the single source of understanding for any codebase.
-- Any language is supported on first encounter with explicit evidence.
-
-## Operational Rules (Hard)
-- CLI auth only (no API keys).
-- Providers checked via `checkAllProviders()`.
-- Daily model selection is mandatory and recorded in `state/audits/model_selection/`.
-- Cheapest SOTA models are required (Haiku-class for LiBrainian unless proven insufficient).
-- If providers are unavailable, fail with `unverified_by_trace(provider_unavailable)`.
-- New language detection must trigger immediate adapter onboarding (no hard fail).
-- Default to waiting for long-running steps unless explicitly directed otherwise.
-
-## Legacy Research
-Historical docs are archived in `docs/librarian/legacy/` and must be
-explicitly merged into canonical docs before being relied upon.
-
-## Open-Source Growth
-LiBrainian is designed to be an open-source knowledge system with explicit
-extension points, contribution standards, and community-driven evolution.
+## Archived Documentation
+Historical specs, process docs, phase reports, and validation docs have been
+moved to `docs/archive/`. See `docs/archive/README.md` for details.

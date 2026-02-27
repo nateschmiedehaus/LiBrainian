@@ -97,7 +97,7 @@ describe('package release scripts', () => {
   });
 
   it('documents temporary hook bypass policy for --no-verify', () => {
-    const policyPath = path.join(process.cwd(), 'docs', 'librarian', 'policies', 'hook-fallback-policy.md');
+    const policyPath = path.join(process.cwd(), 'docs', 'archive', 'policies', 'hook-fallback-policy.md');
     expect(fs.existsSync(policyPath)).toBe(true);
     const policy = fs.readFileSync(policyPath, 'utf8');
     expect(policy).toContain('--no-verify');

@@ -1,7 +1,7 @@
 /**
  * @fileoverview Multi-Vector Scoring Verification Test
  *
- * Per docs/librarian/validation.md requirement:
+ * Per docs/archive/validation.md requirement:
  * "Add ranking-comparison tests and RetrievalQualityReport that show
  * multi-vector blending measurably improves ranking on a dataset."
  *

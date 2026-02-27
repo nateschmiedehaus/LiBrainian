@@ -2,7 +2,7 @@
  * @fileoverview UC-001…UC-030 (L0 Foundation) end-to-end suite (Tier‑2)
  *
  * This suite exists to make the “world-class knowledge tool” claim non-theatrical:
- * - It runs the first 30 canonical use cases from docs/librarian/USE_CASE_MATRIX.md.
+ * - It runs the first 30 canonical use cases from docs/archive/USE_CASE_MATRIX.md.
  * - It requires live providers (LLM + embeddings). If unavailable, it must fail honestly.
  * - It asserts stable, observable invariants against a controlled fixture repo,
  *   without overfitting to any particular phrasing.

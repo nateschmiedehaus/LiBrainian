@@ -25,7 +25,7 @@
  * - Interval arithmetic for combining uncertainty
  * - Marginalization and conditioning operations
  *
- * @see docs/librarian/specs/research/mathematical-foundations.md (Section 1.2)
+ * @see docs/archive/specs/research/mathematical-foundations.md (Section 1.2)
  * @packageDocumentation
  */
 

@@ -13,7 +13,7 @@
  * Expected impact: +23% F1 improvement on factual accuracy.
  *
  * References:
- * - docs/librarian/RESEARCH_IMPLEMENTATION_MAPPING.md (CoVe details)
+ * - docs/archive/RESEARCH_IMPLEMENTATION_MAPPING.md (CoVe details)
  * - ACL 2024: Chain-of-Verification Reduces Hallucination in Large Language Models
  *
  * @packageDocumentation
