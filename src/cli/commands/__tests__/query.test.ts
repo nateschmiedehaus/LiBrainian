@@ -193,7 +193,7 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
-  it('fails fast with actionable guidance when watch catch-up is required', async () => {
+  it('falls through to auto-bootstrap when watch catch-up is required (deferred reason)', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
 
@@ -202,13 +202,15 @@ describe('queryCommand LLM resolution', () => {
       reason: 'Watch state indicates catch-up is required before queries can be trusted',
     });
 
-    await expect(queryCommand({
+    // deferred reasons (watch_catchup etc.) no longer throw NOT_BOOTSTRAPPED;
+    // they log a warning and fall through to auto-bootstrap so the query can recover.
+    await queryCommand({
       workspace: '/tmp/workspace',
       args: [],
       rawArgs: ['query', 'hello world', '--json'],
-    })).rejects.toMatchObject({ code: 'NOT_BOOTSTRAPPED' });
+    });
 
-    expect(bootstrapProject).not.toHaveBeenCalled();
+    expect(bootstrapProject).toHaveBeenCalled();
   });
 
   it('respects --no-bootstrap', async () => {
