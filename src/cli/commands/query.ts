@@ -263,11 +263,17 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: effectiveTier });
     if (bootstrapCheck.required) {
       const deferredReason = classifyQueryBootstrapDeferReason(bootstrapCheck.reason);
-      if (noBootstrap || deferredReason) {
+      if (noBootstrap) {
         throw createError(
           'NOT_BOOTSTRAPPED',
           buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason)
         );
+      }
+      if (deferredReason) {
+        const remediation = buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason);
+        if (typeof process.stderr?.write === 'function') {
+          process.stderr.write(`[query] deferred bootstrap reason: ${deferredReason} — falling through to auto-bootstrap\n`);
+        }
       }
       const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
       try {
