@@ -34,6 +34,27 @@ Describe the tests that you ran to verify your changes:
 - [ ] CLI quickstart manually verified (`npx librainian quickstart`)
 - [ ] Query manually verified (`npx librainian query "..."`)
 
+## Per-Issue Quality Analysis
+
+Required for changes touching retrieval, query, embedding, scoring, indexing, or user-facing behavior.
+
+- [ ] Ran `node scripts/issue-quality-analysis.mjs {issue_number} --description "..."`
+- [ ] Read actual query results and assessed relevance
+- [ ] Agent assessment: <!-- improved / no_change / degraded / insufficient_evidence -->
+- [ ] Concerns: <!-- list any, or "none" -->
+
+<details>
+<summary>Analysis output (paste here)</summary>
+
+```
+(paste output of issue-quality-analysis.mjs or contents of state/issue-analyses/issue-{N}-analysis.json)
+```
+
+</details>
+
+> The agent assessment is the primary quality evidence -- not just test pass/fail.
+> See `AGENTS.md` "Per-Issue Quality Analysis" for the full protocol.
+
 ## Runtime Reality Evidence
 
 Required for runtime-affecting changes (retrieval, provider/runtime, constructions, diagnostics).

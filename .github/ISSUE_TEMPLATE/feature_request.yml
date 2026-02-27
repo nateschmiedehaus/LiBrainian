@@ -200,6 +200,16 @@ body:
   - type: markdown
     attributes:
       value: |
+        ## Quality Analysis (filled by implementing agent)
+        After implementing the feature, run `node scripts/issue-quality-analysis.mjs {issue_number} --description "..."` and fill in:
+        ```
+        - [ ] Ran `node scripts/issue-quality-analysis.mjs {issue_number}`
+        - [ ] Read actual query results and assessed relevance
+        - [ ] Agent assessment: [improved/no_change/degraded]
+        - [ ] Concerns: [list any]
+        ```
+        The agent assessment is the primary quality evidence for retrieval/query/embedding/scoring/indexing changes.
+
         ## Closure Criteria (M0 issues)
         Before closing, paste this checklist in the closing comment:
         ```

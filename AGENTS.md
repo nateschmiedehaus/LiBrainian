@@ -138,6 +138,64 @@ passed by testing exit codes instead of actual query quality.
 
 ---
 
+## Per-Issue Quality Analysis
+
+Deterministic gates catch structural problems. Per-issue quality analysis catches
+"technically passing but actually useless" results. **Agent judgment analyzing
+actual outputs is the primary quality signal.**
+
+### Rules
+
+1. **Any issue touching retrieval, query, embedding, scoring, indexing, or user-facing
+   behavior MUST have `scripts/issue-quality-analysis.mjs` run before the PR is merged.**
+   ```bash
+   node scripts/issue-quality-analysis.mjs <issue_number> --description "what changed"
+   ```
+
+2. **The analysis output must be included in the PR description or as a PR comment.**
+   Copy the structured summary from `state/issue-analyses/issue-{number}-analysis.json`
+   or paste the console output.
+
+3. **The agent assessment is the primary quality evidence — not just test pass/fail.**
+   A PR with all tests green but no agent quality assessment of actual query results
+   is incomplete for quality-sensitive changes.
+
+4. **Agents implementing issues must run real queries and READ THE ACTUAL RESULTS
+   before declaring the issue fixed.** The script runs 2-3 queries automatically.
+   Review the returned files. Ask: "Would a user get useful answers from this?"
+
+5. **This is more valuable than deterministic gates because it catches the gap between
+   "tests pass" and "the product actually works."** Deterministic gates catch structural
+   regressions. Agent analysis catches semantic regressions — results that are technically
+   valid but useless.
+
+### Workflow
+
+```bash
+# After implementing the fix, run the analysis
+node scripts/issue-quality-analysis.mjs 42 --description "improved embedding fallback"
+
+# Review the output — read the actual query results
+# Then re-run with your judgment
+node scripts/issue-quality-analysis.mjs 42 \
+  --description "improved embedding fallback" \
+  --verdict improved \
+  --assessment "Query results now include correct auth files. Python repo handling is better." \
+  --concerns "Rust repos still show low file counts"
+
+# For batch analysis of recent commits
+node scripts/batch-quality-analysis.mjs --since "7 days ago"
+```
+
+### When to skip
+
+If the change is purely internal (CI scripts, documentation, type-only refactors,
+test infrastructure) and does not touch any code path that affects query results,
+the analysis can be skipped. The script auto-detects this — if it says "not
+quality-sensitive", you can trust that.
+
+---
+
 ## Do Not
 1. Create more spec files, npm scripts, or docs — reduce, don't add
 2. Work on M2/M3/M4 — the product doesn't work at M0
