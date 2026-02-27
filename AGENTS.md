@@ -76,6 +76,19 @@ For qualification evidence, pair these with the natural-usage matrix artifacts i
 
 ---
 
+## Scope Freeze: M2/M3/M4 (Issue #864)
+
+**M2 (Agent Integration), M3 (Scale & Epistemics), and M4 (World-Class) are frozen.**
+
+- Do not work on any M2/M3/M4 issue.
+- Do not file new issues against M2/M3/M4.
+- If you discover a future need, add a comment to an existing M2/M3/M4 issue — do not create a new one.
+- All work must focus on M0 (Dogfood-Ready) and M1 (Construction MVP).
+
+Rationale: the product does not work at M0. See `docs/LiBrainian/SCOPE_FREEZE.md`.
+
+---
+
 ## Launch-Critical Non-Negotiables (Override)
 
 These rules override any softer guidance elsewhere in this file for qualification and publish work:
