@@ -1,0 +1,61 @@
+{
+  "milestone": "M0",
+  "timestamp": "2026-02-27T22:18:00.651Z",
+  "workspace": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian",
+  "queries_run": 3,
+  "all_passed": true,
+  "results": [
+    {
+      "label": "query-pipeline",
+      "intent": "how does the query pipeline work",
+      "packCount": 5,
+      "files": [
+        "src/constructions/strategic/work_presets_construction.ts",
+        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
+        "src/epistemics/evidence_adapters.ts",
+        "src/epistemics/evidence_adapters.ts:createRetrievalEvidence",
+        "src/epistemics/result_coherence.ts",
+        "src/epistemics/result_coherence.ts:computeQueryAlignment",
+        "src/api/embedding_providers/real_embeddings.ts",
+        "src/api/embedding_providers/real_embeddings.ts:preloadEmbeddingModel",
+        "src/knowledge/code_patterns.ts",
+        "src/knowledge/code_patterns.ts:handleCodePatternQuery"
+      ],
+      "relevantFileFound": true,
+      "contamination": false,
+      "latencyMs": 529
+    },
+    {
+      "label": "bootstrap-lifecycle",
+      "intent": "how does bootstrap indexing work",
+      "packCount": 3,
+      "files": [
+        "src/constructions/strategic/work_presets_construction.ts",
+        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
+        "src/api/bootstrap.ts",
+        "src/api/bootstrap.ts:indexEntryPoints",
+        "src/epistemics/result_coherence.ts",
+        "src/epistemics/result_coherence.ts:computeQueryAlignment"
+      ],
+      "relevantFileFound": true,
+      "contamination": false,
+      "latencyMs": 115
+    },
+    {
+      "label": "embedding-system",
+      "intent": "how does embedding and vector search work",
+      "packCount": 3,
+      "files": [
+        "src/constructions/strategic/work_presets_construction.ts",
+        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
+        "src/cli/commands/doctor.ts",
+        "src/cli/commands/doctor.ts:checkVectorIndex",
+        "src/epistemics/result_coherence.ts",
+        "src/epistemics/result_coherence.ts:computeQueryAlignment"
+      ],
+      "relevantFileFound": true,
+      "contamination": false,
+      "latencyMs": 117
+    }
+  ]
+}

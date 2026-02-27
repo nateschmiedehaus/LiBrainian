@@ -147,6 +147,7 @@ export default defineConfig(async () => {
         const excluded: string[] = [];
         if (process.env.LIBRARIAN_T05_SMOKE !== '1') {
           excluded.push('**/t05_reality_smoke.test.ts');
+          excluded.push('**/m0_self_development_proof.test.ts');
         }
 
         if (mode === 'unit') {
