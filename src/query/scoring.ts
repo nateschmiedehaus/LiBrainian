@@ -525,9 +525,10 @@ function normalizePath(value: string): string {
  * This ensures obvious matches like "bootstrap" -> bootstrap.ts rank highly.
  *
  * The boost is a multiplier applied to the combined score:
- * - 1.5x for exact filename match (e.g., "bootstrap" -> bootstrap.ts)
- * - 1.3x for filename contains term (e.g., "bootstrap" -> bootstrap_utils.ts)
- * - 1.15x for path contains term (e.g., "bootstrap" -> src/bootstrap/index.ts)
+ * - 3.0x for exact filename match (e.g., "query" -> query.ts)
+ *        Strong enough to overcome any task-type penalty (e.g., guidance 0.4x).
+ * - 2.0x for filename contains term (e.g., "bootstrap" -> bootstrap_utils.ts)
+ * - 1.3x for path contains term (e.g., "bootstrap" -> src/bootstrap/index.ts)
  * - 1.0x (no boost) otherwise
  */
 function computeKeywordBoost(
@@ -551,15 +552,15 @@ function computeKeywordBoost(
     // Skip very short terms (likely noise)
     if (termLower.length < 3) continue;
 
-    // Check for exact filename match (highest boost)
+    // Check for exact filename match (highest boost - must overcome task-type penalties)
     if (filename === termLower) {
-      bestBoost = Math.max(bestBoost, 1.5);
+      bestBoost = Math.max(bestBoost, 3.0);
       continue;
     }
 
     // Check if filename contains the term
     if (filename.includes(termLower)) {
-      bestBoost = Math.max(bestBoost, 1.3);
+      bestBoost = Math.max(bestBoost, 2.0);
       continue;
     }
 
@@ -569,7 +570,7 @@ function computeKeywordBoost(
       segment === termLower || segment.includes(termLower)
     );
     if (hasPathMatch) {
-      bestBoost = Math.max(bestBoost, 1.15);
+      bestBoost = Math.max(bestBoost, 1.3);
     }
   }
 

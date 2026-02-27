@@ -1,6 +1,10 @@
 /**
  * Keywords that indicate a meta-query about usage, integration, or concepts.
  * These queries should prefer documentation over code.
+ *
+ * NOTE: The broad "how does X work" pattern is intentionally excluded here.
+ * It is matched by the original patterns below but can be overridden by
+ * IMPLEMENTATION_SEEKING_PATTERNS when the query targets a code concept.
  */
 export const META_QUERY_PATTERNS: RegExp[] = [
   /\bhow\s+(should|do|does|can|to)\b/i,
@@ -18,6 +22,26 @@ export const META_QUERY_PATTERNS: RegExp[] = [
   /\bagent\b.*\buse\b/i,
   /\buse\b.*\bagent\b/i,
   /\blibrarian\b/i,
+];
+
+/**
+ * Counter-patterns that indicate a query is seeking implementation details
+ * rather than documentation/guidance. When these match, the query should be
+ * treated as a code/explanation query even if META_QUERY_PATTERNS also match.
+ *
+ * Specifically targets "how does X work" where X is a code concept like
+ * pipeline, bootstrap, embedding, scoring, parser, handler, etc.
+ * These should route to function_context packs, not doc_context.
+ */
+export const IMPLEMENTATION_SEEKING_PATTERNS: RegExp[] = [
+  // "how does the query pipeline work" - asking about implementation, not docs
+  /\bhow\s+does\s+(?:the\s+)?(?:\w+\s+)*(?:pipeline|parser|handler|router|middleware|resolver|compiler|transpiler|bundler|scheduler|dispatcher|processor|indexer|crawler|scanner|analyzer|validator|serializer|deserializer|transformer|reducer|selector|factory|builder|adapter|wrapper|decorator|proxy|interceptor|listener|observer|emitter|subscriber|provider|injector|controller|manager|registry|repository|cache|pool|queue|stack|buffer|stream|channel|socket|loader|fetcher|client|server|daemon|worker|thread|scorer|ranker|classifier|detector|extractor|generator|encoder|decoder|tokenizer|embedder|retriever|reranker)\b.*\bwork\b/i,
+  // "how does the bootstrap process work" - process/system/mechanism/logic/flow/algorithm
+  /\bhow\s+does\s+(?:the\s+)?(?:\w+\s+)*(?:process|system|mechanism|logic|flow|algorithm|routine|procedure|cycle|loop|chain|graph|tree|traversal)\b.*\bwork\b/i,
+  // "how does X work" where X contains known code module names
+  /\bhow\s+does\s+(?:the\s+)?(?:\w+\s+)*(?:bootstrap|ingest|scoring|ranking|embedding|query|storage|indexing|caching|routing|parsing|compilation|bundling|scheduling|dispatching|validation|serialization|authentication|authorization)\b.*\bwork\b/i,
+  // "how does the X function/method/class work"
+  /\bhow\s+does\s+(?:the\s+)?\w+\s+(?:function|method|class|module|component|service|layer|subsystem)\b.*\bwork\b/i,
 ];
 
 /**
