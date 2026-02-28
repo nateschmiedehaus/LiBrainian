@@ -73,7 +73,7 @@ const TASK_PACK_WEIGHTS: Record<TaskTaxonomy, Partial<Record<ContextPackType, nu
   refactor: { function_context: 0.8, module_context: 1.1, change_impact: 1.4, decision_context: 0.8, pattern_context: 1.0, similar_tasks: 1.0, doc_context: 0.6, project_understanding: 0.4 },
   review: { function_context: 0.9, module_context: 1.0, change_impact: 1.1, decision_context: 1.2, pattern_context: 1.2, similar_tasks: 1.2, doc_context: 1.1, project_understanding: 0.8 },
   guidance: { function_context: 0.4, module_context: 0.6, change_impact: 0.3, decision_context: 1.0, pattern_context: 0.8, similar_tasks: 0.5, doc_context: 2.0, project_understanding: 2.5 },
-  implementation: { function_context: 1.2, module_context: 1.0, change_impact: 0.8, decision_context: 0.6, pattern_context: 0.9, similar_tasks: 0.7, doc_context: 0.5, project_understanding: 0.3 },
+  implementation: { function_context: 1.5, module_context: 1.2, change_impact: 0.8, decision_context: 0.6, pattern_context: 0.9, similar_tasks: 0.7, doc_context: 0.2, project_understanding: 0.2 },
 };
 
 const BUG_KEYWORDS = ['error', 'exception', 'regression', 'failure', 'bug', 'fix', 'crash', 'panic'];
@@ -291,7 +291,7 @@ export function rankContextPacks(input: PackRankingInput): PackRankingResult {
   // Per-file dominance guard: no more than MAX_PACKS_PER_FILE packs from the
   // same source file. This prevents generic files with broad embeddings from
   // monopolizing every result set.
-  const MAX_PACKS_PER_FILE = 2;
+  const MAX_PACKS_PER_FILE = 1;
   const filePackCounts = new Map<string, number>();
   const selected: ContextPack[] = [];
   for (const entry of scored) {

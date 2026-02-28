@@ -1644,6 +1644,24 @@ export async function queryLibrarian(
   } else {
     candidates = semanticResult.candidates;
   }
+
+  // Filter archive docs from candidates — they're archived and shouldn't appear in results.
+  // For implementation-seeking queries, also remove all doc candidates since the user
+  // is asking about code, not documentation.
+  const isImplSeeking = IMPLEMENTATION_SEEKING_PATTERNS.some(p => p.test(query.intent ?? ''));
+  const preFilterCount = candidates.length;
+  candidates = candidates.filter(c => {
+    const id = c.entityId;
+    // Always exclude archive docs
+    if (id.startsWith('doc:') && id.includes('/archive/')) return false;
+    // For implementation-seeking queries, exclude ALL doc candidates
+    if (isImplSeeking && (id.startsWith('doc:') || (c as Candidate & { isDocument?: boolean }).isDocument)) return false;
+    return true;
+  });
+  if (candidates.length < preFilterCount) {
+    explanationParts.push(`Filtered ${preFilterCount - candidates.length} doc candidates (implementation-seeking query).`);
+  }
+
   const candidateMaterializationLimit = resolveCandidateMaterializationLimit(
     query.depth,
     query.intent ?? '',
@@ -1691,10 +1709,13 @@ export async function queryLibrarian(
     version,
   });
   // Determine task type for ranking: use 'guidance' for meta-queries to boost documentation,
-  // 'implementation' for code-seeking queries to penalize docs and prefer functions
+  // 'implementation' for code-seeking queries to penalize docs and prefer functions.
+  // Also detect implementation-seeking queries (e.g., "how does X work" where X is a code concept)
+  // which suppress meta classification but must also get implementation ranking.
+  const isImplementationSeeking = IMPLEMENTATION_SEEKING_PATTERNS.some(p => p.test(query.intent ?? ''));
   const rankingTaskType = queryClassification?.isMetaQuery
     ? 'guidance'
-    : queryClassification?.isCodeQuery
+    : (queryClassification?.isCodeQuery || isImplementationSeeking)
       ? (query.taskType ?? 'implementation')
       : query.taskType;
   // Use context level's pack limit for agent ergonomics (L0=3, L1=6, L2=8, L3=10)
@@ -3147,6 +3168,17 @@ async function runSemanticRetrievalStage(options: {
         );
       }
       candidates = await hydrateCandidates(similarResults, storage);
+    }
+
+    // Filename candidate injection: when query terms match file names,
+    // ensure those files' functions are in the candidate pool so the
+    // keyword boost can lift them. Without this, semantic search alone
+    // may not surface files whose names match the query.
+    if (query.intent) {
+      const injected = await injectFilenameCandidates(query.intent, candidates, storage);
+      if (injected.added > 0) {
+        candidates = injected.candidates;
+      }
     }
   } else if (!query.intent) {
     recordCoverageGap('semantic_retrieval', 'No query intent provided for semantic search.', 'minor');
@@ -6390,6 +6422,96 @@ async function collectIngestionContext(
 
   return { testMapping, ownerMapping, recentChanges, patterns, knowledgeSources };
 }
+/**
+ * Inject candidates whose file names match query terms.
+ * Semantic search may miss files whose code content doesn't embed well for
+ * natural language queries. This step ensures files like "query.ts" appear
+ * in the candidate pool when the user asks about "query pipeline".
+ */
+async function injectFilenameCandidates(
+  intent: string,
+  existingCandidates: Candidate[],
+  storage: LibrarianStorage,
+): Promise<{ candidates: Candidate[]; added: number }> {
+  const stopWords = new Set(['the', 'how', 'does', 'what', 'work', 'and', 'this', 'that', 'with', 'for', 'from', 'into', 'are', 'is']);
+  const terms = intent.toLowerCase().split(/\s+/)
+    .filter(t => t.length >= 3 && !stopWords.has(t));
+  if (terms.length === 0) return { candidates: existingCandidates, added: 0 };
+
+  const existingIds = new Set(existingCandidates.map(c => c.entityId));
+  const existingPaths = new Set(existingCandidates.map(c => c.path).filter(Boolean));
+  const injected: Candidate[] = [];
+
+  try {
+    // Get all indexed files (lightweight: typically < 3000 entries)
+    const allFiles = await storage.getFiles();
+    // Score files by how well they match query terms, then take the best matches
+    type ScoredFile = { path: string; score: number };
+    const scoredFiles: ScoredFile[] = [];
+    for (const file of allFiles) {
+      const basename = (file.path ?? '').split('/').pop()?.replace(/\.\w+$/, '').toLowerCase() ?? '';
+      const pathLower = (file.path ?? '').toLowerCase();
+      // Skip test files and already-present paths
+      if (pathLower.includes('__tests__') || pathLower.includes('.test.') || pathLower.includes('.spec.')) continue;
+      if (existingPaths.has(file.path)) continue;
+
+      let bestScore = 0;
+      for (const term of terms) {
+        // Exact basename match (e.g., "query" → "query.ts") — best signal
+        if (basename === term) {
+          bestScore = Math.max(bestScore, 10);
+        // Basename starts with term (e.g., "query" → "query_intent_patterns.ts")
+        } else if (basename.startsWith(term)) {
+          bestScore = Math.max(bestScore, 7);
+        // Basename contains term
+        } else if (basename.includes(term)) {
+          bestScore = Math.max(bestScore, 3);
+        // Directory contains term (e.g., "embedding" → "embedding_providers/foo.ts")
+        } else if (pathLower.includes(`/${term}`) || pathLower.includes(`${term}_`) || pathLower.includes(`_${term}`)) {
+          bestScore = Math.max(bestScore, 5);
+        }
+      }
+      // Prefer src/ over scripts/, tests, docs, etc.
+      if (bestScore > 0) {
+        if (pathLower.includes('/src/')) bestScore += 2;
+        if (pathLower.includes('/scripts/')) bestScore -= 1;
+        scoredFiles.push({ path: file.path, score: bestScore });
+      }
+    }
+    // Sort by score descending, take top matches
+    scoredFiles.sort((a, b) => b.score - a.score);
+    const matchingPaths = scoredFiles.slice(0, 8).map(f => f.path);
+
+    // Get functions from matching files and inject as candidates
+    for (const filePath of matchingPaths) {
+      const fns = await storage.getFunctionsByPath(filePath);
+      // Pick the most significant function (longest, likely the main export)
+      const sorted = fns.sort((a, b) => ((b.endLine - b.startLine) || 0) - ((a.endLine - a.startLine) || 0));
+      const topFn = sorted[0];
+      if (topFn && !existingIds.has(topFn.id)) {
+        injected.push({
+          entityId: topFn.id,
+          entityType: 'function',
+          path: topFn.filePath,
+          semanticSimilarity: 0.40,
+          confidence: topFn.confidence ?? 0.5,
+          recency: 0.5,
+          pagerank: 0,
+          centrality: 0,
+          communityId: null,
+        });
+        existingIds.add(topFn.id);
+      }
+      if (injected.length >= 6) break;
+    }
+  } catch {
+    // Non-fatal: continue without filename injection
+  }
+
+  if (injected.length === 0) return { candidates: existingCandidates, added: 0 };
+  return { candidates: [...existingCandidates, ...injected], added: injected.length };
+}
+
 async function hydrateCandidates(results: SimilarityResult[], storage: LibrarianStorage): Promise<Candidate[]> {
   return Promise.all(results.map(async (result) => {
     // Map embeddable entity type to graph entity type

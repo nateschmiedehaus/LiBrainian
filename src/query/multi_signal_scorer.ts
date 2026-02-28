@@ -522,11 +522,19 @@ export class DependencySignalComputer implements SignalComputer {
       score = 1.0; // Direct dependency
     }
 
+    // Centrality penalty: files imported by many modules are utilities/infrastructure,
+    // not the specific implementation a query is looking for. Penalize over-centralized files.
+    const dependentCount = entityData.dependents?.length ?? 0;
+    if (dependentCount > 15) {
+      const centralityPenalty = Math.min(1, 15 / dependentCount);
+      score *= centralityPenalty;
+    }
+
     return {
       signal: this.signal,
       score,
       confidence: isDependency || isDependent ? 0.9 : 0.4,
-      metadata: { isDependency, isDependent },
+      metadata: { isDependency, isDependent, dependentCount },
     };
   }
 }

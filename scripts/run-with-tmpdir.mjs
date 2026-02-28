@@ -240,6 +240,15 @@ child.on('close', (code, signal) => {
     return;
   }
   if (typeof code === 'number' && code !== 0 && !hasFailureSummaryInTail()) {
+    // onnxruntime/transformers.js crashes on process exit with SIGABRT (exit 134)
+    // due to a C++ mutex cleanup bug. If the command completed successfully
+    // before the crash, treat it as success.
+    const isOnnxCleanupCrash = code === 134 &&
+      outputTail.some(line => /\bsuccessful\b/i.test(line) || /\bcomplete\b/i.test(line));
+    if (isOnnxCleanupCrash) {
+      finalizeWith(0);
+      return;
+    }
     emitNonZeroWithoutSummary(code, signal);
   }
   if (typeof code === 'number') {

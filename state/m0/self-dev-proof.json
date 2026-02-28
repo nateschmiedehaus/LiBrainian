@@ -1,61 +1,114 @@
 {
   "milestone": "M0",
-  "timestamp": "2026-02-27T22:18:00.651Z",
+  "timestamp": "2026-02-28T00:41:51.937Z",
   "workspace": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian",
   "queries_run": 3,
   "all_passed": true,
+  "quality_issues": [],
+  "cross_query_metrics": {
+    "dominant_files": [],
+    "jaccard_pairs": [
+      {
+        "query1": "query-pipeline",
+        "query2": "bootstrap-lifecycle",
+        "similarity": 0.3333333333333333
+      },
+      {
+        "query1": "query-pipeline",
+        "query2": "embedding-system",
+        "similarity": 0
+      },
+      {
+        "query1": "bootstrap-lifecycle",
+        "query2": "embedding-system",
+        "similarity": 0
+      }
+    ],
+    "max_jaccard_similarity": 0.3333333333333333
+  },
   "results": [
     {
       "label": "query-pipeline",
       "intent": "how does the query pipeline work",
       "packCount": 5,
       "files": [
-        "src/constructions/strategic/work_presets_construction.ts",
-        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
-        "src/epistemics/evidence_adapters.ts",
-        "src/epistemics/evidence_adapters.ts:createRetrievalEvidence",
-        "src/epistemics/result_coherence.ts",
-        "src/epistemics/result_coherence.ts:computeQueryAlignment",
-        "src/api/embedding_providers/real_embeddings.ts",
-        "src/api/embedding_providers/real_embeddings.ts:preloadEmbeddingModel",
-        "src/knowledge/code_patterns.ts",
-        "src/knowledge/code_patterns.ts:handleCodePatternQuery"
+        "src/api/bootstrap.ts",
+        "src/api/bootstrap.ts:indexEntryPoints",
+        "src/api/query.ts",
+        "src/api/query.ts:assembleContext",
+        "src/agents/index_librarian.ts",
+        "src/agents/index_librarian.ts:createContextPack",
+        "src/utils/query_batcher.ts",
+        "src/utils/query_batcher.ts:execute",
+        "src/cli/commands/query.ts",
+        "src/cli/commands/query.ts:findActiveStorageLock"
       ],
-      "relevantFileFound": true,
+      "baseFiles": [
+        "src/api/bootstrap.ts",
+        "src/api/query.ts",
+        "src/agents/index_librarian.ts",
+        "src/utils/query_batcher.ts",
+        "src/cli/commands/query.ts"
+      ],
+      "mustIncludeMatched": true,
+      "matchedPattern": "src/api/query.ts matched \"src/api/query.ts\"",
       "contamination": false,
-      "latencyMs": 529
+      "latencyMs": 904
     },
     {
       "label": "bootstrap-lifecycle",
       "intent": "how does bootstrap indexing work",
-      "packCount": 3,
+      "packCount": 7,
       "files": [
-        "src/constructions/strategic/work_presets_construction.ts",
-        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
         "src/api/bootstrap.ts",
         "src/api/bootstrap.ts:indexEntryPoints",
-        "src/epistemics/result_coherence.ts",
-        "src/epistemics/result_coherence.ts:computeQueryAlignment"
+        "src/api/query.ts",
+        "src/api/query.ts:assembleContext",
+        "src/api/packs.ts",
+        "src/api/packs.ts:isEvalCorpusPath",
+        "src/agents/index_librarian.ts",
+        "src/agents/index_librarian.ts:createContextPack",
+        "src/integration/bootstrap_tests.ts",
+        "src/integration/bootstrap_tests.ts:createBootstrapTestRunner",
+        "src/constructions/processes/bootstrap_quality_gate.ts",
+        "src/constructions/processes/bootstrap_quality_gate.ts:createDefaultCFixture",
+        "src/cli/commands/bootstrap.ts"
       ],
-      "relevantFileFound": true,
+      "baseFiles": [
+        "src/api/bootstrap.ts",
+        "src/api/query.ts",
+        "src/api/packs.ts",
+        "src/agents/index_librarian.ts",
+        "src/integration/bootstrap_tests.ts",
+        "src/constructions/processes/bootstrap_quality_gate.ts",
+        "src/cli/commands/bootstrap.ts"
+      ],
+      "mustIncludeMatched": true,
+      "matchedPattern": "src/api/bootstrap.ts matched \"src/api/bootstrap.ts\"",
       "contamination": false,
-      "latencyMs": 115
+      "latencyMs": 385
     },
     {
       "label": "embedding-system",
       "intent": "how does embedding and vector search work",
       "packCount": 3,
       "files": [
-        "src/constructions/strategic/work_presets_construction.ts",
-        "src/constructions/strategic/work_presets_construction.ts:computeConfidence",
-        "src/cli/commands/doctor.ts",
-        "src/cli/commands/doctor.ts:checkVectorIndex",
-        "src/epistemics/result_coherence.ts",
-        "src/epistemics/result_coherence.ts:computeQueryAlignment"
+        "src/storage/vector_index.ts",
+        "src/storage/vector_index.ts:loadSerializedHNSW",
+        "src/api/embeddings.ts",
+        "src/api/embeddings.ts:generateEmbeddings",
+        "src/graphs/embeddings.ts",
+        "src/graphs/embeddings.ts:buildMetricEmbeddings"
       ],
-      "relevantFileFound": true,
+      "baseFiles": [
+        "src/storage/vector_index.ts",
+        "src/api/embeddings.ts",
+        "src/graphs/embeddings.ts"
+      ],
+      "mustIncludeMatched": true,
+      "matchedPattern": "src/storage/vector_index.ts matched \"vector_index\"",
       "contamination": false,
-      "latencyMs": 117
+      "latencyMs": 229
     }
   ]
 }

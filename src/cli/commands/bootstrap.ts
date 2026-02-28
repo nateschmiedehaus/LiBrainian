@@ -217,8 +217,16 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       const providerCheckSkipped =
         (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1';
       if (providerCheckSkipped) {
-        providerSpinner.succeed('Provider checks skipped (offline/degraded mode)');
-        skipEmbeddings = true;
+        // Skip remote LLM provider checks but still try local embedding providers.
+        // Embeddings are critical for retrieval quality and xenova runs locally.
+        const { isXenovaAvailable, isSentenceTransformersAvailable } = await import('../../api/embedding_providers/real_embeddings.js');
+        const localEmbeddingAvailable = await isXenovaAvailable() || await isSentenceTransformersAvailable();
+        if (localEmbeddingAvailable) {
+          providerSpinner.succeed('LLM checks skipped; local embedding provider available');
+        } else {
+          providerSpinner.succeed('Provider checks skipped (offline/degraded mode)');
+          skipEmbeddings = true;
+        }
       } else {
         providerStatus = await checkAllProviders({ workspaceRoot: runWorkspaceRoot, forceProbe: explicitLlmRequested });
         const llmOk = providerStatus.llm.available;
