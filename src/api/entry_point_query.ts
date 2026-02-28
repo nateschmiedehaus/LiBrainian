@@ -76,8 +76,13 @@ export async function runEntryPointQueryStage(options: {
     packs.push(createEntryPointSummaryPack(summaryPayload, version));
   }
 
-  // Then add individual entry point packs
-  const entryPoints = filterEntryPointItems(items);
+  // Then add individual entry point packs, excluding test files.
+  // Test file entry points (e.g., src/cli/__tests__/*.test.ts) are indexed as entry
+  // points but rarely useful for implementation-seeking queries like "how does X work".
+  const entryPoints = filterEntryPointItems(items).filter(ep => {
+    const p = (ep.relativePath ?? '').toLowerCase();
+    return !p.includes('__tests__') && !p.includes('.test.') && !p.includes('.spec.');
+  });
 
   // Sort by confidence (highest first) and limit to top entries
   const sortedEntryPoints = entryPoints

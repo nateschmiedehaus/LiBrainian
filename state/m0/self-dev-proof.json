@@ -1,6 +1,6 @@
 {
   "milestone": "M0",
-  "timestamp": "2026-02-28T00:41:51.937Z",
+  "timestamp": "2026-02-28T02:26:11.357Z",
   "workspace": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian",
   "queries_run": 3,
   "all_passed": true,
@@ -11,7 +11,7 @@
       {
         "query1": "query-pipeline",
         "query2": "bootstrap-lifecycle",
-        "similarity": 0.3333333333333333
+        "similarity": 0
       },
       {
         "query1": "query-pipeline",
@@ -24,91 +24,122 @@
         "similarity": 0
       }
     ],
-    "max_jaccard_similarity": 0.3333333333333333
+    "max_jaccard_similarity": 0
   },
   "results": [
     {
       "label": "query-pipeline",
       "intent": "how does the query pipeline work",
-      "packCount": 5,
+      "packCount": 10,
       "files": [
-        "src/api/bootstrap.ts",
-        "src/api/bootstrap.ts:indexEntryPoints",
+        "src/api/query_cache_hydration.ts",
+        "src/api/query_cache_response_utils.ts",
+        "src/utils/query_batcher.ts",
+        "src/api/query_cache_store_utils.ts",
+        "src/cli/commands/query.ts",
         "src/api/query.ts",
         "src/api/query.ts:assembleContext",
-        "src/agents/index_librarian.ts",
-        "src/agents/index_librarian.ts:createContextPack",
-        "src/utils/query_batcher.ts",
-        "src/utils/query_batcher.ts:execute",
-        "src/cli/commands/query.ts",
-        "src/cli/commands/query.ts:findActiveStorageLock"
+        "src/storage/types.ts",
+        "src/storage/types.ts:isArgumentEdge",
+        "src/strategic/continuous_improvement.ts",
+        "src/strategic/continuous_improvement.ts:createContinuousImprovementSystem",
+        "src/indexing/scip_typescript_backend.ts",
+        "src/api/zero_knowledge_bootstrap.ts"
       ],
       "baseFiles": [
-        "src/api/bootstrap.ts",
-        "src/api/query.ts",
-        "src/agents/index_librarian.ts",
+        "src/api/query_cache_hydration.ts",
+        "src/api/query_cache_response_utils.ts",
         "src/utils/query_batcher.ts",
-        "src/cli/commands/query.ts"
+        "src/api/query_cache_store_utils.ts",
+        "src/cli/commands/query.ts",
+        "src/api/query.ts",
+        "src/storage/types.ts",
+        "src/strategic/continuous_improvement.ts",
+        "src/indexing/scip_typescript_backend.ts",
+        "src/api/zero_knowledge_bootstrap.ts"
       ],
       "mustIncludeMatched": true,
       "matchedPattern": "src/api/query.ts matched \"src/api/query.ts\"",
       "contamination": false,
-      "latencyMs": 904
+      "latencyMs": 526
     },
     {
       "label": "bootstrap-lifecycle",
       "intent": "how does bootstrap indexing work",
-      "packCount": 7,
+      "packCount": 10,
       "files": [
         "src/api/bootstrap.ts",
         "src/api/bootstrap.ts:indexEntryPoints",
-        "src/api/query.ts",
-        "src/api/query.ts:assembleContext",
-        "src/api/packs.ts",
-        "src/api/packs.ts:isEvalCorpusPath",
-        "src/agents/index_librarian.ts",
-        "src/agents/index_librarian.ts:createContextPack",
+        "src/api/project_understanding.ts",
+        "src/api/project_understanding.ts:handleProjectUnderstandingQuery",
+        "src/api/test_suggestions.ts",
+        "src/api/test_suggestions.ts:runTestSuggestionStage",
+        "src/agents/fix_generator.ts",
+        "src/agents/fix_generator.ts:scoreTemplate",
+        "src/mcp/server.ts",
+        "src/mcp/server.ts:createLiBrainianMCPServer",
+        "src/bootstrap/bootstrap_recovery.ts",
         "src/integration/bootstrap_tests.ts",
-        "src/integration/bootstrap_tests.ts:createBootstrapTestRunner",
         "src/constructions/processes/bootstrap_quality_gate.ts",
-        "src/constructions/processes/bootstrap_quality_gate.ts:createDefaultCFixture",
+        "src/cli/bootstrap_progress_reporter.ts",
         "src/cli/commands/bootstrap.ts"
       ],
       "baseFiles": [
         "src/api/bootstrap.ts",
-        "src/api/query.ts",
-        "src/api/packs.ts",
-        "src/agents/index_librarian.ts",
+        "src/api/project_understanding.ts",
+        "src/api/test_suggestions.ts",
+        "src/agents/fix_generator.ts",
+        "src/mcp/server.ts",
+        "src/bootstrap/bootstrap_recovery.ts",
         "src/integration/bootstrap_tests.ts",
         "src/constructions/processes/bootstrap_quality_gate.ts",
+        "src/cli/bootstrap_progress_reporter.ts",
         "src/cli/commands/bootstrap.ts"
       ],
       "mustIncludeMatched": true,
       "matchedPattern": "src/api/bootstrap.ts matched \"src/api/bootstrap.ts\"",
       "contamination": false,
-      "latencyMs": 385
+      "latencyMs": 317
     },
     {
       "label": "embedding-system",
       "intent": "how does embedding and vector search work",
-      "packCount": 3,
+      "packCount": 10,
       "files": [
+        "src/api/embedding_providers/real_embeddings.ts",
+        "src/api/embedding_providers/real_embeddings.ts:preloadEmbeddingModel",
+        "src/api/embedding_providers/multi_vector_representations.ts",
+        "src/api/embedding_providers/multi_vector_representations.ts:computeMultiVectorSimilarity",
+        "src/epistemics/intuitive_grounding.ts",
+        "src/epistemics/intuitive_grounding.ts:findBestUpgradePath",
+        "src/constructions/strategic/technical_debt_construction.ts",
+        "src/constructions/strategic/technical_debt_construction.ts:computeDebtTypeScore",
+        "src/strategic/advanced_engineering.ts",
+        "src/strategic/advanced_engineering.ts:createRetryConfig",
+        "src/api/embedding_providers/unified_embedding_pipeline.ts",
+        "src/api/embedding_providers/unified_embedding_pipeline.ts:findSimilar",
         "src/storage/vector_index.ts",
-        "src/storage/vector_index.ts:loadSerializedHNSW",
-        "src/api/embeddings.ts",
-        "src/api/embeddings.ts:generateEmbeddings",
+        "src/storage/vector_index.ts:searchLayer",
         "src/graphs/embeddings.ts",
-        "src/graphs/embeddings.ts:buildMetricEmbeddings"
+        "src/api/embedding_coverage.ts",
+        "src/constructions/processes/proof_contract_evaluator.ts"
       ],
       "baseFiles": [
+        "src/api/embedding_providers/real_embeddings.ts",
+        "src/api/embedding_providers/multi_vector_representations.ts",
+        "src/epistemics/intuitive_grounding.ts",
+        "src/constructions/strategic/technical_debt_construction.ts",
+        "src/strategic/advanced_engineering.ts",
+        "src/api/embedding_providers/unified_embedding_pipeline.ts",
         "src/storage/vector_index.ts",
-        "src/api/embeddings.ts",
-        "src/graphs/embeddings.ts"
+        "src/graphs/embeddings.ts",
+        "src/api/embedding_coverage.ts",
+        "src/constructions/processes/proof_contract_evaluator.ts"
       ],
       "mustIncludeMatched": true,
-      "matchedPattern": "src/storage/vector_index.ts matched \"vector_index\"",
+      "matchedPattern": "src/api/embedding_providers/real_embeddings.ts matched \"embedding_providers/\"",
       "contamination": false,
-      "latencyMs": 229
+      "latencyMs": 335
     }
   ]
 }

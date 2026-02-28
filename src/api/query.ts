@@ -16,6 +16,7 @@ import type {
   LibrarianQuery,
   LibrarianResponse,
   ContextPack,
+  ContextPackType,
   LibrarianVersion,
   LlmRequirement,
   EmbeddingRequirement,
@@ -6455,27 +6456,49 @@ async function injectFilenameCandidates(
       if (pathLower.includes('__tests__') || pathLower.includes('.test.') || pathLower.includes('.spec.')) continue;
       if (existingPaths.has(file.path)) continue;
 
-      let bestScore = 0;
+      // Accumulate scores across ALL matching terms (not just best single term).
+      // A file matching 2+ query terms should rank above one matching only 1.
+      let totalScore = 0;
+      let matchedTerms = 0;
       for (const term of terms) {
+        // Check ALL match types and take the best score for this term.
+        // The previous if/else chain could miss a high-scoring directory match
+        // when a low-scoring basename match was found first (e.g., sqlite_storage
+        // in /storage/ directory: basename-includes=3 masked directory-match=5).
+        let termScore = 0;
         // Exact basename match (e.g., "query" → "query.ts") — best signal
         if (basename === term) {
-          bestScore = Math.max(bestScore, 10);
+          termScore = Math.max(termScore, 10);
+        }
         // Basename starts with term (e.g., "query" → "query_intent_patterns.ts")
-        } else if (basename.startsWith(term)) {
-          bestScore = Math.max(bestScore, 7);
+        if (basename.startsWith(term)) {
+          termScore = Math.max(termScore, 7);
+        }
         // Basename contains term
-        } else if (basename.includes(term)) {
-          bestScore = Math.max(bestScore, 3);
-        // Directory contains term (e.g., "embedding" → "embedding_providers/foo.ts")
-        } else if (pathLower.includes(`/${term}`) || pathLower.includes(`${term}_`) || pathLower.includes(`_${term}`)) {
-          bestScore = Math.max(bestScore, 5);
+        if (basename.includes(term)) {
+          termScore = Math.max(termScore, 3);
+        }
+        // Directory contains term (e.g., "storage" → "/storage/foo.ts")
+        const dirMatch = pathLower.includes(`/${term}/`) || pathLower.includes(`/${term}_`) || pathLower.includes(`_${term}/`) || pathLower.includes(`_${term}.`);
+        if (dirMatch) {
+          termScore = Math.max(termScore, 5);
+        }
+        // Bonus: term appears in both basename AND directory (e.g., sqlite_storage in /storage/)
+        if (dirMatch && basename.includes(term)) {
+          termScore += 3;
+        }
+        if (termScore > 0) {
+          totalScore += termScore;
+          matchedTerms++;
         }
       }
+      // Bonus for matching multiple query terms (strong relevance signal)
+      if (matchedTerms >= 2) totalScore += matchedTerms * 3;
       // Prefer src/ over scripts/, tests, docs, etc.
-      if (bestScore > 0) {
-        if (pathLower.includes('/src/')) bestScore += 2;
-        if (pathLower.includes('/scripts/')) bestScore -= 1;
-        scoredFiles.push({ path: file.path, score: bestScore });
+      if (totalScore > 0) {
+        if (pathLower.includes('/src/')) totalScore += 2;
+        if (pathLower.includes('/scripts/')) totalScore -= 1;
+        scoredFiles.push({ path: file.path, score: totalScore });
       }
     }
     // Sort by score descending, take top matches
@@ -6485,9 +6508,18 @@ async function injectFilenameCandidates(
     // Get functions from matching files and inject as candidates
     for (const filePath of matchingPaths) {
       const fns = await storage.getFunctionsByPath(filePath);
-      // Pick the most significant function (longest, likely the main export)
-      const sorted = fns.sort((a, b) => ((b.endLine - b.startLine) || 0) - ((a.endLine - a.startLine) || 0));
-      const topFn = sorted[0];
+      // Prefer functions whose names match query terms (most relevant to the question),
+      // then fall back to the longest function (likely the main export)
+      const fnScored = fns.map(fn => {
+        const fnName = (fn.name ?? '').toLowerCase();
+        let nameScore = 0;
+        for (const term of terms) {
+          if (fnName.includes(term)) nameScore += 5;
+        }
+        return { fn, nameScore, size: (fn.endLine - fn.startLine) || 0 };
+      });
+      fnScored.sort((a, b) => (b.nameScore - a.nameScore) || (b.size - a.size));
+      const topFn = fnScored[0]?.fn;
       if (topFn && !existingIds.has(topFn.id)) {
         injected.push({
           entityId: topFn.id,
@@ -6860,18 +6892,76 @@ async function collectCandidatePacks(storage: LibrarianStorage, candidates: Cand
         : depth === 'L2'
           ? ['module_context', 'change_impact']
           : ['module_context'];
+    let foundPack = false;
     for (const packType of packTypes) {
       let pack = await storage.getContextPackForTarget(candidate.entityId, packType);
-      // Fallback: if no pack found by entityId, try lookup by relatedFile using candidate.path
-      // This handles the case where embedding entity_id (file path) differs from old pack targetId (UUID)
+      // Fallback 1: try filepath:functionName format (context packs use this as target_id
+      // while embeddings use UUIDs as entity_id)
+      if (!pack && candidate.entityType === 'function' && candidate.path) {
+        try {
+          const fn = await storage.getFunction(candidate.entityId);
+          if (fn?.name) {
+            const compositeTarget = `${candidate.path}:${fn.name}`;
+            pack = await storage.getContextPackForTarget(compositeTarget, packType);
+          }
+        } catch {
+          // Non-fatal: proceed to next fallback
+        }
+      }
+      // Fallback 2: if no pack found by entityId or composite target, try lookup by relatedFile
       if (!pack && candidate.path) {
         const fallbackPacks = await storage.getContextPacks({ relatedFile: candidate.path, packType, limit: 1 });
         if (fallbackPacks.length > 0) pack = fallbackPacks[0];
       }
-      if (pack) packs.push(pack);
+      if (pack) { packs.push(pack); foundPack = true; }
+    }
+    // JIT synthesis: if no pre-existing pack found for a function candidate, synthesize one
+    // from function metadata so candidates from filename injection / semantic search
+    // aren't silently dropped
+    if (!foundPack && candidate.entityType === 'function') {
+      const jitPack = await synthesizeFunctionPack(storage, candidate);
+      if (jitPack) packs.push(jitPack);
     }
   }
   return dedupePacks(packs);
+}
+
+/**
+ * JIT pack synthesis: creates a minimal function_context pack from function metadata.
+ * This ensures candidates found by filename injection or semantic search produce results
+ * even when bootstrap didn't generate packs for them (common when only ~20% of functions
+ * get packs during context_pack_generation phase).
+ */
+async function synthesizeFunctionPack(storage: LibrarianStorage, candidate: Candidate): Promise<ContextPack | null> {
+  try {
+    const fn = await storage.getFunction(candidate.entityId);
+    if (!fn) return null;
+    const lineCount = (fn.endLine ?? 0) - (fn.startLine ?? 0);
+    const keyFacts: string[] = [];
+    if (fn.signature) keyFacts.push(`Signature: ${fn.signature}`);
+    if (fn.purpose) keyFacts.push(fn.purpose);
+    if (lineCount > 0) keyFacts.push(`${lineCount} lines (L${fn.startLine}–L${fn.endLine})`);
+    const filePath = fn.filePath || candidate.path || '';
+    return {
+      packId: `jit_${candidate.entityId.slice(0, 12)}`,
+      packType: 'function_context' as ContextPackType,
+      targetId: candidate.entityId,
+      summary: `${fn.name} in ${filePath.split('/').slice(-2).join('/')}${fn.purpose ? ': ' + fn.purpose : ''}`,
+      keyFacts,
+      codeSnippets: [],
+      relatedFiles: filePath ? [filePath] : [],
+      confidence: Math.max(0.3, candidate.confidence * 0.8), // slightly lower than stored packs
+      createdAt: new Date(),
+      accessCount: 0,
+      lastOutcome: 'unknown',
+      successCount: 0,
+      failureCount: 0,
+      version: getCurrentVersion(),
+      invalidationTriggers: filePath ? [filePath] : [],
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

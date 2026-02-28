@@ -280,7 +280,16 @@ export function rankContextPacks(input: PackRankingInput): PackRankingResult {
     // Apply heavy penalty (0.1x) to eval-corpus and test fixture paths
     // This is defense-in-depth for any already-indexed files that should be excluded
     const hasEvalCorpusFile = pack.relatedFiles.some(isEvalCorpusPath);
-    const baseScore = hasEvalCorpusFile ? weightedScore * 0.1 : weightedScore;
+    let baseScore = hasEvalCorpusFile ? weightedScore * 0.1 : weightedScore;
+    // Penalize test files for non-test queries (implementation, feature, refactor, review)
+    // Test files should only rank well when the query is explicitly about tests
+    if (taskType !== 'bug_fix') {
+      const isTestPack = pack.relatedFiles.some(f => {
+        const fl = f.toLowerCase();
+        return fl.includes('__tests__') || fl.includes('.test.') || fl.includes('.spec.');
+      });
+      if (isTestPack) baseScore *= 0.25;
+    }
     const finalScore = baseScore * computePackQualityMultiplier(pack);
 
     return { pack, score: finalScore };
