@@ -12,13 +12,14 @@ export interface CheckProvidersCommandOptions {
   workspace: string;
   format?: 'text' | 'json';
   out?: string;
+  forceProbe?: boolean;
 }
 
 export async function checkProvidersCommand(options: CheckProvidersCommandOptions): Promise<void> {
-  const { workspace, format = 'text', out } = options;
+  const { workspace, format = 'text', out, forceProbe = false } = options;
 
-  const gateResult = await runProviderReadinessGate(workspace, { emitReport: false });
-  const status = await checkAllProviders({ workspaceRoot: workspace });
+  const gateResult = await runProviderReadinessGate(workspace, { emitReport: false, forceProbe });
+  const status = await checkAllProviders({ workspaceRoot: workspace, forceProbe });
   const envVars = [
     'WAVE0_LLM_PROVIDER',
     'WAVE0_LLM_MODEL',

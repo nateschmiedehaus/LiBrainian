@@ -1235,6 +1235,7 @@ OPTIONS:
     --json              Output results as JSON
     --format text|json  Output format (default: text)
     --out <path>        Write JSON output to file (requires --json/--format json)
+    --force-probe       Run full runtime embedding probe (slower, loads model)
 
 DESCRIPTION:
     Checks the availability and authentication status of:
@@ -1251,6 +1252,7 @@ DESCRIPTION:
 EXAMPLES:
     librarian check-providers
     librarian check-providers --json
+    librarian check-providers --force-probe
     librarian check-providers --json --out /tmp/librarian-providers.json
 `,
 

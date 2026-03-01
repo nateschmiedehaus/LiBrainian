@@ -113,6 +113,7 @@ import { featuresCommand } from './commands/features.js';
 import { capabilitiesCommand } from './commands/capabilities.js';
 import { resolveWorkspaceArg } from './workspace_arg.js';
 import { deriveCliRuntimeMode, applyCliRuntimeMode } from './runtime_mode.js';
+import { shouldForceCliExit } from './exit_policy.js';
 import {
   CliError,
   formatError,
@@ -217,7 +218,7 @@ const COMMANDS: Record<Command, { description: string; usage: string }> = {
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers [--format text|json] [--out <path>]',
+    usage: 'librarian check-providers [--format text|json] [--out <path>] [--force-probe]',
   },
   'audit-skill': {
     description: 'Audit a SKILL.md for malicious or suspicious patterns',
@@ -529,6 +530,7 @@ async function main(): Promise<void> {
           workspace,
           format: defaultFormat as 'text' | 'json',
           out: getStringArg(args, '--out') ?? undefined,
+          forceProbe: args.includes('--force-probe'),
         });
         break;
       case 'audit-skill':
@@ -776,8 +778,6 @@ async function main(): Promise<void> {
   }
 }
 
-const CLI_NON_EXITING_COMMANDS = new Set(['watch', 'mcp']);
-
 function flushStream(stream: NodeJS.WriteStream): Promise<void> {
   if (stream.destroyed || !stream.writable) {
     return Promise.resolve();
@@ -806,7 +806,7 @@ main()
   })
   .finally(() => {
     const command = process.argv[2]?.toLowerCase() ?? '';
-    const shouldForceExit = !CLI_NON_EXITING_COMMANDS.has(command);
+    const shouldForceExit = shouldForceCliExit(command);
     if (!shouldForceExit) return;
     setImmediate(() => {
       flushProcessOutput()

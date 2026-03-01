@@ -6,6 +6,7 @@ import { runProviderReadinessGate } from '../api/provider_gate.js';
 import type { AuthChecker, AuthStatusSummary } from '../utils/auth_checker.js';
 import * as adapters from '../adapters/llm_service.js';
 import type { LlmServiceAdapter } from '../adapters/llm_service.js';
+import * as realEmbeddings from '../api/embedding_providers/real_embeddings.js';
 import { SqliteEvidenceLedger, createSessionId } from '../epistemics/evidence_ledger.js';
 import { getActiveProviderFailures, recordProviderFailure } from '../utils/provider_failures.js';
 
@@ -82,6 +83,96 @@ describe('runProviderReadinessGate', () => {
     expect(result.ready).toBe(true);
     expect(result.selectedProvider).toBe('claude');
     expect(result.bypassed).toBe(false);
+  });
+
+  it('uses lightweight embedding probe by default', async () => {
+    const authChecker = {
+      checkAll: async () => buildAuthStatus({
+        codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+      }),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const llmService = buildAdapter({
+      checkClaudeHealth: async () => ({
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: Date.now(),
+        error: 'missing',
+      }),
+      checkCodexHealth: async () => ({
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      }),
+    });
+
+    const xenovaSpy = vi.spyOn(realEmbeddings, 'isXenovaAvailable').mockResolvedValue(true);
+    const sentenceSpy = vi.spyOn(realEmbeddings, 'isSentenceTransformersAvailable').mockResolvedValue(false);
+    const runtimeProbeSpy = vi.spyOn(realEmbeddings, 'generateRealEmbedding');
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      llmService,
+      emitReport: false,
+      forceProbe: false,
+    });
+
+    expect(result.ready).toBe(true);
+    expect(result.embeddingReady).toBe(true);
+    expect(result.embedding.provider).toBe('xenova');
+    expect(xenovaSpy).toHaveBeenCalled();
+    expect(sentenceSpy).toHaveBeenCalled();
+    expect(runtimeProbeSpy).not.toHaveBeenCalled();
+  });
+
+  it('runs runtime embedding probe when forceProbe is enabled', async () => {
+    const authChecker = {
+      checkAll: async () => buildAuthStatus({
+        codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+      }),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const llmService = buildAdapter({
+      checkClaudeHealth: async () => ({
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: Date.now(),
+        error: 'missing',
+      }),
+      checkCodexHealth: async () => ({
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      }),
+    });
+
+    const runtimeProbeSpy = vi.spyOn(realEmbeddings, 'generateRealEmbedding').mockResolvedValue({
+      embedding: new Float32Array([0.25, 0.5]),
+      provider: 'xenova',
+      dimension: 2,
+      model: 'all-MiniLM-L6-v2',
+    });
+    const xenovaSpy = vi.spyOn(realEmbeddings, 'isXenovaAvailable');
+    const sentenceSpy = vi.spyOn(realEmbeddings, 'isSentenceTransformersAvailable');
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      llmService,
+      emitReport: false,
+      forceProbe: true,
+    });
+
+    expect(result.ready).toBe(true);
+    expect(result.embeddingReady).toBe(true);
+    expect(runtimeProbeSpy).toHaveBeenCalled();
+    expect(xenovaSpy).not.toHaveBeenCalled();
+    expect(sentenceSpy).not.toHaveBeenCalled();
   });
 
   it('supports offline mode without probing LLM providers', async () => {

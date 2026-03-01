@@ -7,7 +7,13 @@ import {
 } from '../adapters/llm_service.js';
 import { createAutoLlmServiceFactory } from '../adapters/anthropic_api_llm_service.js';
 import { createProviderStatusReport, readLastSuccessfulProvider, writeLastSuccessfulProvider, writeProviderStatusReport, type ProviderName } from './reporting.js';
-import { generateRealEmbedding, getCurrentModel } from './embedding_providers/real_embeddings.js';
+import {
+  EMBEDDING_MODELS,
+  generateRealEmbedding,
+  getCurrentModel,
+  isSentenceTransformersAvailable,
+  isXenovaAvailable,
+} from './embedding_providers/real_embeddings.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
 import * as llmEnv from './llm_env.js';
@@ -188,8 +194,8 @@ export async function runProviderReadinessGate(
       remediationSteps.push(`LLM adapter init failed: ${llmServiceError}`);
     }
   }
-  const embeddingHealthCheck = options.embeddingHealthCheck ?? checkEmbeddingHealth;
   const forceProbe = options.forceProbe ?? false;
+  const embeddingHealthCheck = options.embeddingHealthCheck ?? (() => checkEmbeddingHealth({ forceProbe }));
 
   const now = Date.now();
   const [claude, codex] = networkDisabled
@@ -535,8 +541,43 @@ function buildRemediationSteps(authStatus: AuthStatusSummary): string[] {
   return Array.from(steps);
 }
 
-async function checkEmbeddingHealth(): Promise<EmbeddingGateStatus> {
+async function checkEmbeddingHealth(options: { forceProbe: boolean }): Promise<EmbeddingGateStatus> {
   const modelId = getCurrentModel();
+  const model = EMBEDDING_MODELS[modelId];
+
+  if (!options.forceProbe) {
+    const [xenovaAvailable, sentenceTransformersAvailable] = await Promise.all([
+      isXenovaAvailable(),
+      isSentenceTransformersAvailable(),
+    ]);
+
+    if (xenovaAvailable) {
+      return {
+        provider: 'xenova',
+        available: true,
+        lastCheck: Date.now(),
+        modelId,
+        dimension: model.dimension,
+      };
+    }
+    if (sentenceTransformersAvailable) {
+      return {
+        provider: 'sentence-transformers',
+        available: true,
+        lastCheck: Date.now(),
+        modelId,
+        dimension: model.dimension,
+      };
+    }
+    return {
+      provider: 'unknown',
+      available: false,
+      lastCheck: Date.now(),
+      modelId,
+      error: 'No embedding provider available. Install @huggingface/transformers (npm) or sentence-transformers (Python).',
+    };
+  }
+
   try {
     const result = await generateRealEmbedding('embedding health check', modelId);
     const embeddingOk = result.embedding instanceof Float32Array && result.embedding.length > 0;
