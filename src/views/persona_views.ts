@@ -190,16 +190,16 @@ function projectEngineerView(k: UniversalKnowledge): PersonaView {
 function projectManagerView(k: UniversalKnowledge): PersonaView {
   const health = calculateHealth(k);
   const technicalDebt = k.quality?.maintainability?.technicalDebt?.minutes ?? 0;
-  const riskScore = k.security?.riskScore?.overall ?? 0;
+  const riskScore = getRiskScore(k);
   const owner = k.ownership?.owner?.primary?.name ?? 'Unknown';
   const churn = k.quality?.churn?.changeFrequency ?? 0;
 
   const alerts: Alert[] = [];
 
-  if (riskScore > 7) {
+  if ((riskScore ?? 0) > 7) {
     alerts.push({
       level: 'error',
-      message: `High security risk: ${riskScore}/10`,
+      message: `High security risk: ${formatRiskScore(riskScore)}`,
       action: 'Schedule security review',
     });
   }
@@ -216,7 +216,7 @@ function projectManagerView(k: UniversalKnowledge): PersonaView {
     summary: generateManagerSummary(k),
     keyMetrics: [
       { name: 'Tech Debt', value: `${Math.round(technicalDebt / 60)}h`, status: technicalDebt > 120 ? 'warning' : 'good' },
-      { name: 'Risk Score', value: `${riskScore}/10`, status: riskScore > 5 ? 'warning' : 'good' },
+      { name: 'Risk Score', value: formatRiskScore(riskScore), status: (riskScore ?? 0) > 5 ? 'warning' : 'good' },
       { name: 'Churn', value: `${churn}/mo`, status: churn > 10 ? 'warning' : 'good' },
       { name: 'Owner', value: owner },
     ],
@@ -306,7 +306,7 @@ function projectQAView(k: UniversalKnowledge): PersonaView {
 
 function projectSecurityView(k: UniversalKnowledge): PersonaView {
   const health = calculateSecurityHealth(k);
-  const riskScore = k.security?.riskScore?.overall ?? 0;
+  const riskScore = getRiskScore(k);
   const vulnerabilities = k.security?.vulnerabilities?.length ?? 0;
   const cweCount = k.security?.cwe?.length ?? 0;
 
@@ -320,10 +320,10 @@ function projectSecurityView(k: UniversalKnowledge): PersonaView {
     });
   }
 
-  if (riskScore > 7) {
+  if ((riskScore ?? 0) > 7) {
     alerts.push({
       level: 'error',
-      message: `High risk score: ${riskScore}/10`,
+      message: `High risk score: ${formatRiskScore(riskScore)}`,
     });
   }
 
@@ -331,10 +331,10 @@ function projectSecurityView(k: UniversalKnowledge): PersonaView {
     persona: 'security',
     summary: generateSecuritySummary(k),
     keyMetrics: [
-      { name: 'Risk Score', value: `${riskScore}/10`, status: riskScore > 5 ? 'warning' : 'good' },
+      { name: 'Risk Score', value: formatRiskScore(riskScore), status: (riskScore ?? 0) > 5 ? 'warning' : 'good' },
       { name: 'Vulnerabilities', value: vulnerabilities, status: vulnerabilities > 0 ? 'critical' : 'good' },
       { name: 'CWE Matches', value: cweCount },
-      { name: 'Confidentiality', value: k.security?.riskScore?.confidentiality ?? 'N/A' },
+      { name: 'Confidentiality', value: k.security?.riskScore?.confidentiality ?? 'not analyzed' },
     ],
     alerts,
     actions: [
@@ -426,10 +426,10 @@ function generateEngineerSummary(k: UniversalKnowledge): string {
 function generateManagerSummary(k: UniversalKnowledge): string {
   const name = k.name;
   const owner = k.ownership?.owner?.primary?.name ?? 'Unassigned';
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = getRiskScore(k);
   const debt = Math.round((k.quality?.maintainability?.technicalDebt?.minutes ?? 0) / 60);
 
-  return `${name} owned by ${owner}. Risk: ${risk}/10. Estimated debt: ${debt}h.`;
+  return `${name} owned by ${owner}. Risk: ${formatRiskScore(risk)}. Estimated debt: ${debt}h.`;
 }
 
 function generateDesignerSummary(k: UniversalKnowledge): string {
@@ -450,10 +450,10 @@ function generateQASummary(k: UniversalKnowledge): string {
 
 function generateSecuritySummary(k: UniversalKnowledge): string {
   const name = k.name;
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = getRiskScore(k);
   const vulns = k.security?.vulnerabilities?.length ?? 0;
 
-  return `${name}: Risk ${risk}/10, ${vulns} potential vulnerabilities.`;
+  return `${name}: Risk ${formatRiskScore(risk)}, ${vulns} potential vulnerabilities.`;
 }
 
 function generateScientistSummary(k: UniversalKnowledge): string {
@@ -481,7 +481,7 @@ function calculateHealth(k: UniversalKnowledge): HealthIndicator {
   factors.push(maintainability);
 
   // Inverse risk (100 - risk*10)
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = getRiskScore(k) ?? 0;
   factors.push(100 - risk * 10);
 
   // Inverse complexity (normalized)
@@ -500,7 +500,7 @@ function calculateHealth(k: UniversalKnowledge): HealthIndicator {
 }
 
 function calculateSecurityHealth(k: UniversalKnowledge): HealthIndicator {
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = getRiskScore(k) ?? 0;
   const vulns = k.security?.vulnerabilities?.length ?? 0;
 
   const score = Math.max(0, 100 - risk * 10 - vulns * 15);
@@ -510,6 +510,15 @@ function calculateSecurityHealth(k: UniversalKnowledge): HealthIndicator {
     status: score > 70 ? 'green' : score > 40 ? 'yellow' : 'red',
     summary: score > 70 ? 'Low risk' : score > 40 ? 'Moderate risk' : 'High risk',
   };
+}
+
+function getRiskScore(k: UniversalKnowledge): number | null {
+  const risk = k.security?.riskScore?.overall;
+  return typeof risk === 'number' ? risk : null;
+}
+
+function formatRiskScore(value: number | null): string {
+  return value === null ? 'not analyzed' : `${value}/10`;
 }
 
 function getCoveragePercent(k: UniversalKnowledge): number {

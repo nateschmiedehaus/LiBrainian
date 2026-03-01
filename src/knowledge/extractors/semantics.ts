@@ -13,7 +13,7 @@
  * if LLM is unavailable.
  */
 
-import type { EntitySemantics } from '../universal_types.js';
+import type { EntitySemantics, TribalKnowledgeInfo } from '../universal_types.js';
 import { resolveLlmServiceAdapter } from '../../adapters/llm_service.js';
 import { resolveLibrarianModelId } from '../../api/llm_env.js';
 import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
@@ -21,6 +21,7 @@ import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 export interface SemanticsExtraction {
   semantics: EntitySemantics;
   confidence: number;
+  wisdom?: TribalKnowledgeInfo;
   llmEvidence?: LlmEvidence;
 }
 
@@ -81,6 +82,7 @@ export async function extractSemanticsWithLLM(
     return {
       semantics: parsed.semantics,
       confidence: parsed.confidence,
+      wisdom: parsed.wisdom,
       llmEvidence,
     };
   } catch (error) {
@@ -122,9 +124,16 @@ Return a JSON object with these fields:
     "time": "Big-O time complexity",
     "space": "Big-O space complexity",
     "cognitive": "trivial|simple|moderate|complex|very_complex"
+  },
+  "wisdom": {
+    "gotchas": ["non-obvious pitfalls and failure modes"],
+    "tips": ["practical usage patterns that work well"],
+    "learningPath": [{"order": 1, "description": "specific step to understand this entity"}],
+    "tribal": ["undocumented conventions or historical context"]
   }
 }
 
+The wisdom section is optional. If nothing notable exists, return empty arrays.
 Be precise and evidence-based. Only claim what the code demonstrates.`;
 
 function buildCodeContext(input: SemanticsInput): string {
@@ -155,7 +164,69 @@ File: ${input.filePath}
 
 ${context}
 
-Provide a JSON response with purpose, domain, intent, mechanism, and complexity.`;
+Provide a JSON response with purpose, domain, intent, mechanism, complexity, and optional wisdom.`;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const deduped = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue;
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    deduped.add(trimmed);
+  }
+  return Array.from(deduped);
+}
+
+function parseWisdom(value: unknown): TribalKnowledgeInfo | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const gotchas = normalizeStringList(raw.gotchas);
+  const tips = normalizeStringList(raw.tips);
+  const tribal = normalizeStringList(raw.tribal);
+
+  const learningPathInput = Array.isArray(raw.learningPath) ? raw.learningPath : [];
+  const learningSteps = learningPathInput
+    .map((step, index) => {
+      if (typeof step === 'string') {
+        const description = step.trim();
+        if (!description) return null;
+        return { order: index + 1, description };
+      }
+      if (!step || typeof step !== 'object') return null;
+      const stepRecord = step as Record<string, unknown>;
+      const description = typeof stepRecord.description === 'string' ? stepRecord.description.trim() : '';
+      if (!description) return null;
+      const orderCandidate = Number(stepRecord.order);
+      return {
+        order: Number.isFinite(orderCandidate) && orderCandidate > 0 ? Math.floor(orderCandidate) : index + 1,
+        description,
+      };
+    })
+    .filter((step): step is { order: number; description: string } => step !== null);
+
+  if (gotchas.length === 0 && tips.length === 0 && tribal.length === 0 && learningSteps.length === 0) {
+    return undefined;
+  }
+
+  return {
+    tribal: tribal.map((knowledge) => ({
+      knowledge,
+      source: 'LLM semantic extraction',
+      importance: 'important',
+    })),
+    gotchas: gotchas.map((description) => ({
+      description,
+      consequence: 'May cause unexpected behavior',
+      prevention: 'Follow recommended usage pattern',
+    })),
+    tips: tips.map((description) => ({
+      description,
+      context: 'LLM semantic extraction',
+    })),
+    learningPath: learningSteps,
+  };
 }
 
 function parseSemanticResponse(
@@ -210,6 +281,7 @@ function parseSemanticResponse(
           cognitive: parsed.complexity?.cognitive || 'moderate',
         },
       },
+      wisdom: parseWisdom(parsed.wisdom),
       confidence: 0.85, // LLM extraction has high confidence
     };
   } catch (error) {

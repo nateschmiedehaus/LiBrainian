@@ -503,7 +503,11 @@ export class UniversalKnowledgeGenerator {
       if (testingResult.result) extractionResults.testing = testingResult.result;
 
       // 5f: History and ownership
-      const historyOwnershipResult = await this.extractHistoryAndOwnershipSections(ctx, fileContent);
+      const historyOwnershipResult = await this.extractHistoryAndOwnershipSections(
+        ctx,
+        fileContent,
+        semanticsResult.result,
+      );
       errors.push(...historyOwnershipResult.errors);
       if (historyOwnershipResult.historyResult) extractionResults.history = historyOwnershipResult.historyResult;
       if (historyOwnershipResult.ownershipResult) extractionResults.ownership = historyOwnershipResult.ownershipResult;
@@ -752,7 +756,8 @@ export class UniversalKnowledgeGenerator {
    */
   private async extractHistoryAndOwnershipSections(
     ctx: FunctionExtractionContext,
-    fileContent?: string
+    fileContent?: string,
+    semanticsResult?: SemanticsExtraction,
   ): Promise<{
     historyResult?: Awaited<ReturnType<typeof extractHistory>>;
     ownershipResult?: Awaited<ReturnType<typeof extractOwnership>>;
@@ -789,6 +794,7 @@ export class UniversalKnowledgeGenerator {
         filePath,
         workspaceRoot: this.config.workspace,
         content: fileContent,
+        semanticWisdom: semanticsResult?.wisdom,
       };
       ownershipResult = await extractOwnership(ownershipInput);
       knowledge.ownership = ownershipResult.ownership;
@@ -1623,7 +1629,7 @@ export class UniversalKnowledgeGenerator {
       knowledge: JSON.stringify(knowledge),
       purposeSummary: knowledge.semantics.purpose.summary || undefined,
       maintainabilityIndex: knowledge.quality.maintainability.index,
-      riskScore: knowledge.security.riskScore.overall,
+      riskScore: knowledge.security.riskScore?.overall ?? undefined,
       testCoverage: knowledge.quality.coverage.statement,
       cyclomaticComplexity: knowledge.quality.complexity.cyclomatic,
       cognitiveComplexity: knowledge.semantics.complexity.cognitive,

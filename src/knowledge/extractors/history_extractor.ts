@@ -68,6 +68,9 @@ export interface OwnershipInput {
   // File content for tribal knowledge extraction
   content?: string;
 
+  // Optional wisdom synthesized by semantic extraction
+  semanticWisdom?: TribalKnowledgeInfo;
+
   // Codeowners data
   codeowners?: string[];
 }
@@ -317,8 +320,11 @@ export async function extractOwnership(input: OwnershipInput): Promise<Ownership
   // Build reviewer list
   const reviewers = buildReviewerList(experts);
 
-  // Extract tribal knowledge from comments
-  const knowledge = extractTribalKnowledge(input.content);
+  // Extract tribal knowledge from comments + semantic LLM wisdom
+  const knowledge = mergeTribalKnowledge(
+    extractTribalKnowledge(input.content),
+    input.semanticWisdom,
+  );
 
   // Build contact info (would come from external source in production)
   const contact = buildContactInfo(owner);
@@ -444,23 +450,6 @@ function extractTribalKnowledge(content: string | undefined): TribalKnowledgeInf
     });
   }
 
-  // Build learning path from complexity of code
-  const complexity = estimateComplexity(content);
-  if (complexity > 10) {
-    learningPath.push({
-      order: 1,
-      description: 'Understand the data structures used',
-    });
-    learningPath.push({
-      order: 2,
-      description: 'Trace the main execution flow',
-    });
-    learningPath.push({
-      order: 3,
-      description: 'Review edge cases and error handling',
-    });
-  }
-
   return {
     tribal: tribal.slice(0, 5),
     gotchas: gotchas.slice(0, 5),
@@ -469,11 +458,59 @@ function extractTribalKnowledge(content: string | undefined): TribalKnowledgeInf
   };
 }
 
-function estimateComplexity(content: string): number {
-  const lines = content.split('\n').length;
-  const conditions = (content.match(/if|else|switch|case|\?|&&|\|\|/g) || []).length;
-  const loops = (content.match(/for|while|map|reduce|filter/g) || []).length;
-  return Math.floor((lines / 20) + conditions + loops);
+function mergeTribalKnowledge(
+  extracted: TribalKnowledgeInfo,
+  semanticWisdom?: TribalKnowledgeInfo,
+): TribalKnowledgeInfo {
+  if (!semanticWisdom) {
+    return extracted;
+  }
+
+  const tribal = [...extracted.tribal];
+  const gotchas = [...extracted.gotchas];
+  const tips = [...extracted.tips];
+  const learningPath = [...extracted.learningPath];
+
+  const tribalSeen = new Set(tribal.map((item) => item.knowledge.trim().toLowerCase()));
+  for (const item of semanticWisdom.tribal ?? []) {
+    const key = item.knowledge.trim().toLowerCase();
+    if (!key || tribalSeen.has(key)) continue;
+    tribalSeen.add(key);
+    tribal.push(item);
+  }
+
+  const gotchaSeen = new Set(gotchas.map((item) => item.description.trim().toLowerCase()));
+  for (const item of semanticWisdom.gotchas ?? []) {
+    const key = item.description.trim().toLowerCase();
+    if (!key || gotchaSeen.has(key)) continue;
+    gotchaSeen.add(key);
+    gotchas.push(item);
+  }
+
+  const tipSeen = new Set(tips.map((item) => item.description.trim().toLowerCase()));
+  for (const item of semanticWisdom.tips ?? []) {
+    const key = item.description.trim().toLowerCase();
+    if (!key || tipSeen.has(key)) continue;
+    tipSeen.add(key);
+    tips.push(item);
+  }
+
+  const learningSeen = new Set(learningPath.map((item) => item.description.trim().toLowerCase()));
+  for (const item of semanticWisdom.learningPath ?? []) {
+    const key = item.description.trim().toLowerCase();
+    if (!key || learningSeen.has(key)) continue;
+    learningSeen.add(key);
+    learningPath.push(item);
+  }
+
+  return {
+    tribal: tribal.slice(0, 5),
+    gotchas: gotchas.slice(0, 5),
+    tips: tips.slice(0, 5),
+    learningPath: learningPath
+      .sort((a, b) => a.order - b.order)
+      .slice(0, 8),
+  };
 }
 
 function inferTeam(filePath: string, codeowners?: string[]): string | undefined {
