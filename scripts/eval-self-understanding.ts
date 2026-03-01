@@ -19,6 +19,19 @@ import {
 } from '../src/evaluation/self_understanding.js';
 
 const CALLER_PACK_LIMIT = 20;
+const IMPLEMENTATION_PACK_LIMIT = 40;
+const GENERAL_PACK_LIMIT = 80;
+
+function resolvePackLimit(questionType: 'callers' | 'implementation' | 'general'): number {
+  switch (questionType) {
+    case 'callers':
+      return CALLER_PACK_LIMIT;
+    case 'implementation':
+      return IMPLEMENTATION_PACK_LIMIT;
+    default:
+      return GENERAL_PACK_LIMIT;
+  }
+}
 
 function parseNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -265,28 +278,30 @@ try {
           { context: `self-understanding query ${question.id}`, errorCode: 'QUERY_TIMEOUT' },
         );
         const packs = response.packs ?? [];
-        const cappedPacks = question.type === 'callers'
-          ? packs.slice(0, CALLER_PACK_LIMIT)
-          : packs;
-        if (question.type === 'callers' && packs.length > CALLER_PACK_LIMIT) {
+        const packLimit = resolvePackLimit(question.type);
+        const cappedPacks = packs.slice(0, packLimit);
+        if (packs.length > packLimit) {
           console.error(
-            `[eval-self-understanding] caller query ${question.id} returned ${packs.length} packs; capping to ${CALLER_PACK_LIMIT}`
+            `[eval-self-understanding] ${question.type} query ${question.id} returned ${packs.length} packs; capping to ${packLimit}`
           );
         }
         console.error(
           `[eval-self-understanding] query=${question.id} type=${question.type} latencyMs=${Date.now() - queryStartedAt} packs=${packs.length} usedPacks=${cappedPacks.length}`
         );
+        const snippetLimit = Math.min(40, packLimit);
+        const keyFactLimit = Math.max(40, packLimit * 2);
+        const relatedFileLimit = Math.max(20, packLimit);
         const snippets = cappedPacks
           .flatMap((pack) => pack.codeSnippets ?? [])
-          .slice(0, CALLER_PACK_LIMIT)
+          .slice(0, snippetLimit)
           .map((snippet) => ({
             file: snippet.filePath,
             startLine: snippet.startLine,
             endLine: snippet.endLine,
             code: snippet.content,
           }));
-        const keyFacts = cappedPacks.flatMap((pack) => pack.keyFacts ?? []).slice(0, CALLER_PACK_LIMIT * 2);
-        const relatedFiles = Array.from(new Set(cappedPacks.flatMap((pack) => pack.relatedFiles ?? []))).slice(0, CALLER_PACK_LIMIT);
+        const keyFacts = cappedPacks.flatMap((pack) => pack.keyFacts ?? []).slice(0, keyFactLimit);
+        const relatedFiles = Array.from(new Set(cappedPacks.flatMap((pack) => pack.relatedFiles ?? []))).slice(0, relatedFileLimit);
         const summaryParts = cappedPacks
           .map((pack) => pack.summary?.trim())
           .filter((value): value is string => Boolean(value));
