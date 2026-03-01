@@ -384,8 +384,9 @@ jobs:
 
           <!-- agent_pr = {"issue": $NUM, "agent": "worker", "run_id": "${{ github.run_id }}"} -->
           EOF
-          )" --json number --jq '.number')
-            echo "Created PR #$PR_NUM"
+          )" 2>&1)
+            PR_NUM=$(echo "$PR_URL" | grep -oP '/pull/\K\d+' || echo "")
+            echo "Created PR #$PR_NUM (URL: $PR_URL)"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
           fi
 
