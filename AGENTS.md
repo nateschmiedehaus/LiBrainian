@@ -55,33 +55,65 @@ Use conventional commits (`feat/fix/test/docs/refactor/chore`). Do not force-pus
 - Do not add runtime dependencies not justified by a spec
 - Do not publish to npm without explicit instruction
 
-## Using LiBrainian in This Repo
+## Using LiBrainian (Mandatory for Non-Trivial Tasks)
 
-```typescript
-import { initializeLibrarian } from 'librainian';
-const lib = await initializeLibrarian(workspace);
-const context = await lib.query(intent);
+LiBrainian is available as an MCP server. Agents auto-discover it via
+`.mcp.json` (Claude Code) or `.codex/config.toml` (Codex).
+
+### When to Query LiBrainian First
+
+**BEFORE** any of these, call the `query` MCP tool:
+- Modifying code in an unfamiliar module
+- Debugging cross-file issues
+- Planning a refactor that touches 3+ files
+- Writing tests for code you didn't write
+- Assessing blast radius of a change
+
+Example tool calls:
+- `query({ intent: "How does the bootstrap quality gate work?" })`
+- `query({ intent: "What breaks if I change the scoring pipeline?" })`
+- `get_context_pack({ intent: "debug embedding fallback", taskType: "bug_fix" })`
+- `find_callers({ symbolName: "rankContextPacks" })`
+
+### When NOT to Use
+
+- Trivial edits: typos, renames, single-line constant changes
+- Files you already have open and understand
+- Pure formatting or documentation-only changes
+
+### Subagent and CLI Fallback
+
+Subagents spawned via the Task tool cannot access MCP servers (platform
+limitation). When spawning subagents for non-trivial tasks, include CLI
+usage instructions in their prompt.
+
+Quick reference for subagent prompts:
+
+```bash
+# Semantic query (plain text output)
+./ask "How does the bootstrap quality gate work?"
+
+# Structured JSON output
+./ask --json "What calls rankContextPacks?"
+
+# Status and diagnostics
+node dist/cli/index.js status
+node dist/cli/index.js doctor
 ```
 
-CLI: `LiBrainian status | query "<intent>" | health | doctor`
+When spawning a Task agent, include this in the prompt:
+> "This repo has a codebase knowledge tool. Before modifying code you
+> don't understand, run `./ask "your question"` via Bash to get relevant
+> context. Use Grep only for exact literal string matching."
 
-If something is broken, run `LiBrainian doctor` before investigating manually.
+CLI-to-MCP equivalence:
 
-## Natural Usage Heuristics (Issue #833)
-
-Use LiBrainian when uncertainty is high: ownership unclear, cross-file impact
-unknown, architecture intent ambiguous, or test impact uncertain.
-
-Skip LiBrainian for trivial deterministic edits (rename, typo, single-line
-constant with no dependency risk). Prefer one direct query over repeated
-speculative queries.
-
-### Natural-language intent examples
-
-- Bug triage: `LiBrainian query "Users get logged out randomly after idle time"`
-- Feature location: `LiBrainian query "Where should I add retry budget enforcement?"`
-- Refactor safety: `LiBrainian query "What could break if I split query.ts helpers?"`
-- Test impact: `LiBrainian query "What tests change if I modify bootstrap quality gate warnings?"`
+| MCP tool | CLI equivalent |
+|----------|---------------|
+| `query({ intent: "..." })` | `./ask "..."` |
+| `query({ intent: "...", json: true })` | `./ask --json "..."` |
+| `status()` | `node dist/cli/index.js status` |
+| `doctor()` | `node dist/cli/index.js doctor` |
 
 ---
 
@@ -193,6 +225,29 @@ If the change is purely internal (CI scripts, documentation, type-only refactors
 test infrastructure) and does not touch any code path that affects query results,
 the analysis can be skipped. The script auto-detects this — if it says "not
 quality-sensitive", you can trust that.
+
+---
+
+## Milestone Execution Contract
+
+Use this contract for autonomous issue implementation:
+
+> You are implementing issues for LiBrainian in strict milestone order.
+>
+> Rules:
+> 1) Work only on milestone `<ACTIVE_MILESTONE>` until all its open issues are resolved and verified.
+> 2) Before touching code for any issue, ingest all open issues in the active milestone and produce a concise milestone context map (dependencies, shared modules, conflict risks).
+> 3) Never bypass non-deterministic tests. If a test is flaky, fix determinism/root cause or formally evolve thresholds with evidence and rationale.
+> 4) For retrieval/query/indexing/scoring/user-facing behavior changes, run `node scripts/issue-quality-analysis.mjs <issue> --description "..."` and include verdict + assessment.
+> 5) Follow proof protocol: write failing proof test first, then fix, then run structural proof validators where required.
+> 6) Keep changes minimal per issue; preserve behavior outside scope.
+> 7) After each issue: run typecheck + relevant tests, summarize what changed, why it is correct, and residual risk.
+> 8) Do not start next milestone until current milestone has green evidence and explicit go/no-go approval.
+
+Reference docs:
+
+- `docs/LiBrainian/MILESTONE_BRIEF.md`
+- `docs/LiBrainian/GATING_POLICY.md`
 
 ---
 
