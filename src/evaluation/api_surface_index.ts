@@ -135,9 +135,93 @@ function collectMembers(node: ts.ClassDeclaration | ts.InterfaceDeclaration): st
   return Array.from(members).sort((a, b) => a.localeCompare(b));
 }
 
+function collectTypeLiteralMembers(members: ts.NodeArray<ts.TypeElement>): string[] {
+  const names = new Set<string>();
+  for (const member of members) {
+    if (!('name' in member)) continue;
+    const name = getDeclarationName(member.name);
+    if (name) names.add(name);
+  }
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+function resolveTypeReferenceName(typeName: ts.EntityName): string {
+  if (ts.isIdentifier(typeName)) return typeName.text;
+  return typeName.right.text;
+}
+
+function resolveMembersFromTypeNode(
+  typeNode: ts.TypeNode | undefined,
+  namedTypeMembers: Map<string, string[]>,
+): string[] {
+  if (!typeNode) return [];
+  if (ts.isParenthesizedTypeNode(typeNode)) {
+    return resolveMembersFromTypeNode(typeNode.type, namedTypeMembers);
+  }
+  if (ts.isTypeLiteralNode(typeNode)) {
+    return collectTypeLiteralMembers(typeNode.members);
+  }
+  if (ts.isTypeReferenceNode(typeNode)) {
+    const name = resolveTypeReferenceName(typeNode.typeName);
+    return namedTypeMembers.get(name) ?? [];
+  }
+  if (ts.isIntersectionTypeNode(typeNode) || ts.isUnionTypeNode(typeNode)) {
+    const combined = new Set<string>();
+    for (const child of typeNode.types) {
+      for (const member of resolveMembersFromTypeNode(child, namedTypeMembers)) {
+        combined.add(member);
+      }
+    }
+    return Array.from(combined).sort((a, b) => a.localeCompare(b));
+  }
+  return [];
+}
+
+function buildNamedTypeMembers(statements: readonly ts.Statement[]): Map<string, string[]> {
+  const namedTypeMembers = new Map<string, string[]>();
+  for (const statement of statements) {
+    if (ts.isInterfaceDeclaration(statement)) {
+      namedTypeMembers.set(statement.name.text, collectMembers(statement));
+      continue;
+    }
+    if (ts.isClassDeclaration(statement) && statement.name) {
+      namedTypeMembers.set(statement.name.text, collectMembers(statement));
+    }
+  }
+  for (const statement of statements) {
+    if (!ts.isTypeAliasDeclaration(statement)) continue;
+    const members = resolveMembersFromTypeNode(statement.type, namedTypeMembers);
+    if (members.length > 0) {
+      namedTypeMembers.set(statement.name.text, members);
+    }
+  }
+  return namedTypeMembers;
+}
+
+function buildVariableMembers(
+  statements: readonly ts.Statement[],
+  namedTypeMembers: Map<string, string[]>,
+): Map<string, string[]> {
+  const variableMembers = new Map<string, string[]>();
+  for (const statement of statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const variableName = getDeclarationName(declaration.name);
+      if (!variableName) continue;
+      const members = resolveMembersFromTypeNode(declaration.type, namedTypeMembers);
+      if (members.length > 0) {
+        variableMembers.set(variableName, members);
+      }
+    }
+  }
+  return variableMembers;
+}
+
 function parseDeclarationExports(filePath: string, content: string): Map<string, ExportEntry> {
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const exportsMap = new Map<string, ExportEntry>();
+  const namedTypeMembers = buildNamedTypeMembers(sourceFile.statements);
+  const variableMembers = buildVariableMembers(sourceFile.statements, namedTypeMembers);
   const upsertExport = (entry: ExportEntry): void => {
     const existing = exportsMap.get(entry.name);
     if (!existing) {
@@ -228,7 +312,7 @@ function parseDeclarationExports(filePath: string, content: string): Map<string,
           name: variableName,
           kind: 'const',
           signature: normalizeExportSignature(sourceFile, statement),
-          members: [],
+          members: variableMembers.get(variableName) ?? [],
         });
       }
       continue;
@@ -247,11 +331,12 @@ function parseDeclarationExports(filePath: string, content: string): Map<string,
     if (ts.isExportDeclaration(statement)) {
       if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
         for (const element of statement.exportClause.elements) {
+          const localName = element.propertyName?.text ?? element.name.text;
           upsertExport({
             name: element.name.text,
             kind: 'reexport',
             signature: normalizeExportSignature(sourceFile, statement),
-            members: [],
+            members: variableMembers.get(localName) ?? namedTypeMembers.get(localName) ?? [],
           });
         }
       }
@@ -259,11 +344,14 @@ function parseDeclarationExports(filePath: string, content: string): Map<string,
     }
 
     if (ts.isExportAssignment(statement)) {
+      const defaultMembers = ts.isIdentifier(statement.expression)
+        ? variableMembers.get(statement.expression.text) ?? namedTypeMembers.get(statement.expression.text) ?? []
+        : [];
       upsertExport({
         name: 'default',
         kind: 'default',
         signature: normalizeExportSignature(sourceFile, statement),
-        members: [],
+        members: defaultMembers,
       });
     }
   }
@@ -292,15 +380,63 @@ function selectString(value: unknown): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function resolveTypesEntryFromExports(exportsField: unknown): string | undefined {
-  if (typeof exportsField === 'string') return undefined;
+function toDeclarationPath(specifier: string): string | undefined {
+  const normalized = specifier.trim().replace(/^\.\//, '');
+  if (!normalized) return undefined;
+  if (normalized.endsWith('.d.ts')) return normalized;
+  if (normalized.endsWith('.ts')) return normalized;
+  if (normalized.endsWith('.js') || normalized.endsWith('.mjs') || normalized.endsWith('.cjs')) {
+    return normalized.replace(/\.(?:mjs|cjs|js)$/, '.d.ts');
+  }
+  return undefined;
+}
+
+function resolveTypesPathFromExportTarget(target: unknown): string | undefined {
+  if (typeof target === 'string') {
+    return toDeclarationPath(target);
+  }
+  if (!target || typeof target !== 'object') return undefined;
+  const record = target as Record<string, unknown>;
+  const explicit =
+    selectString(record.types) ??
+    selectString(record.typings);
+  if (explicit) return toDeclarationPath(explicit);
+
+  const conditionOrder = ['import', 'require', 'default', 'node', 'browser'];
+  for (const condition of conditionOrder) {
+    const resolved = resolveTypesPathFromExportTarget(record[condition]);
+    if (resolved) return resolved;
+  }
+  return undefined;
+}
+
+function resolveTypesEntryFromExports(exportsField: unknown, subpath?: string): string | undefined {
+  if (typeof exportsField === 'string') {
+    return subpath ? undefined : toDeclarationPath(exportsField);
+  }
   if (!exportsField || typeof exportsField !== 'object') return undefined;
   const record = exportsField as Record<string, unknown>;
+
+  if (subpath && subpath.length > 0) {
+    const keyCandidates = [
+      `./${subpath}`,
+      `./${subpath}.js`,
+      `./${subpath}.mjs`,
+      `./${subpath}.cjs`,
+      `./${subpath}/index`,
+      `./${subpath}/index.js`,
+    ];
+    for (const key of keyCandidates) {
+      const resolved = resolveTypesPathFromExportTarget(record[key]);
+      if (resolved) return resolved;
+    }
+    return undefined;
+  }
+
   const rootEntry = record['.'];
-  if (typeof rootEntry === 'string') return undefined;
-  if (!rootEntry || typeof rootEntry !== 'object') return undefined;
-  const rootRecord = rootEntry as Record<string, unknown>;
-  return selectString(rootRecord.types);
+  const rootResolved = resolveTypesPathFromExportTarget(rootEntry);
+  if (rootResolved) return rootResolved;
+  return resolveTypesPathFromExportTarget(record);
 }
 
 async function resolveDeclarationFile(
@@ -310,6 +446,8 @@ async function resolveDeclarationFile(
 ): Promise<string | null> {
   const candidates: string[] = [];
   if (subpath) {
+    const subpathTypesEntry = resolveTypesEntryFromExports(packageJson?.exports, subpath);
+    if (subpathTypesEntry) candidates.push(path.join(packageRoot, subpathTypesEntry));
     candidates.push(path.join(packageRoot, `${subpath}.d.ts`));
     candidates.push(path.join(packageRoot, subpath, 'index.d.ts'));
   } else {

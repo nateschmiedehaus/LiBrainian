@@ -515,6 +515,20 @@ export function isInsideClaudeCodeSession(): boolean {
   return false;
 }
 
+function hasConfiguredClaudeBroker(): boolean {
+  const candidate =
+    process.env.LIBRARIAN_CLAUDE_BROKER_URL
+    ?? process.env.LIBRARIAN_LLM_CLAUDE_BROKER_URL
+    ?? process.env.CLAUDE_BROKER_URL;
+  if (!candidate || candidate.trim().length === 0) return false;
+  try {
+    const parsed = new URL(candidate.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Creates a factory that always uses Anthropic API transport.
  * Requires ANTHROPIC_API_KEY to be set.
@@ -529,8 +543,10 @@ export const createApiLlmServiceFactory = createAnthropicApiLlmServiceFactory;
 /**
  * Universal auto-factory that picks the best transport based on environment:
  *  1. ANTHROPIC_API_KEY set -> Anthropic API transport (AnthropicApiLlmService)
- *  2. OPENAI_API_KEY set (no Anthropic key) -> CLI transport with codex provider
- *  3. Neither set -> CLI transport (auto-detects available CLIs)
+ *  2. Otherwise -> CLI transport (CliLlmService), which auto-detects:
+ *     - Claude broker transport via LIBRARIAN_CLAUDE_BROKER_URL
+ *     - OpenAI API transport for codex via OPENAI_API_KEY
+ *     - direct CLI execution fallback
  */
 export function createAutoLlmServiceFactory(): LlmServiceFactory {
   return async () => {
@@ -542,17 +558,24 @@ export function createAutoLlmServiceFactory(): LlmServiceFactory {
     // Lazy import to avoid circular dependency issues
     const { CliLlmService } = await import('./cli_llm_service.js');
 
+    const brokerConfigured = hasConfiguredClaudeBroker();
     if (process.env.OPENAI_API_KEY) {
       logInfo('LLM transport: using CLI transport with codex (OPENAI_API_KEY set)');
       return new CliLlmService();
     }
 
     if (isInsideClaudeCodeSession()) {
-      logWarning(
-        'LLM transport: inside Claude Code session without ANTHROPIC_API_KEY. ' +
-        'CLI subprocess may fail due to nested session detection. ' +
-        'Set ANTHROPIC_API_KEY for reliable LLM access.'
-      );
+      if (brokerConfigured) {
+        logInfo(
+          'LLM transport: inside Claude Code session with Claude broker configured; ' +
+          'using CLI adapter auto-detect (broker preferred for claude).'
+        );
+      } else {
+        logWarning(
+          'LLM transport: inside Claude Code session without ANTHROPIC_API_KEY or LIBRARIAN_CLAUDE_BROKER_URL. ' +
+          'Claude CLI subprocess may fail due to nested session detection.'
+        );
+      }
     }
 
     logInfo('LLM transport: using CLI transport (auto-detect)');
