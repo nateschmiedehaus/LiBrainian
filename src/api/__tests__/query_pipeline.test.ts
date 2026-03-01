@@ -107,6 +107,31 @@ describe('query pipeline definition', () => {
     expect(queryOptions.relatedFilesAny).toContain('reccmp/compare/core.py');
   });
 
+  it('anchors direct-pack retrieval from identifier mentions in location intents', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-symbol',
+        relatedFiles: ['src/api/query.ts'],
+      }),
+    ]);
+    const getFunctionsByName = vi.fn().mockResolvedValue([
+      { filePath: 'src/api/query.ts' },
+    ]);
+    const storage = { getContextPacks, getFunctionsByName } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      { intent: 'Where is function runSynthesisStage implemented?', depth: 'L1' },
+      '/tmp/workspace',
+    );
+
+    expect(packs).toHaveLength(1);
+    expect(getFunctionsByName).toHaveBeenCalledWith('runSynthesisStage');
+    const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[]; limit?: number };
+    expect(queryOptions.relatedFilesAny).toContain('src/api/query.ts');
+    expect(queryOptions.limit).toBe(24);
+  });
+
   it('does not trigger direct-pack retrieval for excludeTests-only filters without anchors', async () => {
     const getContextPacks = vi.fn().mockResolvedValue([createPack({ packId: 'pack-unexpected' })]);
     const storage = { getContextPacks } as unknown as LibrarianStorage;

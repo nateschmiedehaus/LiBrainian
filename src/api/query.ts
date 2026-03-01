@@ -2985,7 +2985,7 @@ async function runDirectPacksStage(options: {
   stageTracker.finish(directStage, { outputCount: directPacks.length, filteredCount: 0 });
   const cacheHit = directPacks.length > 0;
   if (cacheHit) {
-    explanationParts.push(`Matched ${directPacks.length} packs from affected files.`);
+    explanationParts.push(`Matched ${directPacks.length} direct packs from query anchors.`);
   }
   return { directPacks, cacheHit };
 }
@@ -5756,15 +5756,19 @@ async function collectDirectPacks(
   query: LibrarianQuery,
   workspaceRoot: string,
 ): Promise<ContextPack[]> {
+  const intent = query.intent ?? '';
   const inferredIntentPath = extractReferencedFilePath(query.intent ?? '');
   const anchorPaths = query.affectedFiles?.slice(0, 12) ?? [];
+  const identifierAnchors = shouldInferIdentifierAnchors(intent)
+    ? extractReferencedIdentifiers(intent)
+    : [];
   const hasAnchors = Boolean(anchorPaths.length || inferredIntentPath);
   const hasStructuralFilter = Boolean(
     query.filter?.pathPrefix
     || query.filter?.language
     || typeof query.filter?.isPure === 'boolean'
   );
-  if (!hasAnchors && !hasStructuralFilter) return emptyArray<ContextPack>();
+  if (!hasAnchors && !hasStructuralFilter && identifierAnchors.length === 0) return emptyArray<ContextPack>();
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
   const relatedFilesAny = new Set<string>();
@@ -5776,15 +5780,71 @@ async function collectDirectPacks(
       relatedFilesAny.add(candidate);
     }
   }
+  if (identifierAnchors.length > 0) {
+    for (const identifier of identifierAnchors) {
+      try {
+        const functions = await storage.getFunctionsByName(identifier);
+        for (const fn of functions.slice(0, 8)) {
+          if (!fn.filePath) continue;
+          for (const candidate of expandPathCandidates(fn.filePath, workspaceRoot)) {
+            relatedFilesAny.add(candidate);
+          }
+        }
+      } catch {
+        // Non-fatal: identifier anchoring is best-effort.
+      }
+    }
+  }
+  const anchoredByPath = anchoredPaths.length > 0;
+  const directPackLimit = anchoredByPath ? 80 : 24;
   packs.push(...await storage.getContextPacks({
     minConfidence,
-    limit: 80,
+    limit: directPackLimit,
     relatedFilesAny: relatedFilesAny.size > 0 ? Array.from(relatedFilesAny) : undefined,
     relatedFilePrefix: query.filter?.pathPrefix,
     language: query.filter?.language,
     excludeTests: query.filter?.excludeTests,
   }));
-  return dedupePacks(packs).slice(0, 40);
+  const finalLimit = anchoredByPath ? 40 : 24;
+  return dedupePacks(packs).slice(0, finalLimit);
+}
+
+function shouldInferIdentifierAnchors(intent: string): boolean {
+  const normalized = intent.toLowerCase();
+  if (!normalized.trim()) return false;
+  return normalized.startsWith('where is')
+    || normalized.startsWith('where are')
+    || /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(normalized);
+}
+
+function extractReferencedIdentifiers(intent: string): string[] {
+  const stopWords = new Set([
+    'where', 'is', 'are', 'the', 'this', 'that', 'which', 'what', 'who', 'how',
+    'function', 'functions', 'method', 'methods', 'implemented', 'implementation',
+    'defined', 'definition', 'called', 'calls', 'caller', 'callers', 'pipeline',
+    'core', 'code', 'repository', 'in', 'of', 'to', 'for', 'and', 'or',
+  ]);
+  const identifiers = new Set<string>();
+  const add = (value: string): void => {
+    const token = value.trim().replace(/[()]/g, '');
+    if (token.length < 3) return;
+    if (stopWords.has(token.toLowerCase())) return;
+    identifiers.add(token);
+  };
+
+  for (const match of intent.matchAll(/[`'"]([A-Za-z_][A-Za-z0-9_]*)[`'"]/g)) {
+    add(match[1]);
+  }
+  for (const match of intent.matchAll(/\b(?:function|method|symbol)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi)) {
+    add(match[1]);
+  }
+  for (const match of intent.matchAll(/\b([A-Za-z_][A-Za-z0-9_]{2,})\b/g)) {
+    const token = match[1];
+    if (/[A-Z]/.test(token) || token.includes('_')) {
+      add(token);
+    }
+  }
+  return Array.from(identifiers).slice(0, 6);
 }
 
 type ResolvedQueryEmbeddings = {
