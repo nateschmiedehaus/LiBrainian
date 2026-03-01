@@ -255,7 +255,7 @@ jobs:
         run: |
           gh issue view ${{ steps.find.outputs.issue_number }} -R "$REPO" \
             --json body,title,labels,milestone \
-            > /tmp/issue-context.json
+            > .claude-issue-context.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -276,7 +276,7 @@ jobs:
             You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}"
 
             ## Issue Context
-            Read the full issue at /tmp/issue-context.json for details.
+            Read the full issue at .claude-issue-context.json for details.
 
             ## Your Task
             1. Read and understand the issue's acceptance criteria
@@ -303,6 +303,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ inputs.max_turns || '25' }}
+            --allowedTools "Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *)"
 
           # Standard code tools — no MCP (avoids bootstrap/disk/memory issues in CI)
           # LiBrainian MCP requires bootstrapped index which is too heavy for CI runners.

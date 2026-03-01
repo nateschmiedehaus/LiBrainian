@@ -132,19 +132,19 @@ jobs:
 
           # Get issue body and comments (worker evidence)
           gh issue view "$NUM" -R "$REPO" --json body,title,labels,comments \
-            > /tmp/issue-full.json
+            > .claude-issue-full.json
 
           # Get PR diff
-          gh pr diff "$PR" -R "$REPO" > /tmp/pr-diff.patch 2>/dev/null || true
+          gh pr diff "$PR" -R "$REPO" > .claude-pr-diff.patch 2>/dev/null || true
 
           # Get PR file list
           gh pr view "$PR" -R "$REPO" --json files --jq '.files[].path' \
-            > /tmp/pr-files.txt 2>/dev/null || true
+            > .claude-pr-files.txt 2>/dev/null || true
 
           # Get worker evidence comments
           gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '.comments[] | select(.body | contains("agent_evidence")) | .body' \
-            > /tmp/worker-evidence.txt 2>/dev/null || true
+            > .claude-worker-evidence.txt 2>/dev/null || true
 
           echo "Context gathered for verification."
         env:
@@ -165,15 +165,15 @@ jobs:
             was correctly implemented in PR #${{ steps.find.outputs.pr_number }}.
 
             ## Context Files
-            - /tmp/issue-full.json — full issue with comments
-            - /tmp/pr-diff.patch — the PR diff
-            - /tmp/pr-files.txt — files changed
-            - /tmp/worker-evidence.txt — worker's evidence claims
+            - .claude-issue-full.json — full issue with comments
+            - .claude-pr-diff.patch — the PR diff
+            - .claude-pr-files.txt — files changed
+            - .claude-worker-evidence.txt — worker's evidence claims
 
             ## Verification Steps
-            1. Read the issue's acceptance criteria from /tmp/issue-full.json
-            2. Read the worker's evidence claims from /tmp/worker-evidence.txt
-            3. Review the PR diff at /tmp/pr-diff.patch
+            1. Read the issue's acceptance criteria from .claude-issue-full.json
+            2. Read the worker's evidence claims from .claude-worker-evidence.txt
+            3. Review the PR diff at .claude-pr-diff.patch
             4. For each acceptance criterion, verify independently:
                - Read the changed files to confirm the implementation
                - Run `npm run build` to confirm it compiles
@@ -216,6 +216,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns 15
+            --allowedTools "Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *)"
 
         continue-on-error: true
 

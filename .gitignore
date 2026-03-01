@@ -46,5 +46,15 @@ docs/internal/tmp/
 /docs/PRIORITIZED-IMPLEMENTATION-PLAN.md
 /docs/WORLD_CLASS_TDD_PLAN.md
 
+# Codex cache (config.toml is tracked)
+.codex/models_cache.json
+
 # Local-only operating policy docs (never publish/track)
 .local-policies/
+
+# Agent CI temporary files (written by workflows, not for VCS)
+.claude-issue-context.json
+.claude-issue-full.json
+.claude-pr-diff.patch
+.claude-pr-files.txt
+.claude-worker-evidence.txt
