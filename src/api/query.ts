@@ -5759,13 +5759,12 @@ async function collectDirectPacks(
   const inferredIntentPath = extractReferencedFilePath(query.intent ?? '');
   const anchorPaths = query.affectedFiles?.slice(0, 12) ?? [];
   const hasAnchors = Boolean(anchorPaths.length || inferredIntentPath);
-  const hasFilter = Boolean(
+  const hasStructuralFilter = Boolean(
     query.filter?.pathPrefix
-    || query.filter?.excludeTests
     || query.filter?.language
     || typeof query.filter?.isPure === 'boolean'
   );
-  if (!hasAnchors && !hasFilter) return emptyArray<ContextPack>();
+  if (!hasAnchors && !hasStructuralFilter) return emptyArray<ContextPack>();
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
   const relatedFilesAny = new Set<string>();

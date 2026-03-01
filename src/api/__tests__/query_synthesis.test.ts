@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextPack, LibrarianVersion } from '../../types.js';
-import { synthesizeQueryAnswer } from '../query_synthesis.js';
+import { canAnswerFromSummaries, createQuickAnswer, synthesizeQueryAnswer } from '../query_synthesis.js';
 
 const chatMock = vi.hoisted(() => vi.fn());
 
@@ -152,5 +152,33 @@ describe('synthesizeQueryAnswer', () => {
     expect(result.synthesized).toBe(true);
     const firstCall = chatMock.mock.calls[0]?.[0] as { timeoutMs?: number } | undefined;
     expect(firstCall?.timeoutMs).toBe(1_234);
+  });
+});
+
+describe('quick synthesis heuristics', () => {
+  it('allows summary-only answers for location queries when packs are confident', () => {
+    const result = canAnswerFromSummaries(
+      { intent: 'Where is query synthesis executed?', depth: 'L1' },
+      [samplePack]
+    );
+    expect(result).toBe(true);
+  });
+
+  it('emits a location-focused quick answer for where-is intents', () => {
+    const answer = createQuickAnswer(
+      { intent: 'Where is query synthesis executed?', depth: 'L1' },
+      [
+        samplePack,
+        {
+          ...samplePack,
+          packId: 'pack-2',
+          relatedFiles: ['src/api/query.ts'],
+          confidence: 0.79,
+        },
+      ]
+    );
+    expect(answer.answer.toLowerCase()).toContain('query synthesis executed');
+    expect(answer.answer).toContain('src/api/query.ts');
+    expect(answer.synthesized).toBe(true);
   });
 });

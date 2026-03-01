@@ -541,18 +541,25 @@ export function canAnswerFromSummaries(
 ): boolean {
   if (!packs.length) return false;
 
-  // Simple "what does X do" queries can often be answered from summaries
   const intent = query.intent?.toLowerCase() || '';
   const isSimplePurposeQuery =
     intent.startsWith('what does') ||
     intent.startsWith('what is') ||
     intent.includes('purpose of');
+  const isLocationQuery =
+    intent.startsWith('where is') ||
+    intent.startsWith('where are') ||
+    /\b(where|defined|located)\b/.test(intent);
+  const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
 
-  if (!isSimplePurposeQuery) return false;
+  if (!isSimplePurposeQuery && !isLocationQuery && !isCallerQuery) return false;
+
+  const minConfidence = (isLocationQuery || isCallerQuery) ? 0.6 : 0.7;
+  const minSummaryLength = (isLocationQuery || isCallerQuery) ? 10 : 20;
 
   // Check if we have high-confidence packs with clear summaries
   const goodPacks = packs.filter(
-    (p) => p.confidence >= 0.7 && p.summary && p.summary.length > 20
+    (p) => p.confidence >= minConfidence && p.summary && p.summary.length >= minSummaryLength
   );
 
   return goodPacks.length >= 1;
@@ -566,6 +573,9 @@ export function createQuickAnswer(
   query: LibrarianQuery,
   packs: ContextPack[]
 ): SynthesizedAnswer {
+  const intent = query.intent?.toLowerCase() || '';
+  const isLocationQuery = intent.startsWith('where is') || intent.startsWith('where are');
+  const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
   const topPack = packs
     .filter((p) => p.summary && p.summary.length > 10)
     .sort((a, b) => b.confidence - a.confidence)[0];
@@ -574,17 +584,34 @@ export function createQuickAnswer(
     throw new Error('No suitable pack for quick answer');
   }
 
+  const files = Array.from(new Set(
+    packs
+      .flatMap((pack) => pack.relatedFiles ?? [])
+      .map((file) => file.trim())
+      .filter((file) => file.length > 0)
+  )).slice(0, 3);
+  const locationSubjectMatch = query.intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
+  const locationSubject = locationSubjectMatch?.[1]?.trim();
+
+  let quickAnswerText = topPack.summary;
+  if (isLocationQuery && files.length > 0) {
+    const subject = locationSubject && locationSubject.length > 0 ? locationSubject : 'the requested logic';
+    quickAnswerText = `${subject} is primarily implemented in ${files.join(', ')}.`;
+  } else if (isCallerQuery && files.length > 0) {
+    quickAnswerText = `Caller relationships are primarily represented in ${files.join(', ')}.`;
+  }
+
   const queryId = generateQueryId(query);
 
   return {
     queryId,
     synthesized: true,
-    answer: topPack.summary,
+    answer: quickAnswerText,
     confidence: Math.min(0.7, topPack.confidence), // Cap at 0.7 for quick answers
     citations: [
       {
         packId: topPack.packId,
-        content: topPack.summary,
+        content: quickAnswerText,
         relevance: 0.9,
         file: topPack.relatedFiles[0],
       },

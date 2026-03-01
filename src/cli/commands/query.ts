@@ -567,6 +567,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       intent,
       depth,
       affectedFiles,
+      filter: shouldExcludeTestsForIntent(intent) ? { excludeTests: true } : undefined,
       scope: scope && scope.length > 0 ? scope : undefined,
       diversify,
       diversityLambda,
@@ -716,7 +717,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
       if (outputJson) {
         const criticalWarnings = collectCriticalWarnings(response);
-        const answer = deriveQueryAnswer(displayResponse);
+        const answer = deriveQueryAnswer(displayResponse, intent);
         await emitJsonOutput({
           ...displayResponse,
           answer,
@@ -774,7 +775,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         console.log();
       }
 
-      const answer = deriveQueryAnswer(displayResponse);
+      const answer = deriveQueryAnswer(displayResponse, intent);
       if (answer) {
         console.log('Answer:');
         console.log(`  ${answer}`);
@@ -1192,9 +1193,35 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
   };
 }
 
-function deriveQueryAnswer(response: LibrarianResponse): string | undefined {
+function isLocationIntent(intent: string | undefined): boolean {
+  const normalized = intent?.toLowerCase().trim() ?? '';
+  if (!normalized) return false;
+  return normalized.startsWith('where is') || normalized.startsWith('where are');
+}
+
+function shouldExcludeTestsForIntent(intent: string | undefined): boolean {
+  const normalized = intent?.toLowerCase().trim() ?? '';
+  if (!normalized) return false;
+  return !/\b(test|tests|spec|specs|coverage|unit|integration|e2e)\b/.test(normalized);
+}
+
+function deriveQueryAnswer(response: LibrarianResponse, intent?: string): string | undefined {
   const synthesized = response.synthesis?.answer?.trim();
   if (synthesized) return synthesized;
+
+  if (isLocationIntent(intent)) {
+    const allFiles = response.packs.flatMap((pack) => pack.relatedFiles ?? []);
+    const nonTestFiles = allFiles.filter((file) => {
+      const normalized = file.toLowerCase();
+      return !normalized.includes('/__tests__/') && !normalized.includes('.test.') && !normalized.includes('.spec.');
+    });
+    const files = Array.from(new Set((nonTestFiles.length > 0 ? nonTestFiles : allFiles).filter(Boolean))).slice(0, 3);
+    const subjectMatch = intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
+    const subject = subjectMatch?.[1]?.trim() || 'the requested logic';
+    if (files.length > 0) {
+      return `${subject} is primarily implemented in ${files.join(', ')}.`;
+    }
+  }
 
   const summary = response.packs
     .map((pack) => pack.summary?.trim())

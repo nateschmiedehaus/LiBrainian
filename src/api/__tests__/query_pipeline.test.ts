@@ -107,6 +107,24 @@ describe('query pipeline definition', () => {
     expect(queryOptions.relatedFilesAny).toContain('reccmp/compare/core.py');
   });
 
+  it('does not trigger direct-pack retrieval for excludeTests-only filters without anchors', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([createPack({ packId: 'pack-unexpected' })]);
+    const storage = { getContextPacks } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      {
+        intent: 'where is query synthesis executed?',
+        depth: 'L1',
+        filter: { excludeTests: true },
+      },
+      '/tmp/workspace',
+    );
+
+    expect(packs).toHaveLength(0);
+    expect(getContextPacks).not.toHaveBeenCalled();
+  });
+
   it('falls back when rerank output is invalid', async () => {
     const stageTracker = __testing.createStageTracker();
     const coverageGaps: string[] = [];
