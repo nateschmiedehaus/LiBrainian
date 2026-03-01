@@ -43,14 +43,40 @@ interface BlockedImportRule {
   toPattern: RegExp;
 }
 
-const DEFAULT_BLOCKED_IMPORT_RULE: BlockedImportRule = {
-  monitorId: 'ltl.no_direct_mcp_to_storage_imports',
-  violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
-  severity: 'block',
-  description: 'MCP modules must import storage via API abstractions, never directly.',
-  fromPattern: /(^|\/)src\/mcp\//,
-  toPattern: /(^|\/)src\/storage\//,
-};
+const DEFAULT_BLOCKED_IMPORT_RULES: readonly BlockedImportRule[] = [
+  {
+    monitorId: 'ltl.no_direct_mcp_to_storage_imports',
+    violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
+    severity: 'block',
+    description: 'MCP modules must import storage via API abstractions, never directly.',
+    fromPattern: /(^|\/)src\/mcp\//,
+    toPattern: /(^|\/)src\/storage\//,
+  },
+  {
+    monitorId: 'ltl.no_direct_cli_to_storage_imports',
+    violatedProperty: 'G(no_direct_cli_to_storage_imports)',
+    severity: 'block',
+    description: 'CLI commands must not import storage directly; use API abstractions.',
+    fromPattern: /(^|\/)src\/cli\//,
+    toPattern: /(^|\/)src\/storage\//,
+  },
+  {
+    monitorId: 'ltl.no_api_to_homeostasis_imports',
+    violatedProperty: 'G(no_api_to_homeostasis_imports)',
+    severity: 'warn',
+    description: 'API layer must not import homeostasis internals directly.',
+    fromPattern: /(^|\/)src\/api\//,
+    toPattern: /(^|\/)src\/homeostasis\//,
+  },
+  {
+    monitorId: 'ltl.no_extractor_to_mcp_imports',
+    violatedProperty: 'G(no_extractor_to_mcp_imports)',
+    severity: 'block',
+    description: 'Knowledge extractors must not depend on MCP transport layer.',
+    fromPattern: /(^|\/)src\/knowledge\/extractors\//,
+    toPattern: /(^|\/)src\/mcp\//,
+  },
+];
 
 function normalizePath(pathLike: string): string {
   return pathLike
@@ -118,7 +144,7 @@ export class LTLMonitorEvaluator {
   constructor(config: LTLMonitorEvaluatorConfig) {
     this.storage = config.storage;
     this.eventBus = config.eventBus;
-    this.properties = [...(config.properties ?? [createBlockedImportProperty(DEFAULT_BLOCKED_IMPORT_RULE)])];
+    this.properties = [...(config.properties ?? DEFAULT_BLOCKED_IMPORT_RULES.map(createBlockedImportProperty))];
   }
 
   registerProperty(property: LTLSafetyProperty): void {

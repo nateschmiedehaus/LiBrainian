@@ -437,12 +437,16 @@ export class HomeostasisDaemon {
       ? event.data.severity
       : 'warn';
     const evidence = event.data.evidence && typeof event.data.evidence === 'object'
-      ? event.data.evidence
+      ? event.data.evidence as Record<string, unknown>
       : {};
+    const sourceFile = typeof evidence['sourceFile'] === 'string' ? evidence['sourceFile'] : undefined;
+    const importPath = typeof evidence['importPath'] === 'string' ? evidence['importPath'] : undefined;
 
     logWarning('[homeostasis] safety_violation event received', {
       violatedProperty,
       severity,
+      sourceFile,
+      importPath,
       evidence,
     });
   }
