@@ -6,8 +6,8 @@ import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import type { LibrarianStorage } from '../../storage/types.js';
 import type { EmbeddingService } from '../embeddings.js';
 
-vi.mock('../provider_check.js', () => ({
-  checkProviderSnapshot: vi.fn().mockResolvedValue({
+const { checkProviderSnapshotMock } = vi.hoisted(() => ({
+  checkProviderSnapshotMock: vi.fn().mockResolvedValue({
     status: {
       llm: { available: false, provider: 'none', model: 'unknown', latencyMs: 0, error: 'unavailable' },
       embedding: { available: true, provider: 'xenova', model: 'all-MiniLM-L6-v2', latencyMs: 0 },
@@ -15,6 +15,10 @@ vi.mock('../provider_check.js', () => ({
     remediationSteps: [],
     reason: 'mocked',
   }),
+}));
+
+vi.mock('../provider_check.js', () => ({
+  checkProviderSnapshot: checkProviderSnapshotMock,
   ProviderUnavailableError: class ProviderUnavailableError extends Error {
     constructor(public details: { message: string; missing: string[]; suggestion: string }) {
       super(details.message);
@@ -34,6 +38,7 @@ describe('queryLibrarian exhaustive routing', () => {
 
   afterEach(async () => {
     await storage?.close?.();
+    checkProviderSnapshotMock.mockClear();
   });
 
   it('skips semantic retrieval for exhaustive structural queries', async () => {
@@ -79,5 +84,33 @@ describe('queryLibrarian exhaustive routing', () => {
 
     expect(embeddingService.generateEmbedding).not.toHaveBeenCalled();
     expect(result.explanation ?? '').toMatch(/Exhaustive dependency query selected/);
+  });
+
+  it('skips provider snapshots when llm and embeddings are disabled', async () => {
+    const { queryLibrarian } = await import('../query.js');
+    storage = createSqliteStorage(getTempDbPath(), workspaceRoot);
+    await storage.initialize();
+    await storage.upsertModule({
+      id: 'module-basic',
+      path: path.join(workspaceRoot, 'src/basic.ts'),
+      purpose: 'Basic module',
+      exports: [],
+      dependencies: [],
+      confidence: 0.6,
+    });
+
+    const response = await queryLibrarian(
+      {
+        intent: 'where is query synthesis executed?',
+        depth: 'L0',
+        llmRequirement: 'disabled',
+        embeddingRequirement: 'disabled',
+        disableCache: true,
+      },
+      storage
+    );
+
+    expect(response.llmRequirement).toBe('disabled');
+    expect(checkProviderSnapshotMock).not.toHaveBeenCalled();
   });
 });

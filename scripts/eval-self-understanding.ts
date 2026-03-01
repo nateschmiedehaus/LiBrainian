@@ -253,6 +253,7 @@ try {
             filter: { excludeTests: true },
             llmRequirement: 'disabled',
             embeddingRequirement: 'disabled',
+            includeEngines: false,
             disableMethodGuidance: true,
             forceSummarySynthesis: true,
             disableCache: true,

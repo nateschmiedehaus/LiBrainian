@@ -1013,11 +1013,34 @@ export async function queryLibrarian(
       recordCoverageGap,
     });
 
-    const providerSnapshot = await checkProviderSnapshot({
-      workspaceRoot,
-      ledger: traceOptions.evidenceLedger,
-      sessionId: traceSessionId,
-    });
+    const providerChecksDisabled =
+      llmRequirement === 'disabled' && query.embeddingRequirement === 'disabled';
+    const providerSnapshot = providerChecksDisabled
+      ? {
+          status: {
+            llm: {
+              available: false,
+              provider: 'none',
+              model: 'unknown',
+              latencyMs: 0,
+              error: 'provider checks skipped because llmRequirement=disabled',
+            },
+            embedding: {
+              available: false,
+              provider: 'none',
+              model: 'unknown',
+              latencyMs: 0,
+              error: 'provider checks skipped because embeddingRequirement=disabled',
+            },
+          },
+          remediationSteps: [] as string[],
+          reason: 'provider_checks_skipped',
+        }
+      : await checkProviderSnapshot({
+          workspaceRoot,
+          ledger: traceOptions.evidenceLedger,
+          sessionId: traceSessionId,
+        });
 
     const { disclosures: watchDisclosures, health: watchHealth, state: watchState } = await buildWatchDisclosures({
       storage,
