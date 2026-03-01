@@ -36,12 +36,23 @@ export function createAgentDispatchConstruction(): Construction<
       const args = input.args ?? [];
       const timeoutMs = input.timeoutMs ?? 0;
 
+      // Strip Claude Code nested session markers so dispatched agents
+      // don't get rejected when this runs inside a Claude Code session.
+      const childEnv: Record<string, string | undefined> = {
+        ...process.env,
+        ...(input.env ?? {}),
+      };
+      for (const key of [
+        'CLAUDECODE', 'CLAUDE_CODE', 'CLAUDE_CODE_ENTRYPOINT',
+        'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+        'CLAUDE_SESSION', 'SESSION_ID',
+      ]) {
+        delete childEnv[key];
+      }
+
       const child = spawn(input.command, args, {
         cwd: input.cwd,
-        env: {
-          ...process.env,
-          ...(input.env ?? {}),
-        },
+        env: childEnv,
         stdio: 'pipe',
       });
 

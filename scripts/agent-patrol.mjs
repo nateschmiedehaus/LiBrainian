@@ -1283,10 +1283,16 @@ async function spawnAgent(prompt, sandboxDir, agentBin, timeoutMs, extraEnv = {}
     console.log(`[patrol] spawning: ${agentBin} ${args.slice(0, -1).join(' ')} [prompt: ${prompt.length} chars]`);
 
     // Build child env: inherit everything (OAuth tokens, API keys, provider
-    // configs), overlay cheap model env, and strip CLAUDECODE to avoid nested
-    // session detection when patrol itself runs inside Claude Code.
+    // configs), overlay cheap model env, and strip all Claude Code nested
+    // session markers to avoid detection when patrol runs inside Claude Code.
     const childEnv = { ...process.env, ...extraEnv };
-    delete childEnv.CLAUDECODE;
+    for (const key of [
+      'CLAUDECODE', 'CLAUDE_CODE', 'CLAUDE_CODE_ENTRYPOINT',
+      'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+      'CLAUDE_SESSION', 'SESSION_ID',
+    ]) {
+      delete childEnv[key];
+    }
 
     const child = spawn(agentBin, args, {
       cwd: sandboxDir,

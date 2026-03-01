@@ -195,12 +195,20 @@ const args = [
   '-',
 ];
 
+// Strip Claude Code nested session markers to avoid detection when
+// this runs inside a Claude Code session.
+const childEnv = { ...process.env, CODEX_DISABLE_UPDATE_CHECK: '1' };
+for (const key of [
+  'CLAUDECODE', 'CLAUDE_CODE', 'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_SESSION', 'SESSION_ID',
+]) {
+  delete childEnv[key];
+}
+
 const child = spawn(codexBin, args, {
   stdio: ['pipe', 'pipe', 'pipe'],
-  env: {
-    ...process.env,
-    CODEX_DISABLE_UPDATE_CHECK: '1',
-  },
+  env: childEnv,
   detached: supportsProcessGroups,
 });
 

@@ -24,15 +24,26 @@ function sendJson(res, statusCode, body) {
   res.end(payload);
 }
 
+// Env vars that Claude Code uses to detect nested sessions.
+const NESTED_SESSION_VARS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_SESSION',
+  'SESSION_ID',
+];
+
 function sanitizeClaudeEnv(modelId) {
   const env = { ...process.env };
   // Strip nested Claude session markers so the broker can invoke claude independently.
-  delete env.CLAUDE_CODE_ENTRYPOINT;
-  delete env.CLAUDE_CODE_SESSION_ID;
-  delete env.CLAUDE_CODE_MAX_OUTPUT_TOKENS;
-  delete env.CLAUDECODE;
-  delete env.CLAUDE_SESSION;
-  delete env.SESSION_ID;
+  // NOTE: With execa v9+, env is merged with process.env by default. We must
+  // either use extendEnv:false on every call, or explicitly blank the vars.
+  // We do both: delete from our copy AND return a flag for the caller.
+  for (const key of NESTED_SESSION_VARS) {
+    delete env[key];
+  }
   if (typeof modelId === 'string' && modelId.trim().length > 0) {
     env.CLAUDE_MODEL = modelId.trim();
   }
@@ -137,6 +148,7 @@ async function runClaudeChat({
   }
   const result = await execa(claudeBin, args, {
     env: sanitizeClaudeEnv(modelId),
+    extendEnv: false,
     input: prompt,
     timeout: timeoutMs,
     reject: false,
@@ -166,6 +178,7 @@ function resolveClaudeConfigPath() {
 async function checkHealth(claudeBin) {
   const version = await execa(claudeBin, ['--version'], {
     env: sanitizeClaudeEnv(null),
+    extendEnv: false,
     timeout: 5_000,
     reject: false,
   });
