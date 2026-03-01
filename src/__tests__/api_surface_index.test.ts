@@ -153,6 +153,46 @@ describe('api_surface_index', () => {
     expect(result.suggestions).toContain('next/navigation');
   });
 
+  it('resolves subpath exports via package.json exports field when direct .d.ts is absent', async () => {
+    const workspace = await createWorkspace('librainian-api-subpath-');
+    workspaces.push(workspace);
+
+    // Package uses exports field to point subpath "./utils" to "dist/utils.d.ts"
+    // There is NO "utils.d.ts" or "utils/index.d.ts" at the root — only the exports field path works.
+    await writeJson(path.join(workspace, 'package.json'), {
+      name: 'sample-workspace',
+      version: '1.0.0',
+      dependencies: {
+        'fancy-pkg': '^2.0.0',
+      },
+    });
+    await writeJson(path.join(workspace, 'node_modules', 'fancy-pkg', 'package.json'), {
+      name: 'fancy-pkg',
+      version: '2.0.0',
+      exports: {
+        '.': { types: './index.d.ts', import: './index.js' },
+        './utils': { types: './dist/utils.d.ts', import: './dist/utils.js' },
+      },
+    });
+    await writeText(
+      path.join(workspace, 'node_modules', 'fancy-pkg', 'index.d.ts'),
+      'export declare function root(): void;',
+    );
+    // Only exists via exports field — NOT at utils.d.ts or utils/index.d.ts
+    await writeText(
+      path.join(workspace, 'node_modules', 'fancy-pkg', 'dist', 'utils.d.ts'),
+      'export declare function parseUtil(input: string): number;',
+    );
+
+    const result = await validateImportReference(workspace, {
+      packageName: 'fancy-pkg/utils',
+      importName: 'parseUtil',
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.reason).toBe('ok');
+  });
+
   it('invalidates cache when package manifests change', async () => {
     const workspace = await createWorkspace('librainian-api-cache-');
     workspaces.push(workspace);
