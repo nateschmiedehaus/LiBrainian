@@ -69,7 +69,7 @@ const DEFAULT_QUERIES = [
   { intent: 'cross-cutting-concern', query: 'How are errors handled across the codebase?' },
 ];
 
-const QUERY_TIMEOUT_MS = 60_000;
+const DEFAULT_QUERY_TIMEOUT_MS = 120_000;
 
 // ---------------------------------------------------------------------------
 // Argument Parsing
@@ -91,6 +91,7 @@ function parseArguments() {
     console.log('  --changed-files     Comma-separated list of changed file paths');
     console.log('  --skip-queries      Skip running queries (just generate the template)');
     console.log('  --workspace, -w     Workspace path (defaults to cwd)');
+    console.log('  --query-timeout-ms  Per-query timeout budget (default: 120000)');
     console.log('  --help, -h          Show this help');
     process.exit(0);
   }
@@ -109,6 +110,7 @@ function parseArguments() {
   let changedFiles = [];
   let skipQueries = false;
   let workspace = process.cwd();
+  let queryTimeoutMs = DEFAULT_QUERY_TIMEOUT_MS;
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -148,6 +150,14 @@ function parseArguments() {
       case '-w':
         workspace = args[++i] || process.cwd();
         break;
+      case '--query-timeout-ms': {
+        const raw = args[++i] || '';
+        const parsed = Number.parseInt(raw, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          queryTimeoutMs = parsed;
+        }
+        break;
+      }
     }
   }
 
@@ -156,7 +166,18 @@ function parseArguments() {
     process.exit(1);
   }
 
-  return { issueNumber, description, queries, verdict, assessment, concerns, changedFiles, skipQueries, workspace };
+  return {
+    issueNumber,
+    description,
+    queries,
+    verdict,
+    assessment,
+    concerns,
+    changedFiles,
+    skipQueries,
+    workspace,
+    queryTimeoutMs,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -193,21 +214,52 @@ function isQualitySensitive(description, changedFiles) {
 /**
  * Run a single query against the live index and capture output.
  */
-async function runQuery(queryText, workspace) {
-  const cliPath = path.join(workspace, 'src', 'cli', 'index.ts');
+async function runQuery(queryText, workspace, timeoutMs) {
+  const sourceCliPath = path.join(workspace, 'src', 'cli', 'index.ts');
+  const distCliPath = path.join(workspace, 'dist', 'cli', 'index.js');
+  const useDistCli = await fs.access(distCliPath).then(() => true).catch(() => false);
+  const command = useDistCli ? 'node' : 'npx';
+  const baseArgs = useDistCli
+    ? [distCliPath, 'query', queryText, '--json', '--timeout', String(timeoutMs), '--no-bootstrap']
+    : ['tsx', sourceCliPath, 'query', queryText, '--json', '--timeout', String(timeoutMs), '--no-bootstrap'];
   const start = Date.now();
 
+  const runCommand = async (args, commandTimeoutMs = timeoutMs) => execFileAsync(
+    command,
+    args,
+    {
+      cwd: workspace,
+      timeout: commandTimeoutMs,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    }
+  );
+
   try {
-    const { stdout, stderr } = await execFileAsync(
-      'npx',
-      ['tsx', cliPath, 'query', queryText, '--json'],
-      {
-        cwd: workspace,
-        timeout: QUERY_TIMEOUT_MS,
-        maxBuffer: 10 * 1024 * 1024,
-        env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    let stdout = '';
+    let stderr = '';
+    try {
+      const result = await runCommand(baseArgs);
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (error) {
+      const stderrText = String(error?.stderr ?? '');
+      const stdoutText = String(error?.stdout ?? '');
+      const combined = `${stderrText}\n${stdoutText}`.toLowerCase();
+      const bootstrapRequired = combined.includes('bootstrap')
+        || combined.includes('not bootstrapped')
+        || combined.includes('query_bootstrap_required');
+      const timedOut = Boolean(error?.killed) || /timed out/i.test(String(error?.message ?? ''));
+      if (!bootstrapRequired && !timedOut) {
+        throw error;
       }
-    );
+
+      const retryArgs = baseArgs.filter((arg) => arg !== '--no-bootstrap');
+      const retryTimeoutMs = timedOut ? Math.max(timeoutMs * 2, timeoutMs + 30_000) : timeoutMs;
+      const retryResult = await runCommand(retryArgs, retryTimeoutMs);
+      stdout = retryResult.stdout;
+      stderr = retryResult.stderr;
+    }
 
     const durationMs = Date.now() - start;
     let parsed = null;
@@ -259,10 +311,32 @@ async function runQuery(queryText, workspace) {
       file_count: 0,
       raw_output_length: 0,
       output_preview: '',
-      stderr_preview: err.stderr ? err.stderr.substring(0, 500) : '',
+      stderr_preview: err.stderr ? String(err.stderr).substring(0, 500) : '',
+      stdout_preview: err.stdout ? String(err.stdout).substring(0, 500) : '',
+      timed_out: Boolean(err.killed) || /timed out/i.test(String(err.message ?? '')),
       parsed_output: null,
     };
   }
+}
+
+function classifyQueryFailure(result) {
+  if (result.success) return null;
+  const raw = [
+    result.error || '',
+    result.stderr_preview || '',
+    result.stdout_preview || '',
+  ].join('\n').toLowerCase();
+  if (raw.includes('mutex lock failed') || raw.includes('libc++abi') || raw.includes('sigabrt')) {
+    return 'runtime_abort';
+  }
+  if (result.timed_out || raw.includes('timed out')) return 'timeout';
+  if (raw.includes('bootstrap') || raw.includes('watch_catchup') || raw.includes('reindexing all files')) {
+    return 'bootstrap_required_or_churn';
+  }
+  if (raw.includes('provider_unavailable') || raw.includes('llm provider unavailable')) {
+    return 'provider_unavailable';
+  }
+  return 'query_failed';
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +364,13 @@ function generateAnalysisPrompt(issueNumber, description, queryResults) {
 
     if (!result.success) {
       lines.push(`  Error: ${result.error}`);
+      const classification = classifyQueryFailure(result);
+      if (classification) {
+        lines.push(`  Failure class: ${classification}`);
+      }
+      if (result.timed_out) {
+        lines.push('  Note: Query timed out. Consider increasing --query-timeout-ms and ensuring index/bootstrap stability.');
+      }
     } else {
       lines.push(`  Files returned: ${result.file_count}`);
       if (result.files_returned.length > 0) {
@@ -313,6 +394,12 @@ function generateAnalysisPrompt(issueNumber, description, queryResults) {
       lines.push('  Warnings/errors:');
       for (const stderrLine of result.stderr_preview.split('\n').slice(0, 5)) {
         lines.push(`    ${stderrLine}`);
+      }
+    }
+    if (result.stdout_preview) {
+      lines.push('  Stdout preview:');
+      for (const stdoutLine of result.stdout_preview.split('\n').slice(0, 5)) {
+        lines.push(`    ${stdoutLine}`);
       }
     }
   }
@@ -355,7 +442,7 @@ async function main() {
   const opts = parseArguments();
   const {
     issueNumber, description, queries: userQueries, verdict, assessment,
-    concerns, changedFiles, skipQueries, workspace,
+    concerns, changedFiles, skipQueries, workspace, queryTimeoutMs,
   } = opts;
 
   console.log(`[issue-quality-analysis] Analyzing issue #${issueNumber}`);
@@ -375,12 +462,17 @@ async function main() {
 
   // Step 3: Run queries (unless skipped or not quality-sensitive)
   let queryResults = [];
-  if (!skipQueries && sensitivity.sensitive) {
+  const forceQueries = userQueries.length > 0;
+  const shouldRunQueries = !skipQueries && (sensitivity.sensitive || forceQueries);
+  if (shouldRunQueries) {
+    if (forceQueries && !sensitivity.sensitive) {
+      console.log('[issue-quality-analysis] Running user-specified queries despite non-sensitive auto-detection.');
+    }
     console.log(`[issue-quality-analysis] Running ${queriesToRun.length} queries against live index...`);
 
     for (const q of queriesToRun) {
       console.log(`[issue-quality-analysis]   Running: "${q.query}" ...`);
-      const result = await runQuery(q.query, workspace);
+      const result = await runQuery(q.query, workspace, queryTimeoutMs);
       result.intent = q.intent;
       queryResults.push(result);
 
@@ -391,7 +483,7 @@ async function main() {
     }
   } else if (!sensitivity.sensitive) {
     console.log('[issue-quality-analysis] Issue is not quality-sensitive -- skipping live queries.');
-    console.log('[issue-quality-analysis] (Override with --queries "..." to force query execution)');
+    console.log('[issue-quality-analysis] (Override with --queries "..." to force query execution, or remove --skip-queries)');
   } else {
     console.log('[issue-quality-analysis] Queries skipped (--skip-queries). Generating template only.');
   }
@@ -412,7 +504,18 @@ async function main() {
       files_returned: r.files_returned,
       file_count: r.file_count,
       error: r.error || null,
+      timed_out: r.timed_out || false,
+      failure_class: classifyQueryFailure(r),
+      stderr_preview: r.stderr_preview || '',
+      stdout_preview: r.stdout_preview || '',
     })),
+    evidence_quality: queryResults.length === 0
+      ? 'template_only'
+      : queryResults.every((r) => r.success)
+        ? 'live_queries_ok'
+        : queryResults.some((r) => r.success)
+          ? 'partial_live_queries'
+          : 'failed_live_queries',
     agent_assessment: assessment || '[PENDING -- agent must review results and provide judgment]',
     quality_verdict: verdict || 'insufficient_evidence',
     concerns: concerns.length > 0 ? concerns : ['[PENDING -- agent must list any concerns after reviewing results]'],
