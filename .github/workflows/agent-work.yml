@@ -303,7 +303,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ inputs.max_turns || '25' }}
-            --allowedTools "Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *)"
+            --allowedTools "Edit,Write,Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *)"
 
           # Standard code tools — no MCP (avoids bootstrap/disk/memory issues in CI)
           # LiBrainian MCP requires bootstrapped index which is too heavy for CI runners.
