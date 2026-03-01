@@ -299,10 +299,40 @@ function normalizeCodexErrorMessage(raw: string): string {
   if (lowered.includes('missing bearer token') || lowered.includes('missing bearer')) {
     return 'Codex CLI not authenticated - run `codex login`';
   }
-  if (lowered.includes('failed to open state db') && lowered.includes('missing in the resolved migrations')) {
+  if (isCodexStateDbMigrationMismatchOnly(raw)) {
     return 'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.';
   }
   return raw;
+}
+
+function isCodexStateDbMigrationMismatchLine(line: string): boolean {
+  const normalized = line.toLowerCase();
+  return normalized.includes('failed to open state db') && normalized.includes('missing in the resolved migrations');
+}
+
+function isCodexCliDecorativeLine(line: string): boolean {
+  return /^OpenAI Codex v[\d.]+/i.test(line)
+    || /^Claude Code v[\d.]+/i.test(line)
+    || /^claude version/i.test(line)
+    || /^[-=_]{3,}$/.test(line);
+}
+
+function isCodexStateDbMigrationMismatchOnly(raw: string): boolean {
+  const lines = raw
+    .replace(/\u001B\[[0-9;]*m/g, '')
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 50);
+  const hasMismatch = lines.some((line) => isCodexStateDbMigrationMismatchLine(line));
+  if (!hasMismatch) return false;
+
+  const meaningfulNonMismatch = lines.filter((line) =>
+    !isCodexStateDbMigrationMismatchLine(line)
+    && !isCodexCliDecorativeLine(line)
+    && !isKnownCliNoiseLine(line, 'codex')
+  );
+  return meaningfulNonMismatch.length === 0;
 }
 
 function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
@@ -315,7 +345,8 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
     return true;
   }
   if (
-    /\bWARN codex_state::runtime: failed to open state db\b/i.test(line)
+    isCodexStateDbMigrationMismatchLine(line)
+    || /\bWARN codex_state::runtime: failed to open state db\b/i.test(line)
     || /\bWARN codex_core::state_db: state db record_discrepancy\b/i.test(line)
     || /\bWARN codex_core::shell_snapshot:/i.test(line)
   ) {
@@ -335,13 +366,8 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .slice(0, 25);
-  const isVersionBanner = (line: string): boolean => /^OpenAI Codex v[\d.]+/i.test(line)
-    || /^Claude Code v[\d.]+/i.test(line)
-    || /^claude version/i.test(line);
-  const isSeparatorLine = (line: string): boolean => /^[-=_]{3,}$/.test(line);
   const meaningfulLines = lines.filter((line) =>
-    !isVersionBanner(line)
-    && !isSeparatorLine(line)
+    !isCodexCliDecorativeLine(line)
     && !isKnownCliNoiseLine(line, provider)
   );
   const preferred =
@@ -1321,3 +1347,10 @@ export class CliLlmService {
 export function createCliLlmServiceFactory(): LlmServiceFactory {
   return async () => new CliLlmService();
 }
+
+export const __testing = {
+  normalizeCodexErrorMessage,
+  sanitizeCliErrorMessage,
+  isKnownCliNoiseLine,
+  isCodexStateDbMigrationMismatchOnly,
+};
