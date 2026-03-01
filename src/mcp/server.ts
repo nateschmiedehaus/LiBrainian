@@ -179,6 +179,8 @@ import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
 import { validateImportReference } from '../runtime/api_surface_index.js';
 import { runCompletenessOracle, isCompletionSignalClaim, type CompletenessCounterevidence } from '../api/completeness_oracle.js';
+import { preloadEmbeddingModel } from '../api/embedding_providers/real_embeddings.js';
+import { preloadReranker } from '../api/embedding_providers/cross_encoder_reranker.js';
 
 // ============================================================================
 // TYPES
@@ -1258,6 +1260,7 @@ export class LiBrainianMCPServer {
   private transport: StdioServerTransport | null = null;
   private inFlightToolCalls = 0;
   private readonly inFlightBootstraps = new Map<string, Promise<unknown>>();
+  private startupPrewarmPromise: Promise<void> | null = null;
 
   constructor(config: Partial<LiBrainianMCPServerConfig> = {}) {
     this.config = {
@@ -12098,7 +12101,62 @@ export class LiBrainianMCPServer {
   async start(): Promise<void> {
     this.transport = new StdioServerTransport();
     await this.server.connect(this.transport);
+    void this.startModelPrewarm();
     console.error(`[MCP] LiBrainian server started (${this.config.name} v${this.config.version})`);
+  }
+
+  private startModelPrewarm(): void {
+    if (this.startupPrewarmPromise) {
+      return;
+    }
+
+    const overrideRaw = process.env.LIBRARIAN_MCP_PREWARM?.trim().toLowerCase();
+    if (overrideRaw === '0' || overrideRaw === 'false' || overrideRaw === 'no' || overrideRaw === 'off') {
+      return;
+    }
+
+    const isUnitTestMode = (
+      process.env.LIBRARIAN_TEST_MODE === 'unit'
+      || process.env.NODE_ENV === 'test'
+      || process.env.VITEST !== undefined
+      || process.env.JEST_WORKER_ID !== undefined
+    );
+    if (isUnitTestMode) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    this.startupPrewarmPromise = Promise.allSettled([
+      preloadEmbeddingModel(),
+      preloadReranker(),
+    ])
+      .then((results) => {
+        const [embeddingResult, rerankerResult] = results;
+        const elapsedMs = Date.now() - startedAt;
+        const failures = results
+          .map((result, index) => {
+            if (result.status === 'fulfilled') return null;
+            const label = index === 0 ? 'embedding' : 'reranker';
+            return `${label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`;
+          })
+          .filter((entry): entry is string => Boolean(entry));
+
+        if (failures.length > 0) {
+          console.error(`[MCP] Model prewarm incomplete (${elapsedMs}ms): ${failures.join(' | ')}`);
+          return;
+        }
+
+        const embeddingMessage = embeddingResult?.status === 'fulfilled' ? 'embedding=ok' : 'embedding=skip';
+        const rerankerMessage = rerankerResult?.status === 'fulfilled' ? 'reranker=ok' : 'reranker=skip';
+        console.error(`[MCP] Model prewarm complete in ${elapsedMs}ms (${embeddingMessage}, ${rerankerMessage})`);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[MCP] Model prewarm failed: ${message}`);
+      })
+      .finally(() => {
+        this.startupPrewarmPromise = null;
+      });
   }
 
   /**

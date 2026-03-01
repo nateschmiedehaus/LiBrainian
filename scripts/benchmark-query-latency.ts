@@ -69,6 +69,7 @@ const DEFAULT_QUERY_PLAN: QueryPlan[] = [
 
 type BenchmarkSample = QueryLatencySample & {
   intent: string;
+  runPhase: 'cold' | 'warm';
   ok: boolean;
   error?: string;
 };
@@ -84,6 +85,22 @@ type ProcessHygieneSummary = {
 
 const execFileAsync = promisify(execFile);
 const PROCESS_CLEANUP_SETTLE_MS = 250;
+const WARM_QUERY_P50_SLO_MS = 500;
+const COLD_QUERY_P95_SLO_MS = 2000;
+
+type LatencySloSummary = {
+  warmP50Passed: boolean;
+  coldP95Passed: boolean;
+  passed: boolean;
+  targetsMs: {
+    warmP50: number;
+    coldP95: number;
+  };
+  actualMs: {
+    warmP50: number;
+    coldP95: number;
+  };
+};
 
 function truncateErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
@@ -166,12 +183,50 @@ async function cleanupLingeringBootstrapQueryProcesses(
   };
 }
 
+async function runBenchmarkQuery(options: {
+  query: QueryPlan;
+  runPhase: 'cold' | 'warm';
+  storage: ReturnType<typeof createSqliteStorage>;
+  embeddingService: EmbeddingService;
+}): Promise<BenchmarkSample> {
+  const { query, runPhase, storage, embeddingService } = options;
+  const started = performance.now();
+  try {
+    await queryLibrarian({
+      intent: query.intent,
+      depth: query.depth,
+      llmRequirement: query.llmRequirement,
+      deterministic: true,
+      includeEngines: false,
+    }, storage, embeddingService);
+    const latencyMs = performance.now() - started;
+    return {
+      queryType: query.queryType,
+      intent: query.intent,
+      runPhase,
+      latencyMs,
+      ok: true,
+    };
+  } catch (error) {
+    const latencyMs = performance.now() - started;
+    return {
+      queryType: query.queryType,
+      intent: query.intent,
+      runPhase,
+      latencyMs,
+      ok: false,
+      error: truncateErrorMessage(error),
+    };
+  }
+}
+
 async function run(): Promise<void> {
   const { values } = parseArgs({
     options: {
       workspace: { type: 'string' },
       repetitions: { type: 'string', default: '2' },
       warmup: { type: 'boolean', default: true },
+      failOnSlo: { type: 'boolean', default: false },
     },
     strict: false,
   });
@@ -230,43 +285,35 @@ async function run(): Promise<void> {
       throw new Error('Storage appears unindexed; run bootstrap/index update before latency benchmark.');
     }
 
+    const coldQuery = DEFAULT_QUERY_PLAN[0];
+    if (!coldQuery) {
+      throw new Error('No query plan available for cold-start measurement.');
+    }
+    samples.push(await runBenchmarkQuery({
+      query: coldQuery,
+      runPhase: 'cold',
+      storage,
+      embeddingService,
+    }));
+
     if (values.warmup !== false) {
       await queryLibrarian({
         intent: 'Warm up query pipeline and caches',
         depth: 'L1',
         llmRequirement: 'disabled',
         deterministic: true,
+        includeEngines: false,
       }, storage, embeddingService);
     }
 
     for (let round = 0; round < repetitions; round += 1) {
       for (const query of DEFAULT_QUERY_PLAN) {
-        const started = performance.now();
-        try {
-          await queryLibrarian({
-            intent: query.intent,
-            depth: query.depth,
-            llmRequirement: query.llmRequirement,
-            deterministic: true,
-            includeEngines: false,
-          }, storage, embeddingService);
-          const latencyMs = performance.now() - started;
-          samples.push({
-            queryType: query.queryType,
-            intent: query.intent,
-            latencyMs,
-            ok: true,
-          });
-        } catch (error) {
-          const latencyMs = performance.now() - started;
-          samples.push({
-            queryType: query.queryType,
-            intent: query.intent,
-            latencyMs,
-            ok: false,
-            error: truncateErrorMessage(error),
-          });
-        }
+        samples.push(await runBenchmarkQuery({
+          query,
+          runPhase: 'warm',
+          storage,
+          embeddingService,
+        }));
       }
     }
   } finally {
@@ -274,7 +321,26 @@ async function run(): Promise<void> {
   }
 
   const successfulSamples = samples.filter((sample) => sample.ok);
+  const coldSamples = successfulSamples.filter((sample) => sample.runPhase === 'cold');
+  const warmSamples = successfulSamples.filter((sample) => sample.runPhase === 'warm');
   const latencySummary = summarizeLatencySamples(successfulSamples);
+  const coldLatency = summarizeLatencySamples(coldSamples);
+  const warmLatency = summarizeLatencySamples(warmSamples);
+  const warmP50Passed = warmLatency.p50Ms <= WARM_QUERY_P50_SLO_MS;
+  const coldP95Passed = coldLatency.p95Ms <= COLD_QUERY_P95_SLO_MS;
+  const slo: LatencySloSummary = {
+    warmP50Passed,
+    coldP95Passed,
+    passed: warmP50Passed && coldP95Passed,
+    targetsMs: {
+      warmP50: WARM_QUERY_P50_SLO_MS,
+      coldP95: COLD_QUERY_P95_SLO_MS,
+    },
+    actualMs: {
+      warmP50: warmLatency.p50Ms,
+      coldP95: coldLatency.p95Ms,
+    },
+  };
   const processHygiene = await cleanupLingeringBootstrapQueryProcesses(
     baselineBootstrapQueryPids,
   );
@@ -284,15 +350,24 @@ async function run(): Promise<void> {
       .join('; ');
     throw new Error(`Failed to terminate lingering bootstrap/query process(es): ${failed}`);
   }
+  if (values.failOnSlo === true && !slo.passed) {
+    throw new Error(
+      `Latency SLO regression: warm p50 ${warmLatency.p50Ms.toFixed(2)}ms (target <= ${WARM_QUERY_P50_SLO_MS}ms), `
+      + `cold p95 ${coldLatency.p95Ms.toFixed(2)}ms (target <= ${COLD_QUERY_P95_SLO_MS}ms).`
+    );
+  }
 
   process.stdout.write(
     `${JSON.stringify({
       workspace,
       generatedAt: new Date().toISOString(),
-      queryCount: DEFAULT_QUERY_PLAN.length * repetitions,
+      queryCount: samples.length,
       successfulQueryCount: successfulSamples.length,
       failedQueryCount: samples.length - successfulSamples.length,
       latency: latencySummary,
+      coldLatency,
+      warmLatency,
+      slo,
       processHygiene,
       samples,
     })}\n`
@@ -302,5 +377,5 @@ async function run(): Promise<void> {
 run().catch((error) => {
   const message = truncateErrorMessage(error);
   process.stderr.write(`[benchmark-query-latency] failed: ${message}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 });
