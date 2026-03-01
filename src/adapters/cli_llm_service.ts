@@ -349,6 +349,7 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
     || /\bWARN codex_state::runtime: failed to open state db\b/i.test(line)
     || /\bWARN codex_core::state_db: state db record_discrepancy\b/i.test(line)
     || /\bWARN codex_core::shell_snapshot:/i.test(line)
+    || /\bWARN codex_[a-z0-9_:.-]+:/i.test(line)
   ) {
     return true;
   }

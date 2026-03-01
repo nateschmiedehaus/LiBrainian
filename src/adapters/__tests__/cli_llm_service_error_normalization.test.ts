@@ -45,4 +45,12 @@ describe('cli_llm_service codex error normalization', () => {
     expect(sanitized).not.toContain('You are Librarian');
     expect(sanitized).toContain('codex CLI failed without diagnostic output');
   });
+
+  it('ignores codex WARN-only diagnostics as non-fatal noise in error summaries', () => {
+    const raw =
+      '2026-03-01T03:18:53.016962Z WARN codex_protocol::openai_models: Model personality requested but model_messages is missing, falling back to base instructions. model=gpt-5.1-codex-mini personality=pragmatic';
+
+    const sanitized = __testing.sanitizeCliErrorMessage(raw, 'codex');
+    expect(sanitized).toContain('codex CLI failed without diagnostic output');
+  });
 });
