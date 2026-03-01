@@ -141,5 +141,38 @@ process.exit(1);
     expect(artifact.queries_run[0].failure_class).toBe('runtime_abort');
     expect(artifact.evidence_quality).toBe('failed_live_queries');
   });
-});
 
+  it('extracts files from modern pack shapes that use relatedFiles/codeSnippets', async () => {
+    const { workspace } = await createStubWorkspace(`
+process.stdout.write(JSON.stringify({
+  query: { intent: 'test' },
+  packs: [
+    {
+      packId: 'p1',
+      relatedFiles: ['src/api/provider_gate.ts', 'src/adapters/cli_llm_service.ts'],
+      codeSnippets: [{ filePath: 'src/utils/provider_failures.ts' }],
+    }
+  ],
+}));
+`);
+
+    await runAnalysisScript([
+      '901',
+      '--description', 'query output extraction compatibility fix',
+      '--queries', 'Where is provider gating implemented?',
+      '--workspace', workspace,
+      '--verdict', 'improved',
+      '--assessment', 'modern pack extraction works',
+    ]);
+
+    const artifact = await readArtifact(workspace, 901);
+    expect(artifact.queries_run).toHaveLength(1);
+    expect(artifact.queries_run[0].success).toBe(true);
+    expect(artifact.queries_run[0].file_count).toBe(3);
+    expect(artifact.queries_run[0].files_returned).toEqual(expect.arrayContaining([
+      'src/api/provider_gate.ts',
+      'src/adapters/cli_llm_service.ts',
+      'src/utils/provider_failures.ts',
+    ]));
+  });
+});

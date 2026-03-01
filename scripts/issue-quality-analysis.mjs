@@ -211,6 +211,79 @@ function isQualitySensitive(description, changedFiles) {
 // Query Execution
 // ---------------------------------------------------------------------------
 
+function isLikelyPathString(value) {
+  if (typeof value !== 'string') return false;
+  const candidate = value.trim();
+  if (!candidate) return false;
+  if (candidate.includes('\n')) return false;
+  if (/^https?:\/\//i.test(candidate)) return false;
+  if (candidate.startsWith('architecture:')) return false;
+  return candidate.includes('/') || candidate.includes('\\');
+}
+
+function addFileCandidate(files, seen, candidate) {
+  if (!isLikelyPathString(candidate)) return;
+  const normalized = candidate.trim();
+  if (seen.has(normalized)) return;
+  seen.add(normalized);
+  files.push(normalized);
+}
+
+function collectEntries(entries, files, seen) {
+  if (!Array.isArray(entries)) return;
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      addFileCandidate(files, seen, entry);
+      continue;
+    }
+    if (!entry || typeof entry !== 'object') continue;
+    addFileCandidate(files, seen, entry.file);
+    addFileCandidate(files, seen, entry.path);
+    addFileCandidate(files, seen, entry.filePath);
+  }
+}
+
+function collectPacks(packs, files, seen) {
+  if (!Array.isArray(packs)) return;
+  for (const pack of packs) {
+    if (!pack || typeof pack !== 'object') continue;
+    collectEntries(pack.files, files, seen);
+    collectEntries(pack.relatedFiles, files, seen);
+    collectEntries(pack.entries, files, seen);
+    addFileCandidate(files, seen, pack.path);
+    addFileCandidate(files, seen, pack.file);
+    addFileCandidate(files, seen, pack.filePath);
+    addFileCandidate(files, seen, pack.targetId);
+    if (Array.isArray(pack.codeSnippets)) {
+      for (const snippet of pack.codeSnippets) {
+        if (!snippet || typeof snippet !== 'object') continue;
+        addFileCandidate(files, seen, snippet.filePath);
+      }
+    }
+  }
+}
+
+function extractFilesFromParsedOutput(parsed) {
+  const files = [];
+  const seen = new Set();
+  if (!parsed || typeof parsed !== 'object') return files;
+
+  collectEntries(parsed.files, files, seen);
+  collectEntries(parsed.results, files, seen);
+  collectEntries(parsed.entries, files, seen);
+  collectPacks(parsed.packs, files, seen);
+  collectPacks(parsed.context_packs, files, seen);
+
+  if (parsed.result && typeof parsed.result === 'object') {
+    collectEntries(parsed.result.files, files, seen);
+    collectEntries(parsed.result.results, files, seen);
+    collectPacks(parsed.result.packs, files, seen);
+    collectPacks(parsed.result.context_packs, files, seen);
+  }
+
+  return files;
+}
+
 /**
  * Run a single query against the live index and capture output.
  */
@@ -272,22 +345,7 @@ async function runQuery(queryText, workspace, timeoutMs) {
       // Not valid JSON -- that's fine, capture raw text
     }
 
-    // Extract file list from parsed output
-    let filesReturned = [];
-    if (parsed) {
-      // Try common result shapes
-      if (Array.isArray(parsed.files)) {
-        filesReturned = parsed.files;
-      } else if (Array.isArray(parsed.results)) {
-        filesReturned = parsed.results.map(r => r.file || r.path || r.name).filter(Boolean);
-      } else if (parsed.packs && Array.isArray(parsed.packs)) {
-        filesReturned = parsed.packs.flatMap(p => p.files || []);
-      } else if (parsed.context_packs && Array.isArray(parsed.context_packs)) {
-        filesReturned = parsed.context_packs.flatMap(p =>
-          (p.files || p.entries || []).map(e => e.file || e.path || e).filter(f => typeof f === 'string')
-        );
-      }
-    }
+    const filesReturned = extractFilesFromParsedOutput(parsed);
 
     return {
       query: queryText,
