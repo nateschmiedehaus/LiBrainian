@@ -8,7 +8,7 @@ import {
   buildApiSurfaceIndex,
   clearApiSurfaceIndexCache,
   validateImportReference,
-} from '../evaluation/api_surface_index.js';
+} from '../runtime/api_surface_index.js';
 
 async function writeJson(target: string, payload: unknown): Promise<void> {
   await fs.mkdir(path.dirname(target), { recursive: true });

@@ -177,7 +177,7 @@ import {
 import { toMCPTool } from '../constructions/mcp_bridge.js';
 import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
-import { loadEvaluationModule } from '../utils/evaluation_loader.js';
+import { validateImportReference } from '../runtime/api_surface_index.js';
 import { runCompletenessOracle, isCompletionSignalClaim, type CompletenessCounterevidence } from '../api/completeness_oracle.js';
 
 // ============================================================================
@@ -278,27 +278,6 @@ interface PlanRecord {
   contextUsed: string[];
   workspace?: string;
   createdAt: string;
-}
-
-interface ApiSurfaceIndexModule {
-  validateImportReference: (
-    workspaceRoot: string,
-    input: {
-      packageName: string;
-      importName: string;
-      memberName?: string;
-      context?: string;
-    }
-  ) => Promise<Record<string, unknown>>;
-}
-
-async function loadApiSurfaceIndexModule(): Promise<ApiSurfaceIndexModule> {
-  const externalModuleId = 'librainian-eval/api_surface_index.js';
-  return loadEvaluationModule<ApiSurfaceIndexModule>(
-    'mcp validate_import',
-    () => import('../evaluation/api_surface_index.js') as unknown as Promise<ApiSurfaceIndexModule>,
-    () => import(externalModuleId) as unknown as Promise<ApiSurfaceIndexModule>,
-  );
 }
 
 interface ScopeClaimRecord {
@@ -8216,7 +8195,6 @@ export class LiBrainianMCPServer {
         };
       }
 
-      const { validateImportReference } = await loadApiSurfaceIndexModule();
       const result = await validateImportReference(workspacePath, {
         packageName,
         importName,

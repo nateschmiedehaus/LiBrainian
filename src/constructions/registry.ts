@@ -1207,7 +1207,7 @@ function activateCoreConstructions(): void {
       id: 'librainian:hallucinated-api-detector',
       inputSchema: HALLUCINATED_API_DETECTOR_INPUT_SCHEMA,
       outputSchema: HALLUCINATED_API_DETECTOR_OUTPUT_SCHEMA,
-      requiredCapabilities: ['librainian-eval'],
+      requiredCapabilities: [],
       execute: async (input, context) => {
         const { createHallucinatedApiDetectorConstruction } = await import('./processes/hallucinated_api_detector.js');
         return createHallucinatedApiDetectorConstruction().execute(input as APIDetectorInput, context);
