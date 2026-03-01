@@ -276,29 +276,42 @@ jobs:
             You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}"
 
             ## Issue Context
-            Read the full issue at .claude-issue-context.json for details.
+            Read the full issue at .claude-issue-context.json for details. The issue body
+            contains an "Agent Implementation Brief" with exact file paths, line numbers,
+            and step-by-step implementation instructions. Follow those closely.
 
             ## Your Task
-            1. Read and understand the issue's acceptance criteria
-            2. Read the CLAUDE.md file for project conventions
-            3. Understand the relevant code before changing it (use Read, Grep, Glob)
-            4. Implement the fix/feature
-            5. Run `npm run build` to verify compilation
-            6. Run relevant tests with `npm test -- --testPathPattern <relevant_pattern>`
-            7. Commit your changes with a descriptive message referencing the issue
+            1. Read .claude-issue-context.json to get the full issue and acceptance criteria
+            2. Read the key files mentioned in the issue's implementation brief
+            3. Implement the fix/feature using Edit and Write tools (these are pre-approved)
+            4. Run `npm run build` to verify compilation
+            5. Run relevant tests: `npm test -- --testPathPattern <relevant_pattern>`
+            6. IMPORTANT: Commit your changes with git:
+               ```
+               git add -A
+               git commit -m "fix(scope): description of changes
+
+               Closes #${{ steps.find.outputs.issue_number }}"
+               ```
+
+            ## Tools Available
+            - Edit, Write: for modifying/creating files (pre-approved, use these!)
+            - Read, Grep, Glob: for reading code
+            - Bash: for git, npm, gh commands (see allowed patterns)
 
             ## Rules
+            - Use Edit tool for file modifications. Do NOT use sed/awk for code edits.
             - Make focused, minimal changes. Do not refactor surrounding code.
-            - Do not create new documentation files unless the issue specifically asks for it.
-            - Do not modify CLAUDE.md, AGENTS.md, or workflow files unless the issue requires it.
-            - If you encounter a blocker you cannot resolve, commit what you have and explain in the commit message.
-            - Prefer deleting dead code to adding abstractions.
+            - Do not modify CLAUDE.md, AGENTS.md, or workflow files.
+            - If blocked, commit what you have and explain in the commit message.
+            - You MUST commit before finishing. Uncommitted changes may be lost.
 
             ## Evidence
-            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }} with:
-            - What you changed and why
-            - Test results (paste actual output)
-            - Any caveats or things the verifier should check
+            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }}:
+            ```
+            gh issue comment ${{ steps.find.outputs.issue_number }} --body "..."
+            ```
+            Include: what you changed, test results, and caveats for the verifier.
 
           claude_args: >-
             --model claude-sonnet-4-6
@@ -322,6 +335,9 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
+
+          # Re-authenticate git — claude-code-action revokes its token on completion
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
           # Check if the agent made any commits
           COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
