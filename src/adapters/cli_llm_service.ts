@@ -355,6 +355,24 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
   return false;
 }
 
+function removeCodexTranscriptPayloadLines(lines: string[], provider: CliProvider): string[] {
+  if (provider !== 'codex') return lines;
+  const filtered: string[] = [];
+  let skipPayloadLines = 0;
+  for (const line of lines) {
+    if (skipPayloadLines > 0) {
+      skipPayloadLines -= 1;
+      continue;
+    }
+    if (/^(user|assistant|thinking|codex|tokens used)$/i.test(line)) {
+      skipPayloadLines = 1;
+      continue;
+    }
+    filtered.push(line);
+  }
+  return filtered;
+}
+
 function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   const withoutAnsi = raw.replace(/\u001B\[[0-9;]*m/g, '');
   const normalizedRaw = withoutAnsi.trim();
@@ -366,7 +384,8 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .slice(0, 25);
-  const meaningfulLines = lines.filter((line) =>
+  const prunedLines = removeCodexTranscriptPayloadLines(lines, provider);
+  const meaningfulLines = prunedLines.filter((line) =>
     !isCodexCliDecorativeLine(line)
     && !isKnownCliNoiseLine(line, provider)
   );

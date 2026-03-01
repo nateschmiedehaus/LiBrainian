@@ -231,6 +231,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     effectiveQueryTimeoutMs,
     () => initializeQueryStorageWithRecovery(storage, dbPath, workspace)
   );
+  let bootstrapFallbackNotice: string | undefined;
   const executeQueryWithRecovery = async (queryPayload: LibrarianQuery): Promise<LibrarianResponse> => {
     try {
       return await withQueryCommandTimeout(
@@ -305,8 +306,14 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         });
         bootstrapSpinner.succeed('Bootstrap complete');
       } catch (error) {
-        bootstrapSpinner.fail('Bootstrap failed');
-        throw error;
+        const fallback = await evaluateBootstrapFailureFallback(storage, error);
+        if (!fallback.allowContinue) {
+          bootstrapSpinner.fail('Bootstrap failed');
+          throw error;
+        }
+        bootstrapFallbackNotice = fallback.notice;
+        bootstrapSpinner.succeed('Bootstrap validation failed; continuing with existing index');
+        console.error(`[query] ${fallback.notice}`);
       }
     }
 
@@ -694,7 +701,13 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     try {
       const startTime = Date.now();
       const rawResponse = await executeQueryWithRecovery(query);
-      const { response, droppedCount } = applyPackLimit(rawResponse, limit);
+      const responseWithBootstrapNotice = bootstrapFallbackNotice
+        ? {
+            ...rawResponse,
+            coverageGaps: [...(rawResponse.coverageGaps ?? []), bootstrapFallbackNotice],
+          }
+        : rawResponse;
+      const { response, droppedCount } = applyPackLimit(responseWithBootstrapNotice, limit);
       const strategyInfo = inferRetrievalStrategy(response);
       const displayResponse = sanitizeQueryResponseForOutput(response);
       const elapsed = Date.now() - startTime;
@@ -1369,6 +1382,46 @@ async function executeQueryBootstrapWithRecovery(
   }
 }
 
+function isBootstrapValidationFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return (
+    (normalized.includes('files discovered') && normalized.includes('0 were indexed'))
+    || normalized.includes('fatal validation')
+    || normalized.includes('postcondition fatal')
+    || normalized.includes('include patterns')
+  );
+}
+
+async function hasUsableIndexedData(
+  storage: ReturnType<typeof createSqliteStorage>
+): Promise<boolean> {
+  try {
+    const stats = await storage.getStats();
+    return stats.totalFunctions > 0 && stats.totalModules > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function evaluateBootstrapFailureFallback(
+  storage: ReturnType<typeof createSqliteStorage>,
+  error: unknown
+): Promise<{ allowContinue: boolean; notice?: string }> {
+  if (!isBootstrapValidationFailure(error)) {
+    return { allowContinue: false };
+  }
+  const usableIndex = await hasUsableIndexedData(storage);
+  if (!usableIndex) {
+    return { allowContinue: false };
+  }
+  return {
+    allowContinue: true,
+    notice:
+      'Bootstrap validation failed during query; using last successful index snapshot. Run `librarian bootstrap --force` to repair bootstrap state.',
+  };
+}
+
 function parseNonNegativeInt(raw: string, optionName: string): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed < 0) {
@@ -1560,3 +1613,9 @@ async function saveQuerySession(workspace: string, session: ContextSession): Pro
   await fs.mkdir(sessionsDir, { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
+
+export const __testing = {
+  isBootstrapValidationFailure,
+  evaluateBootstrapFailureFallback,
+  hasUsableIndexedData,
+};

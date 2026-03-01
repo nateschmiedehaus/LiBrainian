@@ -27,5 +27,22 @@ describe('cli_llm_service codex error normalization', () => {
       'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.'
     );
   });
-});
 
+  it('does not surface codex transcript prompt text as an error message', () => {
+    const raw = [
+      'OpenAI Codex v0.104.0',
+      'user',
+      'You are Librarian. Build a method pack for an agent.',
+      'thinking',
+      'Preparing response...',
+      'codex',
+      'I can help with that.',
+      'tokens used',
+      '4137',
+    ].join('\n');
+
+    const sanitized = __testing.sanitizeCliErrorMessage(raw, 'codex');
+    expect(sanitized).not.toContain('You are Librarian');
+    expect(sanitized).toContain('codex CLI failed without diagnostic output');
+  });
+});
