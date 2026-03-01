@@ -85,6 +85,7 @@
     "!dist/**/*.map",
     "!dist/test/**",
     "!dist/**/__tests__/**",
+    "!dist/evaluation/**",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -93,6 +94,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
+    "ask": "node dist/cli/index.js query",
     "build": "tsc && mkdir -p dist/migrations && cp -r src/migrations/*.sql dist/migrations/",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",

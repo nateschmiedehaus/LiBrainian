@@ -26,7 +26,7 @@ type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: num
 type ChatResult = { content: string; provider: string };
 
 type CliProvider = 'claude' | 'codex';
-type ProviderTransport = 'auto' | 'cli' | 'api';
+type ProviderTransport = 'auto' | 'cli' | 'api' | 'broker';
 
 type HealthState = {
   claude: LlmProviderHealth;
@@ -142,7 +142,7 @@ function isNestedClaudeCodeSession(): boolean {
 
 function parseTransport(value: string | undefined): ProviderTransport {
   const normalized = value?.trim().toLowerCase();
-  if (normalized === 'cli' || normalized === 'api' || normalized === 'auto') {
+  if (normalized === 'cli' || normalized === 'api' || normalized === 'auto' || normalized === 'broker') {
     return normalized;
   }
   return 'auto';
@@ -156,11 +156,63 @@ function resolveCodexTransportMode(): ProviderTransport {
   return parseTransport(process.env.LIBRARIAN_CODEX_TRANSPORT ?? process.env.LIBRARIAN_LLM_CODEX_TRANSPORT);
 }
 
+function resolveClaudeBrokerBaseUrl(): string | null {
+  const raw =
+    process.env.LIBRARIAN_CLAUDE_BROKER_URL
+    ?? process.env.LIBRARIAN_LLM_CLAUDE_BROKER_URL
+    ?? process.env.CLAUDE_BROKER_URL;
+  if (!hasEnvValue(raw)) return null;
+  try {
+    const parsed = new URL(String(raw).trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveClaudeBrokerChatUrl(): string | null {
+  const base = resolveClaudeBrokerBaseUrl();
+  if (!base) return null;
+  const url = new URL(base);
+  if (url.pathname === '/' || url.pathname.length === 0) {
+    url.pathname = '/v1/chat';
+  }
+  return url.toString();
+}
+
+function resolveClaudeBrokerHealthUrl(): string | null {
+  const chatUrl = resolveClaudeBrokerChatUrl();
+  if (!chatUrl) return null;
+  const url = new URL(chatUrl);
+  if (url.pathname.endsWith('/v1/chat')) {
+    const prefix = url.pathname.slice(0, -('/v1/chat'.length)).replace(/\/$/, '');
+    url.pathname = `${prefix || ''}/health`;
+    return url.toString();
+  }
+  if (url.pathname === '/' || url.pathname.length === 0) {
+    url.pathname = '/health';
+  } else {
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/health`;
+  }
+  return url.toString();
+}
+
 function shouldUseAnthropicApiTransport(): boolean {
-  if (!hasEnvValue(process.env.ANTHROPIC_API_KEY)) return false;
   const mode = resolveClaudeTransportMode();
+  if (mode === 'broker') return false;
   if (mode === 'api') return true;
   if (mode === 'cli') return false;
+  if (!hasEnvValue(process.env.ANTHROPIC_API_KEY)) return false;
+  return true;
+}
+
+function shouldUseClaudeBrokerTransport(): boolean {
+  const mode = resolveClaudeTransportMode();
+  const brokerConfigured = Boolean(resolveClaudeBrokerBaseUrl());
+  if (!brokerConfigured) return false;
+  if (mode === 'broker') return true;
+  if (mode === 'api' || mode === 'cli') return false;
   return true;
 }
 
@@ -173,7 +225,7 @@ function shouldUseOpenAiApiTransport(): boolean {
 }
 
 function buildNestedClaudeUnavailableMessage(): string {
-  return 'Claude CLI cannot run inside nested Claude Code sessions; set ANTHROPIC_API_KEY for API transport or switch provider.';
+  return 'Claude CLI cannot run inside nested Claude Code sessions; set ANTHROPIC_API_KEY for API transport, set LIBRARIAN_CLAUDE_BROKER_URL for broker transport, or switch provider.';
 }
 
 function normalizeAnthropicModelId(modelId: string | undefined): string {
@@ -242,6 +294,36 @@ function normalizeClaudeErrorMessage(raw: string): string {
   return raw;
 }
 
+function normalizeCodexErrorMessage(raw: string): string {
+  const lowered = raw.toLowerCase();
+  if (lowered.includes('missing bearer token') || lowered.includes('missing bearer')) {
+    return 'Codex CLI not authenticated - run `codex login`';
+  }
+  if (lowered.includes('failed to open state db') && lowered.includes('missing in the resolved migrations')) {
+    return 'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.';
+  }
+  return raw;
+}
+
+function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
+  if (provider !== 'codex') return false;
+  if (
+    /^(workdir|model|provider|approval|sandbox|reasoning effort|reasoning summaries|session id):/i.test(line)
+    || /^(user|assistant|thinking|codex|tokens used)$/i.test(line)
+    || /^mcp startup:/i.test(line)
+  ) {
+    return true;
+  }
+  if (
+    /\bWARN codex_state::runtime: failed to open state db\b/i.test(line)
+    || /\bWARN codex_core::state_db: state db record_discrepancy\b/i.test(line)
+    || /\bWARN codex_core::shell_snapshot:/i.test(line)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   const withoutAnsi = raw.replace(/\u001B\[[0-9;]*m/g, '');
   const normalizedRaw = withoutAnsi.trim();
@@ -257,13 +339,18 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
     || /^Claude Code v[\d.]+/i.test(line)
     || /^claude version/i.test(line);
   const isSeparatorLine = (line: string): boolean => /^[-=_]{3,}$/.test(line);
-  const meaningfulLines = lines.filter((line) => !isVersionBanner(line) && !isSeparatorLine(line));
+  const meaningfulLines = lines.filter((line) =>
+    !isVersionBanner(line)
+    && !isSeparatorLine(line)
+    && !isKnownCliNoiseLine(line, provider)
+  );
   const preferred =
-    meaningfulLines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate(?:[_ -])?limit|auth)\b/i.test(line))
+    meaningfulLines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate(?:[_ -])?limit|auth|exception|panic|abort|terminating)\b/i.test(line))
     ?? meaningfulLines.find((line) => /\b(limit|denied|blocked)\b/i.test(line))
-    ?? meaningfulLines[0]
-    ?? lines[0]
-    ?? `${provider} CLI error`;
+    ?? meaningfulLines[0];
+  if (!preferred) {
+    return `${provider} CLI failed without diagnostic output (check auth, model access, and rate limits)`;
+  }
   const compact = preferred.replace(/\s+/g, ' ').trim();
   const clipped = compact.length > 220 ? `${compact.slice(0, 217)}...` : compact;
   return clipped || `${provider} CLI error`;
@@ -418,6 +505,74 @@ export class CliLlmService {
         lastCheck: now,
       };
       return this.health.claude;
+    }
+
+    if (shouldUseClaudeBrokerTransport()) {
+      if (!forceCheck) {
+        this.health.claude = {
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: now,
+        };
+        return this.health.claude;
+      }
+
+      const healthUrl = resolveClaudeBrokerHealthUrl();
+      if (!healthUrl) {
+        this.health.claude = {
+          provider: 'claude',
+          available: false,
+          authenticated: false,
+          lastCheck: now,
+          error: 'Claude broker URL invalid or missing',
+        };
+        return this.health.claude;
+      }
+
+      try {
+        const response = await this.fetchJsonWithTimeout(
+          healthUrl,
+          { method: 'GET' },
+          Math.min(this.claudeHealthCheckTimeoutMs, 10_000),
+        );
+        if (response.status === 401 || response.status === 403) {
+          this.health.claude = {
+            provider: 'claude',
+            available: true,
+            authenticated: false,
+            lastCheck: now,
+            error: `Claude broker auth failed (HTTP ${response.status})`,
+          };
+          return this.health.claude;
+        }
+        if (response.status >= 500) {
+          this.health.claude = {
+            provider: 'claude',
+            available: false,
+            authenticated: false,
+            lastCheck: now,
+            error: `Claude broker unavailable (HTTP ${response.status})`,
+          };
+          return this.health.claude;
+        }
+        this.health.claude = {
+          provider: 'claude',
+          available: true,
+          authenticated: true,
+          lastCheck: now,
+        };
+        return this.health.claude;
+      } catch (error) {
+        this.health.claude = {
+          provider: 'claude',
+          available: false,
+          authenticated: false,
+          lastCheck: now,
+          error: `Claude broker probe failed: ${String(error instanceof Error ? error.message : error)}`,
+        };
+        return this.health.claude;
+      }
     }
 
     if (isNestedClaudeCodeSession()) {
@@ -649,6 +804,27 @@ export class CliLlmService {
     return null;
   }
 
+  private extractClaudeBrokerText(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const direct = (payload as { content?: unknown }).content;
+    if (typeof direct === 'string' && direct.trim().length > 0) {
+      return direct;
+    }
+    const output = (payload as { output?: unknown }).output;
+    if (typeof output === 'string' && output.trim().length > 0) {
+      return output;
+    }
+    const text = (payload as { text?: unknown }).text;
+    if (typeof text === 'string' && text.trim().length > 0) {
+      return text;
+    }
+    const anthropicText = this.extractAnthropicText(payload);
+    if (anthropicText) return anthropicText;
+    const openAiText = this.extractOpenAiText(payload);
+    if (openAiText) return openAiText;
+    return null;
+  }
+
   private async callClaudeApi(
     options: LlmChatOptions,
     timeoutMs: number,
@@ -703,6 +879,66 @@ export class CliLlmService {
       throw new Error('Anthropic API returned empty response content');
     }
     return { provider: 'claude', content };
+  }
+
+  private async callClaudeBroker(
+    options: LlmChatOptions,
+    timeoutMs: number,
+  ): Promise<ChatResult> {
+    const brokerUrl = resolveClaudeBrokerChatUrl();
+    if (!brokerUrl) {
+      throw new Error(
+        'unverified_by_trace(provider_unavailable): LIBRARIAN_CLAUDE_BROKER_URL missing for claude broker transport'
+      );
+    }
+    const model = normalizeAnthropicModelId(options.modelId);
+    const systemPrompt = extractSystemPrompt(options.messages);
+    const payload: Record<string, unknown> = {
+      provider: 'claude',
+      model,
+      modelId: model,
+      messages: options.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+      prompt: buildFullPrompt(options.messages),
+      maxTokens: options.maxTokens ?? DEFAULT_API_MAX_TOKENS,
+      timeoutMs,
+    };
+    if (systemPrompt) {
+      payload.system = systemPrompt;
+      payload.systemPrompt = systemPrompt;
+    }
+    if (typeof options.temperature === 'number') {
+      payload.temperature = options.temperature;
+    }
+
+    const response = await this.fetchJsonWithTimeout(
+      brokerUrl,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+      timeoutMs,
+    );
+    if (!response.ok) {
+      const apiError = this.extractApiErrorMessage(response.json)
+        ?? sanitizeCliErrorMessage(response.text || `HTTP ${response.status}`, 'claude');
+      throw new Error(apiError);
+    }
+    const content = this.extractClaudeBrokerText(response.json);
+    if (!content) {
+      throw new Error('Claude broker returned empty response content');
+    }
+    const provider =
+      response.json && typeof response.json === 'object'
+      && typeof (response.json as { provider?: unknown }).provider === 'string'
+        ? String((response.json as { provider?: unknown }).provider)
+        : 'claude';
+    return { provider, content };
   }
 
   private async callOpenAiApi(
@@ -778,6 +1014,29 @@ export class CliLlmService {
           return result;
         } catch (error) {
           const rawError = normalizeClaudeErrorMessage(String(error instanceof Error ? error.message : error));
+          const errorMsg = sanitizeCliErrorMessage(rawError, 'claude');
+          await this.recordFailure('claude', errorMsg, rawError);
+          throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
+        }
+      }
+
+      if (shouldUseClaudeBrokerTransport()) {
+        try {
+          const result = await this.callClaudeBroker(options, timeoutMs);
+          if (governor) {
+            governor.recordTokens(estimateTokenCount(result.content));
+          }
+          await this.recordPrivacyAudit({
+            op: 'synthesize',
+            model: options.modelId || 'claude',
+            local: false,
+            contentSent: true,
+            status: 'allowed',
+          });
+          await this.recordSuccess('claude');
+          return result;
+        } catch (error) {
+          const rawError = String(error instanceof Error ? error.message : error);
           const errorMsg = sanitizeCliErrorMessage(rawError, 'claude');
           await this.recordFailure('claude', errorMsg, rawError);
           throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
@@ -922,9 +1181,10 @@ export class CliLlmService {
 
         if (result.exitCode !== 0) {
           const rawError = combineCliErrorStreams(result.stderr, result.stdout, 'Codex CLI error');
-          const errorMsg = sanitizeCliErrorMessage(rawError, 'codex');
+          const normalizedRawError = normalizeCodexErrorMessage(rawError);
+          const errorMsg = sanitizeCliErrorMessage(normalizedRawError, 'codex');
           logWarning('CLI LLM: Codex call failed', { error: errorMsg });
-          await this.recordFailure('codex', errorMsg, rawError);
+          await this.recordFailure('codex', errorMsg, normalizedRawError);
           throw new Error(`unverified_by_trace(llm_execution_failed): ${errorMsg}`);
         }
 

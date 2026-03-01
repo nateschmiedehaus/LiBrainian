@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+// LiBrainian CLI bridge for subagent use.
+// Usage: ./ask "How does the bootstrap quality gate work?"
+//        ./ask --json "What calls rankContextPacks?"
+
+import { spawn } from 'node:child_process';
+import { constants as osConstants } from 'node:os';
+import path from 'node:path';
+
+const scriptDir = path.dirname(path.resolve(process.argv[1] ?? process.cwd()));
+const cliPath = path.join(scriptDir, 'dist', 'cli', 'index.js');
+const args = ['query', ...process.argv.slice(2)];
+
+let stdout = '';
+let stderr = '';
+let stderrEchoRemainder = '';
+
+function isKnownAbortNoiseLine(line) {
+  return line.includes('libc++abi: terminating due to uncaught exception')
+    || line.includes('mutex lock failed: Invalid argument');
+}
+
+const child = spawn(process.execPath, [cliPath, ...args], {
+  cwd: process.cwd(),
+  env: process.env,
+  stdio: ['inherit', 'pipe', 'pipe'],
+});
+
+child.stdout.on('data', (chunk) => {
+  const text = chunk.toString();
+  stdout += text;
+  process.stdout.write(text);
+});
+
+child.stderr.on('data', (chunk) => {
+  const text = chunk.toString();
+  stderr += text;
+  stderrEchoRemainder += text;
+  const lines = stderrEchoRemainder.split(/\r?\n/u);
+  stderrEchoRemainder = lines.pop() ?? '';
+  for (const line of lines) {
+    if (!isKnownAbortNoiseLine(line)) {
+      process.stderr.write(`${line}\n`);
+    }
+  }
+});
+
+child.on('error', (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`[ask] failed to launch cli: ${message}\n`);
+  process.exit(1);
+});
+
+child.on('close', (code, signal) => {
+  if (stderrEchoRemainder.length > 0 && !isKnownAbortNoiseLine(stderrEchoRemainder)) {
+    process.stderr.write(stderrEchoRemainder);
+  }
+
+  const abortSignal = signal === 'SIGABRT';
+  const abortCode = code === 134;
+  const hasKnownAbortMessage = stderr.includes('mutex lock failed: Invalid argument');
+  const hasOutput = stdout.trim().length > 0;
+
+  if ((abortSignal || abortCode) && hasKnownAbortMessage && hasOutput) {
+    process.exit(0);
+  }
+
+  if (typeof code === 'number') {
+    process.exit(code);
+  }
+
+  if (abortSignal) {
+    const sigNum = osConstants.signals.SIGABRT ?? 6;
+    process.exit(128 + sigNum);
+  }
+
+  process.exit(1);
+});

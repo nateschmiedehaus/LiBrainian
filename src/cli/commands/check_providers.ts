@@ -99,6 +99,19 @@ export async function checkProvidersCommand(options: CheckProvidersCommandOption
   }
   console.log();
 
+  const nestedClaudeIssue = gateResult.providers.find((provider) =>
+    provider.provider === 'claude'
+    && typeof provider.error === 'string'
+    && provider.error.toLowerCase().includes('nested claude code sessions')
+  );
+  if (nestedClaudeIssue) {
+    console.log('Nested Claude Session Guidance:');
+    console.log('  - Configure ANTHROPIC_API_KEY for Claude API transport, or');
+    console.log('  - Configure LIBRARIAN_CLAUDE_BROKER_URL to route Claude via a local broker sidecar.');
+    console.log('  - Start sidecar from a non-nested shell: `node scripts/claude-broker.mjs --host 127.0.0.1 --port 8787`');
+    console.log();
+  }
+
   // Remediation steps
   if (gateResult.remediationSteps && gateResult.remediationSteps.length > 0) {
     console.log('Remediation Steps:');

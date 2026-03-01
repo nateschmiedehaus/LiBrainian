@@ -501,6 +501,25 @@ function buildRemediationSteps(authStatus: AuthStatusSummary): string[] {
   const steps = new Set<string>();
   const claudeStatus = authStatus.claude_code ?? authStatus.claude;
   const codexStatus = authStatus.codex;
+  const nestedClaudeSession =
+    Boolean(process.env.CLAUDE_CODE_ENTRYPOINT)
+    || Boolean(process.env.CLAUDE_CODE_SESSION_ID)
+    || Boolean(process.env.CLAUDECODE);
+  const claudeApiConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+  const claudeBrokerConfigured =
+    Boolean(process.env.LIBRARIAN_CLAUDE_BROKER_URL)
+    || Boolean(process.env.LIBRARIAN_LLM_CLAUDE_BROKER_URL)
+    || Boolean(process.env.CLAUDE_BROKER_URL);
+
+  if (nestedClaudeSession && !claudeApiConfigured && !claudeBrokerConfigured) {
+    steps.add(
+      'Nested Claude session detected: set ANTHROPIC_API_KEY (API transport) or LIBRARIAN_CLAUDE_BROKER_URL (local broker) for reliable Claude access.'
+    );
+    steps.add(
+      'Broker quickstart: run `node scripts/claude-broker.mjs --host 127.0.0.1 --port 8787` in a non-nested shell, then export LIBRARIAN_CLAUDE_BROKER_URL=http://127.0.0.1:8787.'
+    );
+  }
+
   if (!claudeStatus?.authenticated) {
     steps.add('Claude: run `claude setup-token` or start `claude` once to authenticate (CLI-only; no API keys)');
   }

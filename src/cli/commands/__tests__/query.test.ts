@@ -602,6 +602,48 @@ describe('queryCommand LLM resolution', () => {
     expect(parsed.packs).toHaveLength(1);
   });
 
+  it('includes a derived answer in JSON output when synthesis is unavailable', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'hello world', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      explanation: 'Security risk score is computed in technical_debt_analysis.ts and rendered in persona views.',
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: undefined,
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 't1',
+          summary: 'calculateSecurityDebt computes the risk score.',
+          keyFacts: [],
+          relatedFiles: [],
+          codeSnippets: [],
+          confidence: 0.8,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json'],
+    });
+
+    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.startsWith('{'));
+    expect(jsonOutput).toBeDefined();
+    const parsed = JSON.parse(jsonOutput ?? '{}');
+    expect(parsed.answer).toBe('calculateSecurityDebt computes the risk score.');
+  });
+
   it('writes JSON output to --out path', async () => {
     const { queryCommand } = await import('../query.js');
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-out-'));
@@ -826,6 +868,46 @@ describe('queryCommand LLM resolution', () => {
     expect(lines.some((line) => line.includes('LLM synthesis error: Claude CLI error: auth expired'))).toBe(true);
     expect(lines.some((line) => line.includes('Session degraded: results were returned but could not be persisted'))).toBe(true);
     expect(lines.some((line) => line.includes('LLM synthesis unavailable: results are structural-only'))).toBe(true);
+  });
+
+  it('prints a derived answer in text mode when synthesis is unavailable', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'where is synthesis executed', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: undefined,
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 'src/api/query.ts:runSynthesisStage',
+          summary: 'Query synthesis is executed in runSynthesisStage in src/api/query.ts.',
+          keyFacts: [],
+          relatedFiles: ['src/api/query.ts'],
+          codeSnippets: [],
+          confidence: 0.86,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'where is synthesis executed'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    expect(lines.some((line) => line.includes('Answer:'))).toBe(true);
+    expect(lines.some((line) => line.includes('Query synthesis is executed in runSynthesisStage in src/api/query.ts.'))).toBe(true);
   });
 
   it('surfaces partial-index and low-confidence quality warnings at top', async () => {

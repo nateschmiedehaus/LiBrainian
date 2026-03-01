@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execa } from 'execa';
 import { CliLlmService } from '../../adapters/cli_llm_service.js';
-import { getActiveProviderFailures } from '../../utils/provider_failures.js';
+import { getActiveProviderFailures, recordProviderFailure } from '../../utils/provider_failures.js';
 
 vi.mock('execa', () => ({
   execa: vi.fn(),
@@ -26,6 +26,7 @@ describe('CliLlmService provider routing', () => {
   const previousClaudeCodeMaxOutputTokens = process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS;
   const previousClaudeTransport = process.env.LIBRARIAN_CLAUDE_TRANSPORT;
   const previousCodexTransport = process.env.LIBRARIAN_CODEX_TRANSPORT;
+  const previousClaudeBrokerUrl = process.env.LIBRARIAN_CLAUDE_BROKER_URL;
   const previousChaosEnabled = process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
   const previousChaosMode = process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
   const previousChaosRate = process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
@@ -36,6 +37,7 @@ describe('CliLlmService provider routing', () => {
     execaMock.mockReset();
     vi.mocked(getActiveProviderFailures).mockReset();
     vi.mocked(getActiveProviderFailures).mockResolvedValue({});
+    vi.mocked(recordProviderFailure).mockReset();
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.WAVE0_LLM_PROVIDER;
     delete process.env.LLM_PROVIDER;
@@ -44,6 +46,7 @@ describe('CliLlmService provider routing', () => {
     delete process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS;
     delete process.env.LIBRARIAN_CLAUDE_TRANSPORT;
     delete process.env.LIBRARIAN_CODEX_TRANSPORT;
+    delete process.env.LIBRARIAN_CLAUDE_BROKER_URL;
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
@@ -68,6 +71,8 @@ describe('CliLlmService provider routing', () => {
     else process.env.LIBRARIAN_CLAUDE_TRANSPORT = previousClaudeTransport;
     if (previousCodexTransport === undefined) delete process.env.LIBRARIAN_CODEX_TRANSPORT;
     else process.env.LIBRARIAN_CODEX_TRANSPORT = previousCodexTransport;
+    if (previousClaudeBrokerUrl === undefined) delete process.env.LIBRARIAN_CLAUDE_BROKER_URL;
+    else process.env.LIBRARIAN_CLAUDE_BROKER_URL = previousClaudeBrokerUrl;
     if (previousChaosEnabled === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED;
     else process.env.LIBRARIAN_PROVIDER_CHAOS_ENABLED = previousChaosEnabled;
     if (previousChaosMode === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
@@ -138,6 +143,38 @@ describe('CliLlmService provider routing', () => {
 
     expect(health.available).toBe(true);
     expect(health.authenticated).toBe(true);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it('reports claude available via broker transport in nested sessions when broker URL is set', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
+    process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
+
+    const service = new CliLlmService();
+    const health = await service.checkClaudeHealth();
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(true);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it('probes broker health endpoint when force-checking claude broker transport', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
+    process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    })) as unknown as typeof fetch;
+
+    const service = new CliLlmService();
+    const health = await service.checkClaudeHealth(true);
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(execaMock).not.toHaveBeenCalled();
   });
 
@@ -330,6 +367,28 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock).not.toHaveBeenCalled();
   });
 
+  it('uses Claude broker transport in nested Claude sessions when broker URL is set', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
+    process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ content: 'broker-answer', provider: 'claude' }),
+    })) as unknown as typeof fetch;
+
+    const service = new CliLlmService();
+    const result = await service.chat({
+      provider: 'claude',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(result.provider).toBe('claude');
+    expect(result.content).toContain('broker-answer');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
   it('uses Anthropic API transport outside nested sessions when ANTHROPIC_API_KEY is set', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
     delete process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS;
@@ -495,6 +554,72 @@ describe('CliLlmService provider routing', () => {
       const message = error instanceof Error ? error.message : String(error);
       expect(message).toContain('rate_limit');
       expect(message).not.toContain('OpenAI Codex v0.104.0');
+    }
+  });
+
+  it('ignores codex metadata banners like workdir when actionable errors are present', async () => {
+    process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+    execaMock.mockResolvedValue({
+      exitCode: 1,
+      stdout: '',
+      stderr: [
+        'OpenAI Codex v0.104.0 (research preview)',
+        '--------',
+        'workdir: /tmp/repo',
+        'model: gpt-5.3-codex',
+        'provider: openai',
+        'Error: rate_limit exceeded for current account',
+      ].join('\n'),
+    } as never);
+
+    const service = new CliLlmService();
+    try {
+      await service.chat({
+        provider: 'codex',
+        messages: [{ role: 'user', content: 'hello' }],
+      });
+      throw new Error('expected chat to fail');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toContain('rate_limit');
+      expect(message).not.toContain('workdir: /tmp/repo');
+    }
+  });
+
+  it('maps codex state-db migration failures to actionable output', async () => {
+    process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+    execaMock
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: '',
+        stderr: [
+          'OpenAI Codex v0.104.0 (research preview)',
+          'workdir: /tmp/repo',
+          '2026-02-28T20:00:00.000000Z  WARN codex_state::runtime: failed to open state db at /tmp/.codex/state_5.sqlite: migration 11 was previously applied but is missing in the resolved migrations',
+        ].join('\n'),
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: '',
+        stderr: 'Claude CLI error: fallback provider unavailable',
+      } as never);
+
+    const service = new CliLlmService();
+    try {
+      await service.chat({
+        provider: 'codex',
+        messages: [{ role: 'user', content: 'hello' }],
+      });
+      throw new Error('expected chat to fail');
+    } catch (error) {
+      const codexFailureCall = vi.mocked(recordProviderFailure).mock.calls
+        .find(([, failure]) => failure.provider === 'codex');
+      expect(codexFailureCall).toBeDefined();
+      const failure = codexFailureCall?.[1];
+      expect(failure?.message).toContain('state DB migration mismatch');
+      expect(failure?.message).not.toContain('workdir: /tmp/repo');
+      const finalMessage = error instanceof Error ? error.message : String(error);
+      expect(finalMessage).toContain('fallback provider unavailable');
     }
   });
 

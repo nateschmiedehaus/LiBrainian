@@ -703,8 +703,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
 
       if (outputJson) {
         const criticalWarnings = collectCriticalWarnings(response);
+        const answer = deriveQueryAnswer(displayResponse);
         await emitJsonOutput({
           ...displayResponse,
+          answer,
           strategy: strategyInfo.strategy,
           strategyReason: strategyInfo.reason,
           strategyWarning: strategyInfo.warning,
@@ -756,6 +758,13 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       console.log();
       if (strategyInfo.warning) {
         console.log(`Warning: ${strategyInfo.warning}`);
+        console.log();
+      }
+
+      const answer = deriveQueryAnswer(displayResponse);
+      if (answer) {
+        console.log('Answer:');
+        console.log(`  ${answer}`);
         console.log();
       }
 
@@ -1168,6 +1177,22 @@ function sanitizeQueryResponseForOutput(response: LibrarianResponse): LibrarianR
       keyFacts: sanitizeMessageList(pack.keyFacts) ?? [],
     })),
   };
+}
+
+function deriveQueryAnswer(response: LibrarianResponse): string | undefined {
+  const synthesized = response.synthesis?.answer?.trim();
+  if (synthesized) return synthesized;
+
+  const summary = response.packs
+    .map((pack) => pack.summary?.trim())
+    .filter((value): value is string => Boolean(value))
+    .slice(0, 3)
+    .join(' ');
+  if (summary) return summary;
+
+  const explanation = response.explanation?.trim();
+  if (explanation) return explanation;
+  return undefined;
 }
 
 async function withQueryCommandTimeout<T>(

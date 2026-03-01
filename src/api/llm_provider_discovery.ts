@@ -58,7 +58,15 @@ function resolveHostPreferredProvider(env: NodeJS.ProcessEnv = process.env): Lib
     || hasTruthyEnvValue(env.CLAUDE_SESSION)
     || hasTruthyEnvValue(env.CLAUDECODE);
   if (nestedClaudeSession) {
-    // Claude CLI cannot reliably spawn from nested Claude Code sessions.
+    const claudeApiConfigured = hasTruthyEnvValue(env.ANTHROPIC_API_KEY);
+    const claudeBrokerConfigured =
+      hasTruthyEnvValue(env.LIBRARIAN_CLAUDE_BROKER_URL)
+      || hasTruthyEnvValue(env.LIBRARIAN_LLM_CLAUDE_BROKER_URL)
+      || hasTruthyEnvValue(env.CLAUDE_BROKER_URL);
+    if (claudeApiConfigured || claudeBrokerConfigured) {
+      return 'claude';
+    }
+    // Without API/broker transport, Claude CLI cannot reliably spawn from nested Claude Code sessions.
     return 'codex';
   }
 
