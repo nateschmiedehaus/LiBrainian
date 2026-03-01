@@ -32,6 +32,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  id-token: write
 
 # Only one work loop at a time. New triggers queue (don't cancel in-progress work).
 concurrency:

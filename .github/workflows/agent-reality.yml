@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: reality-check
@@ -75,8 +75,10 @@ jobs:
           RESULTS+="## MCP Tools\n- **Tool count:** $TOOL_COUNT response(s)\n\n"
 
           # Check 5: TypeScript compilation clean (redundant with build but explicit)
-          TSC_ERRORS=$(npx tsc --noEmit 2>&1 | grep -c "error TS" || echo "0")
-          if [ "$TSC_ERRORS" -eq 0 ]; then
+          TSC_ERRORS=$(npx tsc --noEmit 2>&1 | grep -c "error TS" || true)
+          TSC_ERRORS=$(echo "$TSC_ERRORS" | tr -d '[:space:]')
+          TSC_ERRORS=${TSC_ERRORS:-0}
+          if [ "$TSC_ERRORS" -eq 0 ] 2>/dev/null; then
             RESULTS+="## TypeScript\n- **Status:** PASS — 0 type errors\n\n"
             PASS=$((PASS + 1))
           else
