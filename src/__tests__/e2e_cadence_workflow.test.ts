@@ -3,15 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('e2e cadence workflow', () => {
-  it('defines aggressive commit-driven e2e cadence with dev-truth priority', () => {
+  it('defines nightly e2e cadence with dev-truth priority and mainline safeguards', () => {
     const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'e2e-cadence.yml');
     expect(fs.existsSync(workflowPath)).toBe(true);
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
     expect(workflow).toContain('name: e2e-cadence');
-    expect(workflow).toContain('push:');
-    expect(workflow).toContain('pull_request:');
-    expect(workflow).toContain('ready_for_review');
+    expect(workflow).toContain('schedule:');
+    expect(workflow).toContain("cron: '0 6 * * *'");
+    expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain('npm run policy:e2e:mainline');
     expect(workflow).toContain('External natural-usage E2E gate (primary, quick)');
     expect(workflow).toContain('npm run eval:use-cases:agentic:quick');
