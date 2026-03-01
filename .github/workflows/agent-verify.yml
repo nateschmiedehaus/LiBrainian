@@ -1,0 +1,273 @@
+name: Agent Verify Loop
+
+# Independent verification of agent-submitted PRs.
+# Finds issues labeled verify:pending, checks the linked PR independently,
+# and posts a pass/fail verdict.
+#
+# CRITICAL: This is a DIFFERENT agent session from the Worker.
+# The agent that did the work NEVER verifies its own work.
+
+on:
+  schedule:
+    - cron: '45 1,4,7,10,13,16,19,22 * * *'  # Every 3 hours at :45 (offset from work loop)
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Specific issue to verify (blank = auto-select)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: agent-verify-loop
+  cancel-in-progress: false
+
+env:
+  REPO: nateschmiedehaus/LiBrainian
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Find Issue Needing Verification ──────────────────────────────
+      - name: Find issue to verify
+        id: find
+        run: |
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            NUM="${{ inputs.issue_number }}"
+          else
+            # Find oldest issue with verify:pending label
+            NUM=$(gh issue list -R "$REPO" --state open \
+              --label "verify:pending" \
+              --limit 10 \
+              --json number --jq 'sort_by(.number) | first | .number // empty')
+          fi
+
+          if [ -z "$NUM" ]; then
+            echo "No issues pending verification."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
+
+          # Find the linked PR
+          TITLE=$(gh issue view "$NUM" -R "$REPO" --json title --jq '.title')
+          echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
+
+          # Look for PR that closes this issue
+          PR=$(gh pr list -R "$REPO" --state open \
+            --search "closes #$NUM" \
+            --json number,headRefName --jq 'first | .number // empty')
+
+          if [ -z "$PR" ]; then
+            # Try finding by branch name convention
+            PR=$(gh pr list -R "$REPO" --state open \
+              --head "claude/issue-$NUM" \
+              --json number --jq 'first | .number // empty')
+          fi
+
+          if [ -z "$PR" ]; then
+            echo "::warning::No PR found for issue #$NUM"
+            echo "pr_found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_number=$PR" >> "$GITHUB_OUTPUT"
+            echo "pr_found=true" >> "$GITHUB_OUTPUT"
+
+            # Get PR branch
+            BRANCH=$(gh pr view "$PR" -R "$REPO" --json headRefName --jq '.headRefName')
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip if nothing to verify
+        if: steps.find.outputs.found != 'true' || steps.find.outputs.pr_found != 'true'
+        run: |
+          if [ "${{ steps.find.outputs.found }}" != "true" ]; then
+            echo "No issues pending verification."
+          else
+            echo "Issue #${{ steps.find.outputs.issue_number }} has verify:pending but no PR."
+            # Remove stale label
+            gh issue edit "${{ steps.find.outputs.issue_number }}" -R "$REPO" \
+              --remove-label "verify:pending" --add-label "agent:blocked"
+            gh issue comment "${{ steps.find.outputs.issue_number }}" -R "$REPO" \
+              --body "**Verifier:** No PR found for this issue. Marking as blocked."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Setup ────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        if: steps.find.outputs.pr_found == 'true'
+        with:
+          ref: ${{ steps.find.outputs.branch }}
+          fetch-depth: 0  # Full history for diff
+
+      - uses: actions/setup-node@v4
+        if: steps.find.outputs.pr_found == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and build
+        if: steps.find.outputs.pr_found == 'true'
+        run: npm ci && npm run build
+
+      # ── Gather Evidence for Verifier ─────────────────────────────────
+      - name: Gather context for verification
+        if: steps.find.outputs.pr_found == 'true'
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          PR=${{ steps.find.outputs.pr_number }}
+
+          # Get issue body and comments (worker evidence)
+          gh issue view "$NUM" -R "$REPO" --json body,title,labels,comments \
+            > /tmp/issue-full.json
+
+          # Get PR diff
+          gh pr diff "$PR" -R "$REPO" > /tmp/pr-diff.patch 2>/dev/null || true
+
+          # Get PR file list
+          gh pr view "$PR" -R "$REPO" --json files --jq '.files[].path' \
+            > /tmp/pr-files.txt 2>/dev/null || true
+
+          # Get worker evidence comments
+          gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '.comments[] | select(.body | contains("agent_evidence")) | .body' \
+            > /tmp/worker-evidence.txt 2>/dev/null || true
+
+          echo "Context gathered for verification."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Verification Agent ──────────────────────────────────────────
+      - name: Run verification agent
+        if: steps.find.outputs.pr_found == 'true'
+        id: verify
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          prompt: |
+            You are an independent VERIFIER. Your job is to check whether
+            issue #${{ steps.find.outputs.issue_number }} ("${{ steps.find.outputs.issue_title }}")
+            was correctly implemented in PR #${{ steps.find.outputs.pr_number }}.
+
+            ## Context Files
+            - /tmp/issue-full.json — full issue with comments
+            - /tmp/pr-diff.patch — the PR diff
+            - /tmp/pr-files.txt — files changed
+            - /tmp/worker-evidence.txt — worker's evidence claims
+
+            ## Verification Steps
+            1. Read the issue's acceptance criteria from /tmp/issue-full.json
+            2. Read the worker's evidence claims from /tmp/worker-evidence.txt
+            3. Review the PR diff at /tmp/pr-diff.patch
+            4. For each acceptance criterion, verify independently:
+               - Read the changed files to confirm the implementation
+               - Run `npm run build` to confirm it compiles
+               - Run relevant tests: `npm test -- --testPathPattern <relevant_pattern>`
+               - If the issue involves query behavior, run a test query
+            5. Check for regressions: are there obvious bugs, security issues, or broken tests?
+
+            ## Your Verdict
+            You MUST post your verdict as a comment on issue #${{ steps.find.outputs.issue_number }}.
+
+            Format your comment like this:
+
+            ```
+            ## Verification Evidence
+
+            **Verdict: PASS** (or **Verdict: FAIL**)
+
+            ### Acceptance Criteria Check
+            - [ ] Criterion 1: [your assessment]
+            - [ ] Criterion 2: [your assessment]
+
+            ### Independent Checks
+            - Build: [pass/fail]
+            - Tests: [results]
+            - Code review: [observations]
+
+            ### Trust Assessment
+            [Your overall assessment of the worker's implementation]
+
+            <!-- agent_evidence = {"v":1,"issue":ISSUE_NUM,"role":"verifier","verdict":"pass_or_fail","pr":PR_NUM} -->
+            ```
+
+            ## Rules
+            - You MUST NOT trust the worker's claims. Verify everything independently.
+            - If ANY acceptance criterion is not met, verdict is FAIL.
+            - If tests fail, verdict is FAIL.
+            - If build fails, verdict is FAIL.
+            - Be specific about what passed and what failed.
+
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns 15
+
+        continue-on-error: true
+
+      # ── Post-Verification Label Update ───────────────────────────────
+      - name: Parse verdict and update labels
+        if: steps.find.outputs.pr_found == 'true'
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          PR=${{ steps.find.outputs.pr_number }}
+
+          # Check the latest comments for a verdict
+          VERDICT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '.comments[-3:] | .[] | .body' | \
+            grep -oP 'Verdict:\s*\*{0,2}(PASS|FAIL)\*{0,2}' | tail -1 | \
+            grep -oP '(PASS|FAIL)' || echo "UNKNOWN")
+
+          echo "Verdict: $VERDICT"
+
+          if [ "$VERDICT" = "PASS" ]; then
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "verify:pending" \
+              --add-label "verify:pass"
+            # Approve the PR (as a comment, since the action can't submit formal reviews)
+            gh pr comment "$PR" -R "$REPO" --body "$(cat <<EOF
+          **Verification PASSED.** This PR has been independently verified.
+
+          A human reviewer should do a final check and merge.
+
+          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"verifier","verdict":"pass","pr":$PR} -->
+          EOF
+          )"
+          elif [ "$VERDICT" = "FAIL" ]; then
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "verify:pending" \
+              --remove-label "agent:claimed" \
+              --add-label "verify:fail"
+            gh pr comment "$PR" -R "$REPO" --body "$(cat <<EOF
+          **Verification FAILED.** See issue #$NUM for details.
+
+          The issue has been returned to the backlog for rework.
+
+          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"verifier","verdict":"fail","pr":$PR} -->
+          EOF
+          )"
+          else
+            echo "::warning::Could not determine verdict. Manual review needed."
+            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
+          **Verifier:** Could not determine pass/fail verdict automatically.
+          Manual review of PR #$PR is needed.
+
+          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          )"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

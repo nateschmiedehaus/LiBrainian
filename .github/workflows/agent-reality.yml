@@ -1,0 +1,117 @@
+name: Post-Merge Reality Check
+
+# After every merge to main, run canonical queries against LiBrainian
+# and record the results as a commit comment. This creates an append-only
+# quality timeline attached to the git history.
+#
+# Uses only structural tools (no embeddings) to stay within CI constraints.
+# When embedding infrastructure improves, add semantic queries.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reality-check
+  cancel-in-progress: true  # Only latest commit matters
+
+jobs:
+  reality-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and build
+        run: npm ci && npm run build
+
+      - name: Run structural health checks
+        id: checks
+        run: |
+          RESULTS="# Reality Check — $(date -u +%Y-%m-%dT%H:%M:%SZ)\n\n"
+          PASS=0
+          FAIL=0
+
+          # Check 1: Build succeeds (already done above)
+          RESULTS+="## Build\n- **Status:** PASS\n\n"
+          PASS=$((PASS + 1))
+
+          # Check 2: CLI starts without error
+          if timeout 10 node dist/cli/index.js --help > /dev/null 2>&1; then
+            RESULTS+="## CLI\n- **Status:** PASS — CLI starts and shows help\n\n"
+            PASS=$((PASS + 1))
+          else
+            RESULTS+="## CLI\n- **Status:** FAIL — CLI failed to start\n\n"
+            FAIL=$((FAIL + 1))
+          fi
+
+          # Check 3: MCP server starts (test with timeout)
+          if echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}},"id":1}' | \
+            timeout 15 node dist/cli/index.js mcp --stdio 2>/dev/null | head -1 | grep -q '"result"'; then
+            RESULTS+="## MCP Server\n- **Status:** PASS — Server initializes and responds\n\n"
+            PASS=$((PASS + 1))
+          else
+            RESULTS+="## MCP Server\n- **Status:** FAIL — Server failed to initialize\n\n"
+            FAIL=$((FAIL + 1))
+          fi
+
+          # Check 4: Count MCP tools exposed
+          TOOL_COUNT=$(echo '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}' | \
+            timeout 15 node dist/cli/index.js mcp --stdio 2>/dev/null | \
+            grep -o '"tools"' | wc -l || echo "0")
+          RESULTS+="## MCP Tools\n- **Tool count:** $TOOL_COUNT response(s)\n\n"
+
+          # Check 5: TypeScript compilation clean (redundant with build but explicit)
+          TSC_ERRORS=$(npx tsc --noEmit 2>&1 | grep -c "error TS" || echo "0")
+          if [ "$TSC_ERRORS" -eq 0 ]; then
+            RESULTS+="## TypeScript\n- **Status:** PASS — 0 type errors\n\n"
+            PASS=$((PASS + 1))
+          else
+            RESULTS+="## TypeScript\n- **Status:** FAIL — $TSC_ERRORS type errors\n\n"
+            FAIL=$((FAIL + 1))
+          fi
+
+          # Check 6: Source file count (detect accidental deletions)
+          SRC_FILES=$(find src -name '*.ts' -not -name '*.test.*' -not -name '*.spec.*' | wc -l | tr -d ' ')
+          TEST_FILES=$(find src -name '*.test.*' -o -name '*.spec.*' | wc -l | tr -d ' ')
+          RESULTS+="## Codebase Size\n- **Source files:** $SRC_FILES\n- **Test files:** $TEST_FILES\n\n"
+
+          # Summary
+          RESULTS+="## Summary\n- **Passed:** $PASS\n- **Failed:** $FAIL\n"
+          RESULTS+="- **Commit:** ${{ github.sha }}\n"
+
+          echo -e "$RESULTS" > /tmp/reality-check.md
+          echo "pass_count=$PASS" >> "$GITHUB_OUTPUT"
+          echo "fail_count=$FAIL" >> "$GITHUB_OUTPUT"
+        env:
+          LIBRAINIAN_SKIP_PROVIDER_CHECK: '1'
+          LIBRARIAN_MCP_PREWARM: '0'
+
+      - name: Post reality check as commit comment
+        if: always()
+        run: |
+          # Post as a commit comment for permanent record
+          BODY=$(cat /tmp/reality-check.md)
+          gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -f body="$BODY" || echo "::warning::Failed to post commit comment"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail if checks failed
+        if: steps.checks.outputs.fail_count != '0'
+        run: |
+          echo "::error::${{ steps.checks.outputs.fail_count }} reality checks failed"
+          exit 1

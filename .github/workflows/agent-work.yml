@@ -1,0 +1,440 @@
+name: Agent Work Loop
+
+# Autonomous issue implementation loop.
+# Finds the highest-priority ready issue, dispatches a Claude agent to implement it,
+# creates a PR, and labels the issue for verification.
+#
+# Auth: Requires CLAUDE_CODE_OAUTH_TOKEN (Max subscription OAuth) in repo secrets.
+# If you prefer API key auth, set ANTHROPIC_API_KEY instead.
+
+on:
+  schedule:
+    - cron: '15 */3 * * *'  # Every 3 hours at :15
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Specific issue number to work on (blank = auto-select)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Dry run — find issue but do not dispatch agent'
+        required: false
+        default: false
+        type: boolean
+      max_turns:
+        description: 'Max agent turns (default 25)'
+        required: false
+        default: '25'
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# Only one work loop at a time. New triggers queue (don't cancel in-progress work).
+concurrency:
+  group: agent-work-loop
+  cancel-in-progress: false
+
+env:
+  REPO: nateschmiedehaus/LiBrainian
+  # Circuit breaker: stop dispatching if recent runs keep failing
+  MAX_CONSECUTIVE_FAILURES: 3
+
+jobs:
+  work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      issue_number: ${{ steps.find.outputs.issue_number }}
+      issue_title: ${{ steps.find.outputs.issue_title }}
+      pr_number: ${{ steps.create-pr.outputs.pr_number }}
+      branch: ${{ steps.branch.outputs.name }}
+      outcome: ${{ steps.outcome.outputs.result }}
+
+    steps:
+      # ── Circuit Breaker ──────────────────────────────────────────────
+      - name: Circuit breaker — check recent failures
+        id: breaker
+        run: |
+          RECENT=$(gh run list -R "$REPO" -w "Agent Work Loop" --limit 5 \
+            --json conclusion --jq '[.[] | select(.conclusion == "failure")] | length')
+          if [ "$RECENT" -ge "$MAX_CONSECUTIVE_FAILURES" ]; then
+            echo "Circuit breaker OPEN — $RECENT consecutive failures. Skipping dispatch."
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Circuit breaker closed ($RECENT recent failures)"
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Abort if circuit breaker open
+        if: steps.breaker.outputs.open == 'true'
+        run: |
+          echo "::warning::Circuit breaker is open. Fix recent failures before dispatching more work."
+          exit 0
+
+      # ── Find Issue ───────────────────────────────────────────────────
+      - name: Find next ready issue
+        if: steps.breaker.outputs.open != 'true'
+        id: find
+        run: |
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            # Manual override — work on specific issue
+            NUM="${{ inputs.issue_number }}"
+            TITLE=$(gh issue view "$NUM" -R "$REPO" --json title --jq '.title')
+            echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
+            echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
+            echo "Selected (manual): #$NUM — $TITLE"
+            exit 0
+          fi
+
+          # Auto-select: find issues that are ready + actionable + not claimed
+          # Priority: M0 > M1 > M2 > M3 > M4, then by issue number (oldest first)
+          ISSUES=$(gh issue list -R "$REPO" --state open \
+            --label "triage/ready" --label "agent:actionable" \
+            --limit 50 \
+            --json number,title,labels,milestone \
+            --jq '
+              [.[] |
+                select(.labels | map(.name) |
+                  (contains(["agent:claimed"]) | not) and
+                  (contains(["lifecycle/frozen"]) | not) and
+                  (contains(["agent:blocked"]) | not)
+                ) |
+                {
+                  number,
+                  title,
+                  milestone: (.milestone.title // "none"),
+                  milestone_order: (
+                    if .milestone.title == "M0: Dogfood-Ready" then 0
+                    elif .milestone.title == "M1: Construction MVP" then 1
+                    elif .milestone.title == "M2: Agent Integration" then 2
+                    elif .milestone.title == "M3: Scale & Epistemics" then 3
+                    elif .milestone.title == "M4: World-Class" then 4
+                    else 5 end
+                  )
+                }
+              ] | sort_by(.milestone_order, .number) | first
+            ')
+
+          if [ -z "$ISSUES" ] || [ "$ISSUES" = "null" ]; then
+            echo "No ready+actionable issues found. Nothing to dispatch."
+            echo "issue_number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NUM=$(echo "$ISSUES" | jq -r '.number')
+          TITLE=$(echo "$ISSUES" | jq -r '.title')
+          echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
+          echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "Selected (auto): #$NUM — $TITLE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for dependency blockers
+        if: steps.find.outputs.issue_number && steps.breaker.outputs.open != 'true'
+        id: deps
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          BODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body')
+
+          # Extract "Depends on: #X" or "Blocked by: #X" references
+          DEPS=$(echo "$BODY" | grep -ioP '(?:depends on|blocked by|requires)\s*#\K\d+' || true)
+
+          for DEP in $DEPS; do
+            STATE=$(gh issue view "$DEP" -R "$REPO" --json state --jq '.state')
+            if [ "$STATE" = "OPEN" ]; then
+              echo "::warning::Issue #$NUM is blocked by open dependency #$DEP"
+              # Label it blocked and find next issue
+              gh issue edit "$NUM" -R "$REPO" --add-label "agent:blocked"
+              echo "blocked=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "blocked=false" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip if no issue or blocked or dry run
+        if: >-
+          !steps.find.outputs.issue_number ||
+          steps.deps.outputs.blocked == 'true' ||
+          inputs.dry_run == 'true' ||
+          steps.breaker.outputs.open == 'true'
+        run: |
+          echo "Skipping agent dispatch."
+          echo "  Issue: ${{ steps.find.outputs.issue_number || 'none' }}"
+          echo "  Blocked: ${{ steps.deps.outputs.blocked }}"
+          echo "  Dry run: ${{ inputs.dry_run }}"
+          echo "  Breaker: ${{ steps.breaker.outputs.open }}"
+
+      # ── Claim & Setup ───────────────────────────────────────────────
+      - name: Claim issue
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          gh issue edit "$NUM" -R "$REPO" --add-label "agent:claimed"
+          gh issue comment "$NUM" -R "$REPO" --body "$(cat <<'COMMENT'
+          **Agent Work Loop** claimed this issue.
+
+          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Triggered:** ${{ github.event_name }}
+          - **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          Working on implementation now...
+          COMMENT
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Free disk space — LiBrainian + node_modules need ~4GB
+      - name: Free disk space
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
+          echo "Disk space available: $(df -h / | tail -1 | awk '{print $4}')"
+
+      - uses: actions/checkout@v4
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+
+      - uses: actions/setup-node@v4
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and build
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        run: npm ci && npm run build
+
+      - name: Create working branch
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: branch
+        run: |
+          BRANCH="claude/issue-${{ steps.find.outputs.issue_number }}"
+          git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      # ── Agent Execution ──────────────────────────────────────────────
+      - name: Read issue for agent context
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: issue-body
+        run: |
+          gh issue view ${{ steps.find.outputs.issue_number }} -R "$REPO" \
+            --json body,title,labels,milestone \
+            > /tmp/issue-context.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run agent
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Auth: OAuth token from Max subscription. Falls back to API key if set.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          prompt: |
+            You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}"
+
+            ## Issue Context
+            Read the full issue at /tmp/issue-context.json for details.
+
+            ## Your Task
+            1. Read and understand the issue's acceptance criteria
+            2. Read the CLAUDE.md file for project conventions
+            3. Understand the relevant code before changing it (use Read, Grep, Glob)
+            4. Implement the fix/feature
+            5. Run `npm run build` to verify compilation
+            6. Run relevant tests with `npm test -- --testPathPattern <relevant_pattern>`
+            7. Commit your changes with a descriptive message referencing the issue
+
+            ## Rules
+            - Make focused, minimal changes. Do not refactor surrounding code.
+            - Do not create new documentation files unless the issue specifically asks for it.
+            - Do not modify CLAUDE.md, AGENTS.md, or workflow files unless the issue requires it.
+            - If you encounter a blocker you cannot resolve, commit what you have and explain in the commit message.
+            - Prefer deleting dead code to adding abstractions.
+
+            ## Evidence
+            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }} with:
+            - What you changed and why
+            - Test results (paste actual output)
+            - Any caveats or things the verifier should check
+
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns ${{ inputs.max_turns || '25' }}
+
+          # Standard code tools — no MCP (avoids bootstrap/disk/memory issues in CI)
+          # LiBrainian MCP requires bootstrapped index which is too heavy for CI runners.
+          # The agent uses built-in Read/Grep/Glob which are sufficient for focused issue work.
+
+        continue-on-error: true  # Don't fail the whole job on agent error (exit code 5 bug)
+
+      # ── Post-Agent: Create PR ────────────────────────────────────────
+      - name: Check for changes and create PR
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: create-pr
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          BRANCH=${{ steps.branch.outputs.name }}
+
+          # Check if the agent made any commits
+          COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "No commits made by agent. Checking for uncommitted changes..."
+            if [ -n "$(git status --porcelain)" ]; then
+              git add -A
+              git commit -m "wip: agent partial work on #$NUM (uncommitted changes)"
+            else
+              echo "No changes at all. Agent may have failed."
+              echo "pr_number=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # Push branch (force-with-lease for idempotent retries, fall back to regular push)
+          git push -u origin "$BRANCH" --force-with-lease 2>/dev/null || \
+            git push -u origin "$BRANCH"
+
+          # Create PR if one doesn't exist
+          EXISTING_PR=$(gh pr list -R "$REPO" --head "$BRANCH" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for this branch"
+            echo "pr_number=$EXISTING_PR" >> "$GITHUB_OUTPUT"
+          else
+            PR_NUM=$(gh pr create -R "$REPO" \
+              --base main \
+              --head "$BRANCH" \
+              --title "fix: implement #$NUM — ${{ steps.find.outputs.issue_title }}" \
+              --body "$(cat <<EOF
+          ## Summary
+          Automated implementation of #$NUM.
+
+          Closes #$NUM
+
+          ## Agent Run
+          - **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Model:** claude-sonnet-4-6
+          - **Turns:** ${{ inputs.max_turns || '25' }}
+
+          ## Verification
+          This PR needs independent verification before merge.
+          The Agent Verify workflow will check it automatically.
+
+          <!-- agent_pr = {"issue": $NUM, "agent": "worker", "run_id": "${{ github.run_id }}"} -->
+          EOF
+          )" --json number --jq '.number')
+            echo "Created PR #$PR_NUM"
+            echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Label issue for verification
+          gh issue edit "$NUM" -R "$REPO" \
+            --remove-label "agent:claimed" \
+            --add-label "verify:pending"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Outcome Recording ────────────────────────────────────────────
+      - name: Record outcome
+        if: always() && steps.find.outputs.issue_number
+        id: outcome
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          PR=${{ steps.create-pr.outputs.pr_number }}
+
+          if [ -n "$PR" ]; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
+          **Agent Work Loop** completed.
+
+          - **PR:** #$PR
+          - **Status:** Implementation submitted
+          - **Next:** Awaiting independent verification
+
+          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","pr":$PR,"run":"${{ github.run_id }}","status":"submitted"} -->
+          EOF
+          )"
+          else
+            echo "result=no-changes" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending"
+            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
+          **Agent Work Loop** did not produce changes for this issue.
+
+          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Reason:** Agent completed without making code changes
+
+          Returning to ready state.
+
+          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","run":"${{ github.run_id }}","status":"no_changes"} -->
+          EOF
+          )"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Unclaim on failure
+        if: failure() && steps.find.outputs.issue_number
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          gh issue edit "$NUM" -R "$REPO" \
+            --remove-label "agent:claimed" \
+            --remove-label "verify:pending"
+          gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
+          **Agent Work Loop** failed.
+
+          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - **Error:** Workflow failed — check run logs
+
+          Returning to ready state for retry.
+
+          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","run":"${{ github.run_id }}","status":"failed"} -->
+          EOF
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
