@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { initializeLibrarian } from '../src/orchestrator/index.js';
+import { withTimeout } from '../src/utils/async.js';
 import {
   createGroundTruthGenerator,
   type StructuralGroundTruthCorpus,
@@ -16,6 +17,8 @@ import {
   type SelfUnderstandingHistoryEntry,
   type SelfUnderstandingReport,
 } from '../src/evaluation/self_understanding.js';
+
+const CALLER_PACK_LIMIT = 20;
 
 function parseNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -240,34 +243,50 @@ try {
       maxQuestionCount: maxQuestions,
       answerTimeoutMs,
       answerQuestion: async (question) => {
+        const queryStartedAt = Date.now();
         const affectedFiles = Array.from(new Set(question.evidence.map((fact) => fact.file))).slice(0, 12);
-        const response = await session.librarian.query({
-          intent: question.intent,
-          depth: 'L0',
-          affectedFiles,
-          filter: { excludeTests: true },
-          llmRequirement: 'disabled',
-          embeddingRequirement: 'disabled',
-          disableMethodGuidance: true,
-          forceSummarySynthesis: true,
-          disableCache: true,
-          deterministic: true,
-          waitForIndexMs: 1000,
-          timeoutMs: answerTimeoutMs,
-        });
+        const response = await withTimeout(
+          session.librarian.query({
+            intent: question.intent,
+            depth: 'L0',
+            affectedFiles,
+            filter: { excludeTests: true },
+            llmRequirement: 'disabled',
+            embeddingRequirement: 'disabled',
+            disableMethodGuidance: true,
+            forceSummarySynthesis: true,
+            disableCache: true,
+            deterministic: true,
+            waitForIndexMs: 1000,
+            timeoutMs: answerTimeoutMs,
+          }),
+          answerTimeoutMs + 1000,
+          { context: `self-understanding query ${question.id}`, errorCode: 'QUERY_TIMEOUT' },
+        );
         const packs = response.packs ?? [];
-        const snippets = packs
+        const cappedPacks = question.type === 'callers'
+          ? packs.slice(0, CALLER_PACK_LIMIT)
+          : packs;
+        if (question.type === 'callers' && packs.length > CALLER_PACK_LIMIT) {
+          console.error(
+            `[eval-self-understanding] caller query ${question.id} returned ${packs.length} packs; capping to ${CALLER_PACK_LIMIT}`
+          );
+        }
+        console.error(
+          `[eval-self-understanding] query=${question.id} type=${question.type} latencyMs=${Date.now() - queryStartedAt} packs=${packs.length} usedPacks=${cappedPacks.length}`
+        );
+        const snippets = cappedPacks
           .flatMap((pack) => pack.codeSnippets ?? [])
-          .slice(0, 20)
+          .slice(0, CALLER_PACK_LIMIT)
           .map((snippet) => ({
             file: snippet.filePath,
             startLine: snippet.startLine,
             endLine: snippet.endLine,
             code: snippet.content,
           }));
-        const keyFacts = packs.flatMap((pack) => pack.keyFacts ?? []).slice(0, 40);
-        const relatedFiles = Array.from(new Set(packs.flatMap((pack) => pack.relatedFiles ?? []))).slice(0, 20);
-        const summaryParts = packs
+        const keyFacts = cappedPacks.flatMap((pack) => pack.keyFacts ?? []).slice(0, CALLER_PACK_LIMIT * 2);
+        const relatedFiles = Array.from(new Set(cappedPacks.flatMap((pack) => pack.relatedFiles ?? []))).slice(0, CALLER_PACK_LIMIT);
+        const summaryParts = cappedPacks
           .map((pack) => pack.summary?.trim())
           .filter((value): value is string => Boolean(value));
         return {
