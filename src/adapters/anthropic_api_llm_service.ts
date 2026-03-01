@@ -565,17 +565,9 @@ export function createAutoLlmServiceFactory(): LlmServiceFactory {
     }
 
     if (isInsideClaudeCodeSession()) {
-      if (brokerConfigured) {
-        logInfo(
-          'LLM transport: inside Claude Code session with Claude broker configured; ' +
-          'using CLI adapter auto-detect (broker preferred for claude).'
-        );
-      } else {
-        logWarning(
-          'LLM transport: inside Claude Code session without ANTHROPIC_API_KEY or LIBRARIAN_CLAUDE_BROKER_URL. ' +
-          'Claude CLI subprocess may fail due to nested session detection.'
-        );
-      }
+      logInfo(
+        'LLM transport: inside Claude Code session; CLI adapter will strip nested session env vars before spawning.'
+      );
     }
 
     logInfo('LLM transport: using CLI transport (auto-detect)');

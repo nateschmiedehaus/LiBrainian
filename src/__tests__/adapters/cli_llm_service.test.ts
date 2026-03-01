@@ -121,17 +121,23 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock.mock.calls[0]?.[0]).toBe('codex');
   });
 
-  it('reports claude unavailable in nested sessions when no ANTHROPIC_API_KEY is set', async () => {
+  it('reports claude available in nested sessions via env stripping (no ANTHROPIC_API_KEY needed)', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
+
+    execaMock.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: '2.1.62 (Claude Code)',
+      stderr: '',
+    } as never);
 
     const service = new CliLlmService();
     const health = await service.checkClaudeHealth();
 
-    expect(health.available).toBe(false);
-    expect(health.authenticated).toBe(false);
-    expect(health.error).toContain('nested Claude Code sessions');
-    expect(execaMock).not.toHaveBeenCalled();
+    // Nested sessions no longer block — env vars are stripped before spawning
+    expect(health.available).toBe(true);
+    expect(execaMock).toHaveBeenCalled();
+    expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
   });
 
   it('reports claude available via API transport in nested sessions when ANTHROPIC_API_KEY is set', async () => {
@@ -433,12 +439,12 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
   });
 
-  it('skips Claude CLI in nested sessions without API key and falls back to codex', async () => {
+  it('uses Claude CLI in nested sessions via env stripping (no codex fallback)', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
     execaMock.mockResolvedValue({
       exitCode: 0,
-      stdout: 'codex-answer',
+      stdout: 'claude-answer',
       stderr: '',
     } as never);
 
@@ -448,9 +454,11 @@ describe('CliLlmService provider routing', () => {
       messages: [{ role: 'user', content: 'hello' }],
     });
 
-    expect(result.provider).toBe('codex');
+    // Nested sessions no longer block Claude CLI — env vars are stripped
+    expect(result.provider).toBe('claude');
+    expect(result.content).toContain('claude-answer');
     expect(execaMock).toHaveBeenCalledTimes(1);
-    expect(execaMock.mock.calls[0]?.[0]).toBe('codex');
+    expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
   });
 
   it('falls back to codex when claude fails', async () => {

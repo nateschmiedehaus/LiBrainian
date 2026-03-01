@@ -179,7 +179,7 @@ describe('llm provider discovery', () => {
     expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers codex during nested Claude Code sessions when both providers are healthy', async () => {
+  it('prefers claude during nested Claude Code sessions (env stripping makes CLI work)', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
 
     const claudeProbe: LlmProviderProbe = {
@@ -213,8 +213,9 @@ describe('llm provider discovery', () => {
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
-    expect(discovered?.provider).toBe('codex');
-    expect(discovered?.modelId).toBe('codex-model');
+    // Nested sessions no longer force codex fallback — Claude CLI works via env stripping
+    expect(discovered?.provider).toBe('claude');
+    expect(discovered?.modelId).toBe('claude-model');
   });
 
   it('prefers claude during nested Claude Code sessions when ANTHROPIC_API_KEY is configured', async () => {

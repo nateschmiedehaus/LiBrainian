@@ -113,6 +113,17 @@ function estimateTokenCount(text: string): number {
   return trimmed ? Math.max(1, Math.ceil(trimmed.length / 4)) : 1;
 }
 
+/** Env vars that Claude Code sets to detect nested sessions. */
+const NESTED_SESSION_VARS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_SESSION',
+  'SESSION_ID',
+];
+
 function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const home = process.env.HOME || '';
   const prefix = home ? path.join(home, '.local', 'bin') : '';
@@ -121,6 +132,19 @@ function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const parts = currentPath.split(path.delimiter).filter(Boolean);
   if (parts.includes(prefix)) return env;
   return { ...env, PATH: `${prefix}${path.delimiter}${currentPath}` };
+}
+
+/**
+ * Build a sanitized environment for spawning Claude/Codex CLI subprocesses.
+ * Strips nested session markers so child processes are not rejected, and
+ * ensures ~/.local/bin is on PATH.
+ */
+function sanitizedCliEnv(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+  const env = withCliPath({ ...process.env, ...(overrides ?? {}) });
+  for (const key of NESTED_SESSION_VARS) {
+    delete env[key];
+  }
+  return env;
 }
 
 function coerceGovernorContext(value: unknown): GovernorContextLike | null {
@@ -639,19 +663,10 @@ export class CliLlmService {
       }
     }
 
-    if (isNestedClaudeCodeSession()) {
-      this.health.claude = {
-        provider: 'claude',
-        available: false,
-        authenticated: false,
-        lastCheck: now,
-        error: buildNestedClaudeUnavailableMessage(),
-      };
-      return this.health.claude;
-    }
-
-    const env = withCliPath({ ...process.env });
-    const version = await execa('claude', ['--version'], { env, timeout: 5000, reject: false });
+    // Nested session env vars are stripped by sanitizedCliEnv() so Claude CLI
+    // can be invoked from inside a Claude Code session without rejection.
+    const env = sanitizedCliEnv();
+    const version = await execa('claude', ['--version'], { env, extendEnv: false, timeout: 5000, reject: false });
     if (version.exitCode !== 0) {
       this.health.claude = {
         provider: 'claude',
@@ -682,6 +697,7 @@ export class CliLlmService {
       // and to avoid consuming API credits during health checks
       const probe = await execa('claude', ['--version'], {
         env,
+        extendEnv: false,
         timeout: 5000, // Version check should be fast
         reject: false,
       });
@@ -723,8 +739,8 @@ export class CliLlmService {
       return this.health.codex;
     }
 
-    const env = withCliPath({ ...process.env });
-    const version = await execa('codex', ['--version'], { env, timeout: 5000, reject: false });
+    const env = sanitizedCliEnv();
+    const version = await execa('codex', ['--version'], { env, extendEnv: false, timeout: 5000, reject: false });
     if (version.exitCode !== 0) {
       this.health.codex = {
         provider: 'codex',
@@ -748,7 +764,7 @@ export class CliLlmService {
       return this.health.codex;
     }
 
-    const status = await execa('codex', ['login', 'status'], { env, timeout: 5000, reject: false });
+    const status = await execa('codex', ['login', 'status'], { env, extendEnv: false, timeout: 5000, reject: false });
     if (status.exitCode !== 0) {
       this.health.codex = {
         provider: 'codex',
@@ -770,6 +786,7 @@ export class CliLlmService {
       args.push('-');
       const probe = await execa('codex', args, {
         env,
+        extendEnv: false,
         input: 'ok',
         timeout: this.codexHealthCheckTimeoutMs,
         reject: false,
@@ -1107,25 +1124,17 @@ export class CliLlmService {
         }
       }
 
-      if (isNestedClaudeCodeSession()) {
-        const message = buildNestedClaudeUnavailableMessage();
-        await this.recordFailure('claude', message, message);
-        throw new Error(`unverified_by_trace(provider_unavailable): ${message}`);
-      }
-
       const args = ['--print'];
       if (systemPrompt) {
         args.push('--system-prompt', systemPrompt);
       }
-      const env = withCliPath({ ...process.env });
-      if (options.modelId) {
-        env.CLAUDE_MODEL = options.modelId;
-      }
+      const env = sanitizedCliEnv(options.modelId ? { CLAUDE_MODEL: options.modelId } : undefined);
       logInfo('CLI LLM: claude call', { promptLength: fullPrompt.length });
       const result = await this.executeWithChaos(async () => {
         const output = await execa('claude', args, {
           input: fullPrompt,
           env,
+          extendEnv: false,
           timeout: timeoutMs,
           reject: false,
         });
@@ -1232,7 +1241,8 @@ export class CliLlmService {
         const result = await this.executeWithChaos(async () => {
           const output = await execa('codex', args, {
             input: fullPrompt,
-            env: withCliPath({ ...process.env }),
+            env: sanitizedCliEnv(),
+            extendEnv: false,
             timeout: timeoutMs,
             reject: false,
           });
