@@ -34,6 +34,16 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const RATE_LIMIT_TTL_MS = 15 * 60 * 1000;
 const QUOTA_TTL_MS = 60 * 60 * 1000;
 const SHORT_TTL_MS = 5 * 60 * 1000;
+const VALID_FAILURE_REASONS: ReadonlySet<ProviderFailureReason> = new Set([
+  'rate_limit',
+  'quota_exceeded',
+  'auth_failed',
+  'timeout',
+  'network_error',
+  'invalid_response',
+  'unavailable',
+  'unknown',
+]);
 
 function readEnvNumber(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -53,6 +63,27 @@ export function resolveProviderWorkspaceRoot(cwd: string = process.cwd()): strin
   return resolveWorkspaceRoot(cwd).workspace;
 }
 
+function resolveTtlForReason(reason: ProviderFailureReason): number {
+  switch (reason) {
+    case 'rate_limit':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_RATE_LIMIT_MS', RATE_LIMIT_TTL_MS);
+    case 'quota_exceeded':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_QUOTA_MS', QUOTA_TTL_MS);
+    case 'timeout':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_TIMEOUT_MS', SHORT_TTL_MS);
+    case 'network_error':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_NETWORK_MS', SHORT_TTL_MS);
+    case 'invalid_response':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_INVALID_MS', DEFAULT_TTL_MS);
+    case 'auth_failed':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_AUTH_MS', DEFAULT_TTL_MS);
+    case 'unavailable':
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_UNAVAILABLE_MS', DEFAULT_TTL_MS);
+    default:
+      return readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_MS', DEFAULT_TTL_MS);
+  }
+}
+
 export function classifyProviderFailure(message: string): { reason: ProviderFailureReason; ttlMs: number } {
   const normalized = message.toLowerCase();
   if (
@@ -61,7 +92,7 @@ export function classifyProviderFailure(message: string): { reason: ProviderFail
     || normalized.includes('nested session')
     || normalized.includes('agent-inside-agent')
   ) {
-    return { reason: 'unavailable', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_UNAVAILABLE_MS', DEFAULT_TTL_MS) };
+    return { reason: 'unavailable', ttlMs: resolveTtlForReason('unavailable') };
   }
   if (
     normalized.includes('rate limit')
@@ -69,30 +100,111 @@ export function classifyProviderFailure(message: string): { reason: ProviderFail
     || normalized.includes('429')
     || normalized.includes('limit reached')
   ) {
-    return { reason: 'rate_limit', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_RATE_LIMIT_MS', RATE_LIMIT_TTL_MS) };
+    return { reason: 'rate_limit', ttlMs: resolveTtlForReason('rate_limit') };
   }
-  if (normalized.includes('quota') || normalized.includes('exceeded')) {
-    return { reason: 'quota_exceeded', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_QUOTA_MS', QUOTA_TTL_MS) };
+  if (
+    normalized.includes('quota')
+    || normalized.includes('insufficient_quota')
+    || normalized.includes('billing')
+    || normalized.includes('credits exhausted')
+  ) {
+    return { reason: 'quota_exceeded', ttlMs: resolveTtlForReason('quota_exceeded') };
   }
   if (normalized.includes('auth') || normalized.includes('unauthorized') || normalized.includes('not authenticated')) {
-    return { reason: 'auth_failed', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_AUTH_MS', DEFAULT_TTL_MS) };
+    return { reason: 'auth_failed', ttlMs: resolveTtlForReason('auth_failed') };
   }
   if (normalized.includes('timeout')) {
-    return { reason: 'timeout', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_TIMEOUT_MS', SHORT_TTL_MS) };
+    return { reason: 'timeout', ttlMs: resolveTtlForReason('timeout') };
   }
   if (normalized.includes('network') || normalized.includes('econn') || normalized.includes('enet')) {
-    return { reason: 'network_error', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_NETWORK_MS', SHORT_TTL_MS) };
+    return { reason: 'network_error', ttlMs: resolveTtlForReason('network_error') };
   }
   if (normalized.includes('invalid') || normalized.includes('schema')) {
-    return { reason: 'invalid_response', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_INVALID_MS', DEFAULT_TTL_MS) };
+    return { reason: 'invalid_response', ttlMs: resolveTtlForReason('invalid_response') };
   }
   if (normalized.includes('unknown model') || normalized.includes('unsupported model')) {
-    return { reason: 'invalid_response', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_INVALID_MS', DEFAULT_TTL_MS) };
+    return { reason: 'invalid_response', ttlMs: resolveTtlForReason('invalid_response') };
   }
   if (normalized.includes('unavailable')) {
-    return { reason: 'unavailable', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_UNAVAILABLE_MS', DEFAULT_TTL_MS) };
+    return { reason: 'unavailable', ttlMs: resolveTtlForReason('unavailable') };
   }
-  return { reason: 'unknown', ttlMs: readEnvNumber('LIBRARIAN_PROVIDER_FAILURE_TTL_MS', DEFAULT_TTL_MS) };
+  return { reason: 'unknown', ttlMs: resolveTtlForReason('unknown') };
+}
+
+function reasonHasEvidence(reason: ProviderFailureReason, message: string): boolean {
+  const normalized = message.toLowerCase();
+  switch (reason) {
+    case 'rate_limit':
+      return normalized.includes('rate limit') || normalized.includes('rate_limit') || normalized.includes('429');
+    case 'quota_exceeded':
+      return normalized.includes('quota') || normalized.includes('billing') || normalized.includes('insufficient_quota');
+    case 'auth_failed':
+      return normalized.includes('auth')
+        || normalized.includes('unauthorized')
+        || normalized.includes('not authenticated')
+        || normalized.includes('missing bearer token')
+        || normalized.includes('login');
+    case 'timeout':
+      return normalized.includes('timeout') || normalized.includes('timed out');
+    case 'network_error':
+      return normalized.includes('network')
+        || normalized.includes('econn')
+        || normalized.includes('enet')
+        || normalized.includes('connection refused');
+    case 'invalid_response':
+      return normalized.includes('invalid')
+        || normalized.includes('schema')
+        || normalized.includes('unsupported model')
+        || normalized.includes('unknown model')
+        || normalized.includes('malformed');
+    case 'unavailable':
+      return normalized.includes('unavailable')
+        || normalized.includes('cannot run')
+        || normalized.includes('cannot be launched')
+        || normalized.includes('inside nested')
+        || normalized.includes('nested claude code')
+        || normalized.includes('provider unavailable');
+    case 'unknown':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function normalizeReason(reason: ProviderFailureReason, message: string): ProviderFailureReason {
+  if (reason === 'unknown') return reason;
+  return reasonHasEvidence(reason, message) ? reason : 'unknown';
+}
+
+function normalizePersistedFailureRecord(
+  provider: ProviderName,
+  record: ProviderFailureRecord,
+  nowIso: string
+): ProviderFailureRecord {
+  const message = String(record.message ?? '').trim();
+  const safeMessage = message || `${provider} provider call failed without diagnostic output`;
+  const rawReason = typeof record.reason === 'string' && VALID_FAILURE_REASONS.has(record.reason as ProviderFailureReason)
+    ? record.reason as ProviderFailureReason
+    : 'unknown';
+  const reason = normalizeReason(rawReason, safeMessage);
+  const parsedAt = Date.parse(record.at);
+  const at = Number.isFinite(parsedAt) ? new Date(parsedAt).toISOString() : nowIso;
+  const ttlMs = Number.isFinite(record.ttlMs) && record.ttlMs > 0 ? record.ttlMs : resolveTtlForReason(reason);
+  return {
+    provider,
+    reason,
+    message: safeMessage,
+    at,
+    ttlMs,
+  };
+}
+
+function recordsEqual(left: ProviderFailureRecord, right: ProviderFailureRecord): boolean {
+  return left.provider === right.provider
+    && left.reason === right.reason
+    && left.message === right.message
+    && left.at === right.at
+    && left.ttlMs === right.ttlMs;
 }
 
 async function readFailureState(workspaceRoot: string): Promise<ProviderFailureState | null> {
@@ -124,11 +236,17 @@ export async function getActiveProviderFailures(
   const state = await readFailureState(workspaceRoot);
   if (!state?.failures) return {};
   const failures: Partial<Record<ProviderName, ProviderFailureRecord>> = { ...state.failures };
+  const nowIso = new Date(nowMs).toISOString();
   let changed = false;
   for (const provider of Object.keys(failures) as ProviderName[]) {
     const record = failures[provider];
     if (!record) continue;
-    if (isExpired(record, nowMs)) {
+    const normalized = normalizePersistedFailureRecord(provider, record, nowIso);
+    if (!recordsEqual(record, normalized)) {
+      failures[provider] = normalized;
+      changed = true;
+    }
+    if (isExpired(normalized, nowMs)) {
       delete failures[provider];
       changed = true;
     }
@@ -150,7 +268,7 @@ export async function recordProviderFailure(
 ): Promise<void> {
   const state = await readFailureState(workspaceRoot);
   const failures = { ...(state?.failures ?? {}) };
-  failures[record.provider] = record;
+  failures[record.provider] = normalizePersistedFailureRecord(record.provider, record, new Date().toISOString());
   await writeFailureState(workspaceRoot, {
     kind: 'ProviderFailureState.v1',
     schema_version: 1,

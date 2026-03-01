@@ -340,6 +340,8 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
   if (
     /^(workdir|model|provider|approval|sandbox|reasoning effort|reasoning summaries|session id):/i.test(line)
     || /^(user|assistant|thinking|codex|tokens used)$/i.test(line)
+    || /^(retrieved knowledge|context packs|query results|user intent|coverage gaps|drill-down hints):/i.test(line)
+    || /^[A-Z][A-Z0-9 _/-]{6,}:$/.test(line)
     || /^mcp startup:/i.test(line)
   ) {
     return true;
@@ -354,6 +356,21 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
     return true;
   }
   return false;
+}
+
+function isLikelyCodexPromptLeakLine(line: string, provider: CliProvider): boolean {
+  if (provider !== 'codex') return false;
+  const normalized = line.trim().toLowerCase();
+  if (normalized.length === 0) return false;
+  const hasFailureSignal = /\b(error|failed|failure|invalid|unsupported|unavailable|timeout|quota|rate(?:[_ -])?limit|auth|exception|panic|abort)\b/i
+    .test(line);
+  if (hasFailureSignal) return false;
+  return normalized.startsWith('you are ')
+    || normalized.startsWith('respond with ')
+    || normalized.startsWith('return a ')
+    || normalized.startsWith('return an ')
+    || normalized.startsWith('based on the ')
+    || normalized.startsWith('use the following ');
 }
 
 function removeCodexTranscriptPayloadLines(lines: string[], provider: CliProvider): string[] {
@@ -378,7 +395,7 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   const withoutAnsi = raw.replace(/\u001B\[[0-9;]*m/g, '');
   const normalizedRaw = withoutAnsi.trim();
   if (normalizedRaw.length > 0 && /^[-=_\s]+$/.test(normalizedRaw)) {
-    return `${provider} CLI failed without diagnostic output (check auth, model access, and rate limits)`;
+    return `${provider} CLI failed without diagnostic output (check auth, model access, and provider configuration)`;
   }
   const lines = withoutAnsi
     .split(/\r?\n+/)
@@ -389,13 +406,14 @@ function sanitizeCliErrorMessage(raw: string, provider: CliProvider): string {
   const meaningfulLines = prunedLines.filter((line) =>
     !isCodexCliDecorativeLine(line)
     && !isKnownCliNoiseLine(line, provider)
+    && !isLikelyCodexPromptLeakLine(line, provider)
   );
   const preferred =
     meaningfulLines.find((line) => /\b(error|failed|unsupported|invalid|unavailable|timeout|quota|rate(?:[_ -])?limit|auth|exception|panic|abort|terminating)\b/i.test(line))
     ?? meaningfulLines.find((line) => /\b(limit|denied|blocked)\b/i.test(line))
     ?? meaningfulLines[0];
   if (!preferred) {
-    return `${provider} CLI failed without diagnostic output (check auth, model access, and rate limits)`;
+    return `${provider} CLI failed without diagnostic output (check auth, model access, and provider configuration)`;
   }
   const compact = preferred.replace(/\s+/g, ' ').trim();
   const clipped = compact.length > 220 ? `${compact.slice(0, 217)}...` : compact;
