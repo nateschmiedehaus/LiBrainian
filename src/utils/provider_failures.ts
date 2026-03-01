@@ -87,6 +87,12 @@ function resolveTtlForReason(reason: ProviderFailureReason): number {
 export function classifyProviderFailure(message: string): { reason: ProviderFailureReason; ttlMs: number } {
   const normalized = message.toLowerCase();
   if (
+    (normalized.includes('state db') && normalized.includes('migration') && normalized.includes('mismatch'))
+    || (normalized.includes('failed to open state db') && normalized.includes('resolved migrations'))
+  ) {
+    return { reason: 'invalid_response', ttlMs: resolveTtlForReason('invalid_response') };
+  }
+  if (
     normalized.includes('inside another claude code session')
     || normalized.includes('cannot be launched inside another')
     || normalized.includes('nested session')
@@ -156,7 +162,9 @@ function reasonHasEvidence(reason: ProviderFailureReason, message: string): bool
         || normalized.includes('schema')
         || normalized.includes('unsupported model')
         || normalized.includes('unknown model')
-        || normalized.includes('malformed');
+        || normalized.includes('malformed')
+        || (normalized.includes('state db') && normalized.includes('migration') && normalized.includes('mismatch'))
+        || (normalized.includes('failed to open state db') && normalized.includes('resolved migrations'));
     case 'unavailable':
       return normalized.includes('unavailable')
         || normalized.includes('cannot run')
@@ -172,8 +180,14 @@ function reasonHasEvidence(reason: ProviderFailureReason, message: string): bool
 }
 
 function normalizeReason(reason: ProviderFailureReason, message: string): ProviderFailureReason {
-  if (reason === 'unknown') return reason;
-  return reasonHasEvidence(reason, message) ? reason : 'unknown';
+  const inferred = classifyProviderFailure(message).reason;
+  if (reason === 'unknown') {
+    return inferred;
+  }
+  if (reasonHasEvidence(reason, message)) {
+    return reason;
+  }
+  return inferred;
 }
 
 function normalizePersistedFailureRecord(

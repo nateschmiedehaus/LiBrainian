@@ -89,4 +89,29 @@ describe('provider_failures', () => {
     const result = classifyProviderFailure('operation exceeded execution deadline');
     expect(result.reason).toBe('unknown');
   });
+
+  it('classifies codex state-db migration mismatch as invalid_response', () => {
+    const result = classifyProviderFailure(
+      'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.'
+    );
+    expect(result.reason).toBe('invalid_response');
+  });
+
+  it('upgrades unknown persisted reasons when message has migration-mismatch evidence', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-failure-upgrade-'));
+    try {
+      await recordProviderFailure(workspaceRoot, {
+        provider: 'codex',
+        reason: 'unknown',
+        message: 'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.',
+        ttlMs: 15 * 60 * 1000,
+        at: new Date().toISOString(),
+      });
+
+      const failures = await getActiveProviderFailures(workspaceRoot);
+      expect(failures.codex?.reason).toBe('invalid_response');
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });
