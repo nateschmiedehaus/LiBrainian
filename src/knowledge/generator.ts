@@ -1623,7 +1623,7 @@ export class UniversalKnowledgeGenerator {
       knowledge: JSON.stringify(knowledge),
       purposeSummary: knowledge.semantics.purpose.summary || undefined,
       maintainabilityIndex: knowledge.quality.maintainability.index,
-      riskScore: knowledge.security.riskScore.overall,
+      riskScore: knowledge.security.riskScore?.overall,
       testCoverage: knowledge.quality.coverage.statement,
       cyclomaticComplexity: knowledge.quality.complexity.cyclomatic,
       cognitiveComplexity: knowledge.semantics.complexity.cognitive,

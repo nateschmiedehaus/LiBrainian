@@ -61,6 +61,7 @@ const CONSOLIDATED_SYSTEM_PROMPT = `You are a code analysis expert. Analyze code
 Return a single JSON object with all three sections. Be precise and evidence-based.`;
 
 function buildConsolidatedPrompt(input: ConsolidatedInput, staticSecurity: SecurityExtraction): string {
+  const riskScore = staticSecurity.security.riskScore?.overall;
   const codePart = input.content
     ? `\n\nCode:\n\`\`\`\n${input.content.slice(0, 3000)}\n\`\`\``
     : '';
@@ -80,7 +81,7 @@ Name: ${input.name}${signaturePart}${docPart}${codePart}
 
 Static security analysis found:
 - Vulnerabilities: ${staticSecurity.security.vulnerabilities.map(v => v.id).join(', ') || 'none'}
-- Risk score: ${staticSecurity.security.riskScore.overall}/10
+- Risk score: ${riskScore == null ? 'not analyzed' : `${riskScore}/10`}
 
 Return JSON with this structure:
 {
@@ -369,7 +370,17 @@ function mergeSecurityResults(
 
   // Update risk score if LLM found additional issues
   if (llmResult?.additionalVulnerabilities && llmResult.additionalVulnerabilities.length > 0) {
-    security.riskScore.overall = Math.min(10, security.riskScore.overall + llmResult.additionalVulnerabilities.length);
+    const nextOverall = Math.min(
+      10,
+      (security.riskScore?.overall ?? 0.1) + llmResult.additionalVulnerabilities.length
+    );
+    const current = security.riskScore;
+    security.riskScore = {
+      overall: nextOverall,
+      confidentiality: current?.confidentiality ?? nextOverall,
+      integrity: current?.integrity ?? nextOverall,
+      availability: current?.availability ?? nextOverall,
+    };
   }
 
   return {
