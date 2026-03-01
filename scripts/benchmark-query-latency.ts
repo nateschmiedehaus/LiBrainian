@@ -188,8 +188,15 @@ async function runBenchmarkQuery(options: {
   runPhase: 'cold' | 'warm';
   storage: ReturnType<typeof createSqliteStorage>;
   embeddingService: EmbeddingService;
+  coldStartStructuralOnly?: boolean;
 }): Promise<BenchmarkSample> {
-  const { query, runPhase, storage, embeddingService } = options;
+  const {
+    query,
+    runPhase,
+    storage,
+    embeddingService,
+    coldStartStructuralOnly = false,
+  } = options;
   const started = performance.now();
   try {
     await queryLibrarian({
@@ -198,6 +205,7 @@ async function runBenchmarkQuery(options: {
       llmRequirement: query.llmRequirement,
       deterministic: true,
       includeEngines: false,
+      coldStartStructuralOnly,
     }, storage, embeddingService);
     const latencyMs = performance.now() - started;
     return {
@@ -227,6 +235,7 @@ async function run(): Promise<void> {
       repetitions: { type: 'string', default: '2' },
       warmup: { type: 'boolean', default: true },
       failOnSlo: { type: 'boolean', default: false },
+      coldStructuralOnly: { type: 'boolean', default: true },
     },
     strict: false,
   });
@@ -294,6 +303,7 @@ async function run(): Promise<void> {
       runPhase: 'cold',
       storage,
       embeddingService,
+      coldStartStructuralOnly: values.coldStructuralOnly !== false,
     }));
 
     if (values.warmup !== false) {

@@ -15,5 +15,6 @@ describe('mcp server startup prewarm guardrails', () => {
     expect(serverSource).toContain('preloadEmbeddingModel()');
     expect(serverSource).toContain('preloadReranker()');
     expect(serverSource).toContain('void this.startModelPrewarm();');
+    expect(serverSource).toContain('coldStartStructuralOnly: this.startupPrewarmPromise !== null,');
   });
 });

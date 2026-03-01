@@ -5800,6 +5800,7 @@ export class LiBrainianMCPServer {
         workingFile: normalizedWorkingFile,
         minConfidence: effectiveMinConfidence,
         depth: (input.depth as 'L0' | 'L1' | 'L2' | 'L3') ?? 'L1',
+        coldStartStructuralOnly: this.startupPrewarmPromise !== null,
       };
       if (sessionState && preLoopMetrics && this.config.loopDetection.autoEscalateStrategy) {
         this.applyFutileRepeatEscalation(query, preLoopMetrics.futileCount);

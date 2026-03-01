@@ -999,6 +999,11 @@ export interface LibrarianQuery {
   timeoutMs?: number;
   waitForIndexMs?: number;
   includeEngines?: boolean;
+  /**
+   * When true, defer semantic embedding retrieval on cold model startup and
+   * return structural results first while model prewarm runs in the background.
+   */
+  coldStartStructuralOnly?: boolean;
   minConfidence?: number;
   ucRequirements?: UCRequirementSet;
   llmRequirement?: LlmRequirement;

@@ -44,7 +44,7 @@ import { LIBRARIAN_VERSION } from '../index.js';
 import type { GraphEntityType, GraphMetricsEntry } from '../graphs/metrics.js';
 import { buildMetricEmbeddings, findGraphNeighbors } from '../graphs/embeddings.js';
 import { EmbeddingService } from './embeddings.js';
-import { isModelLoaded } from './embedding_providers/real_embeddings.js';
+import { isModelLoaded, preloadEmbeddingModel } from './embedding_providers/real_embeddings.js';
 import { GovernorContext, estimateTokenCount } from './governor_context.js';
 import { DEFAULT_GOVERNOR_CONFIG } from './governors.js';
 import { applyCalibrationToPacks, computeUncertaintyMetrics, getConfidenceCalibration, summarizeCalibration } from './confidence_calibration.js';
@@ -1014,7 +1014,8 @@ export async function queryLibrarian(
     });
 
     const providerChecksDisabled =
-      llmRequirement === 'disabled' && query.embeddingRequirement === 'disabled';
+      (llmRequirement === 'disabled' && query.embeddingRequirement === 'disabled')
+      || query.coldStartStructuralOnly === true;
     const providerSnapshot = providerChecksDisabled
       ? {
           status: {
@@ -1034,13 +1035,18 @@ export async function queryLibrarian(
             },
           },
           remediationSteps: [] as string[],
-          reason: 'provider_checks_skipped',
+          reason: query.coldStartStructuralOnly ? 'cold_start_structural_only' : 'provider_checks_skipped',
         }
       : await checkProviderSnapshot({
           workspaceRoot,
           ledger: traceOptions.evidenceLedger,
           sessionId: traceSessionId,
         });
+    if (query.coldStartStructuralOnly) {
+      disclosures.push(
+        'unverified_by_trace(cold_start_structural_only): Provider probes skipped and semantic retrieval deferred during model prewarm.'
+      );
+    }
 
     const { disclosures: watchDisclosures, health: watchHealth, state: watchState } = await buildWatchDisclosures({
       storage,
@@ -3093,14 +3099,28 @@ async function runSemanticRetrievalStage(options: {
     degradedReason: undefined as string | undefined,
   };
 
-  if (embeddingAvailable && !isModelLoaded()) {
+  if (query.coldStartStructuralOnly && !isModelLoaded()) {
+    void preloadEmbeddingModel().catch(() => undefined);
+    recordCoverageGap(
+      'semantic_retrieval',
+      'Returning structural retrieval results while embedding model prewarms.',
+      'minor',
+      'Retry query after prewarm for full semantic retrieval.'
+    );
+  } else if (embeddingAvailable && !isModelLoaded()) {
     logWarning('Embedding model not preloaded - first query may experience cold-start latency. Ensure preloadEmbeddingModel() is called during bootstrap.', {
       stage: 'semantic_retrieval',
     });
   }
 
   const semanticStage = stageTracker.start('semantic_retrieval', query.intent && query.depth !== 'L0' ? 1 : 0);
-  if (semanticStage.inputCount > 0) {
+  if (query.coldStartStructuralOnly && !isModelLoaded()) {
+    stageTracker.finish(semanticStage, {
+      outputCount: 0,
+      filteredCount: 0,
+      status: 'partial',
+    });
+  } else if (semanticStage.inputCount > 0) {
     semanticCandidateWindow = resolveSemanticCandidateWindow(query.depth, false);
     if (!embeddingAvailable) {
       diagnostics.embeddingUnavailable = true;
@@ -7115,6 +7135,10 @@ async function maybeRerankWithCrossEncoder(
   recordCoverageGap: RecordCoverageGap
 ): Promise<ContextPack[]> {
   if (!query.intent || packs.length < 2) return packs;
+  if (query.coldStartStructuralOnly) {
+    explanationParts.push('Skipped cross-encoder rerank during cold-start structural-only retrieval.');
+    return packs;
+  }
   // Enable cross-encoder at L1+ (L0 still skipped for speed).
   // L1 uses a smaller candidate pool (5) vs L2 (10) / L3 (14) via resolveRerankWindow.
   if (query.depth === 'L0') return packs;
