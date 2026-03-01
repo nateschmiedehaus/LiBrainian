@@ -273,6 +273,38 @@ export async function runProviderReadinessGate(
     },
   ];
 
+  if (!networkDisabled && llmService && !forceProbe) {
+    const claudeProvider = providers.find((entry) => entry.provider === 'claude');
+    const codexProvider = providers.find((entry) => entry.provider === 'codex');
+    const claudeUnavailable = !claudeProvider?.available || !claudeProvider?.authenticated;
+    const codexCandidate = Boolean(codexProvider?.available && codexProvider?.authenticated);
+    if (claudeUnavailable && codexCandidate && codexProvider) {
+      try {
+        const codexProbe = await llmService.checkCodexHealth(true);
+        if (!codexProbe.available || !codexProbe.authenticated) {
+          codexProvider.available = false;
+          codexProvider.authenticated = codexProbe.authenticated;
+          codexProvider.lastCheck = codexProbe.lastCheck;
+          codexProvider.error = codexProbe.error;
+          const codexError = (codexProbe.error ?? '').toLowerCase();
+          if (codexError.includes('state db') && codexError.includes('migration')) {
+            remediationSteps.push(
+              'Codex state DB migration mismatch detected. Run `codex login` (or reset CODEX_HOME state) before retrying synthesis.'
+            );
+          } else {
+            remediationSteps.push(
+              'Codex deep probe failed while selected as sole provider. Run `codex login` and retry.'
+            );
+          }
+        }
+      } catch (error) {
+        codexProvider.available = false;
+        codexProvider.error = toSingleLineMessage(error);
+        remediationSteps.push('Codex deep probe failed while selected as sole provider. Run `codex login` and retry.');
+      }
+    }
+  }
+
   if (!networkDisabled) {
     const recentFailures = await getActiveProviderFailures(workspaceRoot, now);
     for (const [providerName, failure] of Object.entries(recentFailures)) {
@@ -309,7 +341,17 @@ export async function runProviderReadinessGate(
             remediationSteps.push('LLM provider network error; check connectivity before retrying.');
             break;
           case 'invalid_response':
-            remediationSteps.push('LLM provider returned invalid output; retry or switch provider.');
+            if (
+              providerName === 'codex'
+              && failure.message.toLowerCase().includes('state db')
+              && failure.message.toLowerCase().includes('migration')
+            ) {
+              remediationSteps.push(
+                'Codex state DB migration mismatch detected. Run `codex login` (or reset CODEX_HOME state) before retrying synthesis.'
+              );
+            } else {
+              remediationSteps.push('LLM provider returned invalid output; retry or switch provider.');
+            }
             break;
           default:
             remediationSteps.push('LLM provider unavailable; retry after cooldown or switch provider.');

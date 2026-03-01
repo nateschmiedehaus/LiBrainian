@@ -85,6 +85,64 @@ describe('runProviderReadinessGate', () => {
     expect(result.bypassed).toBe(false);
   });
 
+  it('auto-runs forced codex probe when codex is sole candidate and claude is unavailable', async () => {
+    const authChecker = {
+      checkAll: async () => buildAuthStatus({
+        codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+      }),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const checkCodexHealth = vi.fn(async (forceCheck = false) => {
+      if (forceCheck) {
+        return {
+          provider: 'codex' as const,
+          available: false,
+          authenticated: false,
+          lastCheck: Date.now(),
+          error: 'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.',
+        };
+      }
+      return {
+        provider: 'codex' as const,
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      };
+    });
+
+    const llmService = buildAdapter({
+      checkClaudeHealth: async () => ({
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: Date.now(),
+        error: 'Claude unavailable in nested session',
+      }),
+      checkCodexHealth,
+    });
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      llmService,
+      embeddingHealthCheck: async () => ({
+        provider: 'xenova',
+        available: true,
+        lastCheck: Date.now(),
+      }),
+      emitReport: false,
+      forceProbe: false,
+    });
+
+    expect(checkCodexHealth).toHaveBeenCalledWith(false);
+    expect(checkCodexHealth).toHaveBeenCalledWith(true);
+    expect(result.llmReady).toBe(false);
+    expect(result.selectedProvider).toBeNull();
+    const codexStatus = result.providers.find((provider) => provider.provider === 'codex');
+    expect(codexStatus?.available).toBe(false);
+    expect(result.remediationSteps?.some((step) => step.includes('Codex state DB migration mismatch detected'))).toBe(true);
+  });
+
   it('uses lightweight embedding probe by default', async () => {
     const authChecker = {
       checkAll: async () => buildAuthStatus({
