@@ -71,7 +71,7 @@ describe('constructionsCommand', () => {
     expect(constructions.some((construction) => construction.id === 'librainian:code-review-pipeline')).toBe(true);
   });
 
-  it('surfaces required runtime capabilities in human-readable list output', async () => {
+  it('keeps hallucinated-api-detector available in default install list output', async () => {
     await constructionsCommand({
       workspace: '/tmp/workspace',
       args: ['list'],
@@ -80,7 +80,7 @@ describe('constructionsCommand', () => {
 
     const combined = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
     expect(combined).toContain('hallucinated-api-detector');
-    expect(combined).toContain('requires: librainian-eval');
+    expect(combined).not.toContain('requires: librainian-eval');
   });
 
   it('returns ranked search results in JSON mode', async () => {
@@ -307,22 +307,23 @@ describe('constructionsCommand', () => {
     expect(invokeConstruction).not.toHaveBeenCalled();
   });
 
-  it('fails fast when runtime-only construction capability is missing', async () => {
-    await expect(
-      constructionsCommand({
-        workspace: '/tmp/workspace',
-        args: ['run', 'librainian:hallucinated-api-detector'],
-        rawArgs: [
-          'constructions',
-          'run',
-          'librainian:hallucinated-api-detector',
-          '--input',
-          '{"generatedCode":"const x = 1;","projectRoot":"."}',
-          '--json',
-        ],
-      }),
-    ).rejects.toThrow('Missing runtime capabilities: librainian-eval');
+  it('runs hallucinated-api-detector without optional runtime capability preflight', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:hallucinated-api-detector'],
+      rawArgs: [
+        'constructions',
+        'run',
+        'librainian:hallucinated-api-detector',
+        '--input',
+        '{"generatedCode":"const x = 1;","projectRoot":"."}',
+        '--json',
+      ],
+    });
 
-    expect(invokeConstruction).not.toHaveBeenCalled();
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(payload.success).toBe(true);
+    expect(payload.id).toBe('librainian:hallucinated-api-detector');
+    expect(invokeConstruction).toHaveBeenCalled();
   });
 });

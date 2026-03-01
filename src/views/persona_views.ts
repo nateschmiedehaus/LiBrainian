@@ -190,7 +190,9 @@ function projectEngineerView(k: UniversalKnowledge): PersonaView {
 function projectManagerView(k: UniversalKnowledge): PersonaView {
   const health = calculateHealth(k);
   const technicalDebt = k.quality?.maintainability?.technicalDebt?.minutes ?? 0;
-  const riskScore = k.security?.riskScore?.overall ?? 0;
+  const riskScoreValue = k.security?.riskScore?.overall;
+  const riskScore = riskScoreValue ?? 0;
+  const riskScoreLabel = riskScoreValue == null ? 'not analyzed' : `${riskScore}/10`;
   const owner = k.ownership?.owner?.primary?.name ?? 'Unknown';
   const churn = k.quality?.churn?.changeFrequency ?? 0;
 
@@ -216,7 +218,7 @@ function projectManagerView(k: UniversalKnowledge): PersonaView {
     summary: generateManagerSummary(k),
     keyMetrics: [
       { name: 'Tech Debt', value: `${Math.round(technicalDebt / 60)}h`, status: technicalDebt > 120 ? 'warning' : 'good' },
-      { name: 'Risk Score', value: `${riskScore}/10`, status: riskScore > 5 ? 'warning' : 'good' },
+      { name: 'Risk Score', value: riskScoreLabel, status: riskScoreValue == null ? 'warning' : riskScore > 5 ? 'warning' : 'good' },
       { name: 'Churn', value: `${churn}/mo`, status: churn > 10 ? 'warning' : 'good' },
       { name: 'Owner', value: owner },
     ],
@@ -306,7 +308,9 @@ function projectQAView(k: UniversalKnowledge): PersonaView {
 
 function projectSecurityView(k: UniversalKnowledge): PersonaView {
   const health = calculateSecurityHealth(k);
-  const riskScore = k.security?.riskScore?.overall ?? 0;
+  const riskScoreValue = k.security?.riskScore?.overall;
+  const riskScore = riskScoreValue ?? 0;
+  const riskScoreLabel = riskScoreValue == null ? 'not analyzed' : `${riskScore}/10`;
   const vulnerabilities = k.security?.vulnerabilities?.length ?? 0;
   const cweCount = k.security?.cwe?.length ?? 0;
 
@@ -331,7 +335,7 @@ function projectSecurityView(k: UniversalKnowledge): PersonaView {
     persona: 'security',
     summary: generateSecuritySummary(k),
     keyMetrics: [
-      { name: 'Risk Score', value: `${riskScore}/10`, status: riskScore > 5 ? 'warning' : 'good' },
+      { name: 'Risk Score', value: riskScoreLabel, status: riskScoreValue == null ? 'warning' : riskScore > 5 ? 'warning' : 'good' },
       { name: 'Vulnerabilities', value: vulnerabilities, status: vulnerabilities > 0 ? 'critical' : 'good' },
       { name: 'CWE Matches', value: cweCount },
       { name: 'Confidentiality', value: k.security?.riskScore?.confidentiality ?? 'N/A' },
@@ -426,10 +430,11 @@ function generateEngineerSummary(k: UniversalKnowledge): string {
 function generateManagerSummary(k: UniversalKnowledge): string {
   const name = k.name;
   const owner = k.ownership?.owner?.primary?.name ?? 'Unassigned';
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = k.security?.riskScore?.overall;
+  const riskText = risk == null ? 'not analyzed' : `${risk}/10`;
   const debt = Math.round((k.quality?.maintainability?.technicalDebt?.minutes ?? 0) / 60);
 
-  return `${name} owned by ${owner}. Risk: ${risk}/10. Estimated debt: ${debt}h.`;
+  return `${name} owned by ${owner}. Risk: ${riskText}. Estimated debt: ${debt}h.`;
 }
 
 function generateDesignerSummary(k: UniversalKnowledge): string {
@@ -450,10 +455,11 @@ function generateQASummary(k: UniversalKnowledge): string {
 
 function generateSecuritySummary(k: UniversalKnowledge): string {
   const name = k.name;
-  const risk = k.security?.riskScore?.overall ?? 0;
+  const risk = k.security?.riskScore?.overall;
+  const riskText = risk == null ? 'not analyzed' : `${risk}/10`;
   const vulns = k.security?.vulnerabilities?.length ?? 0;
 
-  return `${name}: Risk ${risk}/10, ${vulns} potential vulnerabilities.`;
+  return `${name}: Risk ${riskText}, ${vulns} potential vulnerabilities.`;
 }
 
 function generateScientistSummary(k: UniversalKnowledge): string {

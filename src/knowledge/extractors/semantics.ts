@@ -21,7 +21,15 @@ import { buildLlmEvidence, type LlmEvidence } from './llm_evidence.js';
 export interface SemanticsExtraction {
   semantics: EntitySemantics;
   confidence: number;
+  wisdom?: SemanticWisdom;
   llmEvidence?: LlmEvidence;
+}
+
+export interface SemanticWisdom {
+  tribal: string[];
+  gotchas: string[];
+  tips: string[];
+  learningPath: Array<{ order: number; description: string }>;
 }
 
 export interface SemanticsInput {
@@ -81,6 +89,7 @@ export async function extractSemanticsWithLLM(
     return {
       semantics: parsed.semantics,
       confidence: parsed.confidence,
+      wisdom: parsed.wisdom,
       llmEvidence,
     };
   } catch (error) {
@@ -122,6 +131,12 @@ Return a JSON object with these fields:
     "time": "Big-O time complexity",
     "space": "Big-O space complexity",
     "cognitive": "trivial|simple|moderate|complex|very_complex"
+  },
+  "wisdom": {
+    "gotchas": ["things that trip up newcomers"],
+    "tips": ["usage patterns that work well"],
+    "learningPath": [{"order": 1, "description": "start here"}],
+    "tribal": ["undocumented conventions or history"]
   }
 }
 
@@ -155,7 +170,7 @@ File: ${input.filePath}
 
 ${context}
 
-Provide a JSON response with purpose, domain, intent, mechanism, and complexity.`;
+Provide a JSON response with purpose, domain, intent, mechanism, complexity, and optional wisdom.`;
 }
 
 function parseSemanticResponse(
@@ -177,6 +192,8 @@ function parseSemanticResponse(
     ) {
       throw new Error('missing required semantic fields');
     }
+
+    const wisdom = parseSemanticWisdom(parsed?.wisdom);
 
     return {
       semantics: {
@@ -211,11 +228,80 @@ function parseSemanticResponse(
         },
       },
       confidence: 0.85, // LLM extraction has high confidence
+      wisdom,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`unverified_by_trace(provider_invalid_output): ${message}`);
   }
+}
+
+function parseSemanticWisdom(raw: unknown): SemanticWisdom {
+  const wisdom = asRecord(raw);
+  return {
+    gotchas: normalizeStringArray(wisdom?.gotchas),
+    tips: normalizeStringArray(wisdom?.tips),
+    tribal: normalizeStringArray(wisdom?.tribal),
+    learningPath: normalizeLearningPath(wisdom?.learningPath),
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function normalizeStringArray(value: unknown, limit = 5): string[] {
+  if (!Array.isArray(value)) return [];
+  const normalized = value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return dedupeCaseInsensitive(normalized).slice(0, limit);
+}
+
+function normalizeLearningPath(value: unknown): Array<{ order: number; description: string }> {
+  if (!Array.isArray(value)) return [];
+  const parsed = value
+    .map((entry, index) => {
+      const record = asRecord(entry);
+      if (!record) return null;
+      const description = typeof record.description === 'string'
+        ? record.description.trim()
+        : '';
+      if (description.length === 0) return null;
+      const maybeOrder = typeof record.order === 'number' && Number.isFinite(record.order)
+        ? Math.trunc(record.order)
+        : index + 1;
+      return {
+        order: maybeOrder > 0 ? maybeOrder : index + 1,
+        description,
+      };
+    })
+    .filter((entry): entry is { order: number; description: string } => entry !== null);
+  const deduped = dedupeByKey(parsed, (entry) => entry.description.toLowerCase());
+  return deduped
+    .sort((a, b) => a.order - b.order)
+    .slice(0, 8)
+    .map((entry, index) => ({ order: index + 1, description: entry.description }));
+}
+
+function dedupeCaseInsensitive(items: string[]): string[] {
+  return dedupeByKey(items, (item) => item.toLowerCase());
+}
+
+function dedupeByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
 }
 
 /**

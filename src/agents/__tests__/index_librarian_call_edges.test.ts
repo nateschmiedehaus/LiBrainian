@@ -300,6 +300,60 @@ describe('IndexLibrarian call-edge persistence', () => {
     expect(providerContract?.consumers.length).toBe(2);
   });
 
+  it('resolves python dotted relative imports to local module IDs', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'index-librarian-py-import-'));
+    const pkgDir = path.join(tempDir, 'pkg');
+    await fs.mkdir(pkgDir, { recursive: true });
+    const initPath = path.join(pkgDir, '__init__.py');
+    const corePath = path.join(pkgDir, 'core.py');
+    await fs.writeFile(initPath, 'from .core import run\n', 'utf8');
+    await fs.writeFile(corePath, 'def run():\n    return 1\n', 'utf8');
+
+    const initModule: ModuleKnowledge = {
+      ...buildModule('mod_pkg_init', initPath),
+      dependencies: ['.core'],
+    };
+    const coreModule: ModuleKnowledge = {
+      ...buildModule('mod_pkg_core', corePath),
+      dependencies: [],
+    };
+
+    mockIndexFile.mockResolvedValue({
+      functions: [],
+      module: initModule,
+      callEdges: [],
+      partiallyIndexed: false,
+      parser: 'tree-sitter',
+    });
+
+    const tx = buildTx();
+    const storage = buildStorage(tx, {
+      getModules: vi.fn(async () => [initModule, coreModule]),
+    } as Partial<LibrarianStorage>);
+
+    const librarian = new IndexLibrarian({
+      generateEmbeddings: false,
+      createContextPacks: false,
+      computeGraphMetrics: false,
+    });
+    await librarian.initialize(storage);
+
+    try {
+      const result = await librarian.indexFile(initPath);
+      expect(result.errors).toEqual([]);
+
+      const persistedEdges = vi.mocked(tx.upsertGraphEdges).mock.calls[0]?.[0] as GraphEdge[];
+      const importEdge = persistedEdges.find((edge) =>
+        edge.edgeType === 'imports' && edge.fromId === initModule.id);
+
+      expect(importEdge).toBeDefined();
+      expect(importEdge?.toId).toBe(coreModule.id);
+      expect(importEdge?.toId.startsWith('external:')).toBe(false);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('adds semantic entanglement edges from co-call patterns', async () => {
     const { filePath, cleanup } = await createTempTsFile(
       'export function caller(){ alpha(); beta(); }\nexport function alpha(){}\nexport function beta(){}\n'

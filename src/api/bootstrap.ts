@@ -4339,7 +4339,31 @@ function coerceProvider(value: string | undefined): 'claude' | 'codex' | undefin
   return undefined;
 }
 
-const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const RESOLVE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
+
+function resolvePythonRelativeModuleBase(dependency: string, fromPath: string): string | null {
+  // Python relative imports use dotted notation (.foo, ..bar.baz), not ./foo.
+  if (!dependency.startsWith('.') || dependency.startsWith('./') || dependency.startsWith('../')) {
+    return null;
+  }
+  const match = dependency.match(/^(\.+)(.*)$/u);
+  if (!match) return null;
+
+  const dotDepth = match[1].length;
+  let suffix = match[2] ?? '';
+  if (suffix.startsWith('.')) {
+    suffix = suffix.slice(1);
+  }
+  const suffixPath = suffix.length > 0 ? suffix.replace(/\./gu, '/') : '';
+
+  let baseDir = path.dirname(fromPath);
+  for (let level = 1; level < dotDepth; level += 1) {
+    baseDir = path.dirname(baseDir);
+  }
+
+  const resolved = suffixPath.length > 0 ? path.join(baseDir, suffixPath) : baseDir;
+  return normalizeGraphPath(resolved);
+}
 
 function resolveModuleDependency(
   dependency: string,
@@ -4349,9 +4373,10 @@ function resolveModuleDependency(
   if (!dependency.startsWith('.') && !dependency.startsWith('/')) return null;
   const direct = moduleIdByPath.get(normalizeGraphPath(dependency));
   if (direct) return direct;
-  const base = dependency.startsWith('/')
+  const pythonRelativeBase = resolvePythonRelativeModuleBase(dependency, fromPath);
+  const base = pythonRelativeBase ?? (dependency.startsWith('/')
     ? normalizeGraphPath(dependency)
-    : normalizeGraphPath(path.resolve(path.dirname(fromPath), dependency));
+    : normalizeGraphPath(path.resolve(path.dirname(fromPath), dependency)));
   const candidates = new Set<string>([base]);
   const ext = path.extname(base);
   const addCandidates = (root: string, includeIndex: boolean): void => {
@@ -4360,6 +4385,9 @@ function resolveModuleDependency(
       if (includeIndex) {
         candidates.add(path.join(root, `index${nextExt}`));
       }
+    }
+    if (includeIndex) {
+      candidates.add(path.join(root, '__init__.py'));
     }
   };
   if (!ext) {

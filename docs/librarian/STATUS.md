@@ -1,6 +1,7 @@
 <!-- This file is auto-generated. Do not edit manually. Run: npm run status:generate -->
 <!-- Last updated: 2026-02-27T00:00:00.000Z -->
 <!-- Source files: docs/LiBrainian/GATES.json, state/e2e/reality-validation.json, state/patrol/ -->
+<!-- EVIDENCE_AUTOGEN_START -->
 
 # LiBrainian Status
 
@@ -123,3 +124,4 @@ Full diagnosis and recovery plan: `docs/LiBrainian/DIAGNOSIS_AND_PLAN.md`
 Active issues: #854–#869 on GitHub (nateschmiedehaus/LiBrainian)
 Priority execution order: #860 → #854 → #855 → #866 → #856 → #857 → #858 → #859 → #861
 Strategy tracker: `docs/librarian/CONVERSATION_INSIGHTS.md`
+<!-- EVIDENCE_AUTOGEN_END -->

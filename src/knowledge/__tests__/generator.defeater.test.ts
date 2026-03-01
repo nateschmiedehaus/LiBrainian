@@ -504,4 +504,38 @@ describe('generateForFunction - Defeater Activation Error Handling', () => {
     // Verify warning was logged
     expect(consoleWarnSpy).toHaveBeenCalled();
   });
+
+  it('passes semantic wisdom to ownership extraction', async () => {
+    const { extractSemanticsWithLLM } = await import('../extractors/index.js');
+    vi.mocked(extractSemanticsWithLLM).mockResolvedValue({
+      semantics: {
+        purpose: { summary: 'Test', explanation: '', problemSolved: '', valueProp: '' },
+        domain: { concepts: [], businessRules: [] },
+        intent: { primaryUseCase: '', secondaryUseCases: [], antiUseCases: [] },
+        mechanism: { explanation: '', approach: '', approachRationale: '', patterns: [], dataStructures: [] },
+        complexity: { time: 'O(1)', space: 'O(1)', cognitive: 'simple' },
+      },
+      confidence: 0.8,
+      wisdom: {
+        gotchas: ['Regenerate index after symbol rename.'],
+        tips: ['Run staged query before synthesis.'],
+        tribal: ['On-call treats stale context warnings as release blockers.'],
+        learningPath: [{ order: 1, description: 'Trace query pipeline stages first.' }],
+      },
+    } as unknown as Awaited<ReturnType<typeof extractSemanticsWithLLM>>);
+
+    const { extractOwnership } = await import('../extractors/history_extractor.js');
+
+    const fn = createMockFunction();
+    await generator.generateForFunction(fn);
+
+    expect(extractOwnership).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wisdom: expect.objectContaining({
+          gotchas: ['Regenerate index after symbol rename.'],
+          tips: ['Run staged query before synthesis.'],
+        }),
+      })
+    );
+  });
 });

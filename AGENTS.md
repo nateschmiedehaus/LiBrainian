@@ -20,6 +20,7 @@ npm run build          # compile TypeScript → dist/
 npm test               # T0 unit tests (no live providers required)
 npm run test:tier0     # same as npm test --run (CI gate)
 npm run test:integration   # T1 integration tests (providers optional)
+npm run check          # Inner-loop guardrail (typecheck + changed tests)
 npx tsc --noEmit       # type-check only
 npm run lint           # ESLint
 ```
