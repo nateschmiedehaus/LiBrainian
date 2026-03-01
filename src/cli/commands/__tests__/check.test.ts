@@ -5,7 +5,8 @@ import { resolveDbPath } from '../../db_path.js';
 import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
 import { isBootstrapRequired } from '../../../api/bootstrap.js';
 import { getGitDiffNames, getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
-import type { LibrarianStorage } from '../../../storage/types.js';
+import { emitJsonOutput } from '../../json_output.js';
+import type { LibrarianStorage, UniversalKnowledgeRecord } from '../../../storage/types.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn(),
@@ -24,6 +25,11 @@ vi.mock('../../../utils/git.js', () => ({
   getGitDiffNames: vi.fn(async () => null),
   getGitStatusChanges: vi.fn(async () => null),
 }));
+vi.mock('../../json_output.js', () => ({
+  emitJsonOutput: vi.fn(async (payload: unknown) => {
+    console.log(JSON.stringify(payload));
+  }),
+}));
 
 describe('checkCommand', () => {
   const workspace = '/test/workspace';
@@ -39,6 +45,7 @@ describe('checkCommand', () => {
     getFunction: Mock;
     getModuleByPath: Mock;
     getEvidenceForTarget: Mock;
+    getUniversalKnowledgeByKind: Mock;
   };
 
   beforeEach(() => {
@@ -59,6 +66,7 @@ describe('checkCommand', () => {
       getFunction: vi.fn().mockResolvedValue(null),
       getModuleByPath: vi.fn().mockResolvedValue(null),
       getEvidenceForTarget: vi.fn().mockResolvedValue([]),
+      getUniversalKnowledgeByKind: vi.fn().mockResolvedValue([]),
     };
 
     vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
@@ -67,6 +75,9 @@ describe('checkCommand', () => {
     vi.mocked(isGitRepo).mockReturnValue(true);
     vi.mocked(getGitStatusChanges).mockResolvedValue(null);
     vi.mocked(getGitDiffNames).mockResolvedValue(null);
+    vi.mocked(emitJsonOutput).mockImplementation(async (payload: unknown) => {
+      console.log(JSON.stringify(payload));
+    });
   });
 
   afterEach(() => {
@@ -137,4 +148,67 @@ describe('checkCommand', () => {
       expect.objectContaining({ cwd: workspace, encoding: 'utf8' })
     );
   });
+
+  it('fails when wisdom coverage is below 20% for 50+ indexed functions', async () => {
+    mockStorage.getUniversalKnowledgeByKind.mockResolvedValue(
+      createWisdomRecords(50, 9)
+    );
+
+    const exitCode = await checkCommand({
+      workspace,
+      args: ['--json'],
+      rawArgs: ['check', '--json'],
+    });
+
+    const payload = consoleLogSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(payload) as { checks?: Array<{ name?: string; status?: string }> };
+
+    expect(exitCode).toBe(1);
+    expect(parsed.checks?.some((c) => c.name === 'wisdom_coverage' && c.status === 'fail')).toBe(true);
+  });
+
+  it('passes when wisdom coverage meets 20% threshold for 50+ indexed functions', async () => {
+    mockStorage.getUniversalKnowledgeByKind.mockResolvedValue(
+      createWisdomRecords(50, 12)
+    );
+
+    const exitCode = await checkCommand({
+      workspace,
+      args: ['--json'],
+      rawArgs: ['check', '--json'],
+    });
+
+    const payload = consoleLogSpy.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(payload) as { checks?: Array<{ name?: string; status?: string }> };
+
+    expect(exitCode).toBe(0);
+    expect(parsed.checks?.some((c) => c.name === 'wisdom_coverage' && c.status === 'pass')).toBe(true);
+  });
 });
+
+function createWisdomRecords(total: number, enrichedCount: number): UniversalKnowledgeRecord[] {
+  return Array.from({ length: total }, (_value, index) => {
+    const hasWisdom = index < enrichedCount;
+    const gotchas = hasWisdom ? [{ description: `gotcha-${index}` }] : [];
+    const tips = hasWisdom ? [{ description: `tip-${index}` }] : [];
+    return {
+      id: `fn-${index}`,
+      kind: 'function',
+      name: `fn${index}`,
+      qualifiedName: `src/file${index}.ts:fn${index}`,
+      file: `src/file${index}.ts`,
+      line: index + 1,
+      knowledge: JSON.stringify({
+        ownership: {
+          knowledge: {
+            gotchas,
+            tips,
+          },
+        },
+      }),
+      confidence: 0.8,
+      generatedAt: '2026-02-21T00:00:00.000Z',
+      hash: `hash-${index}`,
+    };
+  });
+}
