@@ -104,6 +104,71 @@ jobs:
           echo "::warning::Circuit breaker is open — ${{ env.MAX_CONSECUTIVE_FAILURES }} consecutive failures. Will auto-heal when workflow is updated."
           exit 0
 
+      # ── Pre-flight: unblock resolved dependencies ───────────────────
+      # Before selecting work, check if any agent:blocked issues have had
+      # all their dependencies resolved (e.g., by async merges since last run).
+      - name: Auto-unblock resolved dependencies
+        if: steps.breaker.outputs.open != 'true'
+        run: |
+          echo "=== Pre-flight: checking for issues to unblock ==="
+
+          BLOCKED_NUMS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:blocked" \
+            --limit 50 \
+            --json number --jq '.[].number')
+
+          if [ -z "$BLOCKED_NUMS" ]; then
+            echo "No blocked issues."
+            exit 0
+          fi
+
+          echo "Blocked issues: $(echo $BLOCKED_NUMS | tr '\n' ' ')"
+          UNBLOCKED=0
+
+          for BNUM in $BLOCKED_NUMS; do
+            # Get body and comments to find "Blocked by:" declarations
+            ISSUE_BODY=$(gh issue view "$BNUM" -R "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
+            ISSUE_COMMENTS=$(gh issue view "$BNUM" -R "$REPO" --json comments --jq '.comments[].body' 2>/dev/null || echo "")
+
+            # Extract deps from "Blocked by:" lines, stripping parenthetical context
+            ALL_TEXT=$(printf '%s\n%s' "$ISSUE_BODY" "$ISSUE_COMMENTS")
+            DEPS=$(echo "$ALL_TEXT" | grep -iE 'blocked by:' | sed 's/(.*//' | grep -oE '#[0-9]+' | grep -oE '[0-9]+' | sort -un)
+
+            if [ -z "$DEPS" ]; then
+              continue
+            fi
+
+            ALL_RESOLVED=true
+            for DEP in $DEPS; do
+              DEP_STATE=$(gh issue view "$DEP" -R "$REPO" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$DEP_STATE" != "CLOSED" ]; then
+                ALL_RESOLVED=false
+                break
+              fi
+            done
+
+            if [ "$ALL_RESOLVED" = "true" ]; then
+              echo "Unblocking #$BNUM — all dependencies resolved"
+              gh issue edit "$BNUM" -R "$REPO" \
+                --remove-label "agent:blocked" \
+                --add-label "agent:actionable"
+              {
+                echo "**Auto-unblocked** — all blocking dependencies are now resolved."
+                echo ""
+                echo "Dependencies checked: $(echo $DEPS | tr '\n' ', ' | sed 's/,$//')"
+                echo ""
+                echo "This issue is now available for the worker agent."
+              } > .unblock-comment.md
+              gh issue comment "$BNUM" -R "$REPO" --body-file .unblock-comment.md
+              rm -f .unblock-comment.md
+              UNBLOCKED=$((UNBLOCKED + 1))
+            fi
+          done
+
+          echo "Unblocked $UNBLOCKED issues."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # ── Find Issue ───────────────────────────────────────────────────
       - name: Find next ready issue
         if: steps.breaker.outputs.open != 'true'

@@ -292,6 +292,7 @@ jobs:
       # ── Post-Verification: Auto-merge or Reject ─────────────────────
       - name: Parse verdict and act
         if: steps.find.outputs.pr_found == 'true'
+        id: verdict
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           PR=${{ steps.find.outputs.pr_number }}
@@ -313,6 +314,7 @@ jobs:
             grep -oiE '(PASS|FAIL)' | tr '[:lower:]' '[:upper:]' || echo "UNKNOWN")
 
           echo "Verdict: $VERDICT"
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
 
           if [ "$VERDICT" = "PASS" ]; then
             echo "=== AUTO-MERGING PR #$PR ==="
@@ -355,5 +357,77 @@ jobs:
             echo "::warning::Verifier ran but did not post a clear verdict. Will retry on next schedule."
             # Silent — leave verify:pending for next scheduled run.
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Auto-unblock dependent issues after merge ──────────────────
+      # When a PASS verdict merges a PR and closes its issue, check if any
+      # agent:blocked issues were waiting on it and unblock them.
+      - name: Auto-unblock dependent issues
+        if: steps.verdict.outputs.verdict == 'PASS'
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          echo "=== Auto-unblocking issues dependent on #$NUM ==="
+
+          # Find all blocked issues
+          BLOCKED_NUMS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:blocked" \
+            --limit 50 \
+            --json number --jq '.[].number')
+
+          if [ -z "$BLOCKED_NUMS" ]; then
+            echo "No blocked issues found."
+            exit 0
+          fi
+
+          echo "Blocked issues: $(echo $BLOCKED_NUMS | tr '\n' ' ')"
+
+          for BNUM in $BLOCKED_NUMS; do
+            echo "--- Checking #$BNUM ---"
+
+            # Get body and comments to find "Blocked by:" declarations
+            ISSUE_BODY=$(gh issue view "$BNUM" -R "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
+            ISSUE_COMMENTS=$(gh issue view "$BNUM" -R "$REPO" --json comments --jq '.comments[].body' 2>/dev/null || echo "")
+
+            # Extract dependency issue numbers from "Blocked by:" lines
+            # Strip parenthetical context first to avoid false matches like "(all #883 sub-issues)"
+            ALL_TEXT=$(printf '%s\n%s' "$ISSUE_BODY" "$ISSUE_COMMENTS")
+            DEPS=$(echo "$ALL_TEXT" | grep -iE 'blocked by:' | sed 's/(.*//' | grep -oE '#[0-9]+' | grep -oE '[0-9]+' | sort -un)
+
+            if [ -z "$DEPS" ]; then
+              echo "  No 'Blocked by:' dependencies found — skipping"
+              continue
+            fi
+
+            echo "  Dependencies: $(echo $DEPS | tr '\n' ' ')"
+
+            ALL_RESOLVED=true
+            for DEP in $DEPS; do
+              DEP_STATE=$(gh issue view "$DEP" -R "$REPO" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$DEP_STATE" != "CLOSED" ]; then
+                echo "  #$DEP is $DEP_STATE — still blocked"
+                ALL_RESOLVED=false
+                break
+              fi
+            done
+
+            if [ "$ALL_RESOLVED" = "true" ]; then
+              echo "  All dependencies resolved — unblocking #$BNUM!"
+              gh issue edit "$BNUM" -R "$REPO" \
+                --remove-label "agent:blocked" \
+                --add-label "agent:actionable"
+
+              # Post unblock notification
+              {
+                echo "**Auto-unblocked** — all blocking dependencies are now resolved."
+                echo ""
+                echo "Dependencies checked: $(echo $DEPS | tr '\n' ', ' | sed 's/,$//')"
+                echo ""
+                echo "This issue is now available for the worker agent."
+              } > .unblock-comment.md
+              gh issue comment "$BNUM" -R "$REPO" --body-file .unblock-comment.md
+              rm -f .unblock-comment.md
+            fi
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
