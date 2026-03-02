@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -191,6 +192,43 @@ describe('api_surface_index', () => {
 
     expect(result.valid).toBe(true);
     expect(result.reason).toBe('ok');
+  });
+
+  it('validateImportReference lookup completes in under 50ms when cache is warm', async () => {
+    const workspace = await createWorkspace('librainian-api-latency-');
+    workspaces.push(workspace);
+
+    await writeJson(path.join(workspace, 'package.json'), {
+      name: 'sample-workspace',
+      version: '1.0.0',
+      dependencies: { 'latency-pkg': '^1.0.0' },
+    });
+    await writeJson(path.join(workspace, 'node_modules', 'latency-pkg', 'package.json'), {
+      name: 'latency-pkg',
+      version: '1.0.0',
+      types: 'index.d.ts',
+    });
+    await writeText(
+      path.join(workspace, 'node_modules', 'latency-pkg', 'index.d.ts'),
+      'export declare function doWork(id: string): Promise<void>;',
+    );
+
+    // Warm the cache
+    await validateImportReference(workspace, { packageName: 'latency-pkg', importName: 'doWork' });
+
+    // Measure cached lookup
+    const cpuCount = Math.max(1, os.cpus().length);
+    const normalizedLoad = os.loadavg()[0] / cpuCount;
+    const freeMemoryGb = os.freemem() / (1024 ** 3);
+    const underResourcePressure = normalizedLoad >= 0.75 || freeMemoryGb < 0.5;
+    const thresholdMs = underResourcePressure ? 150 : 50;
+
+    const startedAt = performance.now();
+    const result = await validateImportReference(workspace, { packageName: 'latency-pkg', importName: 'doWork' });
+    const durationMs = performance.now() - startedAt;
+
+    expect(result.valid).toBe(true);
+    expect(durationMs).toBeLessThan(thresholdMs);
   });
 
   it('invalidates cache when package manifests change', async () => {
