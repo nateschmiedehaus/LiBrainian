@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 
 const corpusRoot = resolve(process.cwd(), 'eval-corpus');
+const externalCorpusPath = resolve(process.cwd(), 'state/benchmarks/corpus/external-repos.json');
 
 const repoIds = [
   'small-typescript',
@@ -197,5 +198,113 @@ describe('eval corpus structure', () => {
       expect(payload.category).toBe(category);
       expect(Array.isArray(payload.queries)).toBe(true);
     });
+  });
+});
+
+type ExternalCorpusQuery = {
+  id: string;
+  answerable: boolean;
+  [key: string]: unknown;
+};
+
+type ExternalCorpusRepoGroundTruth = {
+  methodology: string;
+  llmGenerated: boolean;
+  queries: ExternalCorpusQuery[];
+};
+
+type ExternalCorpusRepo = {
+  repoId: string;
+  source: string;
+  language: string;
+  commitSha: string;
+  groundTruth: ExternalCorpusRepoGroundTruth;
+};
+
+type ExternalCorpus = {
+  version: string;
+  methodology: string;
+  llmGenerated: boolean;
+  repos: ExternalCorpusRepo[];
+  aggregate: {
+    totalRepos: number;
+    totalQueries: number;
+    unanswerableQueries: number;
+    unanswerableRatio: number;
+    allCommitShasPinned: boolean;
+    allGroundTruthAstOnly: boolean;
+  };
+};
+
+describe('external real repos corpus validity', () => {
+  it('external corpus manifest exists at state/benchmarks/corpus/external-repos.json', () => {
+    expect(existsSync(externalCorpusPath)).toBe(true);
+  });
+
+  it('external corpus has ≥10 real repos', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    expect(Array.isArray(corpus.repos)).toBe(true);
+    expect(corpus.repos.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('all repos have non-empty pinned commit SHAs for reproducibility', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    for (const repo of corpus.repos) {
+      expect(typeof repo.commitSha).toBe('string');
+      expect(repo.commitSha.length).toBeGreaterThan(0);
+      // SHA should look like a git commit hash (hex characters, at least 7)
+      expect(repo.commitSha).toMatch(/^[0-9a-f]{7,}/);
+    }
+  });
+
+  it('corpus methodology is ast_only — no LLM-generated facts', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    expect(corpus.methodology).toBe('ast_only');
+    expect(corpus.llmGenerated).toBe(false);
+    for (const repo of corpus.repos) {
+      expect(repo.groundTruth.methodology).toContain('ast');
+      expect(repo.groundTruth.llmGenerated).toBe(false);
+    }
+  });
+
+  it('all repos reference real GitHub sources (not synthetic)', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    for (const repo of corpus.repos) {
+      expect(typeof repo.source).toBe('string');
+      expect(repo.source).toMatch(/^https:\/\/github\.com\//);
+    }
+  });
+
+  it('corpus includes ≥20% unanswerable questions for calibration', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    let totalQueries = 0;
+    let unanswerableQueries = 0;
+    for (const repo of corpus.repos) {
+      for (const query of repo.groundTruth.queries) {
+        totalQueries++;
+        if (query.answerable === false) {
+          unanswerableQueries++;
+        }
+      }
+    }
+    expect(totalQueries).toBeGreaterThan(0);
+    const ratio = unanswerableQueries / totalQueries;
+    expect(ratio).toBeGreaterThanOrEqual(0.2);
+  });
+
+  it('aggregate stats are consistent with per-repo data', () => {
+    const corpus = JSON.parse(readFileSync(externalCorpusPath, 'utf8')) as ExternalCorpus;
+    expect(corpus.aggregate.totalRepos).toBe(corpus.repos.length);
+    expect(corpus.aggregate.allCommitShasPinned).toBe(true);
+    expect(corpus.aggregate.allGroundTruthAstOnly).toBe(true);
+    expect(corpus.aggregate.unanswerableRatio).toBeGreaterThanOrEqual(0.2);
+  });
+
+  it('external repos manifest also exists at eval-corpus/external-repos/manifest.json', () => {
+    const manifestPath = join(resolve(process.cwd(), 'eval-corpus'), 'external-repos', 'manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { repos?: unknown[] };
+    expect(Array.isArray(manifest.repos)).toBe(true);
+    expect((manifest.repos ?? []).length).toBeGreaterThanOrEqual(10);
   });
 });
