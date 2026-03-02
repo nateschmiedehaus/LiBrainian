@@ -104,7 +104,8 @@ jobs:
                 select(.labels | map(.name) |
                   (contains(["agent:claimed"]) | not) and
                   (contains(["lifecycle/frozen"]) | not) and
-                  (contains(["agent:blocked"]) | not)
+                  (contains(["agent:blocked"]) | not) and
+                  (contains(["verify:pending"]) | not)
                 ) |
                 {
                   number,
@@ -308,6 +309,11 @@ jobs:
             - Do not modify CLAUDE.md, AGENTS.md, or workflow files.
             - If blocked, commit what you have and explain in the commit message.
             - You MUST commit before finishing. Uncommitted changes may be lost.
+            - IMPORTANT: Do NOT pipe commands (e.g., `npm test | tail`). Pipes get
+              permission-denied. Instead, redirect to a file and read it:
+              ```
+              npm test > .test-output.txt 2>&1; tail -20 .test-output.txt
+              ```
 
             ## Evidence
             After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }}.
@@ -319,7 +325,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ inputs.max_turns || '25' }}
-            --allowedTools "Edit,Write,Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *)"
 
           # Standard code tools — no MCP (avoids bootstrap/disk/memory issues in CI)
           # LiBrainian MCP requires bootstrapped index which is too heavy for CI runners.

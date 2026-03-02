@@ -266,11 +266,16 @@ jobs:
               what the worker should do differently.
             - Be specific. Vague feedback like "needs improvement" is useless.
             - Use Write tool + --body-file for posting (NOT heredocs).
+            - IMPORTANT: Do NOT pipe commands (e.g., `npm test | tail`). Pipes get
+              permission-denied. Instead, redirect to a file and read it:
+              ```
+              npm test > .test-output.txt 2>&1; tail -20 .test-output.txt
+              ```
 
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns 20
-            --allowedTools "Edit,Write,Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *)"
 
         continue-on-error: true
 
