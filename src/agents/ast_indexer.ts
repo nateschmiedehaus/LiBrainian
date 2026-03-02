@@ -371,8 +371,20 @@ export class AstIndexer {
 
   private generateModulePurpose(filePath: string, functions: FunctionKnowledge[], exports: string[]): string {
     const fileName = path.basename(filePath, path.extname(filePath));
-    const functionNames = functions.map((fn) => fn.name).slice(0, 5);
+
+    // Build composite purpose from function-level purposes (richer than an export list)
+    const functionPurposes = functions
+      .filter((fn) => fn.purpose && fn.purpose.trim())
+      .slice(0, 5)
+      .map((fn) => `${fn.name} (${fn.purpose.trim()})`);
+
+    if (functionPurposes.length > 0) {
+      return `Module that provides: ${functionPurposes.join(', ')}`;
+    }
+
+    // Fallback to export list when no function purposes are available
     if (exports.length > 0) return `Module ${fileName} exporting ${exports.slice(0, 3).join(', ')}${exports.length > 3 ? '...' : ''}`;
+    const functionNames = functions.map((fn) => fn.name).slice(0, 5);
     if (functionNames.length > 0) return `Module ${fileName} containing ${functionNames.join(', ')}${functions.length > 5 ? '...' : ''}`;
     return `Module ${fileName}`;
   }
