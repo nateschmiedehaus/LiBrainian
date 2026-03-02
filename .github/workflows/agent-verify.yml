@@ -227,11 +227,22 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           PR=${{ steps.find.outputs.pr_number }}
 
-          # Check the latest comments for a verdict
+          # Check if the verifier agent actually ran successfully
+          AGENT_EXIT="${{ steps.verify.outcome }}"
+          echo "Agent outcome: $AGENT_EXIT"
+
+          if [ "$AGENT_EXIT" = "failure" ]; then
+            echo "::warning::Verifier agent failed (likely auth or infra issue). Will retry on next schedule."
+            # Do NOT post a comment — silent retry avoids inbox spam.
+            # Leave verify:pending so the next scheduled run picks it up.
+            exit 0
+          fi
+
+          # Check the latest comments for a verdict (use grep -E, not grep -P for portability)
           VERDICT=$(gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '.comments[-3:] | .[] | .body' | \
-            grep -oP 'Verdict:\s*\*{0,2}(PASS|FAIL)\*{0,2}' | tail -1 | \
-            grep -oP '(PASS|FAIL)' || echo "UNKNOWN")
+            grep -oiE 'Verdict:[[:space:]]*\*{0,2}(PASS|FAIL)\*{0,2}' | tail -1 | \
+            grep -oiE '(PASS|FAIL)' | tr '[:lower:]' '[:upper:]' || echo "UNKNOWN")
 
           echo "Verdict: $VERDICT"
 
@@ -239,7 +250,6 @@ jobs:
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:pending" \
               --add-label "verify:pass"
-            # Approve the PR (as a comment, since the action can't submit formal reviews)
             gh pr comment "$PR" -R "$REPO" --body "$(cat <<EOF
           **Verification PASSED.** This PR has been independently verified.
 
@@ -262,14 +272,9 @@ jobs:
           EOF
           )"
           else
-            echo "::warning::Could not determine verdict. Manual review needed."
-            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
-          **Verifier:** Could not determine pass/fail verdict automatically.
-          Manual review of PR #$PR is needed.
-
-          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
-          )"
+            echo "::warning::Verifier agent ran but did not post a clear verdict. Will retry."
+            # Silent — leave verify:pending for the next scheduled run.
+            # Only escalate after 3 consecutive UNKNOWN verdicts (tracked by run history).
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
