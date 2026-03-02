@@ -183,16 +183,17 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           gh issue edit "$NUM" -R "$REPO" --add-label "agent:claimed"
-          gh issue comment "$NUM" -R "$REPO" --body "$(cat <<'COMMENT'
-          **Agent Work Loop** claimed this issue.
-
-          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - **Triggered:** ${{ github.event_name }}
-          - **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-          Working on implementation now...
-          COMMENT
-          )"
+          {
+            echo "**Agent Work Loop** claimed this issue."
+            echo ""
+            echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- **Triggered:** ${{ github.event_name }}"
+            echo "- **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "Working on implementation now..."
+          } > .claim-comment.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .claim-comment.md
+          rm -f .claim-comment.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -286,13 +287,15 @@ jobs:
             3. Implement the fix/feature using Edit and Write tools (these are pre-approved)
             4. Run `npm run build` to verify compilation
             5. Run relevant tests: `npm test -- --testPathPattern <relevant_pattern>`
-            6. IMPORTANT: Commit your changes with git:
+            6. IMPORTANT: Commit your changes with git. Use a file for the commit message
+               to avoid multiline shell issues:
                ```
                git add -A
-               git commit -m "fix(scope): description of changes
-
-               Closes #${{ steps.find.outputs.issue_number }}"
+               echo -e "fix(scope): description of changes\n\nCloses #${{ steps.find.outputs.issue_number }}" > .commit-msg
+               git commit -F .commit-msg
+               rm .commit-msg
                ```
+               Do NOT use heredocs or multiline -m flags — they get permission-denied.
 
             ## Tools Available
             - Edit, Write: for modifying/creating files (pre-approved, use these!)
@@ -363,28 +366,35 @@ jobs:
             echo "PR #$EXISTING_PR already exists for this branch"
             echo "pr_number=$EXISTING_PR" >> "$GITHUB_OUTPUT"
           else
-            PR_NUM=$(gh pr create -R "$REPO" \
-              --base main \
-              --head "$BRANCH" \
-              --title "fix: implement #$NUM — ${{ steps.find.outputs.issue_title }}" \
-              --body "$(cat <<EOF
+            # Write PR body to file — heredocs in $(cat <<EOF) fail in CI sandbox
+            cat > .pr-body.md << 'PRBODY'
           ## Summary
-          Automated implementation of #$NUM.
-
-          Closes #$NUM
+          Automated implementation of issue.
 
           ## Agent Run
-          - **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           - **Model:** claude-sonnet-4-6
-          - **Turns:** ${{ inputs.max_turns || '25' }}
 
           ## Verification
           This PR needs independent verification before merge.
           The Agent Verify workflow will check it automatically.
+          PRBODY
+            # Append dynamic fields (issue number, links) after the static template
+            {
+              echo ""
+              echo "Closes #$NUM"
+              echo ""
+              echo "- **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              echo "- **Turns:** ${{ inputs.max_turns || '25' }}"
+              echo ""
+              echo "<!-- agent_pr = {\"issue\": $NUM, \"agent\": \"worker\", \"run_id\": \"${{ github.run_id }}\"} -->"
+            } >> .pr-body.md
 
-          <!-- agent_pr = {"issue": $NUM, "agent": "worker", "run_id": "${{ github.run_id }}"} -->
-          EOF
-          )" 2>&1)
+            PR_URL=$(gh pr create -R "$REPO" \
+              --base main \
+              --head "$BRANCH" \
+              --title "fix: implement #$NUM — ${{ steps.find.outputs.issue_title }}" \
+              --body-file .pr-body.md 2>&1)
+            rm -f .pr-body.md
             PR_NUM=$(echo "$PR_URL" | grep -oP '/pull/\K\d+' || echo "")
             echo "Created PR #$PR_NUM (URL: $PR_URL)"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
@@ -407,32 +417,34 @@ jobs:
 
           if [ -n "$PR" ]; then
             echo "result=success" >> "$GITHUB_OUTPUT"
-            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
-          **Agent Work Loop** completed.
-
-          - **PR:** #$PR
-          - **Status:** Implementation submitted
-          - **Next:** Awaiting independent verification
-
-          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","pr":$PR,"run":"${{ github.run_id }}","status":"submitted"} -->
-          EOF
-          )"
+            {
+              echo "**Agent Work Loop** completed."
+              echo ""
+              echo "- **PR:** #$PR"
+              echo "- **Status:** Implementation submitted"
+              echo "- **Next:** Awaiting independent verification"
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":1,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"${{ github.run_id }}\",\"status\":\"submitted\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
           else
             echo "result=no-changes" >> "$GITHUB_OUTPUT"
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "agent:claimed" \
               --remove-label "verify:pending"
-            gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
-          **Agent Work Loop** did not produce changes for this issue.
-
-          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - **Reason:** Agent completed without making code changes
-
-          Returning to ready state.
-
-          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","run":"${{ github.run_id }}","status":"no_changes"} -->
-          EOF
-          )"
+            {
+              echo "**Agent Work Loop** did not produce changes for this issue."
+              echo ""
+              echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              echo "- **Reason:** Agent completed without making code changes"
+              echo ""
+              echo "Returning to ready state."
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":1,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"status\":\"no_changes\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -444,16 +456,17 @@ jobs:
           gh issue edit "$NUM" -R "$REPO" \
             --remove-label "agent:claimed" \
             --remove-label "verify:pending"
-          gh issue comment "$NUM" -R "$REPO" --body "$(cat <<EOF
-          **Agent Work Loop** failed.
-
-          - **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - **Error:** Workflow failed — check run logs
-
-          Returning to ready state for retry.
-
-          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"worker","run":"${{ github.run_id }}","status":"failed"} -->
-          EOF
-          )"
+          {
+            echo "**Agent Work Loop** failed."
+            echo ""
+            echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- **Error:** Workflow failed — check run logs"
+            echo ""
+            echo "Returning to ready state for retry."
+            echo ""
+            echo "<!-- agent_evidence = {\"v\":1,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"status\":\"failed\"} -->"
+          } > .failure-comment.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .failure-comment.md
+          rm -f .failure-comment.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
