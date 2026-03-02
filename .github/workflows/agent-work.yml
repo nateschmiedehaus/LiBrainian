@@ -57,16 +57,42 @@ jobs:
 
     steps:
       # ── Circuit Breaker ──────────────────────────────────────────────
-      - name: Circuit breaker — check recent failures
+      # Counts CONSECUTIVE failures from the most recent run backwards.
+      # One success auto-clears the breaker — no manual intervention needed.
+      - name: Circuit breaker — check consecutive failures
         id: breaker
         run: |
-          RECENT=$(gh run list -R "$REPO" -w "Agent Work Loop" --limit 5 \
-            --json conclusion --jq '[.[] | select(.conclusion == "failure")] | length')
-          if [ "$RECENT" -ge "$MAX_CONSECUTIVE_FAILURES" ]; then
-            echo "Circuit breaker OPEN — $RECENT consecutive failures. Skipping dispatch."
+          CONSECUTIVE=0
+          for CONC in $(gh run list -R "$REPO" -w "Agent Work Loop" --limit 10 \
+            --json conclusion --jq '.[].conclusion'); do
+            if [ "$CONC" = "failure" ]; then
+              CONSECUTIVE=$((CONSECUTIVE + 1))
+            else
+              break
+            fi
+          done
+
+          if [ "$CONSECUTIVE" -ge "$MAX_CONSECUTIVE_FAILURES" ]; then
+            echo "Circuit breaker OPEN — $CONSECUTIVE consecutive failures."
+
+            # Auto-heal check: if workflow files changed after the last failure,
+            # the fix is likely deployed — force the breaker closed
+            LAST_FAIL_TIME=$(gh run list -R "$REPO" -w "Agent Work Loop" --limit 1 \
+              --json conclusion,updatedAt --jq '.[0] | select(.conclusion == "failure") | .updatedAt' || true)
+            LAST_WORKFLOW_CHANGE=$(gh api "repos/$REPO/commits?path=.github/workflows/agent-work.yml&per_page=1" \
+              --jq '.[0].commit.committer.date' 2>/dev/null || true)
+
+            if [ -n "$LAST_FAIL_TIME" ] && [ -n "$LAST_WORKFLOW_CHANGE" ]; then
+              if [[ "$LAST_WORKFLOW_CHANGE" > "$LAST_FAIL_TIME" ]]; then
+                echo "Auto-heal: workflow changed after last failure ($LAST_WORKFLOW_CHANGE > $LAST_FAIL_TIME). Resetting breaker."
+                echo "open=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+
             echo "open=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Circuit breaker closed ($RECENT recent failures)"
+            echo "Circuit breaker closed ($CONSECUTIVE consecutive failures)"
             echo "open=false" >> "$GITHUB_OUTPUT"
           fi
         env:
@@ -75,7 +101,7 @@ jobs:
       - name: Abort if circuit breaker open
         if: steps.breaker.outputs.open == 'true'
         run: |
-          echo "::warning::Circuit breaker is open. Fix recent failures before dispatching more work."
+          echo "::warning::Circuit breaker is open — ${{ env.MAX_CONSECUTIVE_FAILURES }} consecutive failures. Will auto-heal when workflow is updated."
           exit 0
 
       # ── Find Issue ───────────────────────────────────────────────────
@@ -243,6 +269,11 @@ jobs:
         id: branch
         run: |
           BRANCH="claude/issue-${{ steps.find.outputs.issue_number }}"
+          # Clean up stale remote branch from previous failed attempts
+          if git ls-remote --heads origin "$BRANCH" | grep -q .; then
+            echo "Stale remote branch $BRANCH found — deleting for fresh start"
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+          fi
           git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
           echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
 
@@ -362,8 +393,10 @@ jobs:
             fi
           fi
 
-          # Push branch (force-with-lease for idempotent retries, fall back to regular push)
+          # Push branch — force push is safe here because we just created this branch
+          # and any stale remote was already deleted in the "Create working branch" step
           git push -u origin "$BRANCH" --force-with-lease 2>/dev/null || \
+            git push -u origin "$BRANCH" --force 2>/dev/null || \
             git push -u origin "$BRANCH"
 
           # Create PR if one doesn't exist
