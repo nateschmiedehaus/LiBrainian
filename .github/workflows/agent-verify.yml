@@ -112,6 +112,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fast-fail if Claude auth token is missing
+      - name: Validate Claude auth token
+        if: steps.find.outputs.pr_found == 'true'
+        run: |
+          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is empty. Refresh it from local machine."
+            exit 1
+          fi
+          echo "Claude auth token present"
+
       # ── Setup ────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
         if: steps.find.outputs.pr_found == 'true'

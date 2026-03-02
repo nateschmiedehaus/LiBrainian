@@ -224,6 +224,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fast-fail if the Claude OAuth token is missing/expired
+      # Saves 10+ minutes vs discovering this mid-agent-run
+      - name: Validate Claude auth token
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        run: |
+          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is empty. Refresh it from local machine."
+            exit 1
+          fi
+          echo "Claude auth token present (length: ${#CLAUDE_TOKEN} chars)"
+        env:
+          CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
       # Free disk space — LiBrainian + node_modules need ~4GB
       - name: Free disk space
         if: >-
