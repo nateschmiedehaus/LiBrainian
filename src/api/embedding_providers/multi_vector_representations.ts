@@ -502,8 +502,13 @@ function extractSymbolSummary(content: string): string | null {
  * Build pure purpose input for embedding.
  * This is ONLY the purpose statement - no code, no file paths, no implementation.
  * Designed for "what does X do?" queries.
+ *
+ * Fallback priority:
+ *   1. llmPurpose — highest quality, LLM-extracted
+ *   2. @fileoverview / @description / first JSDoc paragraph from fileContent
+ *   3. Filename-derived human-readable name (last resort)
  */
-function buildPurposeOnlyInput(filePath: string, llmPurpose?: string): string {
+export function buildPurposeOnlyInput(filePath: string, llmPurpose?: string, fileContent?: string): string {
   // Validate filePath to prevent garbage embeddings from empty inputs
   if (!filePath || !filePath.trim()) {
     throw new Error('unverified_by_trace(purpose_input_invalid): filePath is required for purpose embedding');
@@ -518,7 +523,16 @@ function buildPurposeOnlyInput(filePath: string, llmPurpose?: string): string {
     // Use LLM-extracted purpose directly - this is the highest quality signal
     return sanitized;
   }
-  // Fallback: extract from filename and file comment
+
+  // Intermediate fallback: extract @fileoverview / @description / first JSDoc paragraph
+  if (fileContent) {
+    const docComment = extractFileComment(fileContent);
+    if (docComment && docComment.trim()) {
+      return docComment.trim();
+    }
+  }
+
+  // Last resort: derive a human-readable name from the filename
   const basename = filePath.split('/').pop()?.replace(/\.[^.]+$/, '') || '';
   const humanReadable = basename
     .replace(/[-_]/g, ' ')
@@ -549,7 +563,7 @@ export async function generateMultiVector(
 
   // Generate PURPOSE-ONLY vector (no code, pure intent)
   // This is the primary signal for "what does X do?" queries
-  result.purposeInput = buildPurposeOnlyInput(filePath, llmPurpose);
+  result.purposeInput = buildPurposeOnlyInput(filePath, llmPurpose, content);
   const purposeResult = await generateRealEmbedding(result.purposeInput, modelId);
   result.purpose = purposeResult.embedding;
 
