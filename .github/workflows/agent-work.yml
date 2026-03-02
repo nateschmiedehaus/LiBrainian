@@ -228,8 +228,46 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for dependency blockers
+      # ── Retry limit — skip issues that keep failing ─────────────────
+      # If the agent has failed on this issue 3+ times (no changes produced),
+      # shelve it to stop comment spam and flag for human review or decomposition.
+      - name: Check retry limit
         if: steps.find.outputs.issue_number && steps.breaker.outputs.open != 'true'
+        id: retries
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          MAX_ATTEMPTS=3
+
+          # Count previous "did not produce changes" comments from the agent
+          FAIL_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '[.comments[].body | select(contains("did not produce changes"))] | length')
+
+          echo "Issue #$NUM has $FAIL_COUNT previous no-change attempts (max $MAX_ATTEMPTS)"
+
+          if [ "$FAIL_COUNT" -ge "$MAX_ATTEMPTS" ]; then
+            echo "::warning::Issue #$NUM has failed $FAIL_COUNT times. Shelving for decomposition."
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:actionable" \
+              --add-label "agent:blocked"
+            {
+              echo "**Agent Work Loop** — shelved after $FAIL_COUNT failed attempts."
+              echo ""
+              echo "This issue may be too complex for the agent. Consider:"
+              echo "- Breaking it into smaller sub-issues"
+              echo "- Increasing \`max_turns\` for a manual dispatch"
+              echo "- Adding more specific implementation steps to the brief"
+            } > .shelve-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .shelve-comment.md
+            rm -f .shelve-comment.md
+            echo "shelved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "shelved=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for dependency blockers
+        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true'
         id: deps
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -256,12 +294,14 @@ jobs:
         if: >-
           !steps.find.outputs.issue_number ||
           steps.deps.outputs.blocked == 'true' ||
+          steps.retries.outputs.shelved == 'true' ||
           inputs.dry_run == 'true' ||
           steps.breaker.outputs.open == 'true'
         run: |
           echo "Skipping agent dispatch."
           echo "  Issue: ${{ steps.find.outputs.issue_number || 'none' }}"
           echo "  Blocked: ${{ steps.deps.outputs.blocked }}"
+          echo "  Shelved: ${{ steps.retries.outputs.shelved }}"
           echo "  Dry run: ${{ inputs.dry_run }}"
           echo "  Breaker: ${{ steps.breaker.outputs.open }}"
 
@@ -270,6 +310,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
@@ -295,6 +336,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
@@ -311,6 +353,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
@@ -321,6 +364,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
 
@@ -328,6 +372,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         with:
@@ -338,6 +383,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: npm ci && npm run build
@@ -346,6 +392,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: branch
@@ -364,6 +411,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: issue-body
@@ -378,6 +426,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: agent
@@ -451,6 +500,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: create-pr
