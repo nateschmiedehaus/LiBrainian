@@ -15,6 +15,7 @@ import {
   TriggerWiring,
   type TriggeredHealthCheck,
 } from '../triggers.js';
+import { LTLMonitorEvaluator } from '../ltl_monitor_evaluator.js';
 import { LibrarianEventBus } from '../../events.js';
 import type { LibrarianStorage, StorageStats } from '../../storage/types.js';
 import type { GraphEdge, LibrarianEvent } from '../../types.js';
@@ -544,6 +545,7 @@ describe('Homeostasis Integration', () => {
 
     expect(safetyEvents).toHaveLength(1);
     expect(safetyEvents[0].data).toMatchObject({
+      monitorId: 'ltl.no_direct_mcp_to_storage_imports',
       violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
       severity: 'block',
       evidence: expect.objectContaining({
@@ -556,6 +558,8 @@ describe('Homeostasis Integration', () => {
       expect.objectContaining({
         violatedProperty: 'G(no_direct_mcp_to_storage_imports)',
         severity: 'block',
+        sourceFile: 'src/mcp/server.ts',
+        importPath: 'src/storage/sqlite_storage.ts',
       })
     );
 
@@ -678,5 +682,177 @@ describe('Homeostasis Integration', () => {
     expect(triggers[0].source).toBe('query_failure');
 
     await daemon.stop();
+  });
+});
+
+// ============================================================================
+// LTL MONITOR EVALUATOR UNIT TESTS
+// ============================================================================
+
+describe('LTLMonitorEvaluator', () => {
+  function createMockEvaluatorStorage(edges: GraphEdge[] = []) {
+    return {
+      getGraphEdges: vi.fn().mockResolvedValue(edges),
+    };
+  }
+
+  it('registers at least 3 default architectural invariant rules', () => {
+    const evaluator = new LTLMonitorEvaluator({
+      storage: createMockEvaluatorStorage(),
+      eventBus: createTestEventBus(),
+    });
+    // Access the properties length via evaluateEdges on an empty edge list
+    // (no direct access to private field, but we can verify via violation detection)
+    expect(evaluator).toBeDefined();
+    // Verify all 4 default rules are present by checking each violation scenario
+    const mcpToStorage: GraphEdge[] = [{
+      fromId: 'src/mcp/server.ts', fromType: 'file',
+      toId: 'src/storage/sqlite_storage.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/mcp/server.ts', sourceLine: 1,
+      confidence: 1, computedAt: new Date(),
+    }];
+    const cliToStorage: GraphEdge[] = [{
+      fromId: 'src/cli/index.ts', fromType: 'file',
+      toId: 'src/storage/sqlite_storage.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/cli/index.ts', sourceLine: 1,
+      confidence: 1, computedAt: new Date(),
+    }];
+    const apiToHomeostasis: GraphEdge[] = [{
+      fromId: 'src/api/routes.ts', fromType: 'file',
+      toId: 'src/homeostasis/daemon.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/api/routes.ts', sourceLine: 1,
+      confidence: 1, computedAt: new Date(),
+    }];
+    const extractorToMcp: GraphEdge[] = [{
+      fromId: 'src/knowledge/extractors/ast.ts', fromType: 'file',
+      toId: 'src/mcp/server.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/knowledge/extractors/ast.ts', sourceLine: 1,
+      confidence: 1, computedAt: new Date(),
+    }];
+
+    expect(evaluator.evaluateEdges(mcpToStorage)).toHaveLength(1);
+    expect(evaluator.evaluateEdges(cliToStorage)).toHaveLength(1);
+    expect(evaluator.evaluateEdges(apiToHomeostasis)).toHaveLength(1);
+    expect(evaluator.evaluateEdges(extractorToMcp)).toHaveLength(1);
+  });
+
+  it('detects mcp→storage violation with correct monitorId', async () => {
+    const violatingEdges: GraphEdge[] = [{
+      fromId: 'src/mcp/server.ts', fromType: 'file',
+      toId: 'src/storage/sqlite_storage.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/mcp/server.ts', sourceLine: 12,
+      confidence: 1, computedAt: new Date(),
+    }];
+
+    const mockStorage = createMockEvaluatorStorage(violatingEdges);
+    const eventBus = createTestEventBus();
+    const emittedEvents: LibrarianEvent[] = [];
+    eventBus.on('safety_violation', (e) => { emittedEvents.push(e); });
+
+    const evaluator = new LTLMonitorEvaluator({ storage: mockStorage, eventBus });
+    const violations = await evaluator.evaluateOnIndexingComplete({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: { taskId: 't1', filesProcessed: 1, functionsIndexed: 1, durationMs: 100 },
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].monitorId).toBe('ltl.no_direct_mcp_to_storage_imports');
+    expect(violations[0].evidence.sourceFile).toBe('src/mcp/server.ts');
+    expect(violations[0].evidence.importPath).toBe('src/storage/sqlite_storage.ts');
+    expect(emittedEvents).toHaveLength(1);
+    expect(emittedEvents[0].data.monitorId).toBe('ltl.no_direct_mcp_to_storage_imports');
+  });
+
+  it('detects cli→storage violation with correct monitorId', async () => {
+    const violatingEdges: GraphEdge[] = [{
+      fromId: 'src/cli/index.ts', fromType: 'file',
+      toId: 'src/storage/sqlite_storage.ts', toType: 'file',
+      edgeType: 'imports', sourceFile: 'src/cli/index.ts', sourceLine: 5,
+      confidence: 1, computedAt: new Date(),
+    }];
+
+    const evaluator = new LTLMonitorEvaluator({
+      storage: createMockEvaluatorStorage(violatingEdges),
+      eventBus: createTestEventBus(),
+    });
+    const violations = await evaluator.evaluateOnIndexingComplete({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: { taskId: 't2', filesProcessed: 1, functionsIndexed: 1, durationMs: 100 },
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].monitorId).toBe('ltl.no_direct_cli_to_storage_imports');
+  });
+
+  it('does not emit safety_violation for clean edges (no-false-positive)', async () => {
+    const cleanEdges: GraphEdge[] = [
+      {
+        fromId: 'src/mcp/server.ts', fromType: 'file',
+        toId: 'src/api/index.ts', toType: 'file',
+        edgeType: 'imports', sourceFile: 'src/mcp/server.ts', sourceLine: 1,
+        confidence: 1, computedAt: new Date(),
+      },
+      {
+        fromId: 'src/cli/index.ts', fromType: 'file',
+        toId: 'src/api/index.ts', toType: 'file',
+        edgeType: 'imports', sourceFile: 'src/cli/index.ts', sourceLine: 1,
+        confidence: 1, computedAt: new Date(),
+      },
+    ];
+
+    const eventBus = createTestEventBus();
+    const emittedEvents: LibrarianEvent[] = [];
+    eventBus.on('safety_violation', (e) => { emittedEvents.push(e); });
+
+    const evaluator = new LTLMonitorEvaluator({
+      storage: createMockEvaluatorStorage(cleanEdges),
+      eventBus,
+    });
+    const violations = await evaluator.evaluateOnIndexingComplete({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: { taskId: 't3', filesProcessed: 2, functionsIndexed: 10, durationMs: 200 },
+    });
+
+    expect(violations).toHaveLength(0);
+    expect(emittedEvents).toHaveLength(0);
+  });
+
+  it('does not emit safety_violation for fixture repo paths (no false positives)', async () => {
+    // Simulates paths from test/fixtures/librarian_usecase — none should match architectural invariants
+    const fixtureEdges: GraphEdge[] = [
+      {
+        fromId: 'src/auth/authenticate.js', fromType: 'file',
+        toId: 'src/config/config.js', toType: 'file',
+        edgeType: 'imports', sourceFile: 'src/auth/authenticate.js', sourceLine: 1,
+        confidence: 1, computedAt: new Date(),
+      },
+      {
+        fromId: 'src/user/user_service.js', fromType: 'file',
+        toId: 'src/db/client.js', toType: 'file',
+        edgeType: 'imports', sourceFile: 'src/user/user_service.js', sourceLine: 1,
+        confidence: 1, computedAt: new Date(),
+      },
+      {
+        fromId: 'src/utils/validators.js', fromType: 'file',
+        toId: 'src/utils/date_helpers.js', toType: 'file',
+        edgeType: 'imports', sourceFile: 'src/utils/validators.js', sourceLine: 1,
+        confidence: 1, computedAt: new Date(),
+      },
+    ];
+
+    const evaluator = new LTLMonitorEvaluator({
+      storage: createMockEvaluatorStorage(fixtureEdges),
+      eventBus: createTestEventBus(),
+    });
+    const violations = await evaluator.evaluateOnIndexingComplete({
+      type: 'indexing_complete',
+      timestamp: new Date(),
+      data: { taskId: 't4', filesProcessed: 3, functionsIndexed: 20, durationMs: 300 },
+    });
+
+    expect(violations).toHaveLength(0);
   });
 });
