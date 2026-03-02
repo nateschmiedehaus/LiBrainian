@@ -1,11 +1,15 @@
 name: Agent Verify Loop
 
-# Independent verification of agent-submitted PRs.
-# Finds issues labeled verify:pending, checks the linked PR independently,
-# and posts a pass/fail verdict.
+# Independent verification and auto-merge of agent-submitted PRs.
+# This is a STRATEGIC REVIEWER, not a checkbox verifier.
+# It evaluates whether changes fulfill the original intent AND
+# move LiBrainian toward its milestone goals in the best way.
 #
 # CRITICAL: This is a DIFFERENT agent session from the Worker.
 # The agent that did the work NEVER verifies its own work.
+#
+# On PASS: auto-merges the PR and closes the issue.
+# On FAIL: closes the PR with specific, actionable feedback.
 
 on:
   schedule:
@@ -19,7 +23,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
   id-token: write
@@ -64,6 +68,10 @@ jobs:
           TITLE=$(gh issue view "$NUM" -R "$REPO" --json title --jq '.title')
           echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
 
+          # Get issue milestone for strategic context
+          MILESTONE=$(gh issue view "$NUM" -R "$REPO" --json milestone --jq '.milestone.title // "none"')
+          echo "milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
+
           # Look for PR that closes this issue
           PR=$(gh pr list -R "$REPO" --state open \
             --search "closes #$NUM" \
@@ -100,8 +108,6 @@ jobs:
             # Remove stale label
             gh issue edit "${{ steps.find.outputs.issue_number }}" -R "$REPO" \
               --remove-label "verify:pending" --add-label "agent:blocked"
-            gh issue comment "${{ steps.find.outputs.issue_number }}" -R "$REPO" \
-              --body "**Verifier:** No PR found for this issue. Marking as blocked."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,7 +137,7 @@ jobs:
           PR=${{ steps.find.outputs.pr_number }}
 
           # Get issue body and comments (worker evidence)
-          gh issue view "$NUM" -R "$REPO" --json body,title,labels,comments \
+          gh issue view "$NUM" -R "$REPO" --json body,title,labels,comments,milestone \
             > .claude-issue-full.json
 
           # Get PR diff
@@ -145,6 +151,10 @@ jobs:
           gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '.comments[] | select(.body | contains("agent_evidence")) | .body' \
             > .claude-worker-evidence.txt 2>/dev/null || true
+
+          # Get milestone context
+          gh api repos/$REPO/milestones --jq '.[] | "## \(.title)\n\(.description // "No description")\n"' \
+            > .claude-milestone-context.md 2>/dev/null || true
 
           echo "Context gathered for verification."
         env:
@@ -160,38 +170,69 @@ jobs:
           show_full_output: true
 
           prompt: |
-            You are an independent VERIFIER. Your job is to check whether
-            issue #${{ steps.find.outputs.issue_number }} ("${{ steps.find.outputs.issue_title }}")
-            was correctly implemented in PR #${{ steps.find.outputs.pr_number }}.
+            You are a STRATEGIC CODE REVIEWER for the LiBrainian project — a semantic
+            codebase intelligence tool that helps AI agents understand and navigate code.
+
+            You are reviewing PR #${{ steps.find.outputs.pr_number }} which implements
+            issue #${{ steps.find.outputs.issue_number }} ("${{ steps.find.outputs.issue_title }}").
+            Milestone: ${{ steps.find.outputs.milestone }}
+
+            YOUR VERDICT WILL AUTO-MERGE OR REJECT THIS PR. There is no human reviewer
+            after you. You are the last line of defense. Be thorough but fair.
 
             ## Context Files
-            - .claude-issue-full.json — full issue with comments
+            - .claude-issue-full.json — full issue with comments and acceptance criteria
             - .claude-pr-diff.patch — the PR diff
             - .claude-pr-files.txt — files changed
             - .claude-worker-evidence.txt — worker's evidence claims
+            - .claude-milestone-context.md — milestone descriptions and goals
 
-            ## Verification Steps
-            1. Read the issue's acceptance criteria from .claude-issue-full.json
-            2. Read the worker's evidence claims from .claude-worker-evidence.txt
-            3. Review the PR diff at .claude-pr-diff.patch
-            4. For each acceptance criterion, verify independently:
-               - Read the changed files to confirm the implementation
-               - Run `npm run build` to confirm it compiles
-               - Run relevant tests: `npm test -- --testPathPattern <relevant_pattern>`
-               - If the issue involves query behavior, run a test query
-            5. Check for regressions: are there obvious bugs, security issues, or broken tests?
+            ## Your Review Process
+
+            ### Phase 1: Mechanical Verification (table stakes — must all pass)
+            1. Run `npm run build` — must compile clean
+            2. Run tests on changed files: `npm test -- --testPathPattern <pattern>`
+            3. Check the diff for obvious bugs, security issues, or broken patterns
+            4. Verify each acceptance criterion from the issue is actually met
+
+            ### Phase 2: Intent Fulfillment (the real question)
+            Go beyond "did they check the boxes?" Ask yourself:
+            - Does this implementation actually solve the UNDERLYING PROBLEM the issue describes?
+            - Or did the worker do the minimum to satisfy acceptance criteria without
+              addressing the real need?
+            - Would a senior engineer reviewing this say "yes, this is the right approach"
+              or "this technically works but misses the point"?
+            - Are there obvious better approaches the worker should have taken?
+
+            ### Phase 3: Strategic Fit (does this move LiBrainian forward?)
+            Read .claude-milestone-context.md and consider:
+            - Does this change move us toward the milestone's exit criteria?
+            - Does it create technical debt that will slow down future work?
+            - Is the code maintainable? Will the next developer understand it?
+            - Does it follow the existing patterns in the codebase, or introduce
+              unnecessary divergence?
+            - Is the test coverage meaningful (testing behavior, not implementation)?
+
+            ### Phase 4: Qualitative Assessment
+            Rate the implementation:
+            - **Excellent**: Solves the problem elegantly, well-tested, advances the milestone
+            - **Good**: Solid implementation, meets the intent, no concerns
+            - **Acceptable**: Works but has minor issues that don't block merge
+            - **Poor**: Technically works but misses the intent or creates problems — FAIL
+            - **Broken**: Doesn't work, doesn't compile, or has critical issues — FAIL
+
+            Only "Excellent", "Good", and "Acceptable" should result in PASS.
+            "Poor" and "Broken" are FAIL.
 
             ## Your Verdict
-            You MUST post your verdict as a comment on issue #${{ steps.find.outputs.issue_number }}.
 
-            IMPORTANT: To post your comment, use the Write tool to write the comment body
-            to a file called `.verdict-comment.md`, then run:
+            Use the Write tool to create `.verdict-comment.md` with your review, then post it:
             ```
             gh issue comment ${{ steps.find.outputs.issue_number }} --repo nateschmiedehaus/LiBrainian --body-file .verdict-comment.md
             ```
-            Do NOT use heredocs or $(cat <<EOF) in gh commands — they get blocked by the sandbox.
+            Do NOT use heredocs or $(cat <<EOF) — they get blocked by the sandbox.
 
-            Your comment MUST start with this exact line (for automated parsing):
+            Your comment MUST begin with exactly one of these lines:
 
             **Verdict: PASS**
 
@@ -199,39 +240,42 @@ jobs:
 
             **Verdict: FAIL**
 
-            Then include:
+            Then include ALL of the following sections:
 
-            ### Acceptance Criteria Check
-            - [x] or [ ] for each criterion with your assessment
-
-            ### Independent Checks
+            ### Mechanical Checks
             - Build: pass/fail
-            - Tests: results
-            - Code review: observations
+            - Tests: X passed, Y failed
+            - Acceptance criteria: each one checked
 
-            ### Trust Assessment
-            Your overall assessment
+            ### Intent Assessment
+            [2-3 sentences: Does this solve the real problem?]
 
-            End with:
-            <!-- agent_evidence = {"v":1,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","verdict":"pass_or_fail","pr":${{ steps.find.outputs.pr_number }}} -->
+            ### Strategic Fit
+            [2-3 sentences: How does this advance the milestone? Any concerns?]
+
+            ### Quality Rating
+            [Excellent / Good / Acceptable / Poor / Broken — with brief justification]
+
+            End with the metadata tag:
+            <!-- agent_evidence = {"v":2,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","verdict":"VERDICT","quality":"RATING","pr":${{ steps.find.outputs.pr_number }}} -->
 
             ## Rules
             - You MUST NOT trust the worker's claims. Verify everything independently.
-            - If ANY acceptance criterion is not met, verdict is FAIL.
-            - If tests fail, verdict is FAIL.
-            - If build fails, verdict is FAIL.
-            - Be specific about what passed and what failed.
-            - Use Write tool + --body-file for posting comments (NOT heredocs).
+            - PASS means you are confident this should be merged to main.
+            - FAIL means you would NOT merge this — explain exactly what's wrong and
+              what the worker should do differently.
+            - Be specific. Vague feedback like "needs improvement" is useless.
+            - Use Write tool + --body-file for posting (NOT heredocs).
 
           claude_args: >-
             --model claude-sonnet-4-6
-            --max-turns 15
+            --max-turns 20
             --allowedTools "Edit,Write,Bash(gh issue *),Bash(gh pr *),Bash(gh api *),Bash(npm run *),Bash(npm test *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *)"
 
         continue-on-error: true
 
-      # ── Post-Verification Label Update ───────────────────────────────
-      - name: Parse verdict and update labels
+      # ── Post-Verification: Auto-merge or Reject ─────────────────────
+      - name: Parse verdict and act
         if: steps.find.outputs.pr_found == 'true'
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -243,12 +287,11 @@ jobs:
 
           if [ "$AGENT_EXIT" = "failure" ]; then
             echo "::warning::Verifier agent failed (likely auth or infra issue). Will retry on next schedule."
-            # Do NOT post a comment — silent retry avoids inbox spam.
-            # Leave verify:pending so the next scheduled run picks it up.
+            # Silent retry — leave verify:pending for next run. No inbox spam.
             exit 0
           fi
 
-          # Check the latest comments for a verdict (use grep -E, not grep -P for portability)
+          # Check the latest comments for a verdict
           VERDICT=$(gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '.comments[-3:] | .[] | .body' | \
             grep -oiE 'Verdict:[[:space:]]*\*{0,2}(PASS|FAIL)\*{0,2}' | tail -1 | \
@@ -257,34 +300,45 @@ jobs:
           echo "Verdict: $VERDICT"
 
           if [ "$VERDICT" = "PASS" ]; then
+            echo "=== AUTO-MERGING PR #$PR ==="
+
+            # Update labels
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:pending" \
+              --remove-label "agent:actionable" \
               --add-label "verify:pass"
-            gh pr comment "$PR" -R "$REPO" --body "$(cat <<EOF
-          **Verification PASSED.** This PR has been independently verified.
 
-          A human reviewer should do a final check and merge.
+            # Squash-merge the PR
+            gh pr merge "$PR" -R "$REPO" --squash --auto \
+              --subject "fix: #$NUM — ${{ steps.find.outputs.issue_title }}" \
+              --body "Automated implementation of #$NUM.
 
-          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"verifier","verdict":"pass","pr":$PR} -->
-          EOF
-          )"
+            Verified by independent agent reviewer.
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              2>/dev/null || \
+            gh pr merge "$PR" -R "$REPO" --squash \
+              --subject "fix: #$NUM — ${{ steps.find.outputs.issue_title }}" 2>/dev/null || \
+            echo "::warning::Auto-merge failed. PR may need manual merge."
+
+            echo "PR #$PR merged. Issue #$NUM resolved."
+
           elif [ "$VERDICT" = "FAIL" ]; then
+            echo "=== REJECTING PR #$PR ==="
+
+            # Close the PR (don't delete branch — keep evidence)
+            gh pr close "$PR" -R "$REPO" --comment "Verification FAILED. See issue #$NUM for detailed feedback. The worker should address the reviewer's concerns and resubmit."
+
+            # Return issue to backlog for rework
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:pending" \
               --remove-label "agent:claimed" \
               --add-label "verify:fail"
-            gh pr comment "$PR" -R "$REPO" --body "$(cat <<EOF
-          **Verification FAILED.** See issue #$NUM for details.
 
-          The issue has been returned to the backlog for rework.
+            echo "PR #$PR closed. Issue #$NUM returned to backlog."
 
-          <!-- agent_evidence = {"v":1,"issue":$NUM,"role":"verifier","verdict":"fail","pr":$PR} -->
-          EOF
-          )"
           else
-            echo "::warning::Verifier agent ran but did not post a clear verdict. Will retry."
-            # Silent — leave verify:pending for the next scheduled run.
-            # Only escalate after 3 consecutive UNKNOWN verdicts (tracked by run history).
+            echo "::warning::Verifier ran but did not post a clear verdict. Will retry on next schedule."
+            # Silent — leave verify:pending for next scheduled run.
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
