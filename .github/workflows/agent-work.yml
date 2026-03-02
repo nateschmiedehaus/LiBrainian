@@ -307,10 +307,10 @@ jobs:
             - You MUST commit before finishing. Uncommitted changes may be lost.
 
             ## Evidence
-            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }}:
-            ```
-            gh issue comment ${{ steps.find.outputs.issue_number }} --body "..."
-            ```
+            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }}.
+            IMPORTANT: Use Write tool to create `.evidence-comment.md` with your evidence,
+            then run: `gh issue comment ${{ steps.find.outputs.issue_number }} --body-file .evidence-comment.md`
+            Do NOT use heredocs or $(cat <<EOF) — they get blocked by the sandbox.
             Include: what you changed, test results, and caveats for the verifier.
 
           claude_args: >-

@@ -184,27 +184,36 @@ jobs:
             ## Your Verdict
             You MUST post your verdict as a comment on issue #${{ steps.find.outputs.issue_number }}.
 
-            Format your comment like this:
-
+            IMPORTANT: To post your comment, use the Write tool to write the comment body
+            to a file called `.verdict-comment.md`, then run:
             ```
-            ## Verification Evidence
+            gh issue comment ${{ steps.find.outputs.issue_number }} --repo nateschmiedehaus/LiBrainian --body-file .verdict-comment.md
+            ```
+            Do NOT use heredocs or $(cat <<EOF) in gh commands — they get blocked by the sandbox.
 
-            **Verdict: PASS** (or **Verdict: FAIL**)
+            Your comment MUST start with this exact line (for automated parsing):
+
+            **Verdict: PASS**
+
+            or:
+
+            **Verdict: FAIL**
+
+            Then include:
 
             ### Acceptance Criteria Check
-            - [ ] Criterion 1: [your assessment]
-            - [ ] Criterion 2: [your assessment]
+            - [x] or [ ] for each criterion with your assessment
 
             ### Independent Checks
-            - Build: [pass/fail]
-            - Tests: [results]
-            - Code review: [observations]
+            - Build: pass/fail
+            - Tests: results
+            - Code review: observations
 
             ### Trust Assessment
-            [Your overall assessment of the worker's implementation]
+            Your overall assessment
 
-            <!-- agent_evidence = {"v":1,"issue":ISSUE_NUM,"role":"verifier","verdict":"pass_or_fail","pr":PR_NUM} -->
-            ```
+            End with:
+            <!-- agent_evidence = {"v":1,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","verdict":"pass_or_fail","pr":${{ steps.find.outputs.pr_number }}} -->
 
             ## Rules
             - You MUST NOT trust the worker's claims. Verify everything independently.
@@ -212,6 +221,7 @@ jobs:
             - If tests fail, verdict is FAIL.
             - If build fails, verdict is FAIL.
             - Be specific about what passed and what failed.
+            - Use Write tool + --body-file for posting comments (NOT heredocs).
 
           claude_args: >-
             --model claude-sonnet-4-6
