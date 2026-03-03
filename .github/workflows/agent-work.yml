@@ -313,7 +313,7 @@ jobs:
           PROCESSED=0
           RESOLVED=0
           REQUEUED=0
-          MAX_MANAGEMENT_PER_RUN=5
+          MAX_MANAGEMENT_PER_RUN=60
 
           MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
