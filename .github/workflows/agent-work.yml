@@ -1478,6 +1478,7 @@ jobs:
           EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
           NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
           ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
+          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
@@ -1572,13 +1573,26 @@ jobs:
             echo "result=infra-failure" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
             echo "escalation_reason=provider_or_infra_failure" >> "$GITHUB_OUTPUT"
-            gh issue edit "$NUM" -R "$REPO" \
-              --remove-label "agent:claimed" \
-              --remove-label "verify:pending" \
-              --remove-label "agent:actionable" \
-              --add-label "agent:infra-blocked" \
-              --add-label "agent:management-needed" \
-              --add-label "agent:manual-review-needed"
+            if [ "$IS_MANAGEMENT" = "true" ]; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:blocked" \
+                --remove-label "triage/missing-essentials" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed"
+            else
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:actionable" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed"
+            fi
             {
               echo "**Agent Work Loop** — provider/infra failure."
               echo ""
