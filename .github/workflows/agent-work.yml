@@ -165,6 +165,46 @@ jobs:
           echo "::warning::Auto-heal: gate closes when infra-blocked updates are quiet for ${RECENT_INFRA_WINDOW_MIN} minutes or when manually targeting an issue."
           exit 0
 
+      - name: Provider auth incident gate
+        id: provider-auth-gate
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            echo "Manual issue override detected; skipping provider auth incident gate."
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "${OPENAI_KEY:-}" ]; then
+            echo "OPENAI_API_KEY is available; provider auth incident gate disabled."
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CUTOFF=$(date -u -d "${RECENT_INFRA_WINDOW_MIN} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
+          RECENT_AUTH=$(gh issue list -R "$REPO" --state open \
+            --label "agent:provider-auth-failure" \
+            --search "updated:>=$CUTOFF -label:agent:management-ticket" \
+            --limit 200 \
+            --json number --jq 'length')
+
+          echo "Recent provider-auth-failure source issues in last ${RECENT_INFRA_WINDOW_MIN}m: $RECENT_AUTH"
+          if [ "$RECENT_AUTH" -ge 1 ]; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Abort if provider auth incident gate open
+        if: steps.provider-auth-gate.outputs.open == 'true'
+        run: |
+          echo "::warning::Provider auth incident gate open — recent auth failures detected and OPENAI_API_KEY is unavailable."
+          echo "::warning::Worker issue selection is paused to avoid repeated provider-auth failures; management/meta maintenance will continue."
+          echo "::warning::Auto-heal: gate closes after auth-failure issues are quiet for ${RECENT_INFRA_WINDOW_MIN} minutes or Codex credentials become available."
+          exit 0
+
       - name: Ensure adaptive labels exist
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
@@ -763,7 +803,7 @@ jobs:
 
       # ── Find Issue ───────────────────────────────────────────────────
       - name: Find next ready issue
-        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && steps.provider-auth-gate.outputs.open != 'true'
         id: find
         run: |
           HAS_CODEX=false
