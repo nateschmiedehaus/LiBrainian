@@ -180,3 +180,39 @@ jobs:
                 });
               }
             }
+
+            if (!issue.milestone) {
+              const title = issue.title ?? '';
+              const bodyText = body ?? '';
+              const inferredLabelSet = new Set([
+                ...Array.from(existingLabels),
+                ...labelsToAdd,
+              ]);
+
+              const inferMilestoneTitle = () => {
+                if (inferredLabelSet.has('m0') || /\[M0\]/i.test(title) || /\bM0\b/i.test(bodyText)) return 'M0: Dogfood-Ready';
+                if (inferredLabelSet.has('m1') || /\[M1\]/i.test(title) || /\bM1\b/i.test(bodyText)) return 'M1: Construction MVP';
+                if (inferredLabelSet.has('m2') || /\[M2\]/i.test(title) || /\bM2\b/i.test(bodyText)) return 'M2: Agent Integration';
+                if (inferredLabelSet.has('m3') || /\[M3\]/i.test(title) || /\bM3\b/i.test(bodyText)) return 'M3: Scale & Epistemics';
+                if (inferredLabelSet.has('m4') || /\[M4\]/i.test(title) || /\bM4\b/i.test(bodyText)) return 'M4: World-Class';
+                return 'v1.0: Working Product';
+              };
+
+              const targetMilestoneTitle = inferMilestoneTitle();
+              const milestones = await github.paginate(github.rest.issues.listMilestones, {
+                owner,
+                repo,
+                state: 'all',
+                per_page: 100,
+              });
+              const targetMilestone = milestones.find((m) => m.title === targetMilestoneTitle);
+
+              if (targetMilestone) {
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  milestone: targetMilestone.number,
+                });
+              }
+            }
