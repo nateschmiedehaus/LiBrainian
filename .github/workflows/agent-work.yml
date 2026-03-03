@@ -229,7 +229,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Track provider credential incident
-        if: steps.provider-auth-gate.outputs.open == 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        if: steps.provider-auth-gate.conclusion == 'success' && steps.provider-auth-gate.outputs.open == 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           TITLE="meta: repair provider credentials for autonomous workers"
           EXISTING=$(gh issue list -R "$REPO" --state open \
@@ -259,7 +259,11 @@ jobs:
           EOF
 
           if [ -n "$EXISTING" ]; then
-            gh issue edit "$EXISTING" -R "$REPO" --body-file .credential-incident-body.md || true
+            CURRENT_BODY=$(gh issue view "$EXISTING" -R "$REPO" --json body --jq '.body // ""' 2>/dev/null || echo "")
+            NEW_BODY=$(cat .credential-incident-body.md)
+            if [ "$CURRENT_BODY" != "$NEW_BODY" ]; then
+              gh issue edit "$EXISTING" -R "$REPO" --body-file .credential-incident-body.md || true
+            fi
           else
             gh issue create -R "$REPO" \
               --title "$TITLE" \
@@ -274,7 +278,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Close provider credential incident when recovered
-        if: steps.provider-auth-gate.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        if: >-
+          steps.breaker.outputs.open != 'true' &&
+          steps.provider-auth-gate.conclusion == 'success' &&
+          steps.provider-auth-gate.outputs.open != 'true' &&
+          inputs.issue_number == '' &&
+          inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           INCIDENTS=$(gh issue list -R "$REPO" --state open \
             --label "agent:credential-incident" \
