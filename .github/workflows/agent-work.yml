@@ -401,6 +401,13 @@ jobs:
             SLABELS=$(echo "$SJSON" | jq -r '.labels[].name')
             SBODY=$(echo "$SJSON" | jq -r '.body // ""')
 
+            if has_label "$SLABELS" "agent:management-ticket"; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC is already a management ticket and is handled in-place."
+              RESOLVED=$((RESOLVED + 1))
+              continue
+            fi
+
             HAS_ACCEPTANCE=false
             HAS_BRIEF=false
             HAS_FILE_HINTS=false
@@ -1652,10 +1659,24 @@ jobs:
         if: steps.outcome.outputs.escalate == 'true' && steps.find.outputs.issue_number
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
+          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
           TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
           TITLE_CLEAN=${TITLE//\"/\'}
           REASON=${{ steps.outcome.outputs.escalation_reason }}
           MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
+
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            MNUM="$NUM"
+            {
+              echo "**Workflow management routing (in-place)**"
+              echo ""
+              echo "- Escalation reason: \`$REASON\`"
+              echo "- This issue is already a management ticket, so automation updated it in place."
+            } > .management-link-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .management-link-comment.md
+            rm -f .management-link-comment.md
+            exit 0
+          fi
 
           EXISTING=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
