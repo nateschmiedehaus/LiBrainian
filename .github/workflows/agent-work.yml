@@ -457,6 +457,33 @@ jobs:
             fi
             MBODY=$(echo "$MJSON" | jq -r '.body // ""')
             MLABELS=$(echo "$MJSON" | jq -r '.labels[].name')
+            M_HAS_AUTH_HINT=false
+            if has_label "$MLABELS" "agent:provider-auth-failure"; then
+              M_HAS_AUTH_HINT=true
+            else
+              AUTH_COMMENT_COUNT=$(gh issue view "$MNUM" -R "$REPO" --json comments \
+                --jq '[.comments[].body | select(contains("provider_auth_or_runtime_failure") or test("OAuth token has expired|authentication_error"))] | length' 2>/dev/null || echo 0)
+              if [ "$AUTH_COMMENT_COUNT" -gt 0 ]; then
+                if [ "$HAS_CODEX" = "true" ]; then
+                  gh issue edit "$MNUM" -R "$REPO" \
+                    --add-label "agent:provider-auth-failure" \
+                    --add-label "agent:infra-blocked" \
+                    --add-label "agent:management-needed" \
+                    --add-label "agent:manual-review-needed" \
+                    --add-label "triage/ready" \
+                    --add-label "agent:actionable" || true
+                else
+                  gh issue edit "$MNUM" -R "$REPO" \
+                    --add-label "agent:provider-auth-failure" \
+                    --add-label "agent:infra-blocked" \
+                    --add-label "agent:management-needed" \
+                    --add-label "agent:manual-review-needed" \
+                    --add-label "triage/ready" \
+                    --remove-label "agent:actionable" || true
+                fi
+                M_HAS_AUTH_HINT=true
+              fi
+            fi
 
             SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
             if [ -z "$SRC" ]; then
@@ -564,9 +591,6 @@ jobs:
                     --remove-label "agent:actionable" || true
                 fi
               fi
-            elif has_label "$MLABELS" "agent:provider-auth-failure"; then
-              gh issue edit "$MNUM" -R "$REPO" \
-                --remove-label "agent:provider-auth-failure" || true
             fi
             if [ "$HAS_INFRA_BLOCKED" = "true" ]; then
               SUPDATED=$(echo "$SJSON" | jq -r '.updatedAt // ""')
