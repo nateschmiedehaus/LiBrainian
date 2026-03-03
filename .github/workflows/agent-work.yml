@@ -41,6 +41,11 @@ on:
         required: false
         default: '35'
         type: string
+      batch_remaining:
+        description: 'Autonomous sequential run budget (1 = single run, 15 = run 15 issues sequentially)'
+        required: false
+        default: '1'
+        type: string
 
 permissions:
   contents: write
@@ -1529,5 +1534,37 @@ jobs:
           } > .failure-comment.md
           gh issue comment "$NUM" -R "$REPO" --body-file .failure-comment.md
           rm -f .failure-comment.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Chain next autonomous run
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: |
+          REMAINING="${{ inputs.batch_remaining || '1' }}"
+          if ! [[ "$REMAINING" =~ ^[0-9]+$ ]]; then
+            echo "batch_remaining is not numeric; stopping chain."
+            exit 0
+          fi
+          if [ "$REMAINING" -le 1 ]; then
+            echo "Batch chain complete (remaining=$REMAINING)."
+            exit 0
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run enabled; not chaining."
+            exit 0
+          fi
+          if [ "${{ steps.breaker.outputs.open }}" = "true" ]; then
+            echo "Circuit breaker open; not chaining."
+            exit 0
+          fi
+
+          NEXT=$((REMAINING - 1))
+          echo "Dispatching chained run with batch_remaining=$NEXT"
+          gh workflow run agent-work.yml -R "$REPO" \
+            -f agent_provider="${{ inputs.agent_provider || 'auto' }}" \
+            -f enable_fallback="${{ inputs.enable_fallback != false }}" \
+            -f dry_run=false \
+            -f max_turns="${{ inputs.max_turns || env.DEFAULT_MAX_TURNS }}" \
+            -f batch_remaining="$NEXT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
