@@ -411,6 +411,8 @@ jobs:
           RESOLVED=0
           REQUEUED=0
           MAX_MANAGEMENT_PER_RUN=60
+          HAS_CODEX=false
+          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
 
           MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
@@ -530,12 +532,42 @@ jobs:
             HAS_AGENT_BLOCKED=false
             HAS_MANUAL_REVIEW=false
             HAS_MGMT_NEEDED=false
+            HAS_PROVIDER_AUTH_FAIL=false
             ALLOW_INFRA_RETRY=false
             if has_label "$SLABELS" "agent:needs-decomposition"; then HAS_NEEDS_DECOMP=true; fi
             if has_label "$SLABELS" "agent:infra-blocked"; then HAS_INFRA_BLOCKED=true; fi
             if has_label "$SLABELS" "agent:blocked"; then HAS_AGENT_BLOCKED=true; fi
             if has_label "$SLABELS" "agent:manual-review-needed"; then HAS_MANUAL_REVIEW=true; fi
             if has_label "$SLABELS" "agent:management-needed"; then HAS_MGMT_NEEDED=true; fi
+            if has_label "$SLABELS" "agent:provider-auth-failure"; then HAS_PROVIDER_AUTH_FAIL=true; fi
+
+            # Keep management ticket provider-auth labels synchronized with source issue state.
+            if [ "$HAS_PROVIDER_AUTH_FAIL" = "true" ]; then
+              if [ "$HAS_CODEX" = "true" ]; then
+                if ! has_label "$MLABELS" "agent:provider-auth-failure" || ! has_label "$MLABELS" "agent:infra-blocked" || ! has_label "$MLABELS" "agent:actionable"; then
+                  gh issue edit "$MNUM" -R "$REPO" \
+                    --add-label "agent:provider-auth-failure" \
+                    --add-label "agent:infra-blocked" \
+                    --add-label "agent:management-needed" \
+                    --add-label "agent:manual-review-needed" \
+                    --add-label "triage/ready" \
+                    --add-label "agent:actionable" || true
+                fi
+              else
+                if ! has_label "$MLABELS" "agent:provider-auth-failure" || ! has_label "$MLABELS" "agent:infra-blocked" || has_label "$MLABELS" "agent:actionable"; then
+                  gh issue edit "$MNUM" -R "$REPO" \
+                    --add-label "agent:provider-auth-failure" \
+                    --add-label "agent:infra-blocked" \
+                    --add-label "agent:management-needed" \
+                    --add-label "agent:manual-review-needed" \
+                    --add-label "triage/ready" \
+                    --remove-label "agent:actionable" || true
+                fi
+              fi
+            elif has_label "$MLABELS" "agent:provider-auth-failure"; then
+              gh issue edit "$MNUM" -R "$REPO" \
+                --remove-label "agent:provider-auth-failure" || true
+            fi
             if [ "$HAS_INFRA_BLOCKED" = "true" ]; then
               SUPDATED=$(echo "$SJSON" | jq -r '.updatedAt // ""')
               if [ -n "$SUPDATED" ] && [ "$SUPDATED" != "null" ]; then
@@ -605,6 +637,7 @@ jobs:
           echo "Management pass summary: processed=$PROCESSED resolved=$RESOLVED requeued=$REQUEUED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       # ── Pre-flight: unblock resolved dependencies ───────────────────
       # Before selecting work, check if any agent:blocked issues have had
