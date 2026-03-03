@@ -58,3 +58,4 @@ docs/internal/tmp/
 .claude-pr-diff.patch
 .claude-pr-files.txt
 .claude-worker-evidence.txt
+.claude/worktrees/
