@@ -383,13 +383,33 @@ jobs:
             if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
               CREATE_ARGS+=(--milestone "$MILESTONE")
             fi
+            PARK_TICKET=false
+            if [ "$GLOBAL_AUTH_GATE_OPEN" = "true" ] && [ "$HAS_CODEX" != "true" ]; then
+              PARK_TICKET=true
+            fi
+            if has_label "$LABELS" "agent:infra-blocked" || [ "$REASON" = "provider_or_infra_failure" ]; then
+              CREATE_ARGS+=(--label "agent:infra-blocked")
+              CREATE_ARGS+=(--label "agent:manual-review-needed")
+              if [ "$HAS_CODEX" != "true" ]; then
+                PARK_TICKET=true
+              fi
+            fi
+            if has_label "$LABELS" "agent:provider-auth-failure"; then
+              CREATE_ARGS+=(--label "agent:provider-auth-failure")
+              CREATE_ARGS+=(--label "agent:manual-review-needed")
+              if [ "$HAS_CODEX" != "true" ]; then
+                PARK_TICKET=true
+              fi
+            fi
+            if [ "$PARK_TICKET" != "true" ]; then
+              CREATE_ARGS+=(--label "agent:actionable")
+            fi
             MURL=$(gh issue create -R "$REPO" \
               --title "meta: manage issue #$SRC — $TITLE_CLEAN" \
               --body-file .management-heal-body.md \
               --label "agent:management-ticket" \
               --label "agent:management-needed" \
               --label "triage/ready" \
-              --label "agent:actionable" \
               "${CREATE_ARGS[@]}")
             rm -f .management-heal-body.md
 
