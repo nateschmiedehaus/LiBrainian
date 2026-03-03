@@ -836,6 +836,7 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
+          TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
           if [ "${{ steps.verify-retries.outputs.halt }}" = "true" ]; then
@@ -868,7 +869,7 @@ jobs:
             gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
           else
             gh issue create -R "$REPO" \
-              --title "meta: verify issue #$NUM — $TITLE" \
+              --title "meta: verify issue #$NUM — $TITLE_CLEAN" \
               --body-file .verify-management.md \
               --label "agent:management-needed" \
               --label "triage/ready" \

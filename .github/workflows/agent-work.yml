@@ -1439,6 +1439,7 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
+          TITLE_CLEAN=${TITLE//\"/\'}
           REASON=${{ steps.outcome.outputs.escalation_reason }}
           MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
 
@@ -1468,7 +1469,7 @@ jobs:
             MNUM="$EXISTING"
           else
             MURL=$(gh issue create -R "$REPO" \
-              --title "meta: manage issue #$NUM — $TITLE" \
+              --title "meta: manage issue #$NUM — $TITLE_CLEAN" \
               --body-file .management-body.md \
               --label "agent:management-needed" \
               --label "triage/ready" \
