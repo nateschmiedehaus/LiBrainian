@@ -1872,6 +1872,7 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           REASON=${{ steps.outcome.outputs.escalation_reason }}
           MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
+          HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
 
           if [ "$IS_MANAGEMENT" = "true" ]; then
             MNUM="$NUM"
@@ -1910,19 +1911,55 @@ jobs:
 
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" -R "$REPO" --body-file .management-body.md
+            if [ "$REASON" = "provider_auth_or_runtime_failure" ]; then
+              if [ "$HAS_CODEX_AVAILABLE" = "true" ]; then
+                gh issue edit "$EXISTING" -R "$REPO" \
+                  --add-label "agent:management-ticket" \
+                  --add-label "agent:management-needed" \
+                  --add-label "agent:manual-review-needed" \
+                  --add-label "agent:infra-blocked" \
+                  --add-label "agent:provider-auth-failure" \
+                  --add-label "triage/ready" \
+                  --add-label "agent:actionable" || true
+              else
+                gh issue edit "$EXISTING" -R "$REPO" \
+                  --remove-label "agent:actionable" \
+                  --add-label "agent:management-ticket" \
+                  --add-label "agent:management-needed" \
+                  --add-label "agent:manual-review-needed" \
+                  --add-label "agent:infra-blocked" \
+                  --add-label "agent:provider-auth-failure" \
+                  --add-label "triage/ready" || true
+              fi
+            fi
             MNUM="$EXISTING"
           else
             CREATE_ARGS=()
             if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
               CREATE_ARGS+=(--milestone "$MILESTONE")
             fi
+
+            if [ "$REASON" = "provider_auth_or_runtime_failure" ]; then
+              if [ "$HAS_CODEX_AVAILABLE" = "true" ]; then
+                CREATE_ARGS+=(--label "agent:infra-blocked")
+                CREATE_ARGS+=(--label "agent:provider-auth-failure")
+                CREATE_ARGS+=(--label "agent:manual-review-needed")
+                CREATE_ARGS+=(--label "agent:actionable")
+              else
+                CREATE_ARGS+=(--label "agent:infra-blocked")
+                CREATE_ARGS+=(--label "agent:provider-auth-failure")
+                CREATE_ARGS+=(--label "agent:manual-review-needed")
+              fi
+            else
+              CREATE_ARGS+=(--label "agent:actionable")
+            fi
+
             MURL=$(gh issue create -R "$REPO" \
               --title "meta: manage issue #$NUM — $TITLE_CLEAN" \
               --body-file .management-body.md \
               --label "agent:management-ticket" \
               --label "agent:management-needed" \
               --label "triage/ready" \
-              --label "agent:actionable" \
               "${CREATE_ARGS[@]}")
             MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
           fi
