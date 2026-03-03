@@ -280,13 +280,18 @@ jobs:
           4. Close this management ticket once #$SRC is unblocked and re-queued.
           EOF
 
+            CREATE_ARGS=()
+            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+              CREATE_ARGS+=(--milestone "$MILESTONE")
+            fi
             MURL=$(gh issue create -R "$REPO" \
               --title "meta: manage issue #$SRC — $TITLE_CLEAN" \
               --body-file .management-heal-body.md \
               --label "agent:management-ticket" \
               --label "agent:management-needed" \
               --label "triage/ready" \
-              --label "agent:actionable")
+              --label "agent:actionable" \
+              "${CREATE_ARGS[@]}")
             rm -f .management-heal-body.md
 
             MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
@@ -304,6 +309,84 @@ jobs:
           done
 
           echo "Management ticket heal summary: processed=$PROCESSED relabeled=$RELABELED created=$CREATED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize milestone coverage
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          MAX_FIXES=40
+          DEFAULT_MS="v1.0: Working Product"
+          PROCESSED=0
+          UPDATED=0
+
+          infer_from_labels() {
+            local labels="$1"
+            if echo "$labels" | grep -Eq '(^|,)m0(,|$)'; then echo "M0: Dogfood-Ready"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m1(,|$)'; then echo "M1: Construction MVP"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m2(,|$)'; then echo "M2: Agent Integration"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m3(,|$)'; then echo "M3: Scale & Epistemics"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m4(,|$)'; then echo "M4: World-Class"; return; fi
+            echo ""
+          }
+
+          CANDIDATES=$(gh issue list -R "$REPO" --state open --limit 250 \
+            --json number,title,body,labels,milestone \
+            --jq '.[] | select(.milestone == null) | @base64')
+
+          if [ -z "$CANDIDATES" ]; then
+            echo "Milestone normalization: no open issues missing milestones."
+            exit 0
+          fi
+
+          for ROW in $CANDIDATES; do
+            [ "$PROCESSED" -ge "$MAX_FIXES" ] && break
+            PROCESSED=$((PROCESSED + 1))
+
+            ITEM=$(echo "$ROW" | base64 --decode)
+            NUM=$(echo "$ITEM" | jq -r '.number')
+            TITLE=$(echo "$ITEM" | jq -r '.title // ""')
+            BODY=$(echo "$ITEM" | jq -r '.body // ""')
+            LABELS=$(echo "$ITEM" | jq -r '[.labels[].name] | join(",")')
+
+            TARGET_MS=""
+
+            if echo "$LABELS" | grep -Eq '(^|,)agent:management-ticket(,|$)'; then
+              SRC=$(echo "$BODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
+              if [ -z "$SRC" ]; then
+                SRC=$(echo "$BODY" | grep -oE 'source_issue=[0-9]+' | grep -oE '[0-9]+' | head -n1)
+              fi
+              if [ -n "$SRC" ]; then
+                TARGET_MS=$(gh issue view "$SRC" -R "$REPO" --json milestone --jq '.milestone.title // empty' 2>/dev/null || true)
+                if [ -z "$TARGET_MS" ]; then
+                  SRC_LABELS=$(gh issue view "$SRC" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)
+                  TARGET_MS=$(infer_from_labels "$SRC_LABELS")
+                fi
+              fi
+            fi
+
+            if [ -z "$TARGET_MS" ]; then
+              TARGET_MS=$(infer_from_labels "$LABELS")
+            fi
+
+            if [ -z "$TARGET_MS" ]; then
+              if echo "$TITLE" | grep -q '\[M0\]'; then TARGET_MS="M0: Dogfood-Ready"; fi
+              if echo "$TITLE" | grep -q '\[M1\]'; then TARGET_MS="M1: Construction MVP"; fi
+              if echo "$TITLE" | grep -q '\[M2\]'; then TARGET_MS="M2: Agent Integration"; fi
+              if echo "$TITLE" | grep -q '\[M3\]'; then TARGET_MS="M3: Scale & Epistemics"; fi
+              if echo "$TITLE" | grep -q '\[M4\]'; then TARGET_MS="M4: World-Class"; fi
+            fi
+
+            if [ -z "$TARGET_MS" ]; then
+              TARGET_MS="$DEFAULT_MS"
+            fi
+
+            if gh issue edit "$NUM" -R "$REPO" --milestone "$TARGET_MS" >/dev/null 2>&1; then
+              UPDATED=$((UPDATED + 1))
+            fi
+          done
+
+          echo "Milestone normalization summary: processed=$PROCESSED updated=$UPDATED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1735,13 +1818,18 @@ jobs:
             gh issue comment "$EXISTING" -R "$REPO" --body-file .management-body.md
             MNUM="$EXISTING"
           else
+            CREATE_ARGS=()
+            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+              CREATE_ARGS+=(--milestone "$MILESTONE")
+            fi
             MURL=$(gh issue create -R "$REPO" \
               --title "meta: manage issue #$NUM — $TITLE_CLEAN" \
               --body-file .management-body.md \
               --label "agent:management-ticket" \
               --label "agent:management-needed" \
               --label "triage/ready" \
-              --label "agent:actionable")
+              --label "agent:actionable" \
+              "${CREATE_ARGS[@]}")
             MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
           fi
           rm -f .management-body.md
