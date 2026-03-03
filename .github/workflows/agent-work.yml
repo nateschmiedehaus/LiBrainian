@@ -66,6 +66,8 @@ env:
   MAX_ISSUE_ATTEMPTS: 5
   DEFAULT_MAX_TURNS: 35
   LONG_RUN_THRESHOLD: 55
+  RECENT_INFRA_WINDOW_MIN: 90
+  MAX_RECENT_INFRA_BLOCKED: 2
 
 jobs:
   work:
@@ -128,8 +130,41 @@ jobs:
           echo "::warning::Circuit breaker is open — ${{ env.MAX_CONSECUTIVE_FAILURES }} consecutive failures. Will auto-heal when workflow is updated."
           exit 0
 
-      - name: Ensure adaptive labels exist
+      - name: Infra incident gate
+        id: infra-gate
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            echo "Manual issue override detected; skipping infra incident gate."
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CUTOFF=$(date -u -d "${RECENT_INFRA_WINDOW_MIN} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
+          RECENT_INFRA=$(gh issue list -R "$REPO" --state open \
+            --label "agent:infra-blocked" \
+            --search "updated:>=$CUTOFF" \
+            --limit 200 \
+            --json number --jq 'length')
+
+          echo "Recent infra-blocked issues in last ${RECENT_INFRA_WINDOW_MIN}m: $RECENT_INFRA"
+          if [ "$RECENT_INFRA" -ge "$MAX_RECENT_INFRA_BLOCKED" ]; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Abort if infra incident gate open
+        if: steps.infra-gate.outputs.open == 'true'
+        run: |
+          echo "::warning::Infra incident gate open — recent provider/infra failures detected. Pausing automation to avoid broad issue churn."
+          echo "::warning::Auto-heal: gate closes when infra-blocked updates are quiet for ${RECENT_INFRA_WINDOW_MIN} minutes or when manually targeting an issue."
+          exit 0
+
+      - name: Ensure adaptive labels exist
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           ensure_label() {
             local name="$1"
@@ -150,7 +185,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Self-heal management ticket coverage
-        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           MAX_REPAIR_PER_RUN=12
           PROCESSED=0
@@ -264,7 +299,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Embedded management queue pass
-        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           PROCESSED=0
           RESOLVED=0
@@ -445,7 +480,7 @@ jobs:
       # Before selecting work, check if any agent:blocked issues have had
       # all their dependencies resolved (e.g., by async merges since last run).
       - name: Auto-unblock resolved dependencies
-        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           echo "=== Pre-flight: checking for issues to unblock ==="
 
@@ -508,7 +543,7 @@ jobs:
 
       # ── Find Issue ───────────────────────────────────────────────────
       - name: Find next ready issue
-        if: steps.breaker.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true'
         id: find
         run: |
           if [ -n "${{ inputs.issue_number }}" ]; then
