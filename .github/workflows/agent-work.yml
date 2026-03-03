@@ -571,7 +571,7 @@ jobs:
           steps.deps.outputs.blocked == 'true' ||
           steps.retries.outputs.shelved == 'true' ||
           steps.readiness.outputs.ready == 'false' ||
-          inputs.dry_run == 'true' ||
+          inputs.dry_run == true ||
           steps.breaker.outputs.open == 'true'
         run: |
           echo "Skipping agent dispatch."
@@ -589,7 +589,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -614,7 +614,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: strategy
         run: |
@@ -706,7 +706,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: provider
         run: |
@@ -774,7 +774,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
@@ -786,7 +786,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
 
       - uses: actions/setup-node@v4
@@ -795,7 +795,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         with:
           node-version: '20'
@@ -807,7 +807,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         run: npm ci && npm run build
 
@@ -817,7 +817,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: branch
         run: |
@@ -853,7 +853,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: issue-body
         run: |
@@ -869,7 +869,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         run: |
           cat > .agent-worker-prompt.md <<'PROMPT'
@@ -927,7 +927,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
         run: npm install -g @openai/codex
@@ -938,7 +938,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'claude'
         id: agent-claude-primary
@@ -961,7 +961,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'codex'
         id: agent-codex-primary
@@ -990,7 +990,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'claude' &&
           steps.provider.outputs.fallback == 'codex' &&
@@ -1021,7 +1021,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'codex' &&
           steps.provider.outputs.fallback == 'claude' &&
@@ -1046,7 +1046,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: worker
         run: |
@@ -1081,7 +1081,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: evidence
         run: |
@@ -1115,7 +1115,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true'
         id: gates
         continue-on-error: true
@@ -1178,7 +1178,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != 'true' &&
+          inputs.dry_run != true &&
           steps.breaker.outputs.open != 'true' &&
           steps.gates.outcome == 'success' &&
           steps.gates.outputs.should_create_pr == 'true'
