@@ -1479,11 +1479,18 @@ jobs:
           NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
           ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
           IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
+          AUTH_EXPIRED=false
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
+
+          if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
+            if gh run view "${{ github.run_id }}" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
+              AUTH_EXPIRED=true
+            fi
+          fi
 
           if [ "${{ steps.breaker.outputs.open }}" = "true" ]; then
             echo "result=skipped-breaker" >> "$GITHUB_OUTPUT"
@@ -1572,7 +1579,11 @@ jobs:
           elif [ "$WORKER_OUTCOME" != "success" ]; then
             echo "result=infra-failure" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
-            echo "escalation_reason=provider_or_infra_failure" >> "$GITHUB_OUTPUT"
+            if [ "$AUTH_EXPIRED" = "true" ]; then
+              echo "escalation_reason=provider_auth_expired" >> "$GITHUB_OUTPUT"
+            else
+              echo "escalation_reason=provider_or_infra_failure" >> "$GITHUB_OUTPUT"
+            fi
             if [ "$IS_MANAGEMENT" = "true" ]; then
               gh issue edit "$NUM" -R "$REPO" \
                 --remove-label "agent:claimed" \
@@ -1599,10 +1610,13 @@ jobs:
               echo "- **Provider attempted:** $PROVIDER_USED"
               echo "- **Primary/Fallback plan:** ${{ steps.provider.outputs.primary }} / ${{ steps.provider.outputs.fallback || 'none' }}"
               echo "- **Worker outcome:** $WORKER_OUTCOME"
+              echo "- **Detected auth-expired signature:** $AUTH_EXPIRED"
               echo ""
               echo "Action needed:"
               echo "1. Workflow created/updated a management queue item automatically."
               echo "2. Restore provider credentials or CI environment health."
+              echo "   - If Claude reports 401/authentication_error, refresh \`CLAUDE_CODE_OAUTH_TOKEN\`."
+              echo "   - If Codex is used, verify \`OPENAI_API_KEY\`."
               echo ""
               echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
