@@ -1073,6 +1073,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "github-actions"
           show_full_output: true
           prompt: |
             Read `.agent-worker-prompt.md` and execute it completely.
@@ -1158,6 +1159,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: "github-actions"
           show_full_output: true
           prompt: |
             Read `.agent-worker-prompt.md` and execute it completely.
