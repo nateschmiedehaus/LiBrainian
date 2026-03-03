@@ -238,19 +238,13 @@ jobs:
             --json number,title \
             --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n1)
 
-          AFFECTED=$(gh issue list -R "$REPO" --state open \
-            --label "agent:provider-auth-failure" \
-            --limit 200 \
-            --json number --jq 'length')
-
           cat > .credential-incident-body.md <<EOF
           ## Provider Credential Incident
 
           This repository is currently blocked by provider authentication failures.
 
-          - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - Affected open issues (provider-auth-failure): $AFFECTED
           - Gate: provider-auth incident gate is open
+          - Scope: autonomous worker dispatch is paused until credentials recover
 
           ### Required actions
           1. Refresh \`CLAUDE_CODE_OAUTH_TOKEN\` (or remove it if intentionally disabled).
