@@ -231,10 +231,12 @@ jobs:
                 RELABELED=$((RELABELED + 1))
               fi
               if has_label "$LABELS" "agent:infra-blocked"; then
-                gh issue edit "$NUM" -R "$REPO" \
-                  --remove-label "agent:actionable" \
-                  --add-label "triage/ready" || true
-                RELABELED=$((RELABELED + 1))
+                if has_label "$LABELS" "agent:actionable" || ! has_label "$LABELS" "triage/ready"; then
+                  gh issue edit "$NUM" -R "$REPO" \
+                    --remove-label "agent:actionable" \
+                    --add-label "triage/ready" || true
+                  RELABELED=$((RELABELED + 1))
+                fi
               elif ! has_label "$LABELS" "agent:actionable"; then
                 gh issue edit "$NUM" -R "$REPO" \
                   --add-label "agent:actionable" \
