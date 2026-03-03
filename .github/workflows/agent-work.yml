@@ -17,15 +17,29 @@ on:
         required: false
         default: ''
         type: string
+      agent_provider:
+        description: 'Agent provider (auto = Claude first, then Codex fallback)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - claude
+          - codex
+      enable_fallback:
+        description: 'Allow automatic provider fallback when primary fails'
+        required: false
+        default: true
+        type: boolean
       dry_run:
         description: 'Dry run — find issue but do not dispatch agent'
         required: false
         default: false
         type: boolean
       max_turns:
-        description: 'Max agent turns (default 25)'
+        description: 'Max agent turns (default 35)'
         required: false
-        default: '25'
+        default: '35'
         type: string
 
 permissions:
@@ -43,6 +57,9 @@ env:
   REPO: nateschmiedehaus/LiBrainian
   # Circuit breaker: stop dispatching if recent runs keep failing
   MAX_CONSECUTIVE_FAILURES: 3
+  MAX_ISSUE_ATTEMPTS: 5
+  DEFAULT_MAX_TURNS: 35
+  LONG_RUN_THRESHOLD: 55
 
 jobs:
   work:
@@ -51,6 +68,7 @@ jobs:
     outputs:
       issue_number: ${{ steps.find.outputs.issue_number }}
       issue_title: ${{ steps.find.outputs.issue_title }}
+      issue_milestone: ${{ steps.find.outputs.issue_milestone }}
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
       branch: ${{ steps.branch.outputs.name }}
       outcome: ${{ steps.outcome.outputs.result }}
@@ -103,6 +121,182 @@ jobs:
         run: |
           echo "::warning::Circuit breaker is open — ${{ env.MAX_CONSECUTIVE_FAILURES }} consecutive failures. Will auto-heal when workflow is updated."
           exit 0
+
+      - name: Ensure adaptive labels exist
+        if: steps.breaker.outputs.open != 'true'
+        run: |
+          ensure_label() {
+            local name="$1"
+            local color="$2"
+            local desc="$3"
+            if ! gh label list -R "$REPO" --limit 500 --json name --jq '.[].name' | grep -Fxq "$name"; then
+              gh label create "$name" -R "$REPO" --color "$color" --description "$desc" || true
+            fi
+          }
+
+          ensure_label "agent:needs-decomposition" "D73A4A" "Issue repeatedly failed automation and needs scope split"
+          ensure_label "agent:infra-blocked" "A29BFE" "Automation blocked by provider/auth/infra failures"
+          ensure_label "agent:management-needed" "1D76DB" "Automation escalated this issue into management queue"
+          ensure_label "agent:manual-review-needed" "B60205" "Automation requires strategic/manual review before retry"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Embedded management queue pass
+        if: steps.breaker.outputs.open != 'true'
+        run: |
+          PROCESSED=0
+          RESOLVED=0
+          REQUEUED=0
+          MAX_MANAGEMENT_PER_RUN=5
+
+          MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 60 \
+            --json number,labels \
+            --jq '[.[] | select((.labels | map(.name) | contains(["agent:claimed"]) | not)) | .number] | sort | .[]')
+
+          if [ -z "$MGMT_NUMS" ]; then
+            echo "No management queue issues to process."
+            exit 0
+          fi
+
+          has_label() {
+            local labels="$1"
+            local label="$2"
+            echo "$labels" | grep -Fxq "$label"
+          }
+
+          find_open_pr_for_issue() {
+            local src="$1"
+            local pr
+            pr=$(gh pr list -R "$REPO" --state open --search "closes #$src" --json number --jq 'first | .number // empty')
+            if [ -z "$pr" ]; then
+              pr=$(gh pr list -R "$REPO" --state open --head "claude/issue-$src" --json number --jq 'first | .number // empty')
+            fi
+            if [ -z "$pr" ]; then
+              pr=$(gh pr list -R "$REPO" --state open --head "codex/issue-$src" --json number --jq 'first | .number // empty')
+            fi
+            echo "$pr"
+          }
+
+          for MNUM in $MGMT_NUMS; do
+            if [ "$PROCESSED" -ge "$MAX_MANAGEMENT_PER_RUN" ]; then
+              break
+            fi
+            PROCESSED=$((PROCESSED + 1))
+            echo "Processing management issue #$MNUM"
+
+            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body,state 2>/dev/null || true)
+            if [ -z "$MJSON" ] || [ "$MJSON" = "null" ]; then
+              continue
+            fi
+            MTITLE=$(echo "$MJSON" | jq -r '.title // ""')
+            MBODY=$(echo "$MJSON" | jq -r '.body // ""')
+
+            SRC=$(echo "$MTITLE" | grep -oE '#[0-9]+' | head -n1 | tr -d '#')
+            if [ -z "$SRC" ]; then
+              SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
+            fi
+
+            if [ -z "$SRC" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue reference could not be determined."
+              RESOLVED=$((RESOLVED + 1))
+              continue
+            fi
+
+            SJSON=$(gh issue view "$SRC" -R "$REPO" --json state,labels,body,title 2>/dev/null || true)
+            if [ -z "$SJSON" ] || [ "$SJSON" = "null" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC was not found."
+              RESOLVED=$((RESOLVED + 1))
+              continue
+            fi
+
+            SSTATE=$(echo "$SJSON" | jq -r '.state // "OPEN"')
+            if [ "$SSTATE" = "CLOSED" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC is closed."
+              RESOLVED=$((RESOLVED + 1))
+              continue
+            fi
+
+            SLABELS=$(echo "$SJSON" | jq -r '.labels[].name')
+            SBODY=$(echo "$SJSON" | jq -r '.body // ""')
+
+            HAS_ACCEPTANCE=false
+            HAS_BRIEF=false
+            HAS_FILE_HINTS=false
+            if echo "$SBODY" | grep -Eiq 'acceptance criteria|- \[[ x]\]|must |should |expected|definition of done'; then
+              HAS_ACCEPTANCE=true
+            fi
+            if echo "$SBODY" | grep -Eiq 'agent implementation brief|implementation brief'; then
+              HAS_BRIEF=true
+            fi
+            if echo "$SBODY" | grep -Eiq 'src/|scripts/|docs/|\.github/'; then
+              HAS_FILE_HINTS=true
+            fi
+            READINESS_SCORE=0
+            [ "$HAS_ACCEPTANCE" = "true" ] && READINESS_SCORE=$((READINESS_SCORE + 1))
+            [ "$HAS_BRIEF" = "true" ] && READINESS_SCORE=$((READINESS_SCORE + 1))
+            [ "$HAS_FILE_HINTS" = "true" ] && READINESS_SCORE=$((READINESS_SCORE + 1))
+
+            UNKNOWN_VERIFY=$(gh issue view "$SRC" -R "$REPO" --json comments \
+              --jq '[.comments[].body | select(contains("\"role\":\"verifier\"") and contains("\"verdict\":\"UNKNOWN\""))] | length')
+            OPEN_PR=$(find_open_pr_for_issue "$SRC")
+
+            REQUEUED_THIS=false
+
+            if has_label "$SLABELS" "verify:manual-needed" && [ -n "$OPEN_PR" ] && [ "$UNKNOWN_VERIFY" -lt 4 ]; then
+              gh issue edit "$SRC" -R "$REPO" \
+                --remove-label "verify:manual-needed" \
+                --remove-label "agent:manual-review-needed" \
+                --remove-label "agent:management-needed" \
+                --add-label "verify:pending" || true
+              {
+                echo "**Embedded management pass** re-queued verification."
+                echo ""
+                echo "- Open PR detected: #$OPEN_PR"
+                echo "- Unknown verifier outcomes so far: $UNKNOWN_VERIFY"
+                echo "- Action: moved back to \`verify:pending\`"
+              } > .management-source-comment.md
+              gh issue comment "$SRC" -R "$REPO" --body-file .management-source-comment.md
+              rm -f .management-source-comment.md
+              REQUEUED_THIS=true
+            elif [ "$READINESS_SCORE" -ge 2 ]; then
+              if has_label "$SLABELS" "agent:manual-review-needed" || has_label "$SLABELS" "agent:management-needed" || has_label "$SLABELS" "agent:needs-decomposition" || has_label "$SLABELS" "agent:blocked" || has_label "$SLABELS" "agent:infra-blocked"; then
+                gh issue edit "$SRC" -R "$REPO" \
+                  --remove-label "agent:manual-review-needed" \
+                  --remove-label "agent:management-needed" \
+                  --remove-label "agent:needs-decomposition" \
+                  --remove-label "agent:blocked" \
+                  --remove-label "agent:infra-blocked" \
+                  --remove-label "triage/missing-essentials" \
+                  --add-label "agent:actionable" \
+                  --add-label "triage/ready" || true
+                {
+                  echo "**Embedded management pass** re-queued this issue for the worker loop."
+                  echo ""
+                  echo "- Readiness score: $READINESS_SCORE/3"
+                  echo "- Action: restored \`agent:actionable\` and cleared manual-management blockers."
+                } > .management-source-comment.md
+                gh issue comment "$SRC" -R "$REPO" --body-file .management-source-comment.md
+                rm -f .management-source-comment.md
+                REQUEUED_THIS=true
+              fi
+            fi
+
+            if [ "$REQUEUED_THIS" = "true" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC was re-queued by embedded management logic."
+              RESOLVED=$((RESOLVED + 1))
+              REQUEUED=$((REQUEUED + 1))
+            fi
+          done
+
+          echo "Management pass summary: processed=$PROCESSED resolved=$RESOLVED requeued=$REQUEUED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Pre-flight: unblock resolved dependencies ───────────────────
       # Before selecting work, check if any agent:blocked issues have had
@@ -178,8 +372,10 @@ jobs:
             # Manual override — work on specific issue
             NUM="${{ inputs.issue_number }}"
             TITLE=$(gh issue view "$NUM" -R "$REPO" --json title --jq '.title')
+            MILESTONE=$(gh issue view "$NUM" -R "$REPO" --json milestone --jq '.milestone.title // "none"')
             echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
             echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
+            echo "issue_milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
             echo "Selected (manual): #$NUM — $TITLE"
             exit 0
           fi
@@ -222,40 +418,48 @@ jobs:
 
           NUM=$(echo "$ISSUES" | jq -r '.number')
           TITLE=$(echo "$ISSUES" | jq -r '.title')
+          MILESTONE=$(echo "$ISSUES" | jq -r '.milestone // "none"')
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "issue_milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
           echo "Selected (auto): #$NUM — $TITLE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Retry limit — skip issues that keep failing ─────────────────
-      # If the agent has failed on this issue 3+ times (no changes produced),
+      # If the agent has failed on this issue many times (no convergent progress),
       # shelve it to stop comment spam and flag for human review or decomposition.
       - name: Check retry limit
         if: steps.find.outputs.issue_number && steps.breaker.outputs.open != 'true'
         id: retries
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
-          MAX_ATTEMPTS=3
+          MAX_ATTEMPTS=${MAX_ISSUE_ATTEMPTS}
 
-          # Count previous "did not produce changes" comments from the agent
+          # Count no-change and failed workflow attempts from evidence comments.
           FAIL_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
-            --jq '[.comments[].body | select(contains("did not produce changes"))] | length')
+            --jq '[.comments[].body | select(contains("\"status\":\"no_changes\"") or contains("\"status\":\"needs_decomposition\"") or contains("\"status\":\"failed\""))] | length')
 
           echo "Issue #$NUM has $FAIL_COUNT previous no-change attempts (max $MAX_ATTEMPTS)"
+          echo "attempt_count=$FAIL_COUNT" >> "$GITHUB_OUTPUT"
 
           if [ "$FAIL_COUNT" -ge "$MAX_ATTEMPTS" ]; then
             echo "::warning::Issue #$NUM has failed $FAIL_COUNT times. Shelving for decomposition."
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "agent:actionable" \
-              --add-label "agent:blocked"
+              --add-label "agent:needs-decomposition" \
+              --add-label "triage/missing-essentials"
             {
               echo "**Agent Work Loop** — shelved after $FAIL_COUNT failed attempts."
               echo ""
-              echo "This issue may be too complex for the agent. Consider:"
-              echo "- Breaking it into smaller sub-issues"
-              echo "- Increasing \`max_turns\` for a manual dispatch"
-              echo "- Adding more specific implementation steps to the brief"
+              echo "### Adaptive diagnosis"
+              echo "- Repeated attempts are not converging."
+              echo "- This usually means missing acceptance detail, unstable dependencies, or issue scope too broad."
+              echo ""
+              echo "### Required rework before retry"
+              echo "1. Add/refresh **Agent Implementation Brief** with concrete file paths and expected behavior."
+              echo "2. Split this issue into 2-4 sub-issues if it spans multiple subsystems."
+              echo "3. Re-add \`agent:actionable\` once scope is concrete."
             } > .shelve-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .shelve-comment.md
             rm -f .shelve-comment.md
@@ -263,6 +467,62 @@ jobs:
           else
             echo "shelved=false" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Readiness quality gate
+        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true'
+        id: readiness
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          BODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body // ""')
+          HAS_ACCEPTANCE=false
+          HAS_BRIEF=false
+          HAS_FILE_HINTS=false
+
+          if echo "$BODY" | grep -Eiq 'acceptance criteria|- \[[ x]\]|must |should |expected|definition of done'; then
+            HAS_ACCEPTANCE=true
+          fi
+          if echo "$BODY" | grep -Eiq 'agent implementation brief|implementation brief'; then
+            HAS_BRIEF=true
+          fi
+          if echo "$BODY" | grep -Eiq 'src/|scripts/|docs/|\.github/'; then
+            HAS_FILE_HINTS=true
+          fi
+
+          SCORE=0
+          [ "$HAS_ACCEPTANCE" = "true" ] && SCORE=$((SCORE + 1))
+          [ "$HAS_BRIEF" = "true" ] && SCORE=$((SCORE + 1))
+          [ "$HAS_FILE_HINTS" = "true" ] && SCORE=$((SCORE + 1))
+
+          echo "readiness_score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "has_acceptance=$HAS_ACCEPTANCE" >> "$GITHUB_OUTPUT"
+          echo "has_brief=$HAS_BRIEF" >> "$GITHUB_OUTPUT"
+          echo "has_file_hints=$HAS_FILE_HINTS" >> "$GITHUB_OUTPUT"
+
+          if [ "$SCORE" -lt 2 ]; then
+            echo "::warning::Issue #$NUM lacks enough implementation detail (score=$SCORE/3)."
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:actionable" \
+              --add-label "triage/missing-essentials" \
+              --add-label "agent:blocked"
+            {
+              echo "**Agent Work Loop** — paused due to low implementation readiness (score: $SCORE/3)."
+              echo ""
+              echo "Observed:"
+              echo "- Acceptance criteria present: $HAS_ACCEPTANCE"
+              echo "- Agent Implementation Brief present: $HAS_BRIEF"
+              echo "- Concrete file hints present: $HAS_FILE_HINTS"
+              echo ""
+              echo "Please add missing detail, then re-add \`agent:actionable\`."
+            } > .readiness-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .readiness-comment.md
+            rm -f .readiness-comment.md
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -295,6 +555,7 @@ jobs:
           !steps.find.outputs.issue_number ||
           steps.deps.outputs.blocked == 'true' ||
           steps.retries.outputs.shelved == 'true' ||
+          steps.readiness.outputs.ready == 'false' ||
           inputs.dry_run == 'true' ||
           steps.breaker.outputs.open == 'true'
         run: |
@@ -302,6 +563,7 @@ jobs:
           echo "  Issue: ${{ steps.find.outputs.issue_number || 'none' }}"
           echo "  Blocked: ${{ steps.deps.outputs.blocked }}"
           echo "  Shelved: ${{ steps.retries.outputs.shelved }}"
+          echo "  Ready: ${{ steps.readiness.outputs.ready }}"
           echo "  Dry run: ${{ inputs.dry_run }}"
           echo "  Breaker: ${{ steps.breaker.outputs.open }}"
 
@@ -311,6 +573,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
@@ -330,23 +593,164 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Fast-fail if the Claude OAuth token is missing/expired
-      # Saves 10+ minutes vs discovering this mid-agent-run
-      - name: Validate Claude auth token
+      - name: Build adaptive strategy
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
+        id: strategy
         run: |
-          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
-            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is empty. Refresh it from local machine."
+          ATTEMPTS="${{ steps.retries.outputs.attempt_count || '0' }}"
+          BASE_TURNS="${{ inputs.max_turns || env.DEFAULT_MAX_TURNS }}"
+          MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
+          LONG_RUN_THRESHOLD="${LONG_RUN_THRESHOLD}"
+          if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
+          if ! [[ "$BASE_TURNS" =~ ^[0-9]+$ ]]; then BASE_TURNS=${DEFAULT_MAX_TURNS}; fi
+
+          BONUS=0
+          FOCUS="normal"
+          COMPLEXITY="standard"
+          TEST_PROFILE="foundation"
+          MILESTONE_BONUS=0
+          META_CHECK_INTERVAL=12
+
+          case "$MILESTONE" in
+            "M0: Dogfood-Ready")
+              COMPLEXITY="high-foundation"
+              TEST_PROFILE="foundation"
+              MILESTONE_BONUS=14
+              ;;
+            "M1: Construction MVP")
+              COMPLEXITY="medium-high"
+              TEST_PROFILE="foundation"
+              MILESTONE_BONUS=12
+              ;;
+            "M2: Agent Integration")
+              COMPLEXITY="high-integration"
+              TEST_PROFILE="integration"
+              MILESTONE_BONUS=18
+              ;;
+            "M3: Scale & Epistemics")
+              COMPLEXITY="very-high-scale"
+              TEST_PROFILE="scale"
+              MILESTONE_BONUS=22
+              ;;
+            "M4: World-Class")
+              COMPLEXITY="extreme-world-class"
+              TEST_PROFILE="scale"
+              MILESTONE_BONUS=26
+              ;;
+            *)
+              COMPLEXITY="standard"
+              TEST_PROFILE="foundation"
+              MILESTONE_BONUS=8
+              ;;
+          esac
+
+          if [ "$ATTEMPTS" -ge 1 ]; then
+            BONUS=12
+            FOCUS="rework"
+          fi
+          if [ "$ATTEMPTS" -ge 2 ]; then
+            BONUS=20
+            FOCUS="decomposition-first"
+          fi
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            BONUS=30
+            FOCUS="narrow-scope-only"
+          fi
+          if [ "$ATTEMPTS" -ge 4 ]; then
+            BONUS=38
+            FOCUS="stabilize-and-escalate"
+          fi
+
+          EFFECTIVE=$((BASE_TURNS + BONUS + MILESTONE_BONUS))
+          if [ "$EFFECTIVE" -gt 120 ]; then EFFECTIVE=120; fi
+          if [ "$EFFECTIVE" -ge "$LONG_RUN_THRESHOLD" ]; then
+            META_CHECK_INTERVAL=15
+            LONG_RUN=true
+          else
+            LONG_RUN=false
+          fi
+
+          echo "effective_max_turns=$EFFECTIVE" >> "$GITHUB_OUTPUT"
+          echo "focus=$FOCUS" >> "$GITHUB_OUTPUT"
+          echo "attempts=$ATTEMPTS" >> "$GITHUB_OUTPUT"
+          echo "complexity=$COMPLEXITY" >> "$GITHUB_OUTPUT"
+          echo "test_profile=$TEST_PROFILE" >> "$GITHUB_OUTPUT"
+          echo "long_run=$LONG_RUN" >> "$GITHUB_OUTPUT"
+          echo "meta_check_interval=$META_CHECK_INTERVAL" >> "$GITHUB_OUTPUT"
+          echo "Adaptive strategy: milestone=$MILESTONE complexity=$COMPLEXITY attempts=$ATTEMPTS base=$BASE_TURNS effective=$EFFECTIVE focus=$FOCUS test_profile=$TEST_PROFILE long_run=$LONG_RUN meta_check_interval=$META_CHECK_INTERVAL"
+
+      - name: Resolve provider plan
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: provider
+        run: |
+          REQUESTED="${{ inputs.agent_provider || 'auto' }}"
+          ALLOW_FALLBACK="${{ inputs.enable_fallback != false }}"
+          ATTEMPTS="${{ steps.strategy.outputs.attempts || '0' }}"
+
+          HAS_CLAUDE=false
+          HAS_CODEX=false
+          [ -n "${CLAUDE_TOKEN:-}" ] && HAS_CLAUDE=true
+          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+
+          if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            # Do not keep running cross-provider fallback forever on repeated failures.
+            ALLOW_FALLBACK=false
+            echo "Disabling provider fallback for high-attempt issue (attempts=$ATTEMPTS)."
+          fi
+
+          if [ "$REQUESTED" = "claude" ] && [ "$HAS_CLAUDE" != "true" ]; then
+            echo "::error::agent_provider=claude but CLAUDE_CODE_OAUTH_TOKEN is unavailable."
             exit 1
           fi
-          echo "Claude auth token present (length: ${#CLAUDE_TOKEN} chars)"
+          if [ "$REQUESTED" = "codex" ] && [ "$HAS_CODEX" != "true" ]; then
+            echo "::error::agent_provider=codex but OPENAI_API_KEY is unavailable."
+            exit 1
+          fi
+
+          if [ "$HAS_CLAUDE" != "true" ] && [ "$HAS_CODEX" != "true" ]; then
+            echo "::error::No provider credentials available. Set CLAUDE_CODE_OAUTH_TOKEN and/or OPENAI_API_KEY."
+            exit 1
+          fi
+
+          PRIMARY=""
+          FALLBACK=""
+          if [ "$REQUESTED" = "claude" ]; then
+            PRIMARY="claude"
+            [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
+          elif [ "$REQUESTED" = "codex" ]; then
+            PRIMARY="codex"
+            [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+          else
+            if [ "$HAS_CLAUDE" = "true" ]; then
+              PRIMARY="claude"
+              [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
+            else
+              PRIMARY="codex"
+              [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+            fi
+          fi
+
+          echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+          echo "fallback=$FALLBACK" >> "$GITHUB_OUTPUT"
+          echo "has_claude=$HAS_CLAUDE" >> "$GITHUB_OUTPUT"
+          echo "has_codex=$HAS_CODEX" >> "$GITHUB_OUTPUT"
+          echo "Provider plan: primary=$PRIMARY fallback=${FALLBACK:-none}"
         env:
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       # Free disk space — LiBrainian + node_modules need ~4GB
       - name: Free disk space
@@ -354,6 +758,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
@@ -365,6 +770,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
 
@@ -373,6 +779,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         with:
@@ -384,6 +791,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: npm ci && npm run build
@@ -393,6 +801,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: branch
@@ -428,6 +837,7 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: issue-body
@@ -438,86 +848,313 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run agent
+      - name: Build worker prompt
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
-        id: agent
+        run: |
+          cat > .agent-worker-prompt.md <<'PROMPT'
+          You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}".
+
+          ## Adaptive Context
+          - Milestone: ${{ steps.find.outputs.issue_milestone }}
+          - Milestone complexity: ${{ steps.strategy.outputs.complexity }}
+          - Attempt number (prior failures): ${{ steps.strategy.outputs.attempts }}
+          - Max turns for this run: ${{ steps.strategy.outputs.effective_max_turns }}
+          - Long-run mode: ${{ steps.strategy.outputs.long_run }}
+          - Meta checkpoint interval (turns): ${{ steps.strategy.outputs.meta_check_interval }}
+          - Focus mode: ${{ steps.strategy.outputs.focus }}
+          - Test profile: ${{ steps.strategy.outputs.test_profile }}
+          - Run id: ${{ github.run_id }}
+          - Provider plan: primary=${{ steps.provider.outputs.primary }}, fallback=${{ steps.provider.outputs.fallback || 'none' }}
+
+          ## Issue Context
+          Read `.claude-issue-context.json` first.
+          If this issue has prior failed attempts, prioritize narrowing scope and shipping one concrete, verifiable increment.
+
+          ## Hard Requirements
+          1. Make code changes (non-empty diff) and commit them.
+          2. Run `npm run build`.
+          3. Run targeted tests for changed behavior.
+          4. If issue scope is too broad, implement the first concrete slice and document decomposition.
+          5. Run periodic meta-evaluation checkpoints:
+             - Every `${{ steps.strategy.outputs.meta_check_interval }}` turns, re-evaluate whether the plan is converging.
+             - If 2 checkpoints in a row show low progress, apply a managerial fix (scope split, test-plan patch, or requirement clarification).
+             - If still non-convergent, stop broad work and switch to narrow shippable slice or explicit decomposition.
+          6. Post evidence comment on issue with exact metadata tag at the end.
+
+          ## Rules
+          - Focused minimal edits. No unrelated refactors.
+          - Do not modify CLAUDE.md, AGENTS.md, or workflow files.
+          - Start writing code within first 5 turns.
+          - If blocked, still commit concrete progress (failing test, guardrail, or instrumentation).
+          - Avoid shell pipes; redirect output to files and inspect with `tail`.
+
+          ## Evidence Comment Format
+          Post one issue comment with:
+          - What changed
+          - Build/test results
+          - Meta-evaluation summary (why plan was kept or changed)
+          - Managerial fix applied (if any)
+          - Risks and next follow-up
+
+          End comment with this metadata tag (valid JSON):
+          <!-- agent_evidence = {"v":3,"issue":${{ steps.find.outputs.issue_number }},"role":"worker","run":"${{ github.run_id }}","provider":"${{ steps.provider.outputs.primary }}","status":"submitted|no_changes|needs_decomposition|failed","attempt":${{ steps.strategy.outputs.attempts }},"focus":"${{ steps.strategy.outputs.focus }}","meta_eval":"on_track|replanned|non_convergent","managerial_fix":"none|scope_split|test_plan_patch|requirements_patch","next_action":"verify|retry|decompose|manual_review"} -->
+          PROMPT
+
+      - name: Install Codex CLI
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
+        run: npm install -g @openai/codex
+
+      - name: Run Claude worker (primary)
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          steps.provider.outputs.primary == 'claude'
+        id: agent-claude-primary
         uses: anthropics/claude-code-action@v1
         with:
-          # Auth: OAuth token from Max subscription
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
-
           prompt: |
-            You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}"
-
-            ## Prior Work
-            Has prior work on this branch: ${{ steps.branch.outputs.has_prior_work }}
-            If "true", a previous agent attempt made commits on this branch.
-            Run `git log --oneline origin/main..HEAD` to see what was already done.
-            Do NOT redo work that's already committed — build on it.
-            Check `git diff --stat origin/main` to see files already changed.
-
-            ## Issue Context
-            Read the full issue at .claude-issue-context.json for details. The issue body
-            contains an "Agent Implementation Brief" with exact file paths, line numbers,
-            and step-by-step implementation instructions. Follow those closely.
-
-            ## Your Task
-            1. Read .claude-issue-context.json to get the full issue and acceptance criteria
-            2. If there's prior work, review it first: `git log --oneline origin/main..HEAD`
-            3. Read the key files mentioned in the issue's implementation brief
-            4. Implement the fix/feature using Edit and Write tools (these are pre-approved)
-            5. Run `npm run build` to verify compilation
-            6. Run relevant tests: `npm test -- --testPathPattern <relevant_pattern>`
-            7. IMPORTANT: Commit your changes with git. Use a file for the commit message
-               to avoid multiline shell issues:
-               ```
-               git add -A
-               echo -e "fix(scope): description of changes\n\nCloses #${{ steps.find.outputs.issue_number }}" > .commit-msg
-               git commit -F .commit-msg
-               rm .commit-msg
-               ```
-               Do NOT use heredocs or multiline -m flags — they get permission-denied.
-
-            ## Tools Available
-            - Edit, Write: for modifying/creating files (pre-approved, use these!)
-            - Read, Grep, Glob: for reading code
-            - Bash: for git, npm, gh commands (see allowed patterns)
-
-            ## Rules
-            - Use Edit tool for file modifications. Do NOT use sed/awk for code edits.
-            - Make focused, minimal changes. Do not refactor surrounding code.
-            - Do not modify CLAUDE.md, AGENTS.md, or workflow files.
-            - If blocked, commit what you have and explain in the commit message.
-            - You MUST commit before finishing. Uncommitted changes may be lost.
-            - IMPORTANT: Do NOT pipe commands (e.g., `npm test | tail`). Pipes get
-              permission-denied. Instead, redirect to a file and read it:
-              ```
-              npm test > .test-output.txt 2>&1; tail -20 .test-output.txt
-              ```
-
-            ## Evidence
-            After implementing, post a comment on issue #${{ steps.find.outputs.issue_number }}.
-            IMPORTANT: Use Write tool to create `.evidence-comment.md` with your evidence,
-            then run: `gh issue comment ${{ steps.find.outputs.issue_number }} --body-file .evidence-comment.md`
-            Do NOT use heredocs or $(cat <<EOF) — they get blocked by the sandbox.
-            Include: what you changed, test results, and caveats for the verifier.
-
+            Read `.agent-worker-prompt.md` and execute it completely.
+            Implement, run verification commands, commit, and post evidence metadata for run `${{ github.run_id }}`.
           claude_args: >-
             --model claude-sonnet-4-6
-            --max-turns ${{ inputs.max_turns || '25' }}
+            --max-turns ${{ steps.strategy.outputs.effective_max_turns }}
             --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *)"
+        continue-on-error: true
 
-          # Standard code tools — no MCP (avoids bootstrap/disk/memory issues in CI)
-          # LiBrainian MCP requires bootstrapped index which is too heavy for CI runners.
-          # The agent uses built-in Read/Grep/Glob which are sufficient for focused issue work.
+      - name: Run Codex worker (primary)
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          steps.provider.outputs.primary == 'codex'
+        id: agent-codex-primary
+        continue-on-error: true
+        run: |
+          set +e
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            --color never \
+            -C "$PWD" \
+            --model "${CODEX_MODEL:-gpt-5-codex}" \
+            - < .agent-worker-prompt.md > .agent-codex-primary.log 2>&1
+          EXIT=$?
+          set -e
+          tail -n 150 .agent-codex-primary.log || true
+          if [ "$EXIT" -ne 0 ]; then
+            exit "$EXIT"
+          fi
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-        continue-on-error: true  # Don't fail the whole job on agent error (exit code 5 bug)
+      - name: Run Codex worker (fallback)
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          steps.provider.outputs.primary == 'claude' &&
+          steps.provider.outputs.fallback == 'codex' &&
+          steps.agent-claude-primary.outcome == 'failure'
+        id: agent-codex-fallback
+        continue-on-error: true
+        run: |
+          set +e
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            --color never \
+            -C "$PWD" \
+            --model "${CODEX_MODEL:-gpt-5-codex}" \
+            - < .agent-worker-prompt.md > .agent-codex-fallback.log 2>&1
+          EXIT=$?
+          set -e
+          tail -n 150 .agent-codex-fallback.log || true
+          if [ "$EXIT" -ne 0 ]; then
+            exit "$EXIT"
+          fi
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run Claude worker (fallback)
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          steps.provider.outputs.primary == 'codex' &&
+          steps.provider.outputs.fallback == 'claude' &&
+          steps.agent-codex-primary.outcome == 'failure'
+        id: agent-claude-fallback
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          prompt: |
+            Read `.agent-worker-prompt.md` and execute it completely.
+            This is a fallback provider run after primary failure; bias toward narrower, verifiable scope.
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns ${{ steps.strategy.outputs.effective_max_turns }}
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *)"
+        continue-on-error: true
+
+      - name: Resolve worker execution outcome
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: worker
+        run: |
+          PROVIDER=""
+          OUTCOME="failure"
+
+          if [ "${{ steps.agent-claude-primary.outcome }}" = "success" ]; then
+            PROVIDER="claude"
+            OUTCOME="success"
+          elif [ "${{ steps.agent-codex-primary.outcome }}" = "success" ]; then
+            PROVIDER="codex"
+            OUTCOME="success"
+          elif [ "${{ steps.agent-codex-fallback.outcome }}" = "success" ]; then
+            PROVIDER="codex"
+            OUTCOME="success"
+          elif [ "${{ steps.agent-claude-fallback.outcome }}" = "success" ]; then
+            PROVIDER="claude"
+            OUTCOME="success"
+          fi
+
+          if [ -z "$PROVIDER" ]; then
+            PROVIDER="${{ steps.provider.outputs.primary }}"
+          fi
+
+          echo "provider_used=$PROVIDER" >> "$GITHUB_OUTPUT"
+          echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          echo "Worker execution outcome: provider=$PROVIDER outcome=$OUTCOME"
+
+      - name: Parse worker evidence metadata
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: evidence
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          RUN_ID="${{ github.run_id }}"
+
+          RAW=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
+            '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
+            head -n 20 || true)
+
+          MATCH=$(echo "$RAW" | sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' | \
+            jq -c "select(.role==\"worker\" and (.run|tostring)==\"$RUN_ID\")" 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$MATCH" ]; then
+            STATUS=$(echo "$MATCH" | jq -r '.status // "unknown"')
+            NEXT_ACTION=$(echo "$MATCH" | jq -r '.next_action // "unknown"')
+            echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+            echo "next_action=$NEXT_ACTION" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=missing" >> "$GITHUB_OUTPUT"
+            echo "next_action=unknown" >> "$GITHUB_OUTPUT"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post-agent quality gates
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: gates
+        continue-on-error: true
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          BRANCH=${{ steps.branch.outputs.name }}
+          echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
+          echo "should_create_pr=false" >> "$GITHUB_OUTPUT"
+
+          COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
+          CHANGED=$(git diff --name-only origin/main.."$BRANCH" | sed '/^\s*$/d' || true)
+          CHANGED_COUNT=$(echo "$CHANGED" | sed '/^\s*$/d' | wc -l | tr -d ' ')
+          if [ -z "$CHANGED" ]; then CHANGED_COUNT=0; fi
+          echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
+          echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$COMMITS" -eq 0 ] && [ "${{ steps.worker.outputs.outcome }}" != "success" ]; then
+            echo "No agent commits and worker failed. Skip quality gates."
+            exit 0
+          fi
+
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "No commits made by agent. Checking for uncommitted changes..."
+            if [ -n "$(git status --porcelain)" ]; then
+              git add -A
+              git commit -m "wip: agent partial work on #$NUM (uncommitted changes)"
+              COMMITS=1
+            else
+              echo "No changes produced. Nothing to gate."
+              exit 0
+            fi
+          fi
+
+          echo "Running hard gates on produced changes..."
+          npm run build
+          npx tsc --noEmit
+
+          TEST_PATTERN=$(echo "$CHANGED" | grep -E '^src/.*\.(ts|tsx|js)$' | sed 's#^src/##' | sed 's#\.[^.]*$##' | paste -sd'|' - || true)
+          if [ -n "$TEST_PATTERN" ]; then
+            npm test -- --run --testPathPattern "$TEST_PATTERN" || npm test -- --run
+          else
+            PROFILE="${{ steps.strategy.outputs.test_profile }}"
+            if [ "$PROFILE" = "scale" ]; then
+              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/performance_regression.test.ts
+            elif [ "$PROFILE" = "integration" ]; then
+              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/semantic_composition_selector.integration.test.ts
+            else
+              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts
+            fi
+          fi
+          echo "quality_ok=true" >> "$GITHUB_OUTPUT"
+          echo "should_create_pr=true" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Post-Agent: Create PR ────────────────────────────────────────
       - name: Check for changes and create PR
@@ -525,29 +1162,18 @@ jobs:
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != 'true' &&
-          steps.breaker.outputs.open != 'true'
+          steps.breaker.outputs.open != 'true' &&
+          steps.gates.outcome == 'success' &&
+          steps.gates.outputs.should_create_pr == 'true'
         id: create-pr
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
 
-          # Re-authenticate git — claude-code-action revokes its token on completion
+          # Re-authenticate git — claude-code-action may revoke its token on completion.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-
-          # Check if the agent made any commits
-          COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
-          if [ "$COMMITS" -eq 0 ]; then
-            echo "No commits made by agent. Checking for uncommitted changes..."
-            if [ -n "$(git status --porcelain)" ]; then
-              git add -A
-              git commit -m "wip: agent partial work on #$NUM (uncommitted changes)"
-            else
-              echo "No changes at all. Agent may have failed."
-              echo "pr_number=" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
 
           # Push branch — use force-with-lease to preserve prior work while allowing
           # history rewrite if needed, fall back to regular push for continuation
@@ -579,17 +1205,32 @@ jobs:
               echo "Closes #$NUM"
               echo ""
               echo "- **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              echo "- **Turns:** ${{ inputs.max_turns || '25' }}"
+              echo "- **Turns:** ${{ steps.strategy.outputs.effective_max_turns }}"
+              echo "- **Provider Used:** ${{ steps.worker.outputs.provider_used }}"
+              echo "- **Focus Mode:** ${{ steps.strategy.outputs.focus }}"
+              echo "- **Milestone:** ${{ steps.find.outputs.issue_milestone }}"
+              echo "- **Complexity:** ${{ steps.strategy.outputs.complexity }}"
               echo ""
               echo "<!-- agent_pr = {\"issue\": $NUM, \"agent\": \"worker\", \"run_id\": \"${{ github.run_id }}\"} -->"
             } >> .pr-body.md
 
+            set +e
             PR_URL=$(gh pr create -R "$REPO" \
               --base main \
               --head "$BRANCH" \
               --title "fix: implement #$NUM — ${{ steps.find.outputs.issue_title }}" \
               --body-file .pr-body.md 2>&1)
+            PR_EXIT=$?
+            set -e
             rm -f .pr-body.md
+
+            if [ "$PR_EXIT" -ne 0 ]; then
+              echo "::warning::PR creation failed."
+              echo "$PR_URL"
+              echo "pr_number=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             PR_NUM=$(echo "$PR_URL" | grep -oP '/pull/\K\d+' || echo "")
             echo "Created PR #$PR_NUM (URL: $PR_URL)"
             echo "pr_number=$PR_NUM" >> "$GITHUB_OUTPUT"
@@ -609,38 +1250,262 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           PR=${{ steps.create-pr.outputs.pr_number }}
+          WORKER_OUTCOME=${{ steps.worker.outputs.outcome || 'unknown' }}
+          PROVIDER_USED=${{ steps.worker.outputs.provider_used || 'unknown' }}
+          GATE_OUTCOME=${{ steps.gates.outcome || 'unknown' }}
+          EVIDENCE_FOUND=${{ steps.evidence.outputs.found || 'false' }}
+          EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
+          NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
+          ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
+
+          echo "escalate=false" >> "$GITHUB_OUTPUT"
+          echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
+
+          if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
+
+          if [ "${{ steps.breaker.outputs.open }}" = "true" ]; then
+            echo "result=skipped-breaker" >> "$GITHUB_OUTPUT"
+            echo "Outcome skipped due to open circuit breaker."
+            exit 0
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "result=skipped-dry-run" >> "$GITHUB_OUTPUT"
+            echo "Outcome skipped in dry-run mode."
+            exit 0
+          fi
+          if [ "${{ steps.deps.outputs.blocked }}" = "true" ]; then
+            echo "result=blocked" >> "$GITHUB_OUTPUT"
+            echo "Outcome blocked by dependencies."
+            exit 0
+          fi
+          if [ "${{ steps.retries.outputs.shelved }}" = "true" ]; then
+            echo "result=needs-management" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=retry_exhausted" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --remove-label "agent:actionable" \
+              --add-label "agent:needs-decomposition" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" \
+              --add-label "triage/missing-essentials"
+            {
+              echo "**Agent Work Loop** escalated this issue after retry exhaustion."
+              echo ""
+              echo "- **Attempts observed:** $ATTEMPTS"
+              echo "- **Escalation reason:** retry_exhausted"
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+            exit 0
+          fi
+          if [ "${{ steps.readiness.outputs.ready }}" = "false" ]; then
+            echo "result=needs-management" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=readiness_gap" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --remove-label "agent:actionable" \
+              --add-label "agent:blocked" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" \
+              --add-label "triage/missing-essentials"
+            {
+              echo "**Agent Work Loop** escalated this issue due to readiness gaps."
+              echo ""
+              echo "- **Readiness score:** ${{ steps.readiness.outputs.readiness_score || 'unknown' }}/3"
+              echo "- **Escalation reason:** readiness_gap"
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+            exit 0
+          fi
 
           if [ -n "$PR" ]; then
             echo "result=success" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:management-needed" \
+              --remove-label "agent:manual-review-needed" \
+              --remove-label "agent:infra-blocked" \
+              --remove-label "agent:needs-decomposition" || true
             {
               echo "**Agent Work Loop** completed."
               echo ""
               echo "- **PR:** #$PR"
               echo "- **Status:** Implementation submitted"
+              echo "- **Provider:** $PROVIDER_USED"
+              echo "- **Focus:** ${{ steps.strategy.outputs.focus }}"
               echo "- **Next:** Awaiting independent verification"
               echo ""
-              echo "<!-- agent_evidence = {\"v\":1,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"${{ github.run_id }}\",\"status\":\"submitted\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"submitted\",\"meta_eval\":\"on_track\",\"managerial_fix\":\"none\",\"next_action\":\"verify\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+          elif [ "$WORKER_OUTCOME" != "success" ]; then
+            echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=provider_or_infra_failure" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --remove-label "agent:actionable" \
+              --add-label "agent:infra-blocked" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed"
+            {
+              echo "**Agent Work Loop** — provider/infra failure."
+              echo ""
+              echo "- **Provider attempted:** $PROVIDER_USED"
+              echo "- **Primary/Fallback plan:** ${{ steps.provider.outputs.primary }} / ${{ steps.provider.outputs.fallback || 'none' }}"
+              echo "- **Worker outcome:** $WORKER_OUTCOME"
+              echo ""
+              echo "Action needed:"
+              echo "1. Workflow created/updated a management queue item automatically."
+              echo "2. Restore provider credentials or CI environment health."
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+          elif [ "$GATE_OUTCOME" != "success" ]; then
+            echo "result=quality-failed" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --add-label "verify:fail" \
+              --add-label "agent:actionable"
+            if [ "$ATTEMPTS" -ge 3 ]; then
+              echo "escalate=true" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=quality_nonconvergent" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed"
+            fi
+            {
+              echo "**Agent Work Loop** — post-agent quality gates failed."
+              echo ""
+              echo "- **Provider:** $PROVIDER_USED"
+              echo "- **Evidence metadata found:** $EVIDENCE_FOUND"
+              echo "- **Evidence status:** $EVIDENCE_STATUS"
+              echo "- **Attempts:** $ATTEMPTS"
+              echo ""
+              echo "This issue remains actionable for rework. Next run should focus on failing gates."
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"test_plan_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
           else
-            echo "result=no-changes" >> "$GITHUB_OUTPUT"
+            echo "result=needs-decomposition" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=decomposition_required" >> "$GITHUB_OUTPUT"
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "agent:claimed" \
-              --remove-label "verify:pending"
+              --remove-label "verify:pending" \
+              --remove-label "agent:actionable" \
+              --add-label "agent:needs-decomposition" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" \
+              --add-label "triage/missing-essentials"
             {
-              echo "**Agent Work Loop** did not produce changes for this issue."
+              echo "**Agent Work Loop** — issue needs decomposition before further automation."
               echo ""
               echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              echo "- **Reason:** Agent completed without making code changes"
+              echo "- **Provider:** $PROVIDER_USED"
+              echo "- **Evidence status:** $EVIDENCE_STATUS"
+              echo "- **Suggested next_action:** $NEXT_ACTION"
               echo ""
-              echo "Returning to ready state."
+              echo "Decomposition checklist:"
+              echo "1. Split into 2-4 narrow sub-issues with explicit file paths."
+              echo "2. Add measurable acceptance criteria per sub-issue."
+              echo "3. Re-add \`agent:actionable\` only to well-scoped sub-issues."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":1,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"status\":\"no_changes\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Route escalation to management queue
+        if: steps.outcome.outputs.escalate == 'true' && steps.find.outputs.issue_number
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
+          REASON=${{ steps.outcome.outputs.escalation_reason }}
+          MILESTONE=${{ steps.find.outputs.issue_milestone || 'none' }}
+
+          EXISTING=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title \
+            --jq ".[] | select(.title | contains(\"meta: manage issue #$NUM\")) | .number" | head -n 1)
+
+          cat > .management-body.md <<EOF
+          ## Automated Management Queue Item
+
+          Source issue: #$NUM
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Escalation reason: $REASON
+          Milestone: $MILESTONE
+
+          ### Required management actions
+          1. Diagnose why automation did not converge and choose one path: requirements patch, scope split, or infra repair.
+          2. Update source issue #$NUM with concrete acceptance criteria and explicit file-level plan.
+          3. Remove \`agent:manual-review-needed\` and re-add \`agent:actionable\` only when the issue is truly runnable.
+          4. Close this management ticket once #$NUM is unblocked and re-queued.
+          EOF
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" -R "$REPO" --body-file .management-body.md
+            MNUM="$EXISTING"
+          else
+            MURL=$(gh issue create -R "$REPO" \
+              --title "meta: manage issue #$NUM — $TITLE" \
+              --body-file .management-body.md \
+              --label "agent:management-needed" \
+              --label "triage/ready" \
+              --label "agent:actionable")
+            MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
+          fi
+          rm -f .management-body.md
+
+          {
+            echo "**Workflow management routing**"
+            echo ""
+            echo "- Escalation reason: \`$REASON\`"
+            echo "- Management item: #$MNUM"
+            echo ""
+            echo "This was generated automatically to prevent endless fallback/retry loops."
+          } > .management-link-comment.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .management-link-comment.md
+          rm -f .management-link-comment.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close resolved management queue items
+        if: steps.outcome.outputs.result == 'success' && steps.find.outputs.issue_number
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          MGMT_IDS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title \
+            --jq ".[] | select(.title | contains(\"meta: manage issue #$NUM\")) | .number")
+          if [ -z "$MGMT_IDS" ]; then
+            exit 0
+          fi
+          for MID in $MGMT_IDS; do
+            gh issue close "$MID" -R "$REPO" \
+              --comment "Auto-closing management ticket: source issue #$NUM produced a PR in run ${{ github.run_id }}."
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

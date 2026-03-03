@@ -21,6 +21,20 @@ on:
         required: false
         default: ''
         type: string
+      agent_provider:
+        description: 'Verifier provider (auto = Claude first, then Codex fallback)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - claude
+          - codex
+      enable_fallback:
+        description: 'Allow automatic verifier provider fallback'
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -34,6 +48,9 @@ concurrency:
 
 env:
   REPO: nateschmiedehaus/LiBrainian
+  DEFAULT_VERIFY_TURNS: 32
+  MAX_VERIFY_ATTEMPTS: 4
+  VERIFY_LONG_RUN_THRESHOLD: 50
 
 jobs:
   verify:
@@ -41,6 +58,134 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Ensure verification/escalation labels exist
+        run: |
+          ensure_label() {
+            local name="$1"
+            local color="$2"
+            local desc="$3"
+            if ! gh label list -R "$REPO" --limit 500 --json name --jq '.[].name' | grep -Fxq "$name"; then
+              gh label create "$name" -R "$REPO" --color "$color" --description "$desc" || true
+            fi
+          }
+          ensure_label "agent:management-needed" "1D76DB" "Automation escalated this issue into management queue"
+          ensure_label "agent:manual-review-needed" "B60205" "Automation requires strategic/manual review before retry"
+          ensure_label "verify:manual-needed" "C26C2A" "Automated verification exhausted and requires manual strategic verdict"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Embedded verify-management queue pass
+        run: |
+          PROCESSED=0
+          REQUEUED=0
+          CLOSED=0
+          MAX_PER_RUN=5
+
+          MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 60 \
+            --json number,title,labels \
+            --jq '[.[] | select((.labels | map(.name) | contains(["agent:claimed"]) | not)) | .number] | sort | .[]')
+
+          if [ -z "$MGMT_NUMS" ]; then
+            echo "No verify-management issues to process."
+            exit 0
+          fi
+
+          has_label() {
+            local labels="$1"
+            local label="$2"
+            echo "$labels" | grep -Fxq "$label"
+          }
+
+          find_open_pr_for_issue() {
+            local src="$1"
+            local pr
+            pr=$(gh pr list -R "$REPO" --state open --search "closes #$src" --json number --jq 'first | .number // empty')
+            if [ -z "$pr" ]; then
+              pr=$(gh pr list -R "$REPO" --state open --head "claude/issue-$src" --json number --jq 'first | .number // empty')
+            fi
+            if [ -z "$pr" ]; then
+              pr=$(gh pr list -R "$REPO" --state open --head "codex/issue-$src" --json number --jq 'first | .number // empty')
+            fi
+            echo "$pr"
+          }
+
+          for MNUM in $MGMT_NUMS; do
+            if [ "$PROCESSED" -ge "$MAX_PER_RUN" ]; then
+              break
+            fi
+            PROCESSED=$((PROCESSED + 1))
+
+            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body 2>/dev/null || true)
+            if [ -z "$MJSON" ] || [ "$MJSON" = "null" ]; then
+              continue
+            fi
+            MTITLE=$(echo "$MJSON" | jq -r '.title // ""')
+            MBODY=$(echo "$MJSON" | jq -r '.body // ""')
+            SRC=$(echo "$MTITLE" | grep -oE '#[0-9]+' | head -n1 | tr -d '#')
+            if [ -z "$SRC" ]; then
+              SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
+            fi
+            if [ -z "$SRC" ]; then
+              continue
+            fi
+
+            SJSON=$(gh issue view "$SRC" -R "$REPO" --json state,labels 2>/dev/null || true)
+            if [ -z "$SJSON" ] || [ "$SJSON" = "null" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing verification management ticket: source issue #$SRC was not found."
+              CLOSED=$((CLOSED + 1))
+              continue
+            fi
+
+            SSTATE=$(echo "$SJSON" | jq -r '.state // "OPEN"')
+            if [ "$SSTATE" = "CLOSED" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing verification management ticket: source issue #$SRC is closed."
+              CLOSED=$((CLOSED + 1))
+              continue
+            fi
+
+            SLABELS=$(echo "$SJSON" | jq -r '.labels[].name')
+            OPEN_PR=$(find_open_pr_for_issue "$SRC")
+            UNKNOWN_COUNT=$(gh issue view "$SRC" -R "$REPO" --json comments \
+              --jq '[.comments[].body | select(contains("\"role\":\"verifier\"") and contains("\"verdict\":\"UNKNOWN\""))] | length')
+
+            if has_label "$SLABELS" "verify:manual-needed" && [ -n "$OPEN_PR" ] && [ "$UNKNOWN_COUNT" -lt "$MAX_VERIFY_ATTEMPTS" ]; then
+              gh issue edit "$SRC" -R "$REPO" \
+                --remove-label "verify:manual-needed" \
+                --remove-label "agent:manual-review-needed" \
+                --remove-label "agent:management-needed" \
+                --add-label "verify:pending" || true
+              {
+                echo "**Embedded verify-management pass** re-queued automated verification."
+                echo ""
+                echo "- Open PR: #$OPEN_PR"
+                echo "- Prior UNKNOWN outcomes: $UNKNOWN_COUNT"
+                echo "- Action: moved back to \`verify:pending\`"
+              } > .verify-mgmt-source-comment.md
+              gh issue comment "$SRC" -R "$REPO" --body-file .verify-mgmt-source-comment.md
+              rm -f .verify-mgmt-source-comment.md
+
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC was re-queued to verify:pending."
+              REQUEUED=$((REQUEUED + 1))
+              CLOSED=$((CLOSED + 1))
+              continue
+            fi
+
+            if ! has_label "$SLABELS" "verify:manual-needed" && ! has_label "$SLABELS" "agent:management-needed"; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC no longer requires verification management."
+              CLOSED=$((CLOSED + 1))
+            fi
+          done
+
+          echo "Verify-management pass summary: processed=$PROCESSED requeued=$REQUEUED closed=$CLOSED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # ── Find Issue Needing Verification ──────────────────────────────
       - name: Find issue to verify
         id: find
@@ -83,6 +228,11 @@ jobs:
               --head "claude/issue-$NUM" \
               --json number --jq 'first | .number // empty')
           fi
+          if [ -z "$PR" ]; then
+            PR=$(gh pr list -R "$REPO" --state open \
+              --head "codex/issue-$NUM" \
+              --json number --jq 'first | .number // empty')
+          fi
 
           if [ -z "$PR" ]; then
             echo "::warning::No PR found for issue #$NUM"
@@ -107,41 +257,205 @@ jobs:
             echo "Issue #${{ steps.find.outputs.issue_number }} has verify:pending but no PR."
             # Remove stale label
             gh issue edit "${{ steps.find.outputs.issue_number }}" -R "$REPO" \
-              --remove-label "verify:pending" --add-label "agent:blocked"
+              --remove-label "verify:pending" \
+              --add-label "agent:blocked" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" \
+              --add-label "verify:manual-needed"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Fast-fail if Claude auth token is missing
-      - name: Validate Claude auth token
+      - name: Check verification retry budget
         if: steps.find.outputs.pr_found == 'true'
+        id: verify-retries
         run: |
-          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
-            echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is empty. Refresh it from local machine."
+          NUM=${{ steps.find.outputs.issue_number }}
+          MAX_ATTEMPTS=${MAX_VERIFY_ATTEMPTS}
+
+          UNKNOWN_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '[.comments[].body | select(contains("\"role\":\"verifier\"") and contains("\"verdict\":\"UNKNOWN\""))] | length')
+          ATTEMPTS=$((UNKNOWN_COUNT + 1))
+          echo "attempts=$ATTEMPTS" >> "$GITHUB_OUTPUT"
+
+          if [ "$UNKNOWN_COUNT" -ge "$MAX_ATTEMPTS" ]; then
+            echo "halt=true" >> "$GITHUB_OUTPUT"
+            ALREADY_MANUAL=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '.labels[].name | select(. == "verify:manual-needed")' || true)
+            if [ -z "$ALREADY_MANUAL" ]; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "verify:pending" \
+                --add-label "verify:manual-needed" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed"
+              {
+                echo "**Agent Verify Loop** exhausted automated verification retries."
+                echo ""
+                echo "- Unknown verifier outcomes recorded: $UNKNOWN_COUNT"
+                echo "- Max automated retries: $MAX_ATTEMPTS"
+                echo ""
+                echo "This issue is moved to manual strategic verification queue."
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"verifier\",\"run\":\"${{ github.run_id }}\",\"provider\":\"workflow\",\"verdict\":\"UNKNOWN\",\"quality\":\"UNKNOWN\",\"status\":\"retry_exhausted\"} -->"
+              } > .verify-retry-exhausted.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .verify-retry-exhausted.md
+              rm -f .verify-retry-exhausted.md
+            fi
+          else
+            echo "halt=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stop after verification retry exhaustion
+        if: steps.verify-retries.outputs.halt == 'true'
+        run: |
+          echo "Verification retry budget exhausted for issue #${{ steps.find.outputs.issue_number }}."
+          echo "Routed to verify:manual-needed + management queue."
+
+      - name: Resolve verifier strategy
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
+        id: strategy
+        run: |
+          MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
+          ATTEMPTS="${{ steps.verify-retries.outputs.attempts || '1' }}"
+          BASE_TURNS="${DEFAULT_VERIFY_TURNS}"
+          BONUS=0
+          MILESTONE_BONUS=0
+          FOCUS="strategic-review"
+          COMPLEXITY="standard"
+
+          if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=1; fi
+
+          case "$MILESTONE" in
+            "M0: Dogfood-Ready")
+              COMPLEXITY="high-foundation"
+              MILESTONE_BONUS=10
+              ;;
+            "M1: Construction MVP")
+              COMPLEXITY="medium-high"
+              MILESTONE_BONUS=8
+              ;;
+            "M2: Agent Integration")
+              COMPLEXITY="high-integration"
+              MILESTONE_BONUS=14
+              ;;
+            "M3: Scale & Epistemics")
+              COMPLEXITY="very-high-scale"
+              MILESTONE_BONUS=18
+              ;;
+            "M4: World-Class")
+              COMPLEXITY="extreme-world-class"
+              MILESTONE_BONUS=22
+              ;;
+            *)
+              COMPLEXITY="standard"
+              MILESTONE_BONUS=6
+              ;;
+          esac
+
+          if [ "$ATTEMPTS" -ge 2 ]; then
+            BONUS=8
+            FOCUS="strategic-rework"
+          fi
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            BONUS=14
+            FOCUS="risk-driven-review"
+          fi
+
+          MAX_TURNS=$((BASE_TURNS + MILESTONE_BONUS + BONUS))
+          if [ "$MAX_TURNS" -gt 100 ]; then MAX_TURNS=100; fi
+          if [ "$MAX_TURNS" -ge "$VERIFY_LONG_RUN_THRESHOLD" ]; then
+            LONG_RUN=true
+            META_CHECK_INTERVAL=15
+          else
+            LONG_RUN=false
+            META_CHECK_INTERVAL=10
+          fi
+
+          echo "max_turns=$MAX_TURNS" >> "$GITHUB_OUTPUT"
+          echo "focus=$FOCUS" >> "$GITHUB_OUTPUT"
+          echo "complexity=$COMPLEXITY" >> "$GITHUB_OUTPUT"
+          echo "long_run=$LONG_RUN" >> "$GITHUB_OUTPUT"
+          echo "meta_check_interval=$META_CHECK_INTERVAL" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve verifier provider plan
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
+        id: provider
+        run: |
+          REQUESTED="${{ inputs.agent_provider || 'auto' }}"
+          ALLOW_FALLBACK="${{ inputs.enable_fallback != false }}"
+          ATTEMPTS="${{ steps.verify-retries.outputs.attempts || '1' }}"
+
+          HAS_CLAUDE=false
+          HAS_CODEX=false
+          [ -n "${CLAUDE_TOKEN:-}" ] && HAS_CLAUDE=true
+          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+
+          if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=1; fi
+          if [ "$ATTEMPTS" -ge 3 ]; then
+            ALLOW_FALLBACK=false
+            echo "Disabling verifier fallback for high retry count (attempts=$ATTEMPTS)."
+          fi
+
+          if [ "$REQUESTED" = "claude" ] && [ "$HAS_CLAUDE" != "true" ]; then
+            echo "::error::agent_provider=claude but CLAUDE_CODE_OAUTH_TOKEN is unavailable."
             exit 1
           fi
-          echo "Claude auth token present"
+          if [ "$REQUESTED" = "codex" ] && [ "$HAS_CODEX" != "true" ]; then
+            echo "::error::agent_provider=codex but OPENAI_API_KEY is unavailable."
+            exit 1
+          fi
+          if [ "$HAS_CLAUDE" != "true" ] && [ "$HAS_CODEX" != "true" ]; then
+            echo "::error::No verifier provider credentials available."
+            exit 1
+          fi
+
+          PRIMARY=""
+          FALLBACK=""
+          if [ "$REQUESTED" = "claude" ]; then
+            PRIMARY="claude"
+            [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
+          elif [ "$REQUESTED" = "codex" ]; then
+            PRIMARY="codex"
+            [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+          else
+            if [ "$HAS_CLAUDE" = "true" ]; then
+              PRIMARY="claude"
+              [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
+            else
+              PRIMARY="codex"
+              [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+            fi
+          fi
+
+          echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+          echo "fallback=$FALLBACK" >> "$GITHUB_OUTPUT"
+          echo "Provider plan: primary=$PRIMARY fallback=${FALLBACK:-none}"
+        env:
+          CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       # ── Setup ────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
-        if: steps.find.outputs.pr_found == 'true'
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         with:
           ref: ${{ steps.find.outputs.branch }}
           fetch-depth: 0  # Full history for diff
 
       - uses: actions/setup-node@v4
-        if: steps.find.outputs.pr_found == 'true'
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install and build
-        if: steps.find.outputs.pr_found == 'true'
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         run: npm ci && npm run build
 
       # ── Gather Evidence for Verifier ─────────────────────────────────
       - name: Gather context for verification
-        if: steps.find.outputs.pr_found == 'true'
+        id: gather
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           PR=${{ steps.find.outputs.pr_number }}
@@ -157,6 +471,15 @@ jobs:
           gh pr view "$PR" -R "$REPO" --json files --jq '.files[].path' \
             > .claude-pr-files.txt 2>/dev/null || true
 
+          CHANGED_COUNT=$(wc -l < .claude-pr-files.txt | tr -d ' ')
+          echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
+
+          QUALITY_SENSITIVE=false
+          if grep -Eq '^(src/api/|src/storage/|src/adapters/|src/constructions/|src/epistemics/|src/cli/)' .claude-pr-files.txt; then
+            QUALITY_SENSITIVE=true
+          fi
+          echo "quality_sensitive=$QUALITY_SENSITIVE" >> "$GITHUB_OUTPUT"
+
           # Get worker evidence comments
           gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '.comments[] | select(.body | contains("agent_evidence")) | .body' \
@@ -170,159 +493,289 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build verifier prompt
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
+        run: |
+          cat > .agent-verifier-prompt.md <<'PROMPT'
+          You are a strategic verifier for PR #${{ steps.find.outputs.pr_number }} (issue #${{ steps.find.outputs.issue_number }}).
+
+          ## Inputs
+          - Issue context: `.claude-issue-full.json`
+          - PR diff: `.claude-pr-diff.patch`
+          - Changed files: `.claude-pr-files.txt`
+          - Worker evidence: `.claude-worker-evidence.txt`
+          - Milestone context: `.claude-milestone-context.md`
+          - Milestone: ${{ steps.find.outputs.milestone }}
+          - Milestone complexity: ${{ steps.strategy.outputs.complexity }}
+          - Verify attempt number: ${{ steps.verify-retries.outputs.attempts }}
+          - Focus mode: ${{ steps.strategy.outputs.focus }}
+          - Long-run mode: ${{ steps.strategy.outputs.long_run }}
+          - Meta checkpoint interval (turns): ${{ steps.strategy.outputs.meta_check_interval }}
+          - Run id: ${{ github.run_id }}
+          - Provider plan: primary=${{ steps.provider.outputs.primary }}, fallback=${{ steps.provider.outputs.fallback || 'none' }}
+          - Quality-sensitive change: ${{ steps.gather.outputs.quality_sensitive }}
+
+          ## Required verification
+          1. Run `npm run build`.
+          2. Run tests relevant to changed behavior.
+          3. Check acceptance criteria from issue body.
+          4. Decide if implementation is strategically correct, not just technically passing.
+          5. If quality-sensitive is true, run:
+             `node scripts/issue-quality-analysis.mjs ${{ steps.find.outputs.issue_number }} --description "Verifier review for PR #${{ steps.find.outputs.pr_number }}" --verdict insufficient_evidence --assessment "Verifier run in CI: reviewed changed files and test evidence."`
+          6. Run periodic meta-evaluation during long reviews:
+             - Every `${{ steps.strategy.outputs.meta_check_interval }}` turns, verify the review is converging.
+             - If not converging, narrow to risk-driven checks and call out a managerial fix recommendation.
+
+          ## Output
+          Post one issue comment with:
+          - Verdict line: `**Verdict: PASS**` or `**Verdict: FAIL**`
+          - Mechanical checks (build/tests/acceptance criteria)
+          - Intent assessment
+          - Strategic fit
+          - Meta-evaluation summary
+          - Managerial fix recommendation (if needed)
+          - Quality rating (Excellent/Good/Acceptable/Poor/Broken)
+
+          End comment with exact metadata tag (valid JSON):
+          <!-- agent_evidence = {"v":3,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","run":"${{ github.run_id }}","provider":"${{ steps.provider.outputs.primary }}","verdict":"PASS|FAIL|UNKNOWN","quality":"Excellent|Good|Acceptable|Poor|Broken|UNKNOWN","pr":${{ steps.find.outputs.pr_number }},"quality_sensitive":"${{ steps.gather.outputs.quality_sensitive }}","meta_eval":"on_track|replanned|non_convergent","managerial_fix":"none|scope_split|test_plan_patch|requirements_patch"} -->
+          PROMPT
+
+      - name: Install Codex CLI
+        if: >-
+          steps.find.outputs.pr_found == 'true' &&
+          steps.verify-retries.outputs.halt != 'true' &&
+          (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
+        run: npm install -g @openai/codex
+
       # ── Verification Agent ──────────────────────────────────────────
-      - name: Run verification agent
-        if: steps.find.outputs.pr_found == 'true'
-        id: verify
+      - name: Run Claude verifier (primary)
+        if: >-
+          steps.find.outputs.pr_found == 'true' &&
+          steps.verify-retries.outputs.halt != 'true' &&
+          steps.provider.outputs.primary == 'claude'
+        id: verify-claude-primary
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
-
           prompt: |
-            You are a STRATEGIC CODE REVIEWER for the LiBrainian project — a semantic
-            codebase intelligence tool that helps AI agents understand and navigate code.
-
-            You are reviewing PR #${{ steps.find.outputs.pr_number }} which implements
-            issue #${{ steps.find.outputs.issue_number }} ("${{ steps.find.outputs.issue_title }}").
-            Milestone: ${{ steps.find.outputs.milestone }}
-
-            YOUR VERDICT WILL AUTO-MERGE OR REJECT THIS PR. There is no human reviewer
-            after you. You are the last line of defense. Be thorough but fair.
-
-            ## Context Files
-            - .claude-issue-full.json — full issue with comments and acceptance criteria
-            - .claude-pr-diff.patch — the PR diff
-            - .claude-pr-files.txt — files changed
-            - .claude-worker-evidence.txt — worker's evidence claims
-            - .claude-milestone-context.md — milestone descriptions and goals
-
-            ## Your Review Process
-
-            ### Phase 1: Mechanical Verification (table stakes — must all pass)
-            1. Run `npm run build` — must compile clean
-            2. Run tests on changed files: `npm test -- --testPathPattern <pattern>`
-            3. Check the diff for obvious bugs, security issues, or broken patterns
-            4. Verify each acceptance criterion from the issue is actually met
-
-            ### Phase 2: Intent Fulfillment (the real question)
-            Go beyond "did they check the boxes?" Ask yourself:
-            - Does this implementation actually solve the UNDERLYING PROBLEM the issue describes?
-            - Or did the worker do the minimum to satisfy acceptance criteria without
-              addressing the real need?
-            - Would a senior engineer reviewing this say "yes, this is the right approach"
-              or "this technically works but misses the point"?
-            - Are there obvious better approaches the worker should have taken?
-
-            ### Phase 3: Strategic Fit (does this move LiBrainian forward?)
-            Read .claude-milestone-context.md and consider:
-            - Does this change move us toward the milestone's exit criteria?
-            - Does it create technical debt that will slow down future work?
-            - Is the code maintainable? Will the next developer understand it?
-            - Does it follow the existing patterns in the codebase, or introduce
-              unnecessary divergence?
-            - Is the test coverage meaningful (testing behavior, not implementation)?
-
-            ### Phase 4: Qualitative Assessment
-            Rate the implementation:
-            - **Excellent**: Solves the problem elegantly, well-tested, advances the milestone
-            - **Good**: Solid implementation, meets the intent, no concerns
-            - **Acceptable**: Works but has minor issues that don't block merge
-            - **Poor**: Technically works but misses the intent or creates problems — FAIL
-            - **Broken**: Doesn't work, doesn't compile, or has critical issues — FAIL
-
-            Only "Excellent", "Good", and "Acceptable" should result in PASS.
-            "Poor" and "Broken" are FAIL.
-
-            ## Your Verdict
-
-            Use the Write tool to create `.verdict-comment.md` with your review, then post it:
-            ```
-            gh issue comment ${{ steps.find.outputs.issue_number }} --repo nateschmiedehaus/LiBrainian --body-file .verdict-comment.md
-            ```
-            Do NOT use heredocs or $(cat <<EOF) — they get blocked by the sandbox.
-
-            Your comment MUST begin with exactly one of these lines:
-
-            **Verdict: PASS**
-
-            or:
-
-            **Verdict: FAIL**
-
-            Then include ALL of the following sections:
-
-            ### Mechanical Checks
-            - Build: pass/fail
-            - Tests: X passed, Y failed
-            - Acceptance criteria: each one checked
-
-            ### Intent Assessment
-            [2-3 sentences: Does this solve the real problem?]
-
-            ### Strategic Fit
-            [2-3 sentences: How does this advance the milestone? Any concerns?]
-
-            ### Quality Rating
-            [Excellent / Good / Acceptable / Poor / Broken — with brief justification]
-
-            End with the metadata tag:
-            <!-- agent_evidence = {"v":2,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","verdict":"VERDICT","quality":"RATING","pr":${{ steps.find.outputs.pr_number }}} -->
-
-            ## Rules
-            - You MUST NOT trust the worker's claims. Verify everything independently.
-            - PASS means you are confident this should be merged to main.
-            - FAIL means you would NOT merge this — explain exactly what's wrong and
-              what the worker should do differently.
-            - Be specific. Vague feedback like "needs improvement" is useless.
-            - Use Write tool + --body-file for posting (NOT heredocs).
-            - IMPORTANT: Do NOT pipe commands (e.g., `npm test | tail`). Pipes get
-              permission-denied. Instead, redirect to a file and read it:
-              ```
-              npm test > .test-output.txt 2>&1; tail -20 .test-output.txt
-              ```
-
+            Read `.agent-verifier-prompt.md` and execute it fully.
           claude_args: >-
             --model claude-sonnet-4-6
-            --max-turns 20
+            --max-turns ${{ steps.strategy.outputs.max_turns }}
             --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *)"
-
         continue-on-error: true
+
+      - name: Run Codex verifier (primary)
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true' && steps.provider.outputs.primary == 'codex'
+        id: verify-codex-primary
+        continue-on-error: true
+        run: |
+          set +e
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            --color never \
+            -C "$PWD" \
+            --model "${CODEX_MODEL:-gpt-5-codex}" \
+            - < .agent-verifier-prompt.md > .verify-codex-primary.log 2>&1
+          EXIT=$?
+          set -e
+          tail -n 150 .verify-codex-primary.log || true
+          if [ "$EXIT" -ne 0 ]; then
+            exit "$EXIT"
+          fi
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run Codex verifier (fallback)
+        if: >-
+          steps.find.outputs.pr_found == 'true' &&
+          steps.verify-retries.outputs.halt != 'true' &&
+          steps.provider.outputs.primary == 'claude' &&
+          steps.provider.outputs.fallback == 'codex' &&
+          steps.verify-claude-primary.outcome == 'failure'
+        id: verify-codex-fallback
+        continue-on-error: true
+        run: |
+          set +e
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            --color never \
+            -C "$PWD" \
+            --model "${CODEX_MODEL:-gpt-5-codex}" \
+            - < .agent-verifier-prompt.md > .verify-codex-fallback.log 2>&1
+          EXIT=$?
+          set -e
+          tail -n 150 .verify-codex-fallback.log || true
+          if [ "$EXIT" -ne 0 ]; then
+            exit "$EXIT"
+          fi
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run Claude verifier (fallback)
+        if: >-
+          steps.find.outputs.pr_found == 'true' &&
+          steps.verify-retries.outputs.halt != 'true' &&
+          steps.provider.outputs.primary == 'codex' &&
+          steps.provider.outputs.fallback == 'claude' &&
+          steps.verify-codex-primary.outcome == 'failure'
+        id: verify-claude-fallback
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          prompt: |
+            Read `.agent-verifier-prompt.md` and execute it fully.
+            This is a fallback provider run.
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns ${{ steps.strategy.outputs.max_turns }}
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *)"
+        continue-on-error: true
+
+      - name: Resolve verifier execution outcome
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
+        id: verify-run
+        run: |
+          PROVIDER=""
+          OUTCOME="failure"
+
+          if [ "${{ steps.verify-claude-primary.outcome }}" = "success" ]; then
+            PROVIDER="claude"
+            OUTCOME="success"
+          elif [ "${{ steps.verify-codex-primary.outcome }}" = "success" ]; then
+            PROVIDER="codex"
+            OUTCOME="success"
+          elif [ "${{ steps.verify-codex-fallback.outcome }}" = "success" ]; then
+            PROVIDER="codex"
+            OUTCOME="success"
+          elif [ "${{ steps.verify-claude-fallback.outcome }}" = "success" ]; then
+            PROVIDER="claude"
+            OUTCOME="success"
+          fi
+
+          if [ -z "$PROVIDER" ]; then
+            PROVIDER="${{ steps.provider.outputs.primary }}"
+          fi
+
+          echo "provider_used=$PROVIDER" >> "$GITHUB_OUTPUT"
+          echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          echo "Verifier execution: provider=$PROVIDER outcome=$OUTCOME"
+
+      - name: Parse verifier metadata
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
+        id: verify-meta
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          RUN_ID="${{ github.run_id }}"
+
+          RAW=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
+            '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
+            head -n 20 || true)
+          MATCH=$(echo "$RAW" | sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' | \
+            jq -c "select(.role==\"verifier\" and (.run|tostring)==\"$RUN_ID\")" 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$MATCH" ]; then
+            VERDICT=$(echo "$MATCH" | jq -r '.verdict // "UNKNOWN"' | tr '[:lower:]' '[:upper:]')
+            QUALITY=$(echo "$MATCH" | jq -r '.quality // "UNKNOWN"')
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+            echo "quality=$QUALITY" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+            echo "quality=UNKNOWN" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       # ── Post-Verification: Auto-merge or Reject ─────────────────────
       - name: Parse verdict and act
-        if: steps.find.outputs.pr_found == 'true'
+        if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         id: verdict
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           PR=${{ steps.find.outputs.pr_number }}
+          PROVIDER_USED=${{ steps.verify-run.outputs.provider_used || 'unknown' }}
+
+          post_unknown() {
+            local reason="$1"
+            local quality="$2"
+            [ -z "$quality" ] && quality="UNKNOWN"
+            {
+              echo "**Agent Verify Loop** produced an UNKNOWN outcome."
+              echo ""
+              echo "- Reason: \`$reason\`"
+              echo "- Provider: \`$PROVIDER_USED\`"
+              echo "- Attempt: \`${{ steps.verify-retries.outputs.attempts || '1' }}\`"
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"verifier\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"verdict\":\"UNKNOWN\",\"quality\":\"$quality\",\"pr\":$PR,\"status\":\"$reason\"} -->"
+            } > .verify-unknown.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .verify-unknown.md
+            rm -f .verify-unknown.md
+          }
 
           # Check if the verifier agent actually ran successfully
-          AGENT_EXIT="${{ steps.verify.outcome }}"
+          AGENT_EXIT="${{ steps.verify-run.outputs.outcome }}"
           echo "Agent outcome: $AGENT_EXIT"
 
           if [ "$AGENT_EXIT" = "failure" ]; then
-            echo "::warning::Verifier agent failed (likely auth or infra issue). Will retry on next schedule."
-            # Silent retry — leave verify:pending for next run. No inbox spam.
+            echo "::warning::Verifier agent failed (likely auth or infra issue)."
+            post_unknown "provider_or_infra_failure" "UNKNOWN"
+            echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Check the latest comments for a verdict
-          VERDICT=$(gh issue view "$NUM" -R "$REPO" --json comments \
-            --jq '.comments[-3:] | .[] | .body' | \
-            grep -oiE 'Verdict:[[:space:]]*\*{0,2}(PASS|FAIL)\*{0,2}' | tail -1 | \
-            grep -oiE '(PASS|FAIL)' | tr '[:lower:]' '[:upper:]' || echo "UNKNOWN")
+          VERDICT="${{ steps.verify-meta.outputs.verdict || 'UNKNOWN' }}"
+          QUALITY="${{ steps.verify-meta.outputs.quality || 'UNKNOWN' }}"
+          META_FOUND="${{ steps.verify-meta.outputs.found || 'false' }}"
 
+          echo "Metadata found: $META_FOUND"
           echo "Verdict: $VERDICT"
+          echo "Quality: $QUALITY"
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
 
+          if [ "$META_FOUND" != "true" ]; then
+            echo "::warning::Verifier did not provide structured metadata for this run."
+            post_unknown "missing_metadata" "UNKNOWN"
+            exit 0
+          fi
+
           if [ "$VERDICT" = "PASS" ]; then
+            QUALITY_UPPER=$(echo "$QUALITY" | tr '[:lower:]' '[:upper:]')
+            if [ "$QUALITY_UPPER" = "POOR" ] || [ "$QUALITY_UPPER" = "BROKEN" ]; then
+              echo "::warning::PASS verdict with low quality rating ($QUALITY)."
+              post_unknown "pass_with_low_quality" "$QUALITY"
+              echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            PR_STATE=$(gh pr view "$PR" -R "$REPO" --json state,isDraft,mergeStateStatus \
+              --jq '.state + "|" + (.isDraft|tostring) + "|" + (.mergeStateStatus // "UNKNOWN")')
+            STATE=$(echo "$PR_STATE" | cut -d'|' -f1)
+            DRAFT=$(echo "$PR_STATE" | cut -d'|' -f2)
+            MERGE_STATE=$(echo "$PR_STATE" | cut -d'|' -f3)
+            if [ "$STATE" != "OPEN" ] || [ "$DRAFT" = "true" ]; then
+              echo "::warning::PR is not mergeable in current state ($PR_STATE)."
+              post_unknown "pr_not_mergeable_state" "UNKNOWN"
+              echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             echo "=== AUTO-MERGING PR #$PR ==="
 
             # Update labels
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:pending" \
+              --remove-label "verify:fail" \
+              --remove-label "verify:manual-needed" \
               --remove-label "agent:actionable" \
+              --remove-label "agent:manual-review-needed" \
+              --remove-label "agent:management-needed" \
               --add-label "verify:pass"
 
             # Squash-merge the PR
@@ -337,6 +790,14 @@ jobs:
               --subject "fix: #$NUM — ${{ steps.find.outputs.issue_title }}" 2>/dev/null || \
             echo "::warning::Auto-merge failed. PR may need manual merge."
 
+            MERGED_AT=$(gh pr view "$PR" -R "$REPO" --json mergedAt --jq '.mergedAt // empty' 2>/dev/null || true)
+            if [ -z "$MERGED_AT" ]; then
+              echo "::warning::PASS verdict recorded but PR did not merge."
+              post_unknown "merge_not_completed" "$QUALITY"
+              echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             echo "PR #$PR merged. Issue #$NUM resolved."
 
           elif [ "$VERDICT" = "FAIL" ]; then
@@ -348,15 +809,96 @@ jobs:
             # Return issue to backlog for rework
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:pending" \
+              --remove-label "verify:pass" \
+              --remove-label "verify:manual-needed" \
               --remove-label "agent:claimed" \
-              --add-label "verify:fail"
+              --add-label "verify:fail" \
+              --add-label "agent:actionable"
 
             echo "PR #$PR closed. Issue #$NUM returned to backlog."
 
           else
-            echo "::warning::Verifier ran but did not post a clear verdict. Will retry on next schedule."
-            # Silent — leave verify:pending for next scheduled run.
+            echo "::warning::Verifier ran but did not post a clear verdict."
+            post_unknown "unclear_verdict" "$QUALITY"
+            echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Route verification escalations to management queue
+        if: >-
+          steps.find.outputs.issue_number &&
+          (
+            steps.verify-retries.outputs.halt == 'true' ||
+            steps.verdict.outputs.verdict == 'UNKNOWN' ||
+            (steps.find.outputs.found == 'true' && steps.find.outputs.pr_found != 'true')
+          )
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
+          MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
+          REASON="verify_unknown"
+          if [ "${{ steps.verify-retries.outputs.halt }}" = "true" ]; then
+            REASON="verify_retry_exhausted"
+          elif [ "${{ steps.find.outputs.pr_found }}" != "true" ]; then
+            REASON="verify_pending_without_pr"
+          fi
+
+          EXISTING=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title \
+            --jq ".[] | select(.title | contains(\"meta: verify issue #$NUM\")) | .number" | head -n 1)
+
+          cat > .verify-management.md <<EOF
+          ## Automated Verification Management Item
+
+          Source issue: #$NUM
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Escalation reason: $REASON
+          Milestone: $MILESTONE
+
+          ### Required actions
+          1. Review verifier evidence and determine unblock path (manual verdict, criteria fix, or test strategy update).
+          2. Update issue #$NUM with explicit verification criteria and risk checklist.
+          3. Remove \`verify:manual-needed\` and re-apply \`verify:pending\` only when automated verification can converge.
+          EOF
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
+          else
+            gh issue create -R "$REPO" \
+              --title "meta: verify issue #$NUM — $TITLE" \
+              --body-file .verify-management.md \
+              --label "agent:management-needed" \
+              --label "triage/ready" \
+              --label "agent:actionable"
+          fi
+          rm -f .verify-management.md
+
+          gh issue edit "$NUM" -R "$REPO" \
+            --add-label "agent:management-needed" \
+            --add-label "agent:manual-review-needed" \
+            --add-label "verify:manual-needed" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close resolved verification management items
+        if: steps.verdict.outputs.verdict == 'PASS' && steps.find.outputs.issue_number
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          MGMT_IDS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title \
+            --jq ".[] | select(.title | contains(\"meta: verify issue #$NUM\")) | .number")
+          if [ -z "$MGMT_IDS" ]; then
+            exit 0
+          fi
+          for MID in $MGMT_IDS; do
+            gh issue close "$MID" -R "$REPO" \
+              --comment "Auto-closing verification management ticket: issue #$NUM passed and merged in run ${{ github.run_id }}."
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -364,7 +906,7 @@ jobs:
       # When a PASS verdict merges a PR and closes its issue, check if any
       # agent:blocked issues were waiting on it and unblock them.
       - name: Auto-unblock dependent issues
-        if: steps.verdict.outputs.verdict == 'PASS'
+        if: steps.verdict.outputs.verdict == 'PASS' && steps.verify-retries.outputs.halt != 'true'
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           echo "=== Auto-unblocking issues dependent on #$NUM ==="
