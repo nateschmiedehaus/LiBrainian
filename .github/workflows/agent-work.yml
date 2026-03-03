@@ -377,6 +377,16 @@ jobs:
             UNKNOWN_VERIFY=$(gh issue view "$SRC" -R "$REPO" --json comments \
               --jq '[.comments[].body | select(contains("\"role\":\"verifier\"") and contains("\"verdict\":\"UNKNOWN\""))] | length')
             OPEN_PR=$(find_open_pr_for_issue "$SRC")
+            HAS_NEEDS_DECOMP=false
+            HAS_INFRA_BLOCKED=false
+            HAS_AGENT_BLOCKED=false
+            HAS_MANUAL_REVIEW=false
+            HAS_MGMT_NEEDED=false
+            if has_label "$SLABELS" "agent:needs-decomposition"; then HAS_NEEDS_DECOMP=true; fi
+            if has_label "$SLABELS" "agent:infra-blocked"; then HAS_INFRA_BLOCKED=true; fi
+            if has_label "$SLABELS" "agent:blocked"; then HAS_AGENT_BLOCKED=true; fi
+            if has_label "$SLABELS" "agent:manual-review-needed"; then HAS_MANUAL_REVIEW=true; fi
+            if has_label "$SLABELS" "agent:management-needed"; then HAS_MGMT_NEEDED=true; fi
 
             REQUEUED_THIS=false
 
@@ -397,7 +407,7 @@ jobs:
               rm -f .management-source-comment.md
               REQUEUED_THIS=true
             elif [ "$READINESS_SCORE" -ge 2 ]; then
-              if has_label "$SLABELS" "agent:manual-review-needed" || has_label "$SLABELS" "agent:management-needed" || has_label "$SLABELS" "agent:needs-decomposition" || has_label "$SLABELS" "agent:blocked" || has_label "$SLABELS" "agent:infra-blocked"; then
+              if [ "$HAS_AGENT_BLOCKED" = "true" ] || { [ "$HAS_MANUAL_REVIEW" = "true" ] && [ "$HAS_MGMT_NEEDED" = "true" ] && [ "$HAS_NEEDS_DECOMP" != "true" ] && [ "$HAS_INFRA_BLOCKED" != "true" ]; }; then
                 gh issue edit "$SRC" -R "$REPO" \
                   --remove-label "agent:manual-review-needed" \
                   --remove-label "agent:management-needed" \
