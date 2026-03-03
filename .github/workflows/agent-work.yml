@@ -222,6 +222,14 @@ jobs:
             LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
 
             if has_label "$LABELS" "agent:management-ticket"; then
+              if has_label "$LABELS" "agent:blocked" || ! has_label "$LABELS" "agent:actionable"; then
+                gh issue edit "$NUM" -R "$REPO" \
+                  --remove-label "agent:blocked" \
+                  --remove-label "triage/missing-essentials" \
+                  --add-label "agent:actionable" \
+                  --add-label "triage/ready" || true
+                RELABELED=$((RELABELED + 1))
+              fi
               continue
             fi
 
@@ -552,9 +560,11 @@ jobs:
             NUM="${{ inputs.issue_number }}"
             TITLE=$(gh issue view "$NUM" -R "$REPO" --json title --jq '.title')
             MILESTONE=$(gh issue view "$NUM" -R "$REPO" --json milestone --jq '.milestone.title // "none"')
+            IS_MANAGEMENT=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '[.labels[].name] | contains(["agent:management-ticket"])')
             echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
             echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
             echo "issue_milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
+            echo "issue_is_management=$IS_MANAGEMENT" >> "$GITHUB_OUTPUT"
             echo "Selected (manual): #$NUM — $TITLE"
             exit 0
           fi
@@ -577,6 +587,7 @@ jobs:
                   number,
                   title,
                   milestone: (.milestone.title // "none"),
+                  is_management: (.labels | map(.name) | contains(["agent:management-ticket"])),
                   milestone_order: (
                     if .milestone.title == "M0: Dogfood-Ready" then 0
                     elif .milestone.title == "M1: Construction MVP" then 1
@@ -598,9 +609,11 @@ jobs:
           NUM=$(echo "$ISSUES" | jq -r '.number')
           TITLE=$(echo "$ISSUES" | jq -r '.title')
           MILESTONE=$(echo "$ISSUES" | jq -r '.milestone // "none"')
+          IS_MANAGEMENT=$(echo "$ISSUES" | jq -r '.is_management // false')
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
           echo "issue_milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
+          echo "issue_is_management=$IS_MANAGEMENT" >> "$GITHUB_OUTPUT"
           echo "Selected (auto): #$NUM — $TITLE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -613,7 +626,15 @@ jobs:
         id: retries
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
+          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
           MAX_ATTEMPTS=${MAX_ISSUE_ATTEMPTS}
+
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            echo "Issue #$NUM is a management ticket; bypassing retry-limit shelve logic."
+            echo "attempt_count=0" >> "$GITHUB_OUTPUT"
+            echo "shelved=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           # Count no-change and failed workflow attempts from evidence comments.
           FAIL_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
@@ -654,6 +675,18 @@ jobs:
         id: readiness
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
+          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
+
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            echo "Issue #$NUM is a management ticket; bypassing implementation-readiness gate."
+            echo "readiness_score=3" >> "$GITHUB_OUTPUT"
+            echo "has_acceptance=true" >> "$GITHUB_OUTPUT"
+            echo "has_brief=true" >> "$GITHUB_OUTPUT"
+            echo "has_file_hints=true" >> "$GITHUB_OUTPUT"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           BODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body // ""')
           HAS_ACCEPTANCE=false
           HAS_BRIEF=false
