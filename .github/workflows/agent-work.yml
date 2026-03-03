@@ -267,6 +267,9 @@ jobs:
           PROCESSED=0
           RELABELED=0
           CREATED=0
+          HAS_CODEX=false
+          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          GLOBAL_AUTH_GATE_OPEN="${{ steps.provider-auth-gate.outputs.open || 'false' }}"
 
           has_label() {
             local labels="$1"
@@ -297,6 +300,15 @@ jobs:
             LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
 
             if has_label "$LABELS" "agent:management-ticket"; then
+              if [ "$GLOBAL_AUTH_GATE_OPEN" = "true" ] && [ "$HAS_CODEX" != "true" ]; then
+                if has_label "$LABELS" "agent:actionable"; then
+                  gh issue edit "$NUM" -R "$REPO" \
+                    --remove-label "agent:actionable" \
+                    --add-label "triage/ready" || true
+                  RELABELED=$((RELABELED + 1))
+                fi
+                continue
+              fi
               if has_label "$LABELS" "agent:blocked"; then
                 gh issue edit "$NUM" -R "$REPO" \
                   --remove-label "agent:blocked" \
@@ -398,6 +410,7 @@ jobs:
           echo "Management ticket heal summary: processed=$PROCESSED relabeled=$RELABELED created=$CREATED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Normalize milestone coverage
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
