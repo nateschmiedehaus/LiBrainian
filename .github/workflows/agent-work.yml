@@ -187,6 +187,39 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Backfill provider auth-failure hints from issue history
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          MAX_SCAN=80
+          PROCESSED=0
+          UPDATED=0
+          CANDIDATES=$(gh issue list -R "$REPO" --state open \
+            --label "agent:infra-blocked" \
+            --limit 200 \
+            --json number,labels \
+            --jq '.[] | select((.labels | map(.name) | contains(["agent:provider-auth-failure"]) | not)) | .number' | head -n "$MAX_SCAN")
+
+          if [ -z "$CANDIDATES" ]; then
+            echo "Provider auth hint backfill: no unlabeled infra-blocked issues."
+            exit 0
+          fi
+
+          for NUM in $CANDIDATES; do
+            PROCESSED=$((PROCESSED + 1))
+            COMMENTS=$(gh issue view "$NUM" -R "$REPO" --json comments \
+              --jq '.comments[-30:] | .[].body // ""' 2>/dev/null || echo "")
+            if echo "$COMMENTS" | grep -Eiq 'provider_auth_or_runtime_failure|authentication_error|OAuth token has expired'; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --add-label "agent:provider-auth-failure" \
+                --add-label "agent:manual-review-needed" || true
+              UPDATED=$((UPDATED + 1))
+            fi
+          done
+
+          echo "Provider auth hint backfill summary: processed=$PROCESSED updated=$UPDATED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Self-heal management ticket coverage
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
