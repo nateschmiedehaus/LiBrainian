@@ -129,7 +129,7 @@ jobs:
           exit 0
 
       - name: Ensure adaptive labels exist
-        if: steps.breaker.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           ensure_label() {
             local name="$1"
@@ -149,8 +149,122 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Self-heal management ticket coverage
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          MAX_REPAIR_PER_RUN=12
+          PROCESSED=0
+          RELABELED=0
+          CREATED=0
+
+          has_label() {
+            local labels="$1"
+            local label="$2"
+            echo "$labels" | grep -Fxq "$label"
+          }
+
+          CANDIDATES=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title,labels \
+            --jq '.[] | @base64')
+
+          if [ -z "$CANDIDATES" ]; then
+            echo "Management ticket heal: no management-needed issues."
+            exit 0
+          fi
+
+          for ROW in $CANDIDATES; do
+            if [ "$PROCESSED" -ge "$MAX_REPAIR_PER_RUN" ]; then
+              break
+            fi
+            PROCESSED=$((PROCESSED + 1))
+
+            ITEM=$(echo "$ROW" | base64 --decode)
+            NUM=$(echo "$ITEM" | jq -r '.number')
+            TITLE=$(echo "$ITEM" | jq -r '.title // ""')
+            LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
+
+            if has_label "$LABELS" "agent:management-ticket"; then
+              continue
+            fi
+
+            if echo "$TITLE" | grep -Eiq '^meta:\s*(manage|verify)\s*issue\s*#[0-9]+'; then
+              gh issue edit "$NUM" -R "$REPO" --add-label "agent:management-ticket" || true
+              RELABELED=$((RELABELED + 1))
+              continue
+            fi
+
+            SRC="$NUM"
+            EXISTING=$(gh issue list -R "$REPO" --state open \
+              --label "agent:management-ticket" \
+              --limit 200 \
+              --json number,title,body \
+              --jq ".[] | select((.title | contains(\"issue #$SRC\")) or (.body | contains(\"source_issue=$SRC\")) or (.body | contains(\"Source issue: #$SRC\"))) | .number" | head -n1)
+            if [ -n "$EXISTING" ]; then
+              continue
+            fi
+
+            REASON="management_repair"
+            if has_label "$LABELS" "agent:infra-blocked"; then
+              REASON="provider_or_infra_failure"
+            elif has_label "$LABELS" "agent:needs-decomposition"; then
+              REASON="retry_exhausted"
+            elif has_label "$LABELS" "verify:manual-needed"; then
+              REASON="verify_retry_exhausted"
+            elif has_label "$LABELS" "agent:blocked"; then
+              REASON="readiness_gap"
+            fi
+
+            MILESTONE=$(gh issue view "$SRC" -R "$REPO" --json milestone --jq '.milestone.title // "none"' 2>/dev/null || echo "none")
+            TITLE_FLAT=$(printf '%s' "$TITLE" | tr '\n' ' ' | tr '\r' ' ')
+            TITLE_CLEAN=${TITLE_FLAT//\"/\'}
+
+            cat > .management-heal-body.md <<EOF
+          ## Automated Management Queue Item
+          <!-- management_ticket:v1 source_issue=$SRC queue=work reason=$REASON -->
+
+          Source issue: #$SRC
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Escalation reason: $REASON
+          Milestone: $MILESTONE
+
+          ### Required management actions
+          1. Diagnose why automation did not converge and choose one path: requirements patch, scope split, or infra repair.
+          2. Update source issue #$SRC with concrete acceptance criteria and explicit file-level plan.
+          3. Remove \`agent:manual-review-needed\` and re-add \`agent:actionable\` only when the issue is truly runnable.
+          4. Close this management ticket once #$SRC is unblocked and re-queued.
+          EOF
+
+            MURL=$(gh issue create -R "$REPO" \
+              --title "meta: manage issue #$SRC — $TITLE_CLEAN" \
+              --body-file .management-heal-body.md \
+              --label "agent:management-ticket" \
+              --label "agent:management-needed" \
+              --label "triage/ready" \
+              --label "agent:actionable")
+            rm -f .management-heal-body.md
+
+            MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
+            {
+              echo "**Workflow management routing**"
+              echo ""
+              echo "- Escalation reason: \`$REASON\`"
+              echo "- Management item: #$MNUM"
+              echo ""
+              echo "This was generated automatically by management self-heal."
+            } > .management-heal-link-comment.md
+            gh issue comment "$SRC" -R "$REPO" --body-file .management-heal-link-comment.md
+            rm -f .management-heal-link-comment.md
+            CREATED=$((CREATED + 1))
+          done
+
+          echo "Management ticket heal summary: processed=$PROCESSED relabeled=$RELABELED created=$CREATED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Embedded management queue pass
-        if: steps.breaker.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           PROCESSED=0
           RESOLVED=0
@@ -194,12 +308,12 @@ jobs:
             PROCESSED=$((PROCESSED + 1))
             echo "Processing management issue #$MNUM"
 
-            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body,state 2>/dev/null || true)
+            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body,state,labels 2>/dev/null || true)
             if [ -z "$MJSON" ] || [ "$MJSON" = "null" ]; then
               continue
             fi
-            MTITLE=$(echo "$MJSON" | jq -r '.title // ""')
             MBODY=$(echo "$MJSON" | jq -r '.body // ""')
+            MLABELS=$(echo "$MJSON" | jq -r '.labels[].name')
 
             SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
             if [ -z "$SRC" ]; then
@@ -208,15 +322,19 @@ jobs:
 
             if [ -z "$SRC" ]; then
               gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              gh issue comment "$MNUM" -R "$REPO" \
-                --body "Management ticket is missing \`Source issue: #N\` metadata. Automation skipped auto-close for safety."
+              if ! has_label "$MLABELS" "agent:management-malformed"; then
+                gh issue comment "$MNUM" -R "$REPO" \
+                  --body "Management ticket is missing \`Source issue: #N\` metadata. Automation skipped auto-close for safety."
+              fi
               continue
             fi
 
             if [ "$SRC" = "$MNUM" ]; then
               gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              gh issue comment "$MNUM" -R "$REPO" \
-                --body "Management ticket metadata resolved to itself (#$MNUM). Automation skipped auto-close for safety."
+              if ! has_label "$MLABELS" "agent:management-malformed"; then
+                gh issue comment "$MNUM" -R "$REPO" \
+                  --body "Management ticket metadata resolved to itself (#$MNUM). Automation skipped auto-close for safety."
+              fi
               continue
             fi
 
@@ -317,7 +435,7 @@ jobs:
       # Before selecting work, check if any agent:blocked issues have had
       # all their dependencies resolved (e.g., by async merges since last run).
       - name: Auto-unblock resolved dependencies
-        if: steps.breaker.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           echo "=== Pre-flight: checking for issues to unblock ==="
 
@@ -445,7 +563,7 @@ jobs:
       # If the agent has failed on this issue many times (no convergent progress),
       # shelve it to stop comment spam and flag for human review or decomposition.
       - name: Check retry limit
-        if: steps.find.outputs.issue_number && steps.breaker.outputs.open != 'true'
+        if: steps.find.outputs.issue_number && steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         id: retries
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -486,7 +604,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Readiness quality gate
-        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true'
+        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         id: readiness
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -542,7 +660,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for dependency blockers
-        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true'
+        if: steps.find.outputs.issue_number && steps.retries.outputs.shelved != 'true' && steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         id: deps
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -571,7 +689,7 @@ jobs:
           steps.deps.outputs.blocked == 'true' ||
           steps.retries.outputs.shelved == 'true' ||
           steps.readiness.outputs.ready == 'false' ||
-          inputs.dry_run == true ||
+          (inputs.dry_run == true || inputs.dry_run == 'true') ||
           steps.breaker.outputs.open == 'true'
         run: |
           echo "Skipping agent dispatch."
@@ -589,7 +707,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -614,7 +732,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: strategy
         run: |
@@ -706,7 +824,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: provider
         run: |
@@ -774,7 +892,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
@@ -786,7 +904,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
 
       - uses: actions/setup-node@v4
@@ -795,7 +913,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         with:
           node-version: '20'
@@ -807,7 +925,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: npm ci && npm run build
 
@@ -817,7 +935,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: branch
         run: |
@@ -853,7 +971,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: issue-body
         run: |
@@ -869,7 +987,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
           cat > .agent-worker-prompt.md <<'PROMPT'
@@ -927,7 +1045,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
         run: npm install -g @openai/codex
@@ -938,7 +1056,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'claude'
         id: agent-claude-primary
@@ -961,7 +1079,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'codex'
         id: agent-codex-primary
@@ -990,7 +1108,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'claude' &&
           steps.provider.outputs.fallback == 'codex' &&
@@ -1021,7 +1139,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'codex' &&
           steps.provider.outputs.fallback == 'claude' &&
@@ -1046,7 +1164,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: worker
         run: |
@@ -1081,7 +1199,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: evidence
         run: |
@@ -1115,7 +1233,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         id: gates
         continue-on-error: true
@@ -1178,7 +1296,7 @@ jobs:
           steps.deps.outputs.blocked != 'true' &&
           steps.retries.outputs.shelved != 'true' &&
           steps.readiness.outputs.ready != 'false' &&
-          inputs.dry_run != true &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true' &&
           steps.gates.outcome == 'success' &&
           steps.gates.outputs.should_create_pr == 'true'

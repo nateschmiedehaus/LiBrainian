@@ -77,6 +77,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Backfill management-ticket label on legacy meta issues
+        run: |
+          RELABELED=0
+          CANDIDATES=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-needed" \
+            --limit 200 \
+            --json number,title,labels \
+            --jq '.[] | @base64')
+
+          if [ -z "$CANDIDATES" ]; then
+            echo "No management-needed issues for label backfill."
+            exit 0
+          fi
+
+          has_label() {
+            local labels="$1"
+            local label="$2"
+            echo "$labels" | grep -Fxq "$label"
+          }
+
+          for ROW in $CANDIDATES; do
+            ITEM=$(echo "$ROW" | base64 --decode)
+            NUM=$(echo "$ITEM" | jq -r '.number')
+            TITLE=$(echo "$ITEM" | jq -r '.title // ""')
+            LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
+            if has_label "$LABELS" "agent:management-ticket"; then
+              continue
+            fi
+            if echo "$TITLE" | grep -Eiq '^meta:\s*(manage|verify)\s*issue\s*#[0-9]+'; then
+              gh issue edit "$NUM" -R "$REPO" --add-label "agent:management-ticket" || true
+              RELABELED=$((RELABELED + 1))
+            fi
+          done
+
+          echo "Legacy management-ticket backfill relabeled=$RELABELED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Embedded verify-management queue pass
         run: |
           PROCESSED=0
@@ -120,27 +158,31 @@ jobs:
             fi
             PROCESSED=$((PROCESSED + 1))
 
-            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body 2>/dev/null || true)
+            MJSON=$(gh issue view "$MNUM" -R "$REPO" --json title,body,labels 2>/dev/null || true)
             if [ -z "$MJSON" ] || [ "$MJSON" = "null" ]; then
               continue
             fi
-            MTITLE=$(echo "$MJSON" | jq -r '.title // ""')
             MBODY=$(echo "$MJSON" | jq -r '.body // ""')
+            MLABELS=$(echo "$MJSON" | jq -r '.labels[].name')
             SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
             if [ -z "$SRC" ]; then
               SRC=$(echo "$MBODY" | grep -oE 'source_issue=[0-9]+' | grep -oE '[0-9]+' | head -n1)
             fi
             if [ -z "$SRC" ]; then
               gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              gh issue comment "$MNUM" -R "$REPO" \
-                --body "Verification management ticket is missing \`Source issue: #N\` metadata. Automation skipped auto-close for safety."
+              if ! has_label "$MLABELS" "agent:management-malformed"; then
+                gh issue comment "$MNUM" -R "$REPO" \
+                  --body "Verification management ticket is missing \`Source issue: #N\` metadata. Automation skipped auto-close for safety."
+              fi
               continue
             fi
 
             if [ "$SRC" = "$MNUM" ]; then
               gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              gh issue comment "$MNUM" -R "$REPO" \
-                --body "Verification management ticket metadata resolved to itself (#$MNUM). Automation skipped auto-close for safety."
+              if ! has_label "$MLABELS" "agent:management-malformed"; then
+                gh issue comment "$MNUM" -R "$REPO" \
+                  --body "Verification management ticket metadata resolved to itself (#$MNUM). Automation skipped auto-close for safety."
+              fi
               continue
             fi
 
