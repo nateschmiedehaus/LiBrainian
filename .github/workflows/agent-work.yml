@@ -68,6 +68,7 @@ env:
   LONG_RUN_THRESHOLD: 55
   RECENT_INFRA_WINDOW_MIN: 90
   MAX_RECENT_INFRA_BLOCKED: 2
+  PROVIDER_RETRY_COOLDOWN_MIN: 180
 
 jobs:
   work:
@@ -478,7 +479,7 @@ jobs:
               continue
             fi
 
-            SJSON=$(gh issue view "$SRC" -R "$REPO" --json state,labels,body,title 2>/dev/null || true)
+            SJSON=$(gh issue view "$SRC" -R "$REPO" --json state,labels,body,title,updatedAt 2>/dev/null || true)
             if [ -z "$SJSON" ] || [ "$SJSON" = "null" ]; then
               gh issue close "$MNUM" -R "$REPO" \
                 --comment "Auto-closing management ticket: source issue #$SRC was not found."
@@ -529,11 +530,25 @@ jobs:
             HAS_AGENT_BLOCKED=false
             HAS_MANUAL_REVIEW=false
             HAS_MGMT_NEEDED=false
+            ALLOW_INFRA_RETRY=false
             if has_label "$SLABELS" "agent:needs-decomposition"; then HAS_NEEDS_DECOMP=true; fi
             if has_label "$SLABELS" "agent:infra-blocked"; then HAS_INFRA_BLOCKED=true; fi
             if has_label "$SLABELS" "agent:blocked"; then HAS_AGENT_BLOCKED=true; fi
             if has_label "$SLABELS" "agent:manual-review-needed"; then HAS_MANUAL_REVIEW=true; fi
             if has_label "$SLABELS" "agent:management-needed"; then HAS_MGMT_NEEDED=true; fi
+            if [ "$HAS_INFRA_BLOCKED" = "true" ]; then
+              SUPDATED=$(echo "$SJSON" | jq -r '.updatedAt // ""')
+              if [ -n "$SUPDATED" ] && [ "$SUPDATED" != "null" ]; then
+                NOW_EPOCH=$(date -u +%s)
+                UPDATED_EPOCH=$(date -u -d "$SUPDATED" +%s 2>/dev/null || echo 0)
+                if [ "$UPDATED_EPOCH" -gt 0 ]; then
+                  AGE_MIN=$(( (NOW_EPOCH - UPDATED_EPOCH) / 60 ))
+                  if [ "$AGE_MIN" -ge "$PROVIDER_RETRY_COOLDOWN_MIN" ]; then
+                    ALLOW_INFRA_RETRY=true
+                  fi
+                fi
+              fi
+            fi
 
             REQUEUED_THIS=false
 
@@ -554,7 +569,7 @@ jobs:
               rm -f .management-source-comment.md
               REQUEUED_THIS=true
             elif [ "$READINESS_SCORE" -ge 2 ]; then
-              if [ "$HAS_AGENT_BLOCKED" = "true" ] || { [ "$HAS_MANUAL_REVIEW" = "true" ] && [ "$HAS_MGMT_NEEDED" = "true" ] && [ "$HAS_NEEDS_DECOMP" != "true" ] && [ "$HAS_INFRA_BLOCKED" != "true" ]; }; then
+              if [ "$HAS_AGENT_BLOCKED" = "true" ] || { [ "$HAS_MANUAL_REVIEW" = "true" ] && [ "$HAS_MGMT_NEEDED" = "true" ] && [ "$HAS_NEEDS_DECOMP" != "true" ] && { [ "$HAS_INFRA_BLOCKED" != "true" ] || [ "$ALLOW_INFRA_RETRY" = "true" ]; }; }; then
                 gh issue edit "$SRC" -R "$REPO" \
                   --remove-label "agent:manual-review-needed" \
                   --remove-label "agent:management-needed" \
@@ -568,6 +583,9 @@ jobs:
                   echo "**Embedded management pass** re-queued this issue for the worker loop."
                   echo ""
                   echo "- Readiness score: $READINESS_SCORE/3"
+                  if [ "$HAS_INFRA_BLOCKED" = "true" ]; then
+                    echo "- Infra retry cooldown reached: ${PROVIDER_RETRY_COOLDOWN_MIN}m"
+                  fi
                   echo "- Action: restored \`agent:actionable\` and cleared manual-management blockers."
                 } > .management-source-comment.md
                 gh issue comment "$SRC" -R "$REPO" --body-file .management-source-comment.md
