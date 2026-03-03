@@ -1479,7 +1479,7 @@ jobs:
           NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
           ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
           IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
-          AUTH_EXPIRED=false
+          CLAUDE_AUTH_HINT=false
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
@@ -1488,7 +1488,10 @@ jobs:
 
           if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
             if gh run view "${{ github.run_id }}" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
-              AUTH_EXPIRED=true
+              CLAUDE_AUTH_HINT=true
+            fi
+            if [ "${{ steps.provider.outputs.primary }}" = "claude" ] && [ -z "${{ steps.provider.outputs.fallback }}" ]; then
+              CLAUDE_AUTH_HINT=true
             fi
           fi
 
@@ -1579,8 +1582,8 @@ jobs:
           elif [ "$WORKER_OUTCOME" != "success" ]; then
             echo "result=infra-failure" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
-            if [ "$AUTH_EXPIRED" = "true" ]; then
-              echo "escalation_reason=provider_auth_expired" >> "$GITHUB_OUTPUT"
+            if [ "$CLAUDE_AUTH_HINT" = "true" ]; then
+              echo "escalation_reason=provider_auth_or_runtime_failure" >> "$GITHUB_OUTPUT"
             else
               echo "escalation_reason=provider_or_infra_failure" >> "$GITHUB_OUTPUT"
             fi
@@ -1610,7 +1613,7 @@ jobs:
               echo "- **Provider attempted:** $PROVIDER_USED"
               echo "- **Primary/Fallback plan:** ${{ steps.provider.outputs.primary }} / ${{ steps.provider.outputs.fallback || 'none' }}"
               echo "- **Worker outcome:** $WORKER_OUTCOME"
-              echo "- **Detected auth-expired signature:** $AUTH_EXPIRED"
+              echo "- **Detected auth/access failure hint:** $CLAUDE_AUTH_HINT"
               echo ""
               echo "Action needed:"
               echo "1. Workflow created/updated a management queue item automatically."
