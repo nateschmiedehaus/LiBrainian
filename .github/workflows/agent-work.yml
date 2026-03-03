@@ -1440,7 +1440,7 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
           REASON=${{ steps.outcome.outputs.escalation_reason }}
-          MILESTONE=${{ steps.find.outputs.issue_milestone || 'none' }}
+          MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
 
           EXISTING=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-needed" \
