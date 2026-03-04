@@ -335,31 +335,76 @@ jobs:
           MAX_ATTEMPTS=${MAX_VERIFY_ATTEMPTS}
 
           UNKNOWN_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
-            --jq '[.comments[].body | select(contains("\"role\":\"verifier\"") and contains("\"verdict\":\"UNKNOWN\""))] | length')
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+              ] | length
+            ')
+          PROVIDER_UNKNOWN_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") == "provider_or_infra_failure")
+              ] | length
+            ')
+          LAST_UNKNOWN_STATUS=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+              ] | last | .status // ""
+            ')
           ATTEMPTS=$((UNKNOWN_COUNT + 1))
           echo "attempts=$ATTEMPTS" >> "$GITHUB_OUTPUT"
           echo "unknown_count=$UNKNOWN_COUNT" >> "$GITHUB_OUTPUT"
+          echo "provider_unknown_count=$PROVIDER_UNKNOWN_COUNT" >> "$GITHUB_OUTPUT"
           echo "halt=false" >> "$GITHUB_OUTPUT"
+          echo "halt_reason=none" >> "$GITHUB_OUTPUT"
 
           if [ "$UNKNOWN_COUNT" -ge "$MAX_ATTEMPTS" ]; then
-            echo "adaptive=true" >> "$GITHUB_OUTPUT"
+            HALT_REASON="verify_retry_budget_exhausted"
+            if [ "$PROVIDER_UNKNOWN_COUNT" -ge 1 ] || [ "$LAST_UNKNOWN_STATUS" = "provider_or_infra_failure" ]; then
+              HALT_REASON="provider_recovery_required"
+            fi
+
+            echo "adaptive=false" >> "$GITHUB_OUTPUT"
+            echo "halt=true" >> "$GITHUB_OUTPUT"
+            echo "halt_reason=$HALT_REASON" >> "$GITHUB_OUTPUT"
+
             gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "verify:pending" \
               --remove-label "verify:manual-needed" \
               --remove-label "agent:manual-review-needed" \
-              --add-label "verify:pending" \
               --add-label "agent:management-needed" \
+              --add-label "agent:blocked" \
               --add-label "agent:actionable" || true
+            if [ "$HALT_REASON" = "provider_recovery_required" ]; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:provider-auth-failure" \
+                --add-label "agent:manual-review-needed" || true
+            fi
             {
-              echo "**Agent Verify Loop** adaptive escalation checkpoint."
+              echo "**Agent Verify Loop** entered autonomous recovery mode."
               echo ""
               echo "- Unknown verifier outcomes recorded: $UNKNOWN_COUNT"
-              echo "- Adaptive threshold reached: $MAX_ATTEMPTS"
-              echo "- Action: keep automated verification active with management tuning (no manual terminal state)"
-              echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"verifier\",\"run\":\"${{ github.run_id }}\",\"provider\":\"workflow\",\"verdict\":\"UNKNOWN\",\"quality\":\"UNKNOWN\",\"status\":\"adaptive_retry\"} -->"
+              echo "- Recovery trigger threshold: $MAX_ATTEMPTS"
+              echo "- Recovery reason: \`$HALT_REASON\`"
+              echo "- Action: paused verify loop for this issue; routed to management recovery queue until provider + verifier stability is restored."
             } > .verify-retry-escalation.md
             gh issue comment "$NUM" -R "$REPO" --body-file .verify-retry-escalation.md
             rm -f .verify-retry-escalation.md
+            exit 0
           else
             echo "adaptive=false" >> "$GITHUB_OUTPUT"
           fi
@@ -1022,6 +1067,7 @@ jobs:
         if: >-
           steps.find.outputs.issue_number &&
           (
+            steps.verify-retries.outputs.halt == 'true' ||
             steps.verdict.outputs.verdict == 'UNKNOWN' ||
             (steps.find.outputs.found == 'true' && steps.find.outputs.pr_found != 'true')
           )
@@ -1031,7 +1077,11 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
-          if [ "${{ steps.find.outputs.pr_found }}" != "true" ]; then
+          HALTED="${{ steps.verify-retries.outputs.halt || 'false' }}"
+          HALT_REASON="${{ steps.verify-retries.outputs.halt_reason || '' }}"
+          if [ "$HALTED" = "true" ] && [ -n "$HALT_REASON" ]; then
+            REASON="$HALT_REASON"
+          elif [ "${{ steps.find.outputs.pr_found }}" != "true" ]; then
             REASON="verify_pending_without_pr"
           fi
 
@@ -1079,7 +1129,21 @@ jobs:
           rm -f .verify-management.md
 
           HAS_PR="${{ steps.find.outputs.pr_found }}"
-          if [ "$HAS_PR" = "true" ]; then
+          if [ "$HALTED" = "true" ]; then
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "verify:pending" \
+              --remove-label "verify:manual-needed" \
+              --remove-label "agent:manual-review-needed" \
+              --add-label "agent:blocked" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:actionable" || true
+            if [ "$REASON" = "provider_recovery_required" ]; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:provider-auth-failure" \
+                --add-label "agent:manual-review-needed" || true
+            fi
+          elif [ "$HAS_PR" = "true" ]; then
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "verify:manual-needed" \
               --remove-label "agent:manual-review-needed" \
