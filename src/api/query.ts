@@ -222,7 +222,11 @@ import {
 import {
   applyDefinitionBias,
   applyDocumentBias,
+  analyzeRelevanceConfidenceGuardrail,
+  GUARDED_LOW_CONFIDENCE,
   isDefinitionEntity,
+  LOW_RELEVANCE_CONFIDENCE_THRESHOLD,
+  type RelevanceConfidenceGuardrail,
 } from './query_result_biasing.js';
 import {
   computeCentrality,
@@ -1644,6 +1648,7 @@ export async function queryLibrarian(
           embeddingUnavailable: false,
           degradedReason: undefined as string | undefined,
         },
+        relevanceGuardrail: undefined,
       }
     : await runSemanticRetrievalStage({
         storage,
@@ -1659,6 +1664,7 @@ export async function queryLibrarian(
   queryEmbedding = semanticResult.queryEmbedding;
   const queryClassification = semanticResult.queryClassification;
   const semanticDiagnostics = semanticResult.diagnostics;
+  const relevanceGuardrail = semanticResult.relevanceGuardrail;
 
   // Merge graph traversal results with semantic candidates
   // Graph results get priority since they are structurally accurate
@@ -2072,6 +2078,18 @@ export async function queryLibrarian(
   if (coherenceAnalysis.warnings.length > 0) {
     disclosures.push(...coherenceAnalysis.warnings.map(w => `coherence_warning: ${w}`));
   }
+
+  if (relevanceGuardrail?.triggered) {
+    const downgradedConfidence = Math.min(totalConfidence, GUARDED_LOW_CONFIDENCE);
+    if (downgradedConfidence < totalConfidence) {
+      totalConfidence = downgradedConfidence;
+      disclosures.push(
+        `confidence_guardrail: Top semantic relevance ${(relevanceGuardrail.topSimilarity * 100).toFixed(1)}% ` +
+        `below ${(LOW_RELEVANCE_CONFIDENCE_THRESHOLD * 100).toFixed(1)}% threshold. Confidence forced to ${(downgradedConfidence * 100).toFixed(1)}%.`
+      );
+    }
+  }
+
   const currentDepth = query.depth ?? 'L1';
   const retrievalEntropy = computeRetrievalEntropy(finalPacks);
   const escalationDecision = decideRetrievalEscalation({
@@ -3072,6 +3090,7 @@ async function runSemanticRetrievalStage(options: {
     embeddingUnavailable: boolean;
     degradedReason?: string;
   };
+  relevanceGuardrail?: RelevanceConfidenceGuardrail;
 }> {
   const {
     storage,
@@ -3087,6 +3106,7 @@ async function runSemanticRetrievalStage(options: {
   let queryEmbedding: Float32Array | null = null;
   let candidates: Candidate[] = [];
   let queryClassification: QueryClassification | undefined;
+  let relevanceGuardrail: RelevanceConfidenceGuardrail | undefined;
   let semanticCandidateWindow = 0;
   let searchExecutions = 0;
 
@@ -3211,6 +3231,7 @@ async function runSemanticRetrievalStage(options: {
           'Refine the query intent or add affectedFiles to anchor the search.'
         );
       }
+      relevanceGuardrail = analyzeRelevanceConfidenceGuardrail(similarResults);
       candidates = await hydrateCandidates(similarResults, storage);
     }
 
@@ -3235,7 +3256,7 @@ async function runSemanticRetrievalStage(options: {
       searchExecutions,
     },
   });
-  return { candidates, queryEmbedding, queryClassification, diagnostics };
+  return { candidates, queryEmbedding, queryClassification, diagnostics, relevanceGuardrail };
 }
 
 async function runGraphExpansionStage(options: {

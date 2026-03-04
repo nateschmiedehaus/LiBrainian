@@ -3,6 +3,7 @@ import type { SimilarityResult } from '../../storage/types.js';
 import {
   applyEntryPointBias,
   isEntryPointEntity,
+  MAX_ENTRY_POINT_BOOST,
 } from '../query_entry_point_biasing.js';
 
 function result(
@@ -52,5 +53,17 @@ describe('query_entry_point_biasing', () => {
 
     const ranked = applyEntryPointBias(input, 0.05);
     expect(ranked).toEqual(input);
+  });
+
+  it('caps entry-point boost at the configured maximum multiplier', () => {
+    const input: SimilarityResult[] = [
+      result('mod:src/index.ts', 'module', 0.3),
+      result('func:src/auth/login.ts::handler', 'function', 0.8),
+    ];
+
+    const ranked = applyEntryPointBias(input, 3);
+    const entryPoint = ranked.find((candidate) => candidate.entityId.includes('index.ts'));
+    expect(entryPoint).toBeDefined();
+    expect(entryPoint?.similarity).toBeCloseTo(Math.min(1, 0.3 * MAX_ENTRY_POINT_BOOST), 10);
   });
 });

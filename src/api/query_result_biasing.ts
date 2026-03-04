@@ -1,5 +1,17 @@
 import type { SimilarityResult } from '../storage/types.js';
 
+export const LOW_RELEVANCE_CONFIDENCE_THRESHOLD = 0.6;
+export const GUARDED_LOW_CONFIDENCE = 0.45;
+
+export interface RelevanceConfidenceGuardrail {
+  /** Highest relevance score observed in the candidate list */
+  topSimilarity: number;
+  /** Threshold below which confidence should be downgraded */
+  threshold: number;
+  /** Whether the guardrail triggered for the current results */
+  triggered: boolean;
+}
+
 /**
  * Re-ranks similarity results to boost documents for meta-queries.
  */
@@ -127,4 +139,25 @@ export function applyDefinitionBias(
 
     return result;
   }).sort((a, b) => b.similarity - a.similarity);
+}
+
+/**
+ * Examine semantic results to determine whether confidence should be clamped.
+ * When the strongest match falls below the guardrail threshold, downstream stages
+ * must present the response as low-confidence regardless of other signals.
+ */
+export function analyzeRelevanceConfidenceGuardrail(
+  results: SimilarityResult[]
+): RelevanceConfidenceGuardrail | undefined {
+  if (!results.length) return undefined;
+  const topSimilarity = results.reduce(
+    (max, result) => (result.similarity > max ? result.similarity : max),
+    0
+  );
+  const triggered = topSimilarity > 0 && topSimilarity < LOW_RELEVANCE_CONFIDENCE_THRESHOLD;
+  return {
+    topSimilarity,
+    threshold: LOW_RELEVANCE_CONFIDENCE_THRESHOLD,
+    triggered,
+  };
 }

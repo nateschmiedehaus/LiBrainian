@@ -5,6 +5,12 @@ import {
 } from './query_intent_patterns.js';
 
 /**
+ * Maximum multiplier allowed for entry-point boost.
+ * Prevents entry points from dominating rankings regardless of similarity.
+ */
+export const MAX_ENTRY_POINT_BOOST = 2.0;
+
+/**
  * Checks if an entity is likely an entry point based on its ID/name/path.
  */
 export function isEntryPointEntity(entityId: string, entityName?: string): boolean {
@@ -54,8 +60,9 @@ export function applyEntryPointBias(
 
     if (isEntryPoint) {
       // Boost entry point similarity based on bias
-      // Up to 60% boost for strong entry point queries
-      const boost = 1 + (entryPointBias * 0.6);
+      // Up to 60% boost for strong entry point queries, capped for stability
+      const rawBoost = 1 + (entryPointBias * 0.6);
+      const boost = Math.min(MAX_ENTRY_POINT_BOOST, rawBoost);
       return {
         ...result,
         similarity: Math.min(1.0, result.similarity * boost),

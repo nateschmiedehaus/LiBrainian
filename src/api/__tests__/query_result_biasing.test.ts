@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SimilarityResult } from '../../storage/types.js';
 import {
+  analyzeRelevanceConfidenceGuardrail,
   applyDefinitionBias,
   applyDocumentBias,
   isDefinitionEntity,
+  LOW_RELEVANCE_CONFIDENCE_THRESHOLD,
 } from '../query_result_biasing.js';
 
 function result(
@@ -59,5 +61,30 @@ describe('query_result_biasing', () => {
     expect(ranked[0].similarity).toBeCloseTo(0.88, 10);
     const usage = ranked.find((entry) => entry.entityId.includes('getStorage'));
     expect(usage?.similarity).toBeCloseTo(0.352, 10);
+  });
+
+  it('flags low top-similarity results for confidence guardrail', () => {
+    const guardrail = analyzeRelevanceConfidenceGuardrail([
+      result('func:src/http/server.ts::start', 'function', 0.55),
+      result('func:src/http/router.ts::route', 'function', 0.52),
+    ]);
+    expect(guardrail).toBeDefined();
+    expect(guardrail?.triggered).toBe(true);
+    expect(guardrail?.topSimilarity).toBeCloseTo(0.55, 10);
+    expect(guardrail?.threshold).toBe(LOW_RELEVANCE_CONFIDENCE_THRESHOLD);
+  });
+
+  it('returns undefined guardrail when no semantic matches exist', () => {
+    expect(analyzeRelevanceConfidenceGuardrail([])).toBeUndefined();
+  });
+
+  it('ignores guardrail when the top result exceeds the threshold', () => {
+    const guardrail = analyzeRelevanceConfidenceGuardrail([
+      result('func:src/auth/login.ts::handler', 'function', 0.78),
+      result('func:src/auth/config.ts::schema', 'function', 0.52),
+    ]);
+    expect(guardrail).toBeDefined();
+    expect(guardrail?.triggered).toBe(false);
+    expect(guardrail?.topSimilarity).toBeCloseTo(0.78, 10);
   });
 });
