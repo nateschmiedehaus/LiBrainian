@@ -608,6 +608,7 @@ jobs:
           6. Run periodic meta-evaluation during long reviews:
              - Every `${{ steps.strategy.outputs.meta_check_interval }}` turns, verify the review is converging.
              - If not converging, narrow to risk-driven checks and call out a managerial fix recommendation.
+          7. Run live-provider checks via `./ask` and fail if provider is unavailable/offline.
 
           ## Output
           Post one issue comment with:
@@ -673,7 +674,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ steps.strategy.outputs.max_turns }}
-            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *),Bash(./ask *),Bash(node dist/cli/index.js *)"
         continue-on-error: true
 
       - name: Run Codex verifier (primary)
@@ -752,7 +753,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ steps.strategy.outputs.max_turns }}
-            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(echo *),Bash(mkdir *),Bash(./ask *),Bash(node dist/cli/index.js *)"
         continue-on-error: true
 
       - name: Resolve verifier execution outcome
@@ -873,6 +874,47 @@ jobs:
               exit 0
             fi
 
+            CHANGED_COUNT="${{ steps.gather.outputs.changed_count || '0' }}"
+            if ! [[ "$CHANGED_COUNT" =~ ^[0-9]+$ ]]; then CHANGED_COUNT=0; fi
+            if [ "$CHANGED_COUNT" -gt 0 ]; then
+              echo "Running mandatory post-verification live-provider functionality gate..."
+              if ! timeout 25m npx vitest run src/__tests__/librarian_live_provider.system.test.ts \
+                --testNamePattern "bootstrap and become ready|query for context"; then
+                echo "::warning::Post-verify live-provider system test failed."
+                post_unknown "post_verify_live_provider_system_test_failed" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+
+              set +e
+              timeout 8m ./ask --json "Where is the query pipeline implemented and what are its stages?" \
+                > .verify-live-provider-query.json 2> .verify-live-provider-query.err
+              ASK_EXIT=$?
+              set -e
+              if [ "$ASK_EXIT" -ne 0 ]; then
+                echo "::warning::Post-verify live-provider query command failed."
+                tail -n 120 .verify-live-provider-query.err || true
+                post_unknown "post_verify_live_provider_query_failed" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ ! -s .verify-live-provider-query.json ]; then
+                echo "::warning::Post-verify live-provider query output was empty."
+                post_unknown "post_verify_live_provider_query_empty" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if grep -Eiq 'unverified_by_trace\(provider_unavailable\)|Provider check skipped \(offline mode\)' \
+                .verify-live-provider-query.json .verify-live-provider-query.err; then
+                echo "::warning::Post-verify live-provider query indicates unavailable/offline provider."
+                tail -n 120 .verify-live-provider-query.json || true
+                tail -n 120 .verify-live-provider-query.err || true
+                post_unknown "post_verify_live_provider_unavailable" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+
             PR_STATE=$(gh pr view "$PR" -R "$REPO" --json state,isDraft,mergeStateStatus \
               --jq '.state + "|" + (.isDraft|tostring) + "|" + (.mergeStateStatus // "UNKNOWN")')
             STATE=$(echo "$PR_STATE" | cut -d'|' -f1)
@@ -943,6 +985,9 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
       - name: Route verification escalations to management queue
         if: >-

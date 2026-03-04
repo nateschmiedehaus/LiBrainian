@@ -1756,6 +1756,9 @@ jobs:
              - If 2 checkpoints in a row show low progress, apply a managerial fix (scope split, test-plan patch, or requirement clarification).
              - If still non-convergent, stop broad work and switch to narrow shippable slice or explicit decomposition.
           6. Post evidence comment on issue with exact metadata tag at the end.
+          7. For feature/code changes, run live-provider functionality checks during implementation and after tests:
+             - `./ask --json "Where is the query pipeline implemented and what are its stages?"`
+             - Include pass/fail evidence for both checks in your issue comment.
 
           ## Rules
           - Focused minimal edits. No unrelated refactors.
@@ -1768,6 +1771,7 @@ jobs:
           Post one issue comment with:
           - What changed
           - Build/test results
+          - Live provider checks (during implementation + post-test)
           - Meta-evaluation summary (why plan was kept or changed)
           - Managerial fix applied (if any)
           - Risks and next follow-up
@@ -1839,7 +1843,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ steps.strategy.outputs.effective_max_turns }}
-            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *),Bash(./ask *),Bash(node dist/cli/index.js *)"
         continue-on-error: true
 
       - name: Run Codex worker (primary)
@@ -1984,7 +1988,7 @@ jobs:
           claude_args: >-
             --model claude-sonnet-4-6
             --max-turns ${{ steps.strategy.outputs.effective_max_turns }}
-            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *)"
+            --allowedTools "Edit,Write,Read,Grep,Glob,Bash(gh *),Bash(npm *),Bash(npx *),Bash(git *),Bash(cat *),Bash(ls *),Bash(find *),Bash(wc *),Bash(head *),Bash(tail *),Bash(grep *),Bash(sed *),Bash(awk *),Bash(mkdir *),Bash(cp *),Bash(mv *),Bash(echo *),Bash(tee *),Bash(rm *),Bash(./ask *),Bash(node dist/cli/index.js *)"
         continue-on-error: true
 
       - name: Resolve worker execution outcome
@@ -2097,6 +2101,33 @@ jobs:
             timeout "${minutes}m" "$@"
           }
 
+          run_live_provider_query() {
+            local phase="$1"
+            local out=".live-provider-${phase}.json"
+            local err=".live-provider-${phase}.err"
+            set +e
+            run_with_timeout 8 ./ask --json "Where is the query pipeline implemented and what are its stages?" > "$out" 2> "$err"
+            local ask_exit=$?
+            set -e
+            if [ "$ask_exit" -ne 0 ]; then
+              echo "::error::Live-provider query failed during ${phase}."
+              tail -n 80 "$err" || true
+              return 1
+            fi
+            if [ ! -s "$out" ]; then
+              echo "::error::Live-provider query output was empty during ${phase}."
+              tail -n 80 "$err" || true
+              return 1
+            fi
+            if grep -Eiq 'unverified_by_trace\(provider_unavailable\)|Provider check skipped \(offline mode\)' "$out" "$err"; then
+              echo "::error::Live-provider query indicates provider unavailable/offline during ${phase}."
+              tail -n 120 "$out" || true
+              tail -n 120 "$err" || true
+              return 1
+            fi
+            echo "Live-provider query passed (${phase})."
+          }
+
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
           IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
@@ -2117,6 +2148,13 @@ jobs:
           echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
           echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
 
+          REQUIRE_LIVE_PROVIDER=false
+          FEATURE_CHANGED=$(echo "$CHANGED" | grep -E '^(src/|scripts/|ask|package\.json|config/)' | grep -Ev '^(docs/|src/__tests__/|\.github/)' || true)
+          if [ -n "$FEATURE_CHANGED" ]; then
+            REQUIRE_LIVE_PROVIDER=true
+          fi
+          echo "require_live_provider=$REQUIRE_LIVE_PROVIDER" >> "$GITHUB_OUTPUT"
+
           if [ "$COMMITS" -eq 0 ] && [ "${{ steps.worker.outputs.outcome }}" != "success" ]; then
             echo "No agent commits and worker failed. Skip quality gates."
             exit 0
@@ -2133,6 +2171,11 @@ jobs:
               echo "no_changes=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
+          fi
+
+          if [ "$REQUIRE_LIVE_PROVIDER" = "true" ]; then
+            echo "Running mandatory live-provider check during implementation stage..."
+            run_live_provider_query "during-implementation"
           fi
 
           echo "Running hard gates on produced changes..."
@@ -2180,10 +2223,22 @@ jobs:
               fi
             fi
           fi
+
+          if [ "$REQUIRE_LIVE_PROVIDER" = "true" ]; then
+            echo "Running mandatory live-provider system functionality tests..."
+            run_with_timeout 25 npx vitest run src/__tests__/librarian_live_provider.system.test.ts \
+              --testNamePattern "bootstrap and become ready|query for context"
+            echo "Running mandatory post-test live-provider query check..."
+            run_live_provider_query "post-tests"
+          fi
+
           echo "quality_ok=true" >> "$GITHUB_OUTPUT"
           echo "should_create_pr=true" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
       # ── Post-Agent: Create PR ────────────────────────────────────────
       - name: Check for changes and create PR
