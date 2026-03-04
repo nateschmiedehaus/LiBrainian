@@ -1460,6 +1460,7 @@ jobs:
           cache: 'npm'
 
       - name: Install and build
+        id: install-build
         if: >-
           steps.find.outputs.issue_number &&
           steps.deps.outputs.blocked != 'true' &&
@@ -1467,7 +1468,57 @@ jobs:
           steps.readiness.outputs.ready != 'false' &&
           inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
-        run: npm ci && npm run build
+        run: |
+          echo "failed=false" >> "$GITHUB_OUTPUT"
+          echo "failure_kind=none" >> "$GITHUB_OUTPUT"
+
+          TRANSIENT_PATTERN='ECONNRESET|socket hang up|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|502 Bad Gateway|503 Service Unavailable|network timeout'
+          ATTEMPT=1
+          MAX_ATTEMPTS=3
+          CI_EXIT=0
+
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "Running npm ci (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
+            set +e
+            npm ci 2>&1 | tee .npm-ci.log
+            CI_EXIT=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$CI_EXIT" -eq 0 ]; then
+              break
+            fi
+
+            if grep -Eiq "$TRANSIENT_PATTERN" .npm-ci.log && [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              SLEEP_SEC=$((ATTEMPT * 15))
+              echo "::warning::Transient npm/network failure detected; retrying npm ci in ${SLEEP_SEC}s."
+              sleep "$SLEEP_SEC"
+              ATTEMPT=$((ATTEMPT + 1))
+              continue
+            fi
+            break
+          done
+
+          if [ "$CI_EXIT" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            if grep -Eiq "$TRANSIENT_PATTERN" .npm-ci.log; then
+              echo "failure_kind=network_transient" >> "$GITHUB_OUTPUT"
+            else
+              echo "failure_kind=dependency_install_failure" >> "$GITHUB_OUTPUT"
+            fi
+            exit 1
+          fi
+
+          set +e
+          npm run build 2>&1 | tee .npm-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+          if [ "$BUILD_EXIT" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "failure_kind=build_failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          rm -f .npm-ci.log .npm-build.log
 
       - name: Create or continue working branch
         if: >-
@@ -2073,6 +2124,8 @@ jobs:
           STRATEGY_FOCUS=${STRATEGY_FOCUS:-unknown}
           RUN_ID=${RUN_ID:-}
           RUN_URL=${RUN_URL:-}
+          BUILD_FAILED=${BUILD_FAILED:-false}
+          BUILD_FAILURE_KIND=${BUILD_FAILURE_KIND:-none}
           CLAUDE_AUTH_HINT=false
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
@@ -2153,6 +2206,57 @@ jobs:
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
             exit 0
+          fi
+
+          if [ "$BUILD_FAILED" = "true" ]; then
+            if [ "$BUILD_FAILURE_KIND" = "network_transient" ]; then
+              echo "result=retry-infra" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=dependency_install_transient" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:management-needed" \
+                --remove-label "agent:manual-review-needed" \
+                --remove-label "agent:infra-blocked" \
+                --remove-label "agent:provider-auth-failure" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" || true
+              {
+                echo "**Agent Work Loop** — transient dependency/install infrastructure failure."
+                echo ""
+                echo "- **Failure kind:** $BUILD_FAILURE_KIND"
+                echo "- **Action:** issue re-queued automatically for retry"
+                echo "- **Next:** continue autonomous chain"
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"none\",\"next_action\":\"retry\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+              exit 0
+            else
+              echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+              echo "escalate=true" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=dependency_install_failure" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed" || true
+              {
+                echo "**Agent Work Loop** — dependency/build setup failed before worker execution."
+                echo ""
+                echo "- **Failure kind:** $BUILD_FAILURE_KIND"
+                echo "- **Action:** escalated for environment/dependency correction"
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+              exit 0
+            fi
           fi
 
           if [ -n "$PR" ]; then
@@ -2530,6 +2634,8 @@ jobs:
           STRATEGY_FOCUS: ${{ steps.strategy.outputs.focus }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BUILD_FAILED: ${{ steps.install-build.outputs.failed }}
+          BUILD_FAILURE_KIND: ${{ steps.install-build.outputs.failure_kind }}
 
       - name: Requeue on cancellation
         if: always() && steps.find.outputs.issue_number && job.status == 'cancelled'
@@ -2743,7 +2849,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Unclaim on failure
-        if: failure() && steps.find.outputs.issue_number
+        if: failure() && steps.find.outputs.issue_number && steps.outcome.outputs.result == ''
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           gh issue edit "$NUM" -R "$REPO" \
