@@ -1977,7 +1977,7 @@ jobs:
 
       # ── Outcome Recording ────────────────────────────────────────────
       - name: Record outcome
-        if: always() && steps.find.outputs.issue_number
+        if: always() && steps.find.outputs.issue_number && job.status != 'cancelled'
         id: outcome
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
@@ -1997,31 +1997,6 @@ jobs:
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
-
-          if [ "${{ cancelled() }}" = "true" ]; then
-            echo "result=cancelled" >> "$GITHUB_OUTPUT"
-            echo "Outcome: workflow was cancelled; re-queueing issue without infra escalation."
-            gh issue edit "$NUM" -R "$REPO" \
-              --remove-label "agent:claimed" \
-              --remove-label "verify:pending" \
-              --add-label "triage/ready" || true
-            if [ "$IS_MANAGEMENT" = "true" ]; then
-              if [ "$HAS_CODEX_AVAILABLE" = "true" ]; then
-                gh issue edit "$NUM" -R "$REPO" --add-label "agent:actionable" || true
-              fi
-            else
-              gh issue edit "$NUM" -R "$REPO" --add-label "agent:actionable" || true
-            fi
-            {
-              echo "**Agent Work Loop** run was cancelled before completion."
-              echo ""
-              echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              echo "- **Action:** issue returned to queue without infra/provider escalation."
-            } > .outcome-comment.md
-            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md || true
-            rm -f .outcome-comment.md
-            exit 0
-          fi
 
           if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
             if gh run view "${{ github.run_id }}" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
@@ -2265,6 +2240,35 @@ jobs:
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Requeue on cancellation
+        if: always() && steps.find.outputs.issue_number && job.status == 'cancelled'
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
+          HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
+
+          gh issue edit "$NUM" -R "$REPO" \
+            --remove-label "agent:claimed" \
+            --remove-label "verify:pending" \
+            --add-label "triage/ready" || true
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            if [ "$HAS_CODEX_AVAILABLE" = "true" ]; then
+              gh issue edit "$NUM" -R "$REPO" --add-label "agent:actionable" || true
+            fi
+          else
+            gh issue edit "$NUM" -R "$REPO" --add-label "agent:actionable" || true
+          fi
+          {
+            echo "**Agent Work Loop** run was cancelled before completion."
+            echo ""
+            echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- **Action:** issue returned to queue without infra/provider escalation."
+          } > .cancelled-comment.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .cancelled-comment.md || true
+          rm -f .cancelled-comment.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
