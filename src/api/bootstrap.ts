@@ -2268,6 +2268,15 @@ export async function bootstrapProject(
   }
   workspaceConfigWarnings.push(...workspaceIgnore.warnings);
   const workspaceRoot = path.resolve(workspace);
+  const synthesisAvailability = resolveSynthesisAvailability();
+  if (synthesisAvailability.synthesisMode === 'structural-only' && !config.skipLlm) {
+    const reason = synthesisAvailability.synthesisUnavailableReason ?? 'LLM path disabled by environment';
+    logInfo('Bootstrap: entering structural-only mode (LLM unavailable)', {
+      workspace: workspaceRoot,
+      reason,
+    });
+    config = { ...config, skipLlm: true };
+  }
   // Providers are optional: Librarian can bootstrap in degraded mode (AST-only / keyword-only)
   // when embeddings or LLM providers are unavailable.
   if (!config.skipLlm) {
@@ -2306,7 +2315,7 @@ export async function bootstrapProject(
     progress: 0,
     startedAt: new Date(),
     completedAt: null,
-    synthesis: resolveSynthesisAvailability(),
+    synthesis: synthesisAvailability,
   };
   bootstrapStates.set(workspace, state);
 
@@ -2323,6 +2332,7 @@ export async function bootstrapProject(
     totalContextPacksCreated: 0,
     version: getTargetVersion(config.bootstrapMode === 'full' ? 'full' : 'mvp'),
     success: false,
+    synthesis: synthesisAvailability,
   };
   if (workspaceConfigWarnings.length > 0) {
     report.warnings = report.warnings ?? [];

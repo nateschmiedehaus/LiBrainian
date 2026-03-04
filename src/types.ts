@@ -3,6 +3,7 @@
  */
 
 import type { EmbeddingProvider, EmbeddingService } from './api/embeddings.js';
+import type { SynthesisAvailability } from './api/llm_env.js';
 import type { AdequacyReport } from './api/difficulty_detectors.js';
 import type { EvidenceRef } from './api/evidence.js';
 import type { TechniqueOperatorType } from './strategic/techniques.js';
@@ -623,6 +624,8 @@ export interface BootstrapReport {
   };
   /** Bootstrap-time repository orientation persisted to .librarian/CODEBASE_BRIEFING.md */
   codebaseBriefing?: BootstrapBriefingSummary;
+  /** Availability of synthesis/LLM features during bootstrap */
+  synthesis?: SynthesisAvailability;
 }
 
 export interface BootstrapPhaseMetrics {

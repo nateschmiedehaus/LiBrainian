@@ -127,5 +127,6 @@ CREATE TABLE IF NOT EXISTS librarian_bootstrap_history (
   total_context_packs INTEGER NOT NULL,
   version_string TEXT NOT NULL,
   success INTEGER NOT NULL,
-  error TEXT
+  error TEXT,
+  synthesis TEXT
 );

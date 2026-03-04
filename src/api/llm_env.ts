@@ -59,10 +59,19 @@ export function resolveLibrarianModelConfig(): { provider?: LibrarianLlmProvider
 
 export const resolveLiBrainianModelConfig = resolveLibrarianModelConfig;
 
+function throwSynthesisUnavailable(reason?: string): never {
+  const detail = reason && reason.trim().length > 0 ? reason : 'LLM providers disabled by environment';
+  throw new Error(`unverified_by_trace(synthesis_unavailable): ${detail}`);
+}
+
 export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
   provider: LibrarianLlmProvider;
   modelId: string;
 }> {
+  const availability = resolveSynthesisAvailability();
+  if (availability.synthesisMode === 'structural-only') {
+    throwSynthesisUnavailable(availability.synthesisUnavailableReason);
+  }
   const discoveryErrors: string[] = [];
   const envConfig = resolveLibrarianModelConfig();
   if (envConfig.provider && envConfig.modelId) {

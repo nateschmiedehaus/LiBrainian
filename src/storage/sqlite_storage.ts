@@ -645,6 +645,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.db.pragma('busy_timeout = 5000');
 
         await applyMigrations(this.db, this.workspaceRoot);
+        this.ensureBootstrapHistoryColumns();
         this.ensureEmbeddingColumns();
         this.ensureGraphTables();
         this.ensureTemporalTables();
@@ -1000,6 +1001,17 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       this.db
         .prepare('ALTER TABLE librarian_embeddings ADD COLUMN token_count INTEGER NOT NULL DEFAULT 0')
         .run();
+    }
+  }
+
+  private ensureBootstrapHistoryColumns(): void {
+    if (!this.db) return;
+    const columns = this.db
+      .prepare('PRAGMA table_info(librarian_bootstrap_history)')
+      .all() as { name: string }[];
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('synthesis')) {
+      this.db.prepare('ALTER TABLE librarian_bootstrap_history ADD COLUMN synthesis TEXT').run();
     }
   }
 
@@ -5342,8 +5354,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     db.prepare(`
       INSERT INTO librarian_bootstrap_history (
         id, workspace, started_at, completed_at, phases, total_files,
-        total_functions, total_context_packs, version_string, success, error
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_functions, total_context_packs, version_string, success, error, synthesis
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       randomUUID(),
       report.workspace,
@@ -5355,7 +5367,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       report.totalContextPacksCreated,
       report.version.string,
       report.success ? 1 : 0,
-      report.error || null
+      report.error || null,
+      report.synthesis ? JSON.stringify(report.synthesis) : null
     );
   }
 
@@ -8360,6 +8373,7 @@ interface BootstrapHistoryRow {
   version_string: string;
   success: number;
   error: string | null;
+  synthesis: string | null;
 }
 
 interface TestMappingRow {
@@ -8739,7 +8753,15 @@ function rowToBootstrapReport(row: BootstrapHistoryRow): BootstrapReport {
     version: parseVersionString(row.version_string),
     success: row.success === 1,
     error: row.error || undefined,
+    synthesis: parseBootstrapSynthesis(row.synthesis),
   };
+}
+
+function parseBootstrapSynthesis(serialized: string | null): BootstrapReport['synthesis'] {
+  if (!serialized) return undefined;
+  const parsed = safeJsonParse<BootstrapReport['synthesis']>(serialized);
+  if (!parsed.ok) return undefined;
+  return parsed.value ?? undefined;
 }
 
 function parseVersionString(versionString: string): LiBrainianVersion {
