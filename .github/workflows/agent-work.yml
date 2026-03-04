@@ -1903,15 +1903,26 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
+          echo "push_failed=false" >> "$GITHUB_OUTPUT"
 
           # Re-authenticate git — claude-code-action may revoke its token on completion.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
           # Push branch — use force-with-lease to preserve prior work while allowing
           # history rewrite if needed, fall back to regular push for continuation
-          git push -u origin "$BRANCH" --force-with-lease 2>/dev/null || \
+          set +e
+          PUSH_OUTPUT=$( (git push -u origin "$BRANCH" --force-with-lease 2>/dev/null || \
             git push -u origin "$BRANCH" 2>/dev/null || \
-            git push -u origin "$BRANCH" --force
+            git push -u origin "$BRANCH" --force) 2>&1 )
+          PUSH_EXIT=$?
+          set -e
+          if [ "$PUSH_EXIT" -ne 0 ]; then
+            echo "::warning::Branch push failed; skipping PR creation this run."
+            echo "$PUSH_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            echo "push_failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           # Create PR if one doesn't exist
           EXISTING_PR=$(gh pr list -R "$REPO" --head "$BRANCH" --json number --jq '.[0].number // empty')
@@ -1984,6 +1995,7 @@ jobs:
           PR=${{ steps.create-pr.outputs.pr_number }}
           WORKER_OUTCOME=${{ steps.worker.outputs.outcome || 'unknown' }}
           PROVIDER_USED=${{ steps.worker.outputs.provider_used || 'unknown' }}
+          PUSH_FAILED=${{ steps.create-pr.outputs.push_failed || 'false' }}
           GATE_OUTCOME=${{ steps.gates.outcome || 'unknown' }}
           EVIDENCE_FOUND=${{ steps.evidence.outputs.found || 'false' }}
           EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
@@ -2089,6 +2101,32 @@ jobs:
               echo "- **Next:** Awaiting independent verification"
               echo ""
               echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"submitted\",\"meta_eval\":\"on_track\",\"managerial_fix\":\"none\",\"next_action\":\"verify\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+          elif [ "$PUSH_FAILED" = "true" ]; then
+            echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=scm_push_failure" >> "$GITHUB_OUTPUT"
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --add-label "agent:actionable" \
+              --add-label "triage/ready" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" || true
+            {
+              echo "**Agent Work Loop** — branch push/PR creation failure."
+              echo ""
+              echo "- **Provider attempted:** $PROVIDER_USED"
+              echo "- **Worker outcome:** $WORKER_OUTCOME"
+              echo "- **Push status:** failed"
+              echo ""
+              echo "Action needed:"
+              echo "1. Check repository permissions/protection and branch push access."
+              echo "2. Keep issue actionable for retry once SCM path is healthy."
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
