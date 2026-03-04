@@ -614,6 +614,57 @@ describe('runProviderReadinessGate', () => {
     expect(claude?.available).toBe(false);
     expect(claude?.error).toContain('claude down');
     expect(result.selectedProvider).toBe('codex');
+    expect(result.degradation).toMatchObject({
+      status: 'degraded',
+      activeProvider: 'codex',
+    });
+    expect(result.degradation?.reason).toContain('claude_unavailable');
+  });
+
+  it('does not emit degraded status when the primary provider is healthy', async () => {
+    const previousProvider = process.env.LIBRARIAN_LLM_PROVIDER;
+    process.env.LIBRARIAN_LLM_PROVIDER = 'claude';
+    const authChecker = {
+      checkAll: async () => buildAuthStatus(),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const llmService = buildAdapter({
+      checkClaudeHealth: vi.fn(async () => ({
+        provider: 'claude',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      })),
+      checkCodexHealth: vi.fn(async () => ({
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      })),
+    });
+
+    try {
+      const result = await runProviderReadinessGate('/tmp', {
+        authChecker,
+        llmService,
+        embeddingHealthCheck: async () => ({
+          provider: 'xenova',
+          available: true,
+          lastCheck: Date.now(),
+        }),
+        emitReport: false,
+      });
+
+      expect(result.selectedProvider).toBe('claude');
+      expect(result.degradation).toBeNull();
+    } finally {
+      if (typeof previousProvider === 'string') {
+        process.env.LIBRARIAN_LLM_PROVIDER = previousProvider;
+      } else {
+        delete process.env.LIBRARIAN_LLM_PROVIDER;
+      }
+    }
   });
 
   it('supports concurrent gate runs with shared registry', async () => {

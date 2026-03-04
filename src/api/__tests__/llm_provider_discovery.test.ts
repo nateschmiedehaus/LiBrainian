@@ -21,6 +21,7 @@ import {
   llmProviderRegistry,
   discoverLlmProvider,
   getAllProviderStatus,
+  normalizeModelIdForProvider,
   type LlmProviderProbe,
 } from '../llm_provider_discovery.js';
 import { execa } from 'execa';
@@ -77,6 +78,12 @@ function restoreEnv(snapshot: NodeJS.ProcessEnv) {
     }
   }
   Object.assign(process.env, snapshot);
+}
+
+function clearCodexHostEnv(): void {
+  delete process.env.CODEX_HOME;
+  delete process.env.CODEX_PROFILE;
+  delete process.env.CODEX_MODEL;
 }
 
 beforeEach(() => {
@@ -180,6 +187,7 @@ describe('llm provider discovery', () => {
   });
 
   it('prefers claude during nested Claude Code sessions (env stripping makes CLI work)', async () => {
+    clearCodexHostEnv();
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
 
     const claudeProbe: LlmProviderProbe = {
@@ -219,6 +227,7 @@ describe('llm provider discovery', () => {
   });
 
   it('prefers claude during nested Claude Code sessions when ANTHROPIC_API_KEY is configured', async () => {
+    clearCodexHostEnv();
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
 
@@ -258,6 +267,7 @@ describe('llm provider discovery', () => {
   });
 
   it('prefers claude during nested Claude Code sessions when Claude broker is configured', async () => {
+    clearCodexHostEnv();
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
 
@@ -606,5 +616,24 @@ describe('llm provider discovery', () => {
     const status = await claudeCliProbe.probe();
     expect(status.available).toBe(false);
     expect(status.error).toContain('cli_hash_too_large');
+  });
+
+  describe('normalizeModelIdForProvider', () => {
+    it('maps claude-style model IDs to codex defaults when falling back', () => {
+      const normalized = normalizeModelIdForProvider('codex', 'claude-sonnet-4-5-20241022');
+      expect(normalized).toMatchObject({
+        modelId: 'gpt-5-codex',
+        normalizedFrom: 'claude-sonnet-4-5-20241022',
+        reason: 'alias',
+      });
+    });
+
+    it('validates mismatched claude provider model IDs', () => {
+      const normalized = normalizeModelIdForProvider('claude', 'gpt-5-codex');
+      expect(normalized).toMatchObject({
+        modelId: 'claude-sonnet-4-5-20241022',
+        reason: 'invalid',
+      });
+    });
   });
 });

@@ -41,6 +41,54 @@ export interface DiscoveredProvider {
   status: LlmProviderProbeResult;
 }
 
+const PROVIDER_MODEL_RULES: Record<
+  LibrarianLlmProvider,
+  {
+    defaultModel: string;
+    patterns: RegExp[];
+    aliases?: Record<string, string>;
+  }
+> = {
+  claude: {
+    defaultModel: 'claude-sonnet-4-5-20241022',
+    patterns: [/^claude/i, /^sonnet/i, /^opus/i, /^haiku/i, /^anthropic:/i],
+  },
+  codex: {
+    defaultModel: 'gpt-5-codex',
+    patterns: [/^gpt-/i, /^o[1-9]/i, /^codex/i, /^openai:/i],
+    aliases: {
+      'claude-sonnet-4-5-20241022': 'gpt-5-codex',
+    },
+  },
+};
+
+export function normalizeModelIdForProvider(
+  provider: LibrarianLlmProvider,
+  modelId?: string | null
+): { modelId: string; normalizedFrom?: string; reason?: 'empty' | 'alias' | 'invalid' } {
+  const rules = PROVIDER_MODEL_RULES[provider];
+  const trimmed = modelId?.trim();
+  if (!rules) {
+    return { modelId: trimmed || 'unknown', normalizedFrom: trimmed || undefined, reason: trimmed ? undefined : 'empty' };
+  }
+
+  if (!trimmed) {
+    return { modelId: rules.defaultModel, reason: 'empty' };
+  }
+
+  const lowered = trimmed.toLowerCase();
+  const aliasTarget = rules.aliases?.[lowered];
+  if (aliasTarget) {
+    return { modelId: aliasTarget, normalizedFrom: trimmed, reason: 'alias' };
+  }
+
+  if (rules.patterns.some((pattern) => pattern.test(trimmed))) {
+    return { modelId: trimmed };
+  }
+
+  return { modelId: rules.defaultModel, normalizedFrom: trimmed, reason: 'invalid' };
+}
+
 function hasTruthyEnvValue(value: string | undefined): boolean {
   if (!value) return false;
   const normalized = value.trim().toLowerCase();
@@ -963,9 +1011,14 @@ export class LlmProviderRegistry {
     if (!selected) return null;
     const status = results.get(selected.descriptor.id);
     if (!status) return null;
+    const providerId = selected.descriptor.id;
+    const normalizedModel =
+      providerId === 'claude' || providerId === 'codex'
+        ? normalizeModelIdForProvider(providerId, selected.descriptor.defaultModel).modelId
+        : selected.descriptor.defaultModel;
     return {
-      provider: selected.descriptor.id,
-      modelId: selected.descriptor.defaultModel,
+      provider: providerId,
+      modelId: normalizedModel,
       descriptor: selected.descriptor,
       status,
     };

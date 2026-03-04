@@ -104,6 +104,13 @@ export interface ProviderGateResult {
     reason: string;
   } | null;
   reportPath?: string;
+  degradation?: ProviderDegradationStatus | null;
+}
+
+export interface ProviderDegradationStatus {
+  status: 'degraded';
+  activeProvider: ProviderName;
+  reason: string;
 }
 
 export type ProviderGateRunner = (workspaceRoot: string) => Promise<ProviderGateResult>;
@@ -385,6 +392,21 @@ export async function runProviderReadinessGate(
     remediationSteps.push(`Auto-repaired provider selection: ${autoRepair.from} -> ${autoRepair.to}.`);
   }
 
+  let degradation: ProviderDegradationStatus | null = null;
+  if (!networkDisabled && selectedProvider) {
+    const primary = fallbackChain[0] ?? null;
+    if (primary && selectedProvider !== primary) {
+      const primaryStatus = providers.find((entry) => entry.provider === primary);
+      const fallbackReason = primaryStatus?.error
+        ?? (!primaryStatus?.authenticated ? 'unauthenticated' : !primaryStatus?.available ? 'unavailable' : 'unknown');
+      degradation = {
+        status: 'degraded',
+        activeProvider: selectedProvider,
+        reason: `${primary}_unavailable:${toSingleLineText(fallbackReason ?? 'unknown')}`,
+      };
+    }
+  }
+
   const llmReady = networkDisabled ? false : selectedProvider !== null;
   const rawEmbedding = await embeddingHealthCheck();
   const embedding: EmbeddingGateStatus = {
@@ -428,6 +450,7 @@ export async function runProviderReadinessGate(
     fallbackChain,
     lastSuccessfulProvider,
     autoRepair,
+    degradation,
   };
   if (emitReport) {
     const report = await createProviderStatusReport(workspaceRoot, result, {
@@ -487,6 +510,7 @@ async function appendProviderGateEvidence(
       embedding: options.result.embedding,
       reason: options.result.reason ?? null,
       bypassed: options.result.bypassed,
+      degradation: options.result.degradation ?? null,
     };
     const inputHash = createHash('sha256')
       .update(JSON.stringify({ input, output }))

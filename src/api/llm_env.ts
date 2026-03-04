@@ -2,6 +2,7 @@ import {
   discoverLlmProvider,
   getAllProviderStatus,
   llmProviderRegistry,
+  normalizeModelIdForProvider,
   type LibrarianLlmProvider,
 } from './llm_provider_discovery.js';
 
@@ -45,21 +46,17 @@ export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
 }> {
   const discoveryErrors: string[] = [];
   const envConfig = resolveLibrarianModelConfig();
-  if (envConfig.provider && envConfig.modelId) {
-    return { provider: envConfig.provider, modelId: envConfig.modelId };
-  }
-  if (envConfig.provider && !envConfig.modelId) {
-    const probe = llmProviderRegistry.getProbe(envConfig.provider);
-    if (probe) {
-      return { provider: envConfig.provider, modelId: probe.descriptor.defaultModel };
-    }
+  if (envConfig.provider) {
+    const normalized = normalizeModelIdForProvider(envConfig.provider, envConfig.modelId);
+    return { provider: envConfig.provider, modelId: normalized.modelId };
   }
 
   try {
     const discovered = await discoverLlmProvider();
     if (discovered) {
       if (discovered.provider === 'claude' || discovered.provider === 'codex') {
-        return { provider: discovered.provider, modelId: discovered.modelId };
+        const normalized = normalizeModelIdForProvider(discovered.provider, discovered.modelId);
+        return { provider: discovered.provider, modelId: normalized.modelId };
       }
     }
   } catch (error) {

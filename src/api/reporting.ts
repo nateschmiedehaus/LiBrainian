@@ -1,7 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { computeCanonRef, computeEnvironmentRef } from '../spine/refs.js';
-import type { ProviderGateResult, ProviderGateStatus, EmbeddingGateStatus } from './provider_gate.js';
+import type {
+  ProviderGateResult,
+  ProviderGateStatus,
+  EmbeddingGateStatus,
+  ProviderDegradationStatus,
+} from './provider_gate.js';
 import type { GovernorBudgetReportV1 } from './governors.js';
 import type { GuessViolation } from '../analysis/guess_detector.js';
 import { TAXONOMY_ITEMS, type TaxonomyItem, type TaxonomySource } from './taxonomy.js';
@@ -15,7 +20,28 @@ import { createSymbolStorage } from '../storage/symbol_storage.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { logWarning } from '../telemetry/logger.js';
 export type ProviderName = 'claude' | 'codex';
-export interface ProviderStatusReportV1 { kind: 'ProviderStatusReport.v1'; schema_version: 1; created_at: string; canon: Awaited<ReturnType<typeof computeCanonRef>>; environment: ReturnType<typeof computeEnvironmentRef>; workspace: string; ready: boolean; reason?: string; providers: ProviderGateStatus[]; embedding?: EmbeddingGateStatus; llm_ready?: boolean; embedding_ready?: boolean; remediation_steps: string[]; fallback_chain: ProviderName[]; selected_provider: ProviderName | null; last_successful_provider: ProviderName | null; bypassed: boolean; guidance?: string[]; trace_refs: string[]; }
+export interface ProviderStatusReportV1 {
+  kind: 'ProviderStatusReport.v1';
+  schema_version: 1;
+  created_at: string;
+  canon: Awaited<ReturnType<typeof computeCanonRef>>;
+  environment: ReturnType<typeof computeEnvironmentRef>;
+  workspace: string;
+  ready: boolean;
+  reason?: string;
+  providers: ProviderGateStatus[];
+  embedding?: EmbeddingGateStatus;
+  llm_ready?: boolean;
+  embedding_ready?: boolean;
+  remediation_steps: string[];
+  fallback_chain: ProviderName[];
+  selected_provider: ProviderName | null;
+  last_successful_provider: ProviderName | null;
+  bypassed: boolean;
+  guidance?: string[];
+  trace_refs: string[];
+  degradation_status?: ProviderDegradationStatus | null;
+}
 export interface LibrarianRunReportV1 { kind: 'LibrarianRunReport.v1'; schema_version: 1; run_id: string; started_at: string; completed_at: string; outcome: 'success' | 'failure'; files_processed: number; functions_indexed: number; packs_created: number; governor_budget_used: number; governor_budget_limit: number; errors: Array<{ file: string; error: string }>; trace_refs: string[]; }
 export interface KnowledgeCoverageReportV1 { kind: 'KnowledgeCoverageReport.v1'; schema_version: 1; created_at: string; workspace: string; items_covered: number; items_by_source: Record<TaxonomySource, number>; coverage_percentage: number; gaps: TaxonomyItem[]; trace_refs: string[]; }
 export interface TrajectoryAnalysisReportV1 { kind: 'TrajectoryAnalysisReport.v1'; schema_version: 1; created_at: string; workspace: string; task_id: string; violations: GuessViolation[]; recommendations: string[]; trace_refs: string[]; }
@@ -64,6 +90,7 @@ export async function createProviderStatusReport(
     bypassed: result.bypassed,
     guidance: result.guidance,
     trace_refs: extra.traceRefs ?? [],
+    degradation_status: result.degradation ?? null,
   };
 }
 export async function writeProviderStatusReport(workspaceRoot: string, report: ProviderStatusReportV1): Promise<string> {
