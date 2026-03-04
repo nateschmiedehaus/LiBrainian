@@ -153,6 +153,27 @@ const EVIDENCE_FUZZY_MAX_DISTANCE_RATIO = 0.05;
 const EVIDENCE_MIN_FUZZY_LINES = 3;
 const PROCESS_STARTED_AT_ISO = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
 
+const WORKSPACE_RELATIVE_COLUMNS: ReadonlyArray<{ table: string; column: string }> = [
+  { table: 'librarian_functions', column: 'file_path' },
+  { table: 'librarian_modules', column: 'path' },
+  { table: 'librarian_files', column: 'path' },
+  { table: 'librarian_files', column: 'relative_path' },
+  { table: 'librarian_files', column: 'directory' },
+  { table: 'librarian_directories', column: 'path' },
+  { table: 'librarian_directories', column: 'relative_path' },
+  { table: 'librarian_directories', column: 'parent' },
+  { table: 'librarian_file_checksums', column: 'file_path' },
+  { table: 'librarian_graph_edges', column: 'source_file' },
+  { table: 'librarian_test_mapping', column: 'test_path' },
+  { table: 'librarian_test_mapping', column: 'source_path' },
+  { table: 'librarian_ownership', column: 'file_path' },
+  { table: 'librarian_assessments', column: 'entity_path' },
+  { table: 'librarian_blame_entries', column: 'file_path' },
+  { table: 'librarian_diff_records', column: 'file_path' },
+  { table: 'librarian_evidence', column: 'file_path' },
+  { table: 'librarian_universal_knowledge', column: 'file' },
+];
+
 interface StoredEvidenceRow {
   claim_id: string;
   entity_id: string;
@@ -361,6 +382,26 @@ function maybeRebaseLegacyPathReference(value: string, legacyWorkspaceRoot: stri
     return normalized;
   }
   return `${prefix}${suffix}`;
+}
+
+function toWorkspaceRelativePath(value: string, workspaceRoot?: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return '';
+  const normalized = normalizeSqlPath(trimmed).replace(/^\.\/+/, '');
+  if (!workspaceRoot) {
+    return normalized;
+  }
+  return maybeRebaseLegacyPathReference(normalized, workspaceRoot).replace(/^\.\/+/, '');
+}
+
+function toWorkspaceAbsolutePath(value: string, workspaceRoot?: string): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return '';
+  const normalized = normalizeSqlPath(trimmed);
+  if (!workspaceRoot || isAbsolutePathLike(normalized)) {
+    return normalized;
+  }
+  return normalizeSqlPath(path.resolve(workspaceRoot, normalized));
 }
 
 function normalizeFilterPathPrefix(prefix: string | undefined, workspaceRoot?: string): string[] {
@@ -665,6 +706,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.ensureStrategicContractTable();
         this.ensureAdvancedAnalysisTables();
         this.ensureAdvancedLibraryFeaturesTables();
+        this.normalizeStoredPaths();
         this.rebindWorkspacePathsIfNeeded();
 
         this.initialized = true;
@@ -911,9 +953,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           if (changed) {
             update.run(nextTargetId, nextPackId, nextRelated, nextSnippets, nextTriggers, row.rowid);
             contextPackUpdates += 1;
-          }
-        }
       }
+    }
+  }
+
 
       const watchStateRow = db
         .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
@@ -972,6 +1015,117 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       bootstrapWorkspaceRows,
       parseWarnings,
     });
+  }
+
+  private normalizeStoredPaths(): void {
+    if (!this.db || !this.workspaceRoot) return;
+    const db = this.db;
+    const normalizeColumns = db.transaction(() => {
+      for (const { table, column } of WORKSPACE_RELATIVE_COLUMNS) {
+        if (!this.hasTable(table)) continue;
+        const tableId = quoteIdentifier(table);
+        const columnId = quoteIdentifier(column);
+        const rows = db
+          .prepare(`SELECT rowid as rowid, ${columnId} as value FROM ${tableId}`)
+          .all() as Array<{ rowid: number; value: unknown }>;
+        const update = db.prepare(`UPDATE ${tableId} SET ${columnId} = ? WHERE rowid = ?`);
+        for (const row of rows) {
+          if (typeof row.value !== 'string' || row.value.length === 0) continue;
+          const normalized = this.normalizeStoredPath(row.value);
+          if (normalized !== row.value) {
+            update.run(normalized, row.rowid);
+          }
+        }
+      }
+    });
+    normalizeColumns();
+    this.normalizeContextPackPathColumns();
+    this.normalizeCommitFileColumns();
+  }
+
+  private normalizeContextPackPathColumns(): void {
+    if (!this.db || !this.workspaceRoot || !this.hasTable('librarian_context_packs')) return;
+    const db = this.db;
+    const rows = db
+      .prepare('SELECT rowid, related_files, code_snippets, invalidation_triggers FROM librarian_context_packs')
+      .all() as Array<{
+        rowid: number;
+        related_files: string;
+        code_snippets: string;
+        invalidation_triggers: string;
+      }>;
+    const update = db.prepare(
+      'UPDATE librarian_context_packs SET related_files = ?, code_snippets = ?, invalidation_triggers = ? WHERE rowid = ?'
+    );
+    for (const row of rows) {
+      let nextRelated = row.related_files;
+      let nextSnippets = row.code_snippets;
+      let nextTriggers = row.invalidation_triggers;
+      let changed = false;
+
+      const related = parseJsonOrNull<unknown[]>(row.related_files);
+      if (Array.isArray(related)) {
+        const normalized = related.map((value) =>
+          typeof value === 'string' ? this.normalizeStoredPath(value) : value
+        );
+        const serialized = JSON.stringify(normalized);
+        if (serialized !== row.related_files) {
+          nextRelated = serialized;
+          changed = true;
+        }
+      }
+
+      const snippets = parseJsonOrNull<unknown[]>(row.code_snippets);
+      if (Array.isArray(snippets)) {
+        const normalized = snippets.map((snippet) => {
+          if (!snippet || typeof snippet !== 'object') return snippet;
+          const record = snippet as Record<string, unknown>;
+          if (typeof record.filePath !== 'string') return snippet;
+          const nextPath = this.normalizeStoredPath(record.filePath);
+          if (nextPath === record.filePath) return snippet;
+          return { ...record, filePath: nextPath };
+        });
+        const serialized = JSON.stringify(normalized);
+        if (serialized !== row.code_snippets) {
+          nextSnippets = serialized;
+          changed = true;
+        }
+      }
+
+      const triggers = parseJsonOrNull<unknown[]>(row.invalidation_triggers);
+      if (Array.isArray(triggers)) {
+        const normalized = triggers.map((value) =>
+          typeof value === 'string' ? this.normalizeStoredPath(value) : value
+        );
+        const serialized = JSON.stringify(normalized);
+        if (serialized !== row.invalidation_triggers) {
+          nextTriggers = serialized;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        update.run(nextRelated, nextSnippets, nextTriggers, row.rowid);
+      }
+    }
+  }
+
+  private normalizeCommitFileColumns(): void {
+    if (!this.db || !this.workspaceRoot || !this.hasTable('librarian_commits')) return;
+    const db = this.db;
+    const rows = db
+      .prepare('SELECT rowid, files_changed FROM librarian_commits')
+      .all() as Array<{ rowid: number; files_changed: string }>;
+    const update = db.prepare('UPDATE librarian_commits SET files_changed = ? WHERE rowid = ?');
+    for (const row of rows) {
+      const parsed = parseJsonOrNull<string[]>(row.files_changed);
+      if (!Array.isArray(parsed)) continue;
+      const normalized = parsed.map((file) => this.normalizeStoredPath(file));
+      const serialized = JSON.stringify(normalized);
+      if (serialized !== row.files_changed) {
+        update.run(serialized, row.rowid);
+      }
+    }
   }
 
   private ensureEmbeddingColumns(): void {
@@ -1702,6 +1856,64 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     return { value: result.text, counts: result.counts };
   }
 
+  private normalizeStoredPath(value: string): string {
+    if (typeof value !== 'string' || value.trim().length === 0) return '';
+    return toWorkspaceRelativePath(value, this.workspaceRoot);
+  }
+
+  private resolveWorkspaceAbsolutePath(value: string): string {
+    return toWorkspaceAbsolutePath(value, this.workspaceRoot);
+  }
+
+  private sanitizeFilePath(value: string): { value: string; counts: RedactionCounts } {
+    const result = this.sanitizeString(value);
+    return {
+      value: this.normalizeStoredPath(result.value),
+      counts: result.counts,
+    };
+  }
+
+  private sanitizeFilePathArray(values: string[]): { values: string[]; counts: RedactionCounts } {
+    let counts = createEmptyRedactionCounts();
+    const normalized = values.map((value) => {
+      const result = this.sanitizeFilePath(value);
+      counts = mergeRedactionCounts(counts, result.counts);
+      return result.value;
+    });
+    return { values: normalized, counts };
+  }
+
+  private normalizeFilePathArray(values: string[]): string[] {
+    return values.map((value) => this.normalizeStoredPath(value));
+  }
+
+  private normalizeFileKnowledgeForStorage(file: FileKnowledge): FileKnowledge {
+    return {
+      ...file,
+      path: this.normalizeStoredPath(file.path),
+      relativePath: this.normalizeStoredPath(file.relativePath || file.path),
+      directory: this.normalizeStoredPath(file.directory),
+      imports: this.normalizeFilePathArray(file.imports),
+      importedBy: this.normalizeFilePathArray(file.importedBy),
+    };
+  }
+
+  private normalizeDirectoryForStorage(dir: DirectoryKnowledge): DirectoryKnowledge {
+    return {
+      ...dir,
+      path: this.normalizeStoredPath(dir.path),
+      relativePath: this.normalizeStoredPath(dir.relativePath || dir.path),
+      parent: dir.parent ? this.normalizeStoredPath(dir.parent) : null,
+    };
+  }
+
+  private normalizeUniversalKnowledgeRecord(record: UniversalKnowledgeRecord): UniversalKnowledgeRecord {
+    return {
+      ...record,
+      file: this.normalizeStoredPath(record.file),
+    };
+  }
+
   private sanitizeStringArray(values: string[]): { values: string[]; counts: RedactionCounts } {
     let counts = createEmptyRedactionCounts();
     const sanitized = values.map((value) => {
@@ -1713,7 +1925,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private sanitizeSnippet(snippet: CodeSnippet): { snippet: CodeSnippet; counts: RedactionCounts } {
-    const filePathResult = this.sanitizeString(snippet.filePath);
+    const filePathResult = this.sanitizeFilePath(snippet.filePath);
     const languageResult = this.sanitizeString(snippet.language);
     const contentResult = redactText(snippet.content);
     const minimized = minimizeSnippet(contentResult.text);
@@ -1734,7 +1946,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = createEmptyRedactionCounts();
     const idResult = this.sanitizeString(fn.id);
     counts = mergeRedactionCounts(counts, idResult.counts);
-    const filePathResult = this.sanitizeString(fn.filePath);
+    const filePathResult = this.sanitizeFilePath(fn.filePath);
     counts = mergeRedactionCounts(counts, filePathResult.counts);
     const nameResult = this.sanitizeString(fn.name);
     counts = mergeRedactionCounts(counts, nameResult.counts);
@@ -1764,7 +1976,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = createEmptyRedactionCounts();
     const idResult = this.sanitizeString(mod.id);
     counts = mergeRedactionCounts(counts, idResult.counts);
-    const pathResult = this.sanitizeString(mod.path);
+    const pathResult = this.sanitizeFilePath(mod.path);
     counts = mergeRedactionCounts(counts, pathResult.counts);
     const purposeResult = this.sanitizeString(mod.purpose);
     counts = mergeRedactionCounts(counts, purposeResult.counts);
@@ -1787,20 +1999,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private normalizeContextPackPath(rawPath: string): string {
-    const trimmed = rawPath.trim();
-    if (!trimmed) return trimmed;
-    const normalized = normalizeSqlPath(trimmed);
-    if (!this.workspaceRoot) {
-      return normalized;
-    }
-    const absolute = path.isAbsolute(normalized)
-      ? path.resolve(normalized)
-      : path.resolve(this.workspaceRoot, normalized);
-    const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute));
-    if (relative && relative !== '.' && !relative.startsWith('..')) {
-      return relative;
-    }
-    return normalizeSqlPath(absolute);
+    return this.normalizeStoredPath(rawPath);
   }
 
   private normalizeContextPack(pack: ContextPack): ContextPack {
@@ -2008,7 +2207,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(sql).all(...params) as FunctionRow[];
-    return rows.map(rowToFunction);
+    return rows.map((row) => rowToFunction(row, this.workspaceRoot));
   }
 
   async getFunction(id: string): Promise<FunctionKnowledge | null> {
@@ -2016,7 +2215,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const row = db
       .prepare('SELECT * FROM librarian_functions WHERE id = ?')
       .get(id) as FunctionRow | undefined;
-    return row ? rowToFunction(row) : null;
+    return row ? rowToFunction(row, this.workspaceRoot) : null;
   }
 
   async getFunctionByPath(
@@ -2024,18 +2223,20 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     name: string
   ): Promise<FunctionKnowledge | null> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(filePath);
     const row = db
       .prepare('SELECT * FROM librarian_functions WHERE file_path = ? AND name = ?')
-      .get(filePath, name) as FunctionRow | undefined;
-    return row ? rowToFunction(row) : null;
+      .get(normalizedPath, name) as FunctionRow | undefined;
+    return row ? rowToFunction(row, this.workspaceRoot) : null;
   }
 
   async getFunctionsByPath(filePath: string): Promise<FunctionKnowledge[]> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(filePath);
     const rows = db
       .prepare('SELECT * FROM librarian_functions WHERE file_path = ?')
-      .all(filePath) as FunctionRow[];
-    return rows.map(rowToFunction);
+      .all(normalizedPath) as FunctionRow[];
+    return rows.map((row) => rowToFunction(row, this.workspaceRoot));
   }
 
   async getFunctionsByName(name: string): Promise<FunctionKnowledge[]> {
@@ -2043,7 +2244,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const rows = db
       .prepare('SELECT * FROM librarian_functions WHERE name = ?')
       .all(name) as FunctionRow[];
-    return rows.map(rowToFunction);
+    return rows.map((row) => rowToFunction(row, this.workspaceRoot));
   }
 
   async upsertFunction(fn: FunctionKnowledge): Promise<void> {
@@ -2177,15 +2378,16 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFunctionsByPath(filePath: string): Promise<void> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(filePath);
     const ids = db
       .prepare('SELECT id FROM librarian_functions WHERE file_path = ?')
-      .all(filePath) as { id: string }[];
+      .all(normalizedPath) as { id: string }[];
 
     const deleteFn = db.prepare('DELETE FROM librarian_functions WHERE file_path = ?');
     const deleteEmbed = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
 
     db.transaction(() => {
-      deleteFn.run(filePath);
+      deleteFn.run(normalizedPath);
       for (const { id } of ids) {
         deleteEmbed.run(id);
       }
@@ -2212,7 +2414,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(sql).all(...params) as ModuleRow[];
-    return rows.map(rowToModule);
+    return rows.map((row) => rowToModule(row, this.workspaceRoot));
   }
 
   async getModule(id: string): Promise<ModuleKnowledge | null> {
@@ -2220,15 +2422,16 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const row = db
       .prepare('SELECT * FROM librarian_modules WHERE id = ?')
       .get(id) as ModuleRow | undefined;
-    return row ? rowToModule(row) : null;
+    return row ? rowToModule(row, this.workspaceRoot) : null;
   }
 
   async getModuleByPath(modulePath: string): Promise<ModuleKnowledge | null> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(modulePath);
     const row = db
       .prepare('SELECT * FROM librarian_modules WHERE path = ?')
-      .get(modulePath) as ModuleRow | undefined;
-    return row ? rowToModule(row) : null;
+      .get(normalizedPath) as ModuleRow | undefined;
+    return row ? rowToModule(row, this.workspaceRoot) : null;
   }
 
   async upsertModule(mod: ModuleKnowledge): Promise<void> {
@@ -2335,22 +2538,25 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFileByPath(path: string): Promise<FileKnowledge | null> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(path);
     const row = db
       .prepare('SELECT * FROM librarian_files WHERE path = ?')
-      .get(path) as FileKnowledgeRow | undefined;
+      .get(normalizedPath) as FileKnowledgeRow | undefined;
     return row ? this.rowToFileKnowledge(row) : null;
   }
 
   async getFilesByDirectory(directoryPath: string): Promise<FileKnowledge[]> {
     const db = this.ensureDb();
+    const normalizedDirectory = this.normalizeStoredPath(directoryPath);
     const rows = db
       .prepare('SELECT * FROM librarian_files WHERE directory = ?')
-      .all(directoryPath) as FileKnowledgeRow[];
+      .all(normalizedDirectory) as FileKnowledgeRow[];
     return rows.map(this.rowToFileKnowledge.bind(this));
   }
 
   async upsertFile(file: FileKnowledge): Promise<void> {
     const db = this.ensureDb();
+    const normalized = this.normalizeFileKnowledgeForStorage(file);
     db.prepare(`
       INSERT INTO librarian_files (
         id, path, relative_path, name, extension, category, purpose, role,
@@ -2387,33 +2593,33 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         last_modified = excluded.last_modified,
         llm_evidence = excluded.llm_evidence
     `).run(
-      file.id,
-      file.path,
-      file.relativePath,
-      file.name,
-      file.extension,
-      file.category,
-      file.purpose,
-      file.role,
-      file.summary,
-      JSON.stringify(file.keyExports),
-      JSON.stringify(file.mainConcepts),
-      file.lineCount,
-      file.functionCount,
-      file.classCount,
-      file.importCount,
-      file.exportCount,
-      JSON.stringify(file.imports),
-      JSON.stringify(file.importedBy),
-      file.directory,
-      file.complexity,
-      file.testCoverage ?? null,
-      file.hasTests ? 1 : 0,
-      file.checksum,
-      file.confidence,
-      file.lastIndexed,
-      file.lastModified,
-      file.llmEvidence ? JSON.stringify(file.llmEvidence) : null
+      normalized.id,
+      normalized.path,
+      normalized.relativePath,
+      normalized.name,
+      normalized.extension,
+      normalized.category,
+      normalized.purpose,
+      normalized.role,
+      normalized.summary,
+      JSON.stringify(normalized.keyExports),
+      JSON.stringify(normalized.mainConcepts),
+      normalized.lineCount,
+      normalized.functionCount,
+      normalized.classCount,
+      normalized.importCount,
+      normalized.exportCount,
+      JSON.stringify(normalized.imports),
+      JSON.stringify(normalized.importedBy),
+      normalized.directory,
+      normalized.complexity,
+      normalized.testCoverage ?? null,
+      normalized.hasTests ? 1 : 0,
+      normalized.checksum,
+      normalized.confidence,
+      normalized.lastIndexed,
+      normalized.lastModified,
+      normalized.llmEvidence ? JSON.stringify(normalized.llmEvidence) : null
     );
   }
 
@@ -2458,34 +2664,35 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((files: FileKnowledge[]) => {
       for (const file of files) {
+        const normalized = this.normalizeFileKnowledgeForStorage(file);
         stmt.run(
-          file.id,
-          file.path,
-          file.relativePath,
-          file.name,
-          file.extension,
-          file.category,
-          file.purpose,
-          file.role,
-          file.summary,
-          JSON.stringify(file.keyExports),
-          JSON.stringify(file.mainConcepts),
-          file.lineCount,
-          file.functionCount,
-          file.classCount,
-          file.importCount,
-          file.exportCount,
-          JSON.stringify(file.imports),
-          JSON.stringify(file.importedBy),
-          file.directory,
-          file.complexity,
-          file.testCoverage ?? null,
-          file.hasTests ? 1 : 0,
-          file.checksum,
-          file.confidence,
-          file.lastIndexed,
-          file.lastModified,
-          file.llmEvidence ? JSON.stringify(file.llmEvidence) : null
+          normalized.id,
+          normalized.path,
+          normalized.relativePath,
+          normalized.name,
+          normalized.extension,
+          normalized.category,
+          normalized.purpose,
+          normalized.role,
+          normalized.summary,
+          JSON.stringify(normalized.keyExports),
+          JSON.stringify(normalized.mainConcepts),
+          normalized.lineCount,
+          normalized.functionCount,
+          normalized.classCount,
+          normalized.importCount,
+          normalized.exportCount,
+          JSON.stringify(normalized.imports),
+          JSON.stringify(normalized.importedBy),
+          normalized.directory,
+          normalized.complexity,
+          normalized.testCoverage ?? null,
+          normalized.hasTests ? 1 : 0,
+          normalized.checksum,
+          normalized.confidence,
+          normalized.lastIndexed,
+          normalized.lastModified,
+          normalized.llmEvidence ? JSON.stringify(normalized.llmEvidence) : null
         );
       }
     });
@@ -2499,15 +2706,15 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFileByPath(path: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_files WHERE path = ?').run(path);
+    db.prepare('DELETE FROM librarian_files WHERE path = ?').run(this.normalizeStoredPath(path));
   }
 
   private rowToFileKnowledge(row: FileKnowledgeRow): FileKnowledge {
     // Safely parse JSON arrays with null/undefined fallbacks
     const result: FileKnowledge = {
       id: row.id,
-      path: row.path,
-      relativePath: row.relative_path,
+      path: this.resolveWorkspaceAbsolutePath(row.path),
+      relativePath: row.relative_path || row.path,
       name: row.name,
       extension: row.extension,
       category: row.category as FileKnowledge['category'],
@@ -2523,7 +2730,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       exportCount: row.export_count,
       imports: parseStringArray(row.imports ?? '[]'),
       importedBy: parseStringArray(row.imported_by ?? '[]'),
-      directory: row.directory,
+      directory: this.resolveWorkspaceAbsolutePath(row.directory),
       complexity: row.complexity as FileKnowledge['complexity'],
       testCoverage: row.test_coverage ?? undefined,
       hasTests: row.has_tests === 1,
@@ -2560,7 +2767,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     if (options.parent) {
       sql += ' AND parent = ?';
-      params.push(options.parent);
+      params.push(this.normalizeStoredPath(options.parent));
     }
     if (options.minDepth !== undefined) {
       sql += ' AND depth >= ?';
@@ -2622,22 +2829,25 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getDirectoryByPath(path: string): Promise<DirectoryKnowledge | null> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(path);
     const row = db
       .prepare('SELECT * FROM librarian_directories WHERE path = ?')
-      .get(path) as DirectoryKnowledgeRow | undefined;
+      .get(normalizedPath) as DirectoryKnowledgeRow | undefined;
     return row ? this.rowToDirectoryKnowledge(row) : null;
   }
 
   async getSubdirectories(parentPath: string): Promise<DirectoryKnowledge[]> {
     const db = this.ensureDb();
+    const normalizedParent = this.normalizeStoredPath(parentPath);
     const rows = db
       .prepare('SELECT * FROM librarian_directories WHERE parent = ?')
-      .all(parentPath) as DirectoryKnowledgeRow[];
+      .all(normalizedParent) as DirectoryKnowledgeRow[];
     return rows.map(this.rowToDirectoryKnowledge.bind(this));
   }
 
   async upsertDirectory(dir: DirectoryKnowledge): Promise<void> {
     const db = this.ensureDb();
+    const normalized = this.normalizeDirectoryForStorage(dir);
     db.prepare(`
       INSERT INTO librarian_directories (
         id, path, relative_path, name, fingerprint, purpose, role, description,
@@ -2674,33 +2884,33 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         last_indexed = excluded.last_indexed,
         llm_evidence = excluded.llm_evidence
     `).run(
-      dir.id,
-      dir.path,
-      dir.relativePath,
-      dir.name,
-      dir.fingerprint,
-      dir.purpose,
-      dir.role,
-      dir.description,
-      dir.boundedContext ?? null,
-      dir.pattern,
-      dir.depth,
-      dir.fileCount,
-      dir.subdirectoryCount,
-      dir.totalFiles,
-      JSON.stringify(dir.mainFiles),
-      JSON.stringify(dir.subdirectories),
-      JSON.stringify(dir.fileTypes),
-      dir.parent,
-      JSON.stringify(dir.siblings),
-      JSON.stringify(dir.relatedDirectories),
-      dir.hasReadme ? 1 : 0,
-      dir.hasIndex ? 1 : 0,
-      dir.hasTests ? 1 : 0,
-      dir.complexity,
-      dir.confidence,
-      dir.lastIndexed,
-      dir.llmEvidence ? JSON.stringify(dir.llmEvidence) : null
+      normalized.id,
+      normalized.path,
+      normalized.relativePath,
+      normalized.name,
+      normalized.fingerprint,
+      normalized.purpose,
+      normalized.role,
+      normalized.description,
+      normalized.boundedContext ?? null,
+      normalized.pattern,
+      normalized.depth,
+      normalized.fileCount,
+      normalized.subdirectoryCount,
+      normalized.totalFiles,
+      JSON.stringify(normalized.mainFiles),
+      JSON.stringify(normalized.subdirectories),
+      JSON.stringify(normalized.fileTypes),
+      normalized.parent,
+      JSON.stringify(normalized.siblings),
+      JSON.stringify(normalized.relatedDirectories),
+      normalized.hasReadme ? 1 : 0,
+      normalized.hasIndex ? 1 : 0,
+      normalized.hasTests ? 1 : 0,
+      normalized.complexity,
+      normalized.confidence,
+      normalized.lastIndexed,
+      normalized.llmEvidence ? JSON.stringify(normalized.llmEvidence) : null
     );
   }
 
@@ -2745,34 +2955,35 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((dirs: DirectoryKnowledge[]) => {
       for (const dir of dirs) {
+        const normalized = this.normalizeDirectoryForStorage(dir);
         stmt.run(
-          dir.id,
-          dir.path,
-          dir.relativePath,
-          dir.name,
-          dir.fingerprint,
-          dir.purpose,
-          dir.role,
-          dir.description,
-          dir.boundedContext ?? null,
-          dir.pattern,
-          dir.depth,
-          dir.fileCount,
-          dir.subdirectoryCount,
-          dir.totalFiles,
-          JSON.stringify(dir.mainFiles),
-          JSON.stringify(dir.subdirectories),
-          JSON.stringify(dir.fileTypes),
-          dir.parent,
-          JSON.stringify(dir.siblings),
-          JSON.stringify(dir.relatedDirectories),
-          dir.hasReadme ? 1 : 0,
-          dir.hasIndex ? 1 : 0,
-          dir.hasTests ? 1 : 0,
-          dir.complexity,
-          dir.confidence,
-          dir.lastIndexed,
-          dir.llmEvidence ? JSON.stringify(dir.llmEvidence) : null
+          normalized.id,
+          normalized.path,
+          normalized.relativePath,
+          normalized.name,
+          normalized.fingerprint,
+          normalized.purpose,
+          normalized.role,
+          normalized.description,
+          normalized.boundedContext ?? null,
+          normalized.pattern,
+          normalized.depth,
+          normalized.fileCount,
+          normalized.subdirectoryCount,
+          normalized.totalFiles,
+          JSON.stringify(normalized.mainFiles),
+          JSON.stringify(normalized.subdirectories),
+          JSON.stringify(normalized.fileTypes),
+          normalized.parent,
+          JSON.stringify(normalized.siblings),
+          JSON.stringify(normalized.relatedDirectories),
+          normalized.hasReadme ? 1 : 0,
+          normalized.hasIndex ? 1 : 0,
+          normalized.hasTests ? 1 : 0,
+          normalized.complexity,
+          normalized.confidence,
+          normalized.lastIndexed,
+          normalized.llmEvidence ? JSON.stringify(normalized.llmEvidence) : null
         );
       }
     });
@@ -2786,7 +2997,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteDirectoryByPath(path: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_directories WHERE path = ?').run(path);
+    db.prepare('DELETE FROM librarian_directories WHERE path = ?').run(this.normalizeStoredPath(path));
   }
 
   private rowToDirectoryKnowledge(row: DirectoryKnowledgeRow): DirectoryKnowledge {
@@ -2812,8 +3023,8 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     // Safely parse all JSON arrays with null/undefined fallbacks
     const result: DirectoryKnowledge = {
       id: row.id,
-      path: row.path,
-      relativePath: row.relative_path,
+      path: this.resolveWorkspaceAbsolutePath(row.path),
+      relativePath: row.relative_path || row.path,
       name: row.name,
       fingerprint: row.fingerprint ?? '',
       purpose: row.purpose,
@@ -2828,7 +3039,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       mainFiles: parseStringArray(row.main_files ?? '[]'),
       subdirectories: parseStringArray(row.subdirectories ?? '[]'),
       fileTypes,
-      parent: row.parent,
+      parent: row.parent ? this.resolveWorkspaceAbsolutePath(row.parent) : null,
       siblings: parseStringArray(row.siblings ?? '[]'),
       relatedDirectories: parseStringArray(row.related_directories ?? '[]'),
       hasReadme: row.has_readme === 1,
@@ -2865,9 +3076,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getAssessmentByPath(entityPath: string): Promise<FlashAssessment | null> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(entityPath);
     const row = db
       .prepare('SELECT * FROM librarian_assessments WHERE entity_path = ?')
-      .get(entityPath) as AssessmentRow | undefined;
+      .get(normalizedPath) as AssessmentRow | undefined;
     return row ? this.rowToAssessment(row) : null;
   }
 
@@ -2917,6 +3129,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async upsertAssessment(assessment: FlashAssessment): Promise<void> {
     const db = this.ensureDb();
+    const normalizedPath = this.normalizeStoredPath(assessment.entityPath);
     db.prepare(`
       INSERT INTO librarian_assessments (
         entity_id, entity_type, entity_path, findings, overall_health,
@@ -2933,7 +3146,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     `).run(
       assessment.entityId,
       assessment.entityType,
-      assessment.entityPath,
+      normalizedPath,
       JSON.stringify(assessment.findings),
       assessment.overallHealth,
       assessment.healthScore,
@@ -2961,10 +3174,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((items: FlashAssessment[]) => {
       for (const a of items) {
+        const normalizedPath = this.normalizeStoredPath(a.entityPath);
         stmt.run(
           a.entityId,
           a.entityType,
-          a.entityPath,
+          normalizedPath,
           JSON.stringify(a.findings),
           a.overallHealth,
           a.healthScore,
@@ -2983,7 +3197,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteAssessmentByPath(entityPath: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_assessments WHERE entity_path = ?').run(entityPath);
+    db.prepare('DELETE FROM librarian_assessments WHERE entity_path = ?').run(this.normalizeStoredPath(entityPath));
   }
 
   private rowToAssessment(row: AssessmentRow): FlashAssessment {
@@ -3000,7 +3214,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     return {
       entityId: row.entity_id,
       entityType: row.entity_type as 'file' | 'directory',
-      entityPath: row.entity_path,
+      entityPath: this.resolveWorkspaceAbsolutePath(row.entity_path),
       findings,
       overallHealth: row.overall_health as FlashAssessment['overallHealth'],
       healthScore: row.health_score,
@@ -3369,7 +3583,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async isFileIndexed(filePath: string): Promise<boolean> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
     if (!fileResult.value) return false;
 
     const functionRow = db
@@ -3390,7 +3604,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFileIndexStats(filePath: string): Promise<{ functions: number; modules: number; embeddings: number; moduleEmbeddings: number; contextPacks: number }> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
     if (!fileResult.value) {
       return { functions: 0, modules: 0, embeddings: 0, moduleEmbeddings: 0, contextPacks: 0 };
     }
@@ -3420,7 +3634,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async touchFileAccess(filePath: string, accessedAt: string = new Date().toISOString()): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
     const timeResult = this.sanitizeString(accessedAt);
     if (!fileResult.value) return;
     const functionUpdate = db
@@ -3441,7 +3655,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     updatedAt: string = new Date().toISOString()
   ): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
     const checksumResult = this.sanitizeString(checksum);
     const updatedResult = this.sanitizeString(updatedAt);
     let counts = mergeRedactionCounts(fileResult.counts, checksumResult.counts);
@@ -3458,7 +3672,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFileChecksum(filePath: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_file_checksums WHERE file_path = ?').run(filePath);
+    db.prepare('DELETE FROM librarian_file_checksums WHERE file_path = ?').run(this.normalizeStoredPath(filePath));
   }
 
   // --------------------------------------------------------------------------
@@ -3487,7 +3701,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         const fromType = this.sanitizeString(edge.fromType);
         const toType = this.sanitizeString(edge.toType);
         const edgeType = this.sanitizeString(edge.edgeType);
-        const sourceFile = this.sanitizeString(edge.sourceFile);
+        const sourceFile = this.sanitizeFilePath(edge.sourceFile);
         const computedAt = this.sanitizeString(edge.computedAt.toISOString());
         let counts = createEmptyRedactionCounts();
         counts = mergeRedactionCounts(counts, fromId.counts);
@@ -3517,7 +3731,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteGraphEdgesForSource(sourceFile: string): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(sourceFile);
+    const fileResult = this.sanitizeFilePath(sourceFile);
     db.prepare('DELETE FROM librarian_graph_edges WHERE source_file = ?').run(fileResult.value);
     await this.recordRedactions(fileResult.counts);
   }
@@ -3602,7 +3816,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async invalidateCache(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
 
     // Invalidate query cache entries that contain this file path in their params
     // Query params are stored as JSON, so we search for the file path within
@@ -3631,7 +3845,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async invalidateEmbeddings(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
 
     // Get function IDs for this file
     const functionIds = db.prepare(`
@@ -3674,7 +3888,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async getReverseDependencies(filePath: string): Promise<string[]> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeFilePath(filePath);
 
     // Find all files that have an "imports" edge pointing to this file
     const rows = db.prepare(`
@@ -4889,7 +5103,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       for (const entry of rows) {
         const key = `${entry.entityType}:${entry.entityId}`;
         if (!cleared.has(key)) { clear.run(entry.entityId, entry.entityType); cleared.add(key); }
-        const fileResult = this.sanitizeString(entry.file); counts = mergeRedactionCounts(counts, fileResult.counts);
+        const fileResult = this.sanitizeFilePath(entry.file); counts = mergeRedactionCounts(counts, fileResult.counts);
         const claimResult = this.sanitizeString(entry.claim); counts = mergeRedactionCounts(counts, claimResult.counts);
         const snippetResult = this.sanitizeString(entry.snippet); counts = mergeRedactionCounts(counts, snippetResult.counts);
         const contentHash = entry.contentHash?.trim() || contentHashes.get(entry.file) || '';
@@ -5889,7 +6103,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getTestMapping(id: string): Promise<TestMapping | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_test_mapping WHERE id = ?').get(id) as TestMappingRow | undefined;
-    return row ? rowToTestMapping(row) : null;
+    return row ? rowToTestMapping(row, this.workspaceRoot) : null;
   }
 
   async getTestMappings(options: TestMappingQueryOptions = {}): Promise<TestMapping[]> {
@@ -5899,11 +6113,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     if (options.testPath) {
       clauses.push('test_path = ?');
-      params.push(options.testPath);
+      params.push(this.normalizeStoredPath(options.testPath));
     }
     if (options.sourcePath) {
       clauses.push('source_path = ?');
-      params.push(options.sourcePath);
+      params.push(this.normalizeStoredPath(options.sourcePath));
     }
     if (options.minConfidence !== undefined) {
       clauses.push('confidence >= ?');
@@ -5913,19 +6127,21 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
     const rows = db.prepare(`SELECT * FROM librarian_test_mapping${where} ORDER BY confidence DESC${limit}`).all(...params) as TestMappingRow[];
-    return rows.map(rowToTestMapping);
+    return rows.map((row) => rowToTestMapping(row, this.workspaceRoot));
   }
 
   async getTestMappingsByTestPath(testPath: string): Promise<TestMapping[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? ORDER BY confidence DESC').all(testPath) as TestMappingRow[];
-    return rows.map(rowToTestMapping);
+    const normalizedPath = this.normalizeStoredPath(testPath);
+    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? ORDER BY confidence DESC').all(normalizedPath) as TestMappingRow[];
+    return rows.map((row) => rowToTestMapping(row, this.workspaceRoot));
   }
 
   async getTestMappingsBySourcePath(sourcePath: string): Promise<TestMapping[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE source_path = ? ORDER BY confidence DESC').all(sourcePath) as TestMappingRow[];
-    return rows.map(rowToTestMapping);
+    const normalizedPath = this.normalizeStoredPath(sourcePath);
+    const rows = db.prepare('SELECT * FROM librarian_test_mapping WHERE source_path = ? ORDER BY confidence DESC').all(normalizedPath) as TestMappingRow[];
+    return rows.map((row) => rowToTestMapping(row, this.workspaceRoot));
   }
 
   async upsertTestMapping(mapping: Omit<TestMapping, 'id' | 'createdAt' | 'updatedAt'>): Promise<TestMapping> {
@@ -5933,17 +6149,22 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const now = new Date().toISOString();
     const id = randomUUID();
 
+    const normalizedTestPath = this.normalizeStoredPath(mapping.testPath);
+    const normalizedSourcePath = this.normalizeStoredPath(mapping.sourcePath);
     db.prepare(`
       INSERT INTO librarian_test_mapping (id, test_path, source_path, confidence, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(test_path, source_path) DO UPDATE SET
         confidence = excluded.confidence,
         updated_at = excluded.updated_at
-    `).run(id, mapping.testPath, mapping.sourcePath, mapping.confidence, now, now);
+    `).run(id, normalizedTestPath, normalizedSourcePath, mapping.confidence, now, now);
 
     // Fetch the actual inserted/updated row
-    const row = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? AND source_path = ?').get(mapping.testPath, mapping.sourcePath) as TestMappingRow;
-    return rowToTestMapping(row);
+    const row = db.prepare('SELECT * FROM librarian_test_mapping WHERE test_path = ? AND source_path = ?').get(
+      normalizedTestPath,
+      normalizedSourcePath
+    ) as TestMappingRow;
+    return rowToTestMapping(row, this.workspaceRoot);
   }
 
   async deleteTestMapping(id: string): Promise<void> {
@@ -5953,7 +6174,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteTestMappingsByTestPath(testPath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_test_mapping WHERE test_path = ?').run(testPath);
+    const result = db.prepare('DELETE FROM librarian_test_mapping WHERE test_path = ?').run(this.normalizeStoredPath(testPath));
     return result.changes;
   }
 
@@ -5964,13 +6185,13 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getCommit(id: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_commits WHERE id = ?').get(id) as CommitRow | undefined;
-    return row ? rowToCommit(row) : null;
+    return row ? rowToCommit(row, this.workspaceRoot) : null;
   }
 
   async getCommitBySha(sha: string): Promise<LiBrainianCommit | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_commits WHERE sha = ?').get(sha) as CommitRow | undefined;
-    return row ? rowToCommit(row) : null;
+    return row ? rowToCommit(row, this.workspaceRoot) : null;
   }
 
   async getCommits(options: CommitQueryOptions = {}): Promise<LiBrainianCommit[]> {
@@ -5995,13 +6216,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     const orderDir = options.orderDirection === 'asc' ? 'ASC' : 'DESC';
     const limit = options.limit ? ` LIMIT ${options.limit}` : '';
     const rows = db.prepare(`SELECT * FROM librarian_commits${where} ORDER BY created_at ${orderDir}${limit}`).all(...params) as CommitRow[];
-    return rows.map(rowToCommit);
+    return rows.map((row) => rowToCommit(row, this.workspaceRoot));
   }
 
   async upsertCommit(commit: Omit<LiBrainianCommit, 'id' | 'createdAt'>): Promise<LiBrainianCommit> {
     const db = this.ensureDb();
     const now = new Date().toISOString();
     const id = randomUUID();
+    const normalizedFiles = commit.filesChanged.map((file) => this.normalizeStoredPath(file));
 
     db.prepare(`
       INSERT INTO librarian_commits (id, sha, message, author, category, files_changed, created_at)
@@ -6011,11 +6233,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         author = excluded.author,
         category = excluded.category,
         files_changed = excluded.files_changed
-    `).run(id, commit.sha, commit.message, commit.author, commit.category, JSON.stringify(commit.filesChanged), now);
+    `).run(id, commit.sha, commit.message, commit.author, commit.category, JSON.stringify(normalizedFiles), now);
 
     // Fetch the actual inserted/updated row
     const row = db.prepare('SELECT * FROM librarian_commits WHERE sha = ?').get(commit.sha) as CommitRow;
-    return rowToCommit(row);
+    return rowToCommit(row, this.workspaceRoot);
   }
 
   async deleteCommit(id: string): Promise<void> {
@@ -6035,19 +6257,20 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getOwnership(id: string): Promise<FileOwnership | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_ownership WHERE id = ?').get(id) as OwnershipRow | undefined;
-    return row ? rowToOwnership(row) : null;
+    return row ? rowToOwnership(row, this.workspaceRoot) : null;
   }
 
   async getOwnershipByFilePath(filePath: string): Promise<FileOwnership[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_ownership WHERE file_path = ? ORDER BY score DESC').all(filePath) as OwnershipRow[];
-    return rows.map(rowToOwnership);
+    const normalizedPath = this.normalizeStoredPath(filePath);
+    const rows = db.prepare('SELECT * FROM librarian_ownership WHERE file_path = ? ORDER BY score DESC').all(normalizedPath) as OwnershipRow[];
+    return rows.map((row) => rowToOwnership(row, this.workspaceRoot));
   }
 
   async getOwnershipByAuthor(author: string): Promise<FileOwnership[]> {
     const db = this.ensureDb();
     const rows = db.prepare('SELECT * FROM librarian_ownership WHERE author = ? ORDER BY score DESC').all(author) as OwnershipRow[];
-    return rows.map(rowToOwnership);
+    return rows.map((row) => rowToOwnership(row, this.workspaceRoot));
   }
 
   async getOwnerships(options: OwnershipQueryOptions = {}): Promise<FileOwnership[]> {
@@ -6077,7 +6300,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       params.push(options.limit);
     }
     const rows = db.prepare(`SELECT * FROM librarian_ownership${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as OwnershipRow[];
-    return rows.map(rowToOwnership);
+    return rows.map((row) => rowToOwnership(row, this.workspaceRoot));
   }
 
   async upsertOwnership(ownership: Omit<FileOwnership, 'id' | 'createdAt'>): Promise<FileOwnership> {
@@ -6095,7 +6318,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     // Fetch the actual inserted/updated row
     const row = db.prepare('SELECT * FROM librarian_ownership WHERE file_path = ? AND author = ?').get(ownership.filePath, ownership.author) as OwnershipRow;
-    return rowToOwnership(row);
+    return rowToOwnership(row, this.workspaceRoot);
   }
 
   async deleteOwnership(id: string): Promise<void> {
@@ -6105,7 +6328,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteOwnershipByFilePath(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_ownership WHERE file_path = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librarian_ownership WHERE file_path = ?').run(this.normalizeStoredPath(filePath));
     return result.changes;
   }
 
@@ -6116,19 +6339,20 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   async getUniversalKnowledge(id: string): Promise<UniversalKnowledgeRecord | null> {
     const db = this.ensureDb();
     const row = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE id = ?').get(id) as UniversalKnowledgeRow | undefined;
-    return row ? rowToUniversalKnowledge(row) : null;
+    return row ? rowToUniversalKnowledge(row, this.workspaceRoot) : null;
   }
 
   async getUniversalKnowledgeByFile(filePath: string): Promise<UniversalKnowledgeRecord[]> {
     const db = this.ensureDb();
-    const rows = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE file = ? ORDER BY line ASC').all(filePath) as UniversalKnowledgeRow[];
-    return rows.map(rowToUniversalKnowledge);
+    const normalizedPath = this.normalizeStoredPath(filePath);
+    const rows = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE file = ? ORDER BY line ASC').all(normalizedPath) as UniversalKnowledgeRow[];
+    return rows.map((row) => rowToUniversalKnowledge(row, this.workspaceRoot));
   }
 
   async getUniversalKnowledgeByKind(kind: string): Promise<UniversalKnowledgeRecord[]> {
     const db = this.ensureDb();
     const rows = db.prepare('SELECT * FROM librarian_universal_knowledge WHERE kind = ? ORDER BY name ASC').all(kind) as UniversalKnowledgeRow[];
-    return rows.map(rowToUniversalKnowledge);
+    return rows.map((row) => rowToUniversalKnowledge(row, this.workspaceRoot));
   }
 
   async queryUniversalKnowledge(options: UniversalKnowledgeQueryOptions): Promise<UniversalKnowledgeRecord[]> {
@@ -6142,10 +6366,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     if (options.file) {
       clauses.push('file = ?');
-      params.push(options.file);
+      params.push(this.normalizeStoredPath(options.file));
     }
     if (options.filePrefix) {
-      const prefix = options.filePrefix.replaceAll('\\', '/');
+      const prefix = this.normalizeStoredPath(options.filePrefix).replace(/\/+$/, '');
       clauses.push('file LIKE ?');
       params.push(`${prefix}%`);
     }
@@ -6197,11 +6421,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(`SELECT * FROM librarian_universal_knowledge${where} ORDER BY ${orderBy} ${orderDir}${limitClause}`).all(...params) as UniversalKnowledgeRow[];
-    return rows.map(rowToUniversalKnowledge);
+    return rows.map((row) => rowToUniversalKnowledge(row, this.workspaceRoot));
   }
 
   async upsertUniversalKnowledge(knowledge: UniversalKnowledgeRecord): Promise<void> {
     const db = this.ensureDb();
+    const normalized = this.normalizeUniversalKnowledgeRecord(knowledge);
     db.prepare(`
       INSERT INTO librarian_universal_knowledge (
         id, kind, name, qualified_name, file, line, knowledge,
@@ -6229,24 +6454,24 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         valid_until = excluded.valid_until,
         hash = excluded.hash
     `).run(
-      knowledge.id,
-      knowledge.kind,
-      knowledge.name,
-      knowledge.qualifiedName,
-      knowledge.file,
-      knowledge.line,
-      knowledge.knowledge,
-      knowledge.purposeSummary ?? null,
-      knowledge.maintainabilityIndex ?? null,
-      knowledge.riskScore ?? null,
-      knowledge.testCoverage ?? null,
-      knowledge.cyclomaticComplexity ?? null,
-      knowledge.cognitiveComplexity ?? null,
-      knowledge.embedding ? Buffer.from(knowledge.embedding.buffer) : null,
-      knowledge.confidence,
-      knowledge.generatedAt,
-      knowledge.validUntil ?? null,
-      knowledge.hash
+      normalized.id,
+      normalized.kind,
+      normalized.name,
+      normalized.qualifiedName,
+      normalized.file,
+      normalized.line,
+      normalized.knowledge,
+      normalized.purposeSummary ?? null,
+      normalized.maintainabilityIndex ?? null,
+      normalized.riskScore ?? null,
+      normalized.testCoverage ?? null,
+      normalized.cyclomaticComplexity ?? null,
+      normalized.cognitiveComplexity ?? null,
+      normalized.embedding ? Buffer.from(normalized.embedding.buffer) : null,
+      normalized.confidence,
+      normalized.generatedAt,
+      normalized.validUntil ?? null,
+      normalized.hash
     );
   }
 
@@ -6282,13 +6507,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((items: UniversalKnowledgeRecord[]) => {
       for (const k of items) {
+        const normalized = this.normalizeUniversalKnowledgeRecord(k);
         stmt.run(
-          k.id, k.kind, k.name, k.qualifiedName, k.file, k.line, k.knowledge,
-          k.purposeSummary ?? null, k.maintainabilityIndex ?? null,
-          k.riskScore ?? null, k.testCoverage ?? null,
-          k.cyclomaticComplexity ?? null, k.cognitiveComplexity ?? null,
-          k.embedding ? Buffer.from(k.embedding.buffer) : null,
-          k.confidence, k.generatedAt, k.validUntil ?? null, k.hash
+          normalized.id, normalized.kind, normalized.name, normalized.qualifiedName, normalized.file, normalized.line, normalized.knowledge,
+          normalized.purposeSummary ?? null, normalized.maintainabilityIndex ?? null,
+          normalized.riskScore ?? null, normalized.testCoverage ?? null,
+          normalized.cyclomaticComplexity ?? null, normalized.cognitiveComplexity ?? null,
+          normalized.embedding ? Buffer.from(normalized.embedding.buffer) : null,
+          normalized.confidence, normalized.generatedAt, normalized.validUntil ?? null, normalized.hash
         );
       }
     });
@@ -6303,7 +6529,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteUniversalKnowledgeByFile(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_universal_knowledge WHERE file = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librarian_universal_knowledge WHERE file = ?').run(this.normalizeStoredPath(filePath));
     return result.changes;
   }
 
@@ -6323,8 +6549,9 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       params.push(...options.kinds);
     }
     if (options.files && options.files.length > 0) {
-      clauses.push(`file IN (${options.files.map(() => '?').join(', ')})`);
-      params.push(...options.files);
+      const normalizedFiles = options.files.map((file) => this.normalizeStoredPath(file));
+      clauses.push(`file IN (${normalizedFiles.map(() => '?').join(', ')})`);
+      params.push(...normalizedFiles);
     }
 
     const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
@@ -7091,7 +7318,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     if (options?.filePath) {
       sql += ' AND file_path = ?';
-      params.push(options.filePath);
+      params.push(this.normalizeStoredPath(options.filePath));
     }
     if (options?.author) {
       sql += ' AND author = ?';
@@ -7114,7 +7341,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(sql).all(...params) as BlameRow[];
-    return rows.map(rowToBlameEntry);
+    return rows.map((row) => rowToBlameEntry(row, this.workspaceRoot));
   }
 
   async getBlameForFile(filePath: string): Promise<BlameEntry[]> {
@@ -7170,9 +7397,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((entries: BlameEntry[]) => {
       for (const entry of entries) {
+        const normalizedPath = this.normalizeStoredPath(entry.filePath);
         stmt.run(
           entry.id,
-          entry.filePath,
+          normalizedPath,
           entry.lineStart,
           entry.lineEnd,
           entry.author,
@@ -7190,7 +7418,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteBlameForFile(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const result = db.prepare('DELETE FROM librarian_blame_entries WHERE file_path = ?').run(filePath);
+    const result = db.prepare('DELETE FROM librarian_blame_entries WHERE file_path = ?').run(this.normalizeStoredPath(filePath));
     return result.changes;
   }
 
@@ -7206,7 +7434,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
     if (options?.filePath) {
       sql += ' AND file_path = ?';
-      params.push(options.filePath);
+      params.push(this.normalizeStoredPath(options.filePath));
     }
     if (options?.changeCategory) {
       sql += ' AND change_category = ?';
@@ -7231,7 +7459,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     const rows = db.prepare(sql).all(...params) as DiffRow[];
-    return rows.map(rowToDiffRecord);
+    return rows.map((row) => rowToDiffRecord(row, this.workspaceRoot));
   }
 
   async getDiffForCommit(commitHash: string): Promise<DiffRecord[]> {
@@ -7248,10 +7476,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
     const insertMany = db.transaction((records: DiffRecord[]) => {
       for (const record of records) {
+        const normalizedPath = this.normalizeStoredPath(record.filePath);
         stmt.run(
           record.id,
           record.commitHash,
-          record.filePath,
+          normalizedPath,
           record.additions,
           record.deletions,
           record.hunkCount,
@@ -7913,10 +8142,10 @@ interface FaultLocalizationRow {
 }
 
 // Row converters for migration 011 types
-function rowToBlameEntry(row: BlameRow): BlameEntry {
+function rowToBlameEntry(row: BlameRow, workspaceRoot?: string): BlameEntry {
   return {
     id: row.id,
-    filePath: row.file_path,
+    filePath: toWorkspaceAbsolutePath(row.file_path, workspaceRoot),
     lineStart: row.line_start,
     lineEnd: row.line_end,
     author: row.author,
@@ -7928,7 +8157,7 @@ function rowToBlameEntry(row: BlameRow): BlameEntry {
   };
 }
 
-function rowToDiffRecord(row: DiffRow): DiffRecord {
+function rowToDiffRecord(row: DiffRow, workspaceRoot?: string): DiffRecord {
   let hunks: DiffHunk[] = [];
   try {
     hunks = JSON.parse(row.hunks);
@@ -7938,7 +8167,7 @@ function rowToDiffRecord(row: DiffRow): DiffRecord {
   return {
     id: row.id,
     commitHash: row.commit_hash,
-    filePath: row.file_path,
+    filePath: toWorkspaceAbsolutePath(row.file_path, workspaceRoot),
     additions: row.additions,
     deletions: row.deletions,
     hunkCount: row.hunk_count,
@@ -8486,33 +8715,33 @@ interface AssessmentRow {
 // ROW CONVERTERS
 // ============================================================================
 
-function rowToTestMapping(row: TestMappingRow): TestMapping {
+function rowToTestMapping(row: TestMappingRow, workspaceRoot?: string): TestMapping {
   return {
     id: row.id,
-    testPath: row.test_path,
-    sourcePath: row.source_path,
+    testPath: toWorkspaceAbsolutePath(row.test_path, workspaceRoot),
+    sourcePath: toWorkspaceAbsolutePath(row.source_path, workspaceRoot),
     confidence: row.confidence,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
 }
 
-function rowToCommit(row: CommitRow): LiBrainianCommit {
+function rowToCommit(row: CommitRow, workspaceRoot?: string): LiBrainianCommit {
   return {
     id: row.id,
     sha: row.sha,
     message: row.message,
     author: row.author,
     category: row.category,
-    filesChanged: parseStringArray(row.files_changed),
+    filesChanged: parseStringArray(row.files_changed).map((file) => toWorkspaceAbsolutePath(file, workspaceRoot)),
     createdAt: new Date(row.created_at),
   };
 }
 
-function rowToOwnership(row: OwnershipRow): FileOwnership {
+function rowToOwnership(row: OwnershipRow, workspaceRoot?: string): FileOwnership {
   return {
     id: row.id,
-    filePath: row.file_path,
+    filePath: toWorkspaceAbsolutePath(row.file_path, workspaceRoot),
     author: row.author,
     score: row.score,
     lastModified: new Date(row.last_modified),
@@ -8520,13 +8749,13 @@ function rowToOwnership(row: OwnershipRow): FileOwnership {
   };
 }
 
-function rowToUniversalKnowledge(row: UniversalKnowledgeRow): UniversalKnowledgeRecord {
+function rowToUniversalKnowledge(row: UniversalKnowledgeRow, workspaceRoot?: string): UniversalKnowledgeRecord {
   return {
     id: row.id,
     kind: row.kind,
     name: row.name,
     qualifiedName: row.qualified_name,
-    file: row.file,
+    file: toWorkspaceAbsolutePath(row.file, workspaceRoot),
     line: row.line,
     knowledge: row.knowledge,
     purposeSummary: row.purpose_summary ?? undefined,
@@ -8646,10 +8875,10 @@ function parseCodeSnippets(raw: string): CodeSnippet[] {
   return parseJsonArray<unknown>(raw).filter(isCodeSnippet);
 }
 
-function rowToFunction(row: FunctionRow): FunctionKnowledge {
+function rowToFunction(row: FunctionRow, workspaceRoot?: string): FunctionKnowledge {
   return {
     id: row.id,
-    filePath: row.file_path,
+    filePath: toWorkspaceAbsolutePath(row.file_path, workspaceRoot),
     name: row.name,
     signature: row.signature,
     purpose: row.purpose,
@@ -8672,10 +8901,10 @@ function rowToFunction(row: FunctionRow): FunctionKnowledge {
   };
 }
 
-function rowToModule(row: ModuleRow): ModuleKnowledge {
+function rowToModule(row: ModuleRow, workspaceRoot?: string): ModuleKnowledge {
   return {
     id: row.id,
-    path: row.path,
+    path: toWorkspaceAbsolutePath(row.path, workspaceRoot),
     purpose: row.purpose,
     exports: parseStringArray(row.exports),
     dependencies: parseStringArray(row.dependencies),
