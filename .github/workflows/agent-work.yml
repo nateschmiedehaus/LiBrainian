@@ -10,7 +10,7 @@ name: Agent Work Loop
 
 on:
   schedule:
-    - cron: '15 */3 * * *'  # Every 3 hours at :15
+    - cron: '5,35 * * * *'  # Every 30 minutes
   workflow_dispatch:
     inputs:
       issue_number:
@@ -74,6 +74,7 @@ env:
   MANAGEMENT_CODEX_WORKER_TIMEOUT_MIN: 25
   CLAUDE_WORKER_TIMEOUT_MIN: 45
   WORKER_HEARTBEAT_SEC: 120
+  VERIFY_DRAIN_BATCH: 3
 
 jobs:
   work:
@@ -442,8 +443,17 @@ jobs:
             EXISTING=$(gh issue list -R "$REPO" --state open \
               --label "agent:management-ticket" \
               --limit 200 \
-              --json number,title,body \
-              --jq ".[] | select((.title | contains(\"issue #$SRC\")) or (.body | contains(\"source_issue=$SRC\")) or (.body | contains(\"Source issue: #$SRC\"))) | .number" | head -n1)
+              --json number,title,body | jq -r --arg src "$SRC" '
+                def src:
+                  ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
+                   // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
+                   // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
+                   // "");
+                def queue:
+                  ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
+                   // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
+                .[] | select((src == $src) and (queue == "work")) | .number
+              ' | head -n1)
             if [ -n "$EXISTING" ]; then
               continue
             fi
@@ -608,6 +618,90 @@ jobs:
           done
 
           echo "Milestone normalization summary: processed=$PROCESSED updated=$UPDATED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deduplicate management tickets by source/queue
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          PROCESSED=0
+          CLOSED=0
+          declare -A CANONICAL
+          declare -A CANONICAL_CLAIMED
+
+          ROWS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-ticket" \
+            --limit 200 \
+            --json number,title,body,labels \
+            --jq '
+              [
+                .[] |
+                {
+                  number,
+                  title: (.title // ""),
+                  body: (.body // ""),
+                  claimed: (.labels | map(.name) | contains(["agent:claimed"])),
+                  source: (
+                    (try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null) //
+                    (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null) //
+                    (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null) //
+                    ""
+                  ),
+                  queue: (
+                    (try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null) //
+                    (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end)
+                  )
+                } |
+                select(.source != "")
+              ]
+              | sort_by((if .claimed then 0 else 1 end), .number)
+              | .[]
+              | @base64
+            ')
+
+          if [ -z "$ROWS" ]; then
+            echo "Management dedupe: no tickets with parseable source metadata."
+            exit 0
+          fi
+
+          for ROW in $ROWS; do
+            ITEM=$(echo "$ROW" | base64 --decode)
+            NUM=$(echo "$ITEM" | jq -r '.number')
+            SRC=$(echo "$ITEM" | jq -r '.source')
+            QUEUE=$(echo "$ITEM" | jq -r '.queue')
+            CLAIMED=$(echo "$ITEM" | jq -r '.claimed')
+            KEY="${QUEUE}:${SRC}"
+            PROCESSED=$((PROCESSED + 1))
+
+            if [ -z "${CANONICAL[$KEY]+x}" ]; then
+              CANONICAL[$KEY]="$NUM"
+              CANONICAL_CLAIMED[$KEY]="$CLAIMED"
+              continue
+            fi
+
+            CANON="${CANONICAL[$KEY]}"
+            CANON_IS_CLAIMED="${CANONICAL_CLAIMED[$KEY]}"
+
+            if [ "$CLAIMED" = "true" ] && [ "$CANON_IS_CLAIMED" != "true" ]; then
+              gh issue close "$CANON" -R "$REPO" \
+                --comment "Auto-closing duplicate management ticket for source issue #$SRC (queue=$QUEUE). Canonical ticket is now #$NUM." || true
+              CLOSED=$((CLOSED + 1))
+              CANONICAL[$KEY]="$NUM"
+              CANONICAL_CLAIMED[$KEY]="$CLAIMED"
+              continue
+            fi
+
+            if [ "$CLAIMED" = "true" ] && [ "$CANON_IS_CLAIMED" = "true" ]; then
+              # Two claimed duplicates indicate concurrent work; keep both open to avoid interrupting in-flight runs.
+              continue
+            fi
+
+            gh issue close "$NUM" -R "$REPO" \
+              --comment "Auto-closing duplicate management ticket for source issue #$SRC (queue=$QUEUE). Canonical ticket: #$CANON." || true
+            CLOSED=$((CLOSED + 1))
+          done
+
+          echo "Management dedupe summary: processed=$PROCESSED closed=$CLOSED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -2212,7 +2306,8 @@ jobs:
           gh workflow run agent-verify.yml -R "$REPO" \
             -f issue_number="$NUM" \
             -f agent_provider="auto" \
-            -f enable_fallback="$VERIFY_FALLBACK"
+            -f enable_fallback="$VERIFY_FALLBACK" \
+            -f batch_remaining="1"
 
           echo "Triggered Agent Verify Loop for issue #$NUM."
         env:
@@ -2980,8 +3075,17 @@ jobs:
           EXISTING=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
             --limit 200 \
-            --json number,title \
-            --jq ".[] | select(.title | contains(\"meta: manage issue #$NUM\")) | .number" | head -n 1)
+            --json number,title,body | jq -r --arg src "$NUM" '
+              def src:
+                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
+                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
+                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
+                 // "");
+              def queue:
+                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
+                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
+              .[] | select((src == $src) and (queue == "work")) | .number
+            ' | head -n 1)
 
           cat > .management-body.md <<EOF
           ## Automated Management Queue Item
@@ -3075,8 +3179,17 @@ jobs:
           MGMT_IDS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
             --limit 200 \
-            --json number,title \
-            --jq ".[] | select(.title | contains(\"meta: manage issue #$NUM\")) | .number")
+            --json number,title,body | jq -r --arg src "$NUM" '
+              def src:
+                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
+                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
+                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
+                 // "");
+              def queue:
+                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
+                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
+              .[] | select((src == $src) and (queue == "work")) | .number
+            ')
           if [ -z "$MGMT_IDS" ]; then
             exit 0
           fi
@@ -3109,6 +3222,40 @@ jobs:
           } > .failure-comment.md
           gh issue comment "$NUM" -R "$REPO" --body-file .failure-comment.md
           rm -f .failure-comment.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regular verify dispatch for pending backlog
+        if: always() && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          VERIFY_FALLBACK=true
+          if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
+            VERIFY_FALLBACK=false
+          fi
+
+          VERIFY_PENDING=$(gh issue list -R "$REPO" --state open \
+            --label "verify:pending" \
+            --limit 200 \
+            --json number --jq 'length')
+          if [ "$VERIFY_PENDING" -le 0 ]; then
+            echo "No verify backlog."
+            exit 0
+          fi
+
+          ACTIVE_VERIFY=$(gh run list -R "$REPO" -w "Agent Verify Loop" --limit 20 \
+            --json status --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length')
+          if [ "$ACTIVE_VERIFY" -gt 0 ]; then
+            echo "Verify backlog=$VERIFY_PENDING, but verify workflow already active ($ACTIVE_VERIFY run(s)); skipping dispatch."
+            exit 0
+          fi
+
+          gh workflow run agent-verify.yml -R "$REPO" \
+            -f agent_provider="auto" \
+            -f enable_fallback="$VERIFY_FALLBACK" \
+            -f batch_remaining="${VERIFY_DRAIN_BATCH}"
+
+          echo "Dispatched Agent Verify Loop for backlog drain (pending=$VERIFY_PENDING, batch=${VERIFY_DRAIN_BATCH})."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -3147,15 +3294,11 @@ jobs:
               --label "verify:pending" \
               --limit 200 \
               --json number --jq 'length')
-            if [ "$VERIFY_PENDING" -gt 0 ]; then
-              echo "No work issue selected, but $VERIFY_PENDING issues are pending verification. Dispatching verify loop."
-              gh workflow run agent-verify.yml -R "$REPO" \
-                -f agent_provider="auto" \
-                -f enable_fallback="$NEXT_ENABLE_FALLBACK"
-            else
+            if [ "$VERIFY_PENDING" -le 0 ]; then
               echo "No issue selected and no verify backlog; stopping chain."
               exit 0
             fi
+            echo "No work issue selected; verify backlog still present ($VERIFY_PENDING). Continuing autonomous chain."
           fi
           if [ "$OUTCOME" = "infra-failure" ] || [ "$ESC_REASON" = "provider_or_infra_failure" ] || [ "$ESC_REASON" = "provider_auth_or_runtime_failure" ]; then
             if [ "$ESC_REASON" = "scm_pr_creation_permission" ] && [ "$PR_PERMISSION_HEALED" = "true" ]; then

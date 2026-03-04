@@ -13,7 +13,7 @@ name: Agent Verify Loop
 
 on:
   schedule:
-    - cron: '45 1,4,7,10,13,16,19,22 * * *'  # Every 3 hours at :45 (offset from work loop)
+    - cron: '20,50 * * * *'  # Every 30 minutes (offset from work loop)
   workflow_dispatch:
     inputs:
       issue_number:
@@ -35,6 +35,11 @@ on:
         required: false
         default: true
         type: boolean
+      batch_remaining:
+        description: 'Sequential verify run budget (1 = single verify pass)'
+        required: false
+        default: '1'
+        type: string
 
 permissions:
   actions: write
@@ -252,7 +257,7 @@ jobs:
             # Find oldest issue with verify:pending label
             NUM=$(gh issue list -R "$REPO" --state open \
               --label "verify:pending" \
-              --limit 10 \
+              --limit 200 \
               --json number --jq 'sort_by(.number) | first | .number // empty')
           fi
 
@@ -959,8 +964,17 @@ jobs:
           EXISTING=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
             --limit 200 \
-            --json number,title \
-            --jq ".[] | select(.title | contains(\"meta: verify issue #$NUM\")) | .number" | head -n 1)
+            --json number,title,body | jq -r --arg src "$NUM" '
+              def src:
+                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
+                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
+                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
+                 // "");
+              def queue:
+                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
+                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
+              .[] | select((src == $src) and (queue == "verify")) | .number
+            ' | head -n 1)
 
           cat > .verify-management.md <<EOF
           ## Automated Verification Management Item
@@ -1017,8 +1031,17 @@ jobs:
           MGMT_IDS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
             --limit 200 \
-            --json number,title \
-            --jq ".[] | select(.title | contains(\"meta: verify issue #$NUM\")) | .number")
+            --json number,title,body | jq -r --arg src "$NUM" '
+              def src:
+                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
+                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
+                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
+                 // "");
+              def queue:
+                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
+                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
+              .[] | select((src == $src) and (queue == "verify")) | .number
+            ')
           if [ -z "$MGMT_IDS" ]; then
             exit 0
           fi
@@ -1101,5 +1124,42 @@ jobs:
               rm -f .unblock-comment.md
             fi
           done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Chain next verify pass
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: |
+          REMAINING="${{ inputs.batch_remaining || '1' }}"
+          ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          NEXT_ENABLE_FALLBACK=true
+          if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
+            NEXT_ENABLE_FALLBACK=false
+          fi
+
+          if ! [[ "$REMAINING" =~ ^[0-9]+$ ]]; then
+            echo "batch_remaining is not numeric; stopping verify chain."
+            exit 0
+          fi
+          if [ "$REMAINING" -le 1 ]; then
+            echo "Verify chain complete (remaining=$REMAINING)."
+            exit 0
+          fi
+
+          VERIFY_PENDING=$(gh issue list -R "$REPO" --state open \
+            --label "verify:pending" \
+            --limit 200 \
+            --json number --jq 'length')
+          if [ "$VERIFY_PENDING" -le 0 ]; then
+            echo "No verify backlog; stopping verify chain."
+            exit 0
+          fi
+
+          NEXT=$((REMAINING - 1))
+          echo "Dispatching chained verify run with batch_remaining=$NEXT (pending=$VERIFY_PENDING)"
+          gh workflow run agent-verify.yml -R "$REPO" \
+            -f agent_provider="${{ inputs.agent_provider || 'auto' }}" \
+            -f enable_fallback="$NEXT_ENABLE_FALLBACK" \
+            -f batch_remaining="$NEXT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
