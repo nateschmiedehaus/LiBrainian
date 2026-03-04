@@ -83,6 +83,13 @@ export interface DoctorCommandOptions {
   riskTolerance?: 'safe' | 'low' | 'medium';
 }
 
+export type DoctorDiagnosticsOptions = Pick<
+  DoctorCommandOptions,
+  'workspace' | 'heal' | 'fix' | 'checkConsistency' | 'installGrammars' | 'riskTolerance' | 'json'
+> & {
+  workspaceOriginal?: string;
+};
+
 interface ActionTemplate {
   command: string;
   expectedArtifact?: string;
@@ -1974,35 +1981,25 @@ async function runEmbeddingIntegrityFix(
 // MAIN DOCTOR COMMAND
 // ============================================================================
 
-export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
+export async function generateDoctorReport(options: DoctorDiagnosticsOptions): Promise<DoctorReport> {
   const {
     workspace,
-    verbose = false,
-    json = false,
+    workspaceOriginal,
     heal = false,
     fix = false,
     checkConsistency = false,
     installGrammars = false,
     riskTolerance = 'low',
+    json = false,
   } = options;
 
-  let workspaceRoot = path.resolve(workspace);
-  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
-    const resolution = resolveWorkspaceRoot(workspaceRoot);
-    if (resolution.changed) {
-      workspaceRoot = resolution.workspace;
-      if (!json) {
-        const detail = resolution.marker ? `marker ${resolution.marker}` : (resolution.reason ?? 'source discovery');
-        console.log(`Auto-detected project root at ${workspaceRoot} (${detail}). Using it.\n`);
-      }
-    }
-  }
+  const workspaceRoot = path.resolve(workspace);
 
   const report: DoctorReport = {
     timestamp: new Date().toISOString(),
     version: LIBRARIAN_VERSION.string,
     workspace: workspaceRoot,
-    workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
+    workspaceOriginal: workspaceOriginal && workspaceOriginal !== workspaceRoot ? workspaceOriginal : undefined,
     overallStatus: 'OK',
     checks: [],
     actions: [],
@@ -2030,14 +2027,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     report.summary.errors = 1;
     report.actions = buildDoctorActions(report.checks);
     report.overallStatus = 'ERROR';
-
-    if (json) {
-      console.log(JSON.stringify(report, null, 2));
-    } else {
-      outputTextReport(report, verbose);
-    }
-    process.exitCode = 1;
-    return;
+    return report;
   }
 
   const healChecks: DiagnosticCheck[] = [];
@@ -2218,14 +2208,50 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
   }
   report.actions = buildDoctorActions(report.checks);
 
-  // Output report
+  return report;
+}
+
+export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
+  const {
+    workspace,
+    verbose = false,
+    json = false,
+    heal = false,
+    fix = false,
+    checkConsistency = false,
+    installGrammars = false,
+    riskTolerance = 'low',
+  } = options;
+
+  let workspaceRoot = path.resolve(workspace);
+  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
+    const resolution = resolveWorkspaceRoot(workspaceRoot);
+    if (resolution.changed) {
+      workspaceRoot = resolution.workspace;
+      if (!json) {
+        const detail = resolution.marker ? `marker ${resolution.marker}` : (resolution.reason ?? 'source discovery');
+        console.log(`Auto-detected project root at ${workspaceRoot} (${detail}). Using it.\n`);
+      }
+    }
+  }
+
+  const report = await generateDoctorReport({
+    workspace: workspaceRoot,
+    workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
+    heal,
+    fix,
+    checkConsistency,
+    installGrammars,
+    riskTolerance,
+    json,
+  });
+
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     outputTextReport(report, verbose);
   }
 
-  // Set exit code based on overall status
   if (report.overallStatus === 'ERROR') {
     process.exitCode = 1;
   }

@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { statusCommand } from '../status.js';
+import { generateDoctorReport } from '../doctor.js';
 import { resolveDbPath } from '../../db_path.js';
 import { createSqliteStorage } from '../../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus } from '../../../api/bootstrap.js';
@@ -48,6 +49,9 @@ vi.mock('../../../utils/git.js', () => ({
 vi.mock('../../../api/query_cost_telemetry.js', () => ({
   readQueryCostTelemetry: vi.fn(),
 }));
+vi.mock('../doctor.js', () => ({
+  generateDoctorReport: vi.fn(),
+}));
 vi.mock('../../json_output.js', () => ({
   emitJsonOutput: vi.fn(async (payload: unknown, outPath?: string) => {
     const json = JSON.stringify(payload, null, 2);
@@ -86,6 +90,20 @@ describe('statusCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.mocked(generateDoctorReport).mockResolvedValue({
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      workspace,
+      overallStatus: 'OK',
+      checks: [],
+      actions: [],
+      summary: {
+        total: 0,
+        ok: 0,
+        warnings: 0,
+        errors: 0,
+      },
+    });
 
     mockStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -524,5 +542,36 @@ describe('statusCommand', () => {
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
     expect(exitCode).toBe(2);
+  });
+
+  it('propagates doctor critical failures into status output', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(generateDoctorReport).mockResolvedValue({
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      workspace,
+      overallStatus: 'ERROR',
+      checks: [
+        { name: 'Embedding Provider', status: 'ERROR', message: 'Embedding unavailable' },
+      ],
+      actions: [],
+      summary: {
+        total: 1,
+        ok: 0,
+        warnings: 0,
+        errors: 1,
+      },
+    });
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    expect(typeof output).toBe('string');
+    const parsed = JSON.parse(output ?? '{}') as {
+      healthSummary?: { status?: string; checks?: Array<{ name?: string; status?: string }> };
+    };
+    expect(parsed.healthSummary?.status).toBe('ERROR');
+    expect(parsed.healthSummary?.checks?.[0]?.name).toBe('Embedding Provider');
+    expect(exitCode).toBe(1);
   });
 });

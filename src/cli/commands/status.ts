@@ -29,6 +29,7 @@ import {
   readWorkspaceSetState,
   type WorkspaceSetPackageStatus,
 } from '../workspace_set.js';
+import { generateDoctorReport, type DoctorReport, type DiagnosticCheck, type CheckStatus } from './doctor.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -135,6 +136,12 @@ type StatusReport = {
     status: AllProviderStatus | null;
     error?: string;
   };
+  healthSummary?: {
+    status: CheckStatus;
+    summary: DoctorReport['summary'];
+    checks: Array<Pick<DiagnosticCheck, 'name' | 'status' | 'message' | 'suggestion'>>;
+    generatedAt: string;
+  } | null;
   freshness?: {
     totalIndexedFiles: number;
     freshFiles: number;
@@ -614,6 +621,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       }
     }
 
+    report.healthSummary = await collectDoctorHealthSummary({
+      workspace: workspaceRoot,
+      workspaceOriginal: report.workspaceOriginal,
+    });
+
     if (format === 'json') {
       await emitJsonOutput(report, out);
       return deriveStatusExitCode(report);
@@ -696,6 +708,29 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       printKeyValue([{ key: 'Status', value: 'Unable to check providers' }]);
     }
     console.log();
+
+    if (format === 'text' && report.healthSummary) {
+      console.log('Doctor Health Summary:');
+      printKeyValue([
+        { key: 'Overall Status', value: report.healthSummary.status },
+        { key: 'Generated At', value: report.healthSummary.generatedAt },
+        { key: 'Total Checks', value: report.healthSummary.summary.total },
+        { key: 'Errors', value: report.healthSummary.summary.errors },
+        { key: 'Warnings', value: report.healthSummary.summary.warnings },
+      ]);
+      if (report.healthSummary.checks.length > 0) {
+        console.log('\nTop Issues:');
+        for (const check of report.healthSummary.checks) {
+          console.log(`  - ${check.name}: ${check.status} — ${check.message}`);
+          if (check.suggestion) {
+            console.log(`    Suggestion: ${check.suggestion}`);
+          }
+        }
+      } else {
+        console.log('\nTop Issues: none');
+      }
+      console.log();
+    }
 
     if (costArgs.includeCosts) {
       console.log('Cost Telemetry:');
@@ -859,7 +894,44 @@ function deriveStatusExitCode(report: StatusReport): number {
   if (report.storage.status === 'degraded') return 1;
   if (report.bootstrap?.required.full) return 1;
   if (report.watch?.health?.suspectedDead) return 1;
+  if (report.healthSummary?.status === 'ERROR') return 1;
   return 0;
+}
+
+async function collectDoctorHealthSummary(options: {
+  workspace: string;
+  workspaceOriginal?: string;
+}): Promise<NonNullable<StatusReport['healthSummary']>> {
+  try {
+    const doctorReport = await generateDoctorReport({
+      workspace: options.workspace,
+      workspaceOriginal: options.workspaceOriginal,
+      riskTolerance: 'low',
+    });
+    return {
+      status: doctorReport.overallStatus,
+      summary: doctorReport.summary,
+      generatedAt: doctorReport.timestamp,
+      checks: doctorReport.checks.slice(0, 5).map((check) => ({
+        name: check.name,
+        status: check.status,
+        message: check.message,
+        suggestion: check.suggestion,
+      })),
+    };
+  } catch (error) {
+    return {
+      status: 'ERROR',
+      summary: { total: 1, ok: 0, warnings: 0, errors: 1 },
+      generatedAt: new Date().toISOString(),
+      checks: [{
+        name: 'Doctor Summary',
+        status: 'ERROR',
+        message: error instanceof Error ? error.message : String(error),
+        suggestion: 'Run `librarian doctor --json` for detailed diagnostics.',
+      }],
+    };
+  }
 }
 
 function parseWorkspaceSetArg(rawArgs: string[] | undefined): string | undefined {
