@@ -78,6 +78,7 @@ import { calculateStalenessDecay } from '../knowledge/extractors/evidence_collec
 import { createQueryVerificationPlan } from './verification_plans.js';
 import { saveVerificationPlan } from '../state/verification_plans.js';
 import { recordQueryEpisode } from './query_episodes.js';
+import { computeFileChecksum } from '../utils/checksums.js';
 import { logWarning } from '../telemetry/logger.js';
 import { configurable, resolveQuantifiedValue } from '../epistemics/quantification.js';
 import { buildConstructionPlan } from './construction_plan.js';
@@ -501,6 +502,9 @@ const HINT_LOW_CONFIDENCE_THRESHOLD = q(
   [0, 1],
   'Hint threshold for low-confidence results.'
 );
+const RESULT_STALENESS_CHECK_LIMIT = 12;
+const RESULT_STALENESS_DISPLAY_LIMIT = 3;
+const RESULT_STALENESS_FILE_MISSING_SENTINEL = '__missing__';
 
 // ============================================================================
 // META-QUERY DETECTION FOR DOCUMENTATION ROUTING
@@ -2221,6 +2225,34 @@ export async function queryLibrarian(
   const drillDownResult = generateDrillDownHints(finalPacks, query);
   const drillDownHints = drillDownResult.hints;
   const followUpQueries = drillDownResult.followUpQueries;
+  if (finalPacks.length > 0 && isReadyPhase(indexState.phase)) {
+    const stalenessCandidates = collectResultFileCandidates(finalPacks, query.affectedFiles ?? []);
+    if (stalenessCandidates.length > 0) {
+      try {
+        const { staleFiles } = await detectStaleResultFiles({
+          storage,
+          workspaceRoot,
+          filePaths: stalenessCandidates,
+          maxFiles: RESULT_STALENESS_CHECK_LIMIT,
+        });
+        if (staleFiles.length > 0) {
+          const display = staleFiles
+            .slice(0, RESULT_STALENESS_DISPLAY_LIMIT)
+            .map((filePath) => formatWorkspaceRelativePath(filePath, workspaceRoot));
+          const extraCount = staleFiles.length - display.length;
+          const suffix = extraCount > 0 ? `, +${extraCount} more` : '';
+          disclosures.push(
+            `unverified_by_trace(result_files_stale): ${staleFiles.length} files referenced in results changed since the last index (${display.join(', ')}${suffix}). ` +
+            'Run "librarian index --force --incremental" (or restart the watcher) to refresh the index.'
+          );
+        }
+      } catch (error) {
+        logWarning('[query] Result staleness check failed', {
+          error: getErrorMessage(error),
+        });
+      }
+    }
+  }
   const explanation = buildExplanation(explanationParts, ranked.averageScore, candidates.length);
   // Add inferred rationale hint if available (from WHY query handling)
   if (inferredRationaleHint) {
@@ -7334,6 +7366,89 @@ function generateDrillDownHints(packs: ContextPack[], query: LibrarianQuery): Dr
   return { hints, followUpQueries };
 }
 
+function collectResultFileCandidates(packs: ContextPack[], extraPaths: string[]): string[] {
+  const candidates: string[] = [];
+  for (const pack of packs) {
+    if (pack.relatedFiles?.length) {
+      candidates.push(...pack.relatedFiles);
+    }
+    for (const snippet of pack.codeSnippets) {
+      if (snippet.filePath) candidates.push(snippet.filePath);
+    }
+    if (pack.invalidationTriggers?.length) {
+      candidates.push(...pack.invalidationTriggers);
+    }
+  }
+  if (extraPaths.length) {
+    candidates.push(...extraPaths);
+  }
+  return candidates;
+}
+
+async function detectStaleResultFiles(options: {
+  storage: Pick<LibrarianStorage, 'getFileChecksum'>;
+  workspaceRoot: string;
+  filePaths: string[];
+  maxFiles?: number;
+}): Promise<{ staleFiles: string[] }> {
+  const { storage, workspaceRoot, filePaths, maxFiles = RESULT_STALENESS_CHECK_LIMIT } = options;
+  if (!filePaths.length) return { staleFiles: [] };
+  const normalizedPaths = filePaths
+    .map((candidate) => normalizeWorkspaceFilePath(candidate, workspaceRoot))
+    .filter((candidate): candidate is string => Boolean(candidate));
+  if (!normalizedPaths.length) return { staleFiles: [] };
+  const unique = Array.from(new Set(normalizedPaths));
+  const sample = unique.slice(0, Math.max(0, maxFiles));
+  const staleFiles: string[] = [];
+  for (const filePath of sample) {
+    try {
+      const storedChecksum = await storage.getFileChecksum(filePath);
+      const onDiskChecksum = await readWorkspaceFileChecksum(filePath);
+      if (!storedChecksum || storedChecksum !== onDiskChecksum) {
+        staleFiles.push(filePath);
+      }
+    } catch (error) {
+      logWarning('[query] Failed to compare file checksum during staleness check', {
+        filePath,
+        error: getErrorMessage(error),
+      });
+    }
+  }
+  return { staleFiles };
+}
+
+async function readWorkspaceFileChecksum(filePath: string): Promise<string> {
+  try {
+    const content = await fs.readFile(filePath);
+    return computeFileChecksum(content);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code === 'ENOENT') {
+      return RESULT_STALENESS_FILE_MISSING_SENTINEL;
+    }
+    throw error;
+  }
+}
+
+function normalizeWorkspaceFilePath(filePath: string | undefined, workspaceRoot: string): string | null {
+  if (!filePath) return null;
+  const trimmed = filePath.trim();
+  if (!trimmed) return null;
+  if (/^[a-z]+:\/\//i.test(trimmed)) return null;
+  const withoutFileScheme = trimmed.replace(/^file:\/\//i, '');
+  return path.isAbsolute(withoutFileScheme)
+    ? path.resolve(withoutFileScheme)
+    : path.resolve(workspaceRoot, withoutFileScheme);
+}
+
+function formatWorkspaceRelativePath(filePath: string, workspaceRoot: string): string {
+  const relative = path.relative(workspaceRoot, filePath).replace(/\\/g, '/');
+  if (!relative || relative.startsWith('..')) {
+    return filePath;
+  }
+  return relative;
+}
+
 function isStorageWriteDegradedError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
@@ -7457,6 +7572,8 @@ export const __testing = {
   isCallerProbeIntent,
   resolveCandidateMaterializationLimit,
   capCandidatesForMaterialization,
+  detectStaleResultFiles,
+  formatWorkspaceRelativePath,
 };
 
 /**
