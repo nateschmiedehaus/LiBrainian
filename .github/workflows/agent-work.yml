@@ -986,10 +986,39 @@ jobs:
             exit 0
           fi
 
+          is_soft_dependency() {
+            local dep="$1"
+            local dep_json
+            dep_json=$(gh issue view "$dep" -R "$REPO" --json labels,title,state 2>/dev/null || true)
+            if [ -z "$dep_json" ] || [ "$dep_json" = "null" ]; then
+              echo "false"
+              return
+            fi
+
+            echo "$dep_json" | jq -r '
+              ([.labels[].name] | any(
+                . == "kind/tracking" or
+                . == "patrol" or
+                . == "agent:management-ticket" or
+                . == "agent:needs-decomposition" or
+                . == "post-ship" or
+                . == "lifecycle/frozen"
+              )) as $has_soft_label
+              | (.title // "" | test("^meta:\\s*(manage|verify)\\s*issue\\s*#"; "i")) as $meta_title
+              | ($has_soft_label or $meta_title)
+            '
+          }
+
           echo "Blocked issues: $(echo $BLOCKED_NUMS | tr '\n' ' ')"
           UNBLOCKED=0
 
           for BNUM in $BLOCKED_NUMS; do
+            ISSUE_LABELS=$(gh issue view "$BNUM" -R "$REPO" --json labels --jq '.labels[].name' 2>/dev/null || true)
+            if echo "$ISSUE_LABELS" | grep -Fxq "triage/missing-essentials"; then
+              echo "Keeping #$BNUM blocked (triage/missing-essentials)."
+              continue
+            fi
+
             # Get body and comments to find "Blocked by:" declarations
             ISSUE_BODY=$(gh issue view "$BNUM" -R "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
             ISSUE_COMMENTS=$(gh issue view "$BNUM" -R "$REPO" --json comments --jq '.comments[].body' 2>/dev/null || echo "")
@@ -999,12 +1028,26 @@ jobs:
             DEPS=$(echo "$ALL_TEXT" | grep -iE 'blocked by:' | sed 's/(.*//' | grep -oE '#[0-9]+' | grep -oE '[0-9]+' | sort -un)
 
             if [ -z "$DEPS" ]; then
+              echo "Unblocking #$BNUM — stale blocked label (no hard 'Blocked by:' dependencies)."
+              gh issue edit "$BNUM" -R "$REPO" \
+                --remove-label "agent:blocked" \
+                --add-label "agent:actionable" || true
               continue
             fi
 
             ALL_RESOLVED=true
             for DEP in $DEPS; do
               DEP_STATE=$(gh issue view "$DEP" -R "$REPO" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+              if [ "$DEP_STATE" = "CLOSED" ]; then
+                continue
+              fi
+
+              SOFT_DEP=$(is_soft_dependency "$DEP")
+              if [ "$SOFT_DEP" = "true" ]; then
+                echo "Treating open dependency #$DEP as soft (tracking/meta); not blocking #$BNUM."
+                continue
+              fi
+
               if [ "$DEP_STATE" != "CLOSED" ]; then
                 ALL_RESOLVED=false
                 break
@@ -1267,13 +1310,53 @@ jobs:
         run: |
           NUM=${{ steps.find.outputs.issue_number }}
           BODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body')
+          LABELS=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '.labels[].name' || true)
 
-          # Extract "Depends on: #X" or "Blocked by: #X" references
-          DEPS=$(echo "$BODY" | grep -ioP '(?:depends on|blocked by|requires)\s*#\K\d+' || true)
+          is_soft_dependency() {
+            local dep="$1"
+            local dep_json
+            dep_json=$(gh issue view "$dep" -R "$REPO" --json labels,title,state 2>/dev/null || true)
+            if [ -z "$dep_json" ] || [ "$dep_json" = "null" ]; then
+              echo "false"
+              return
+            fi
+
+            echo "$dep_json" | jq -r '
+              ([.labels[].name] | any(
+                . == "kind/tracking" or
+                . == "patrol" or
+                . == "agent:management-ticket" or
+                . == "agent:needs-decomposition" or
+                . == "post-ship" or
+                . == "lifecycle/frozen"
+              )) as $has_soft_label
+              | (.title // "" | test("^meta:\\s*(manage|verify)\\s*issue\\s*#"; "i")) as $meta_title
+              | ($has_soft_label or $meta_title)
+            '
+          }
+
+          # Hard blockers are explicit "Blocked by: #X" references.
+          DEPS=$(echo "$BODY" | grep -ioP 'blocked by:\s*#\K\d+' || true)
+
+          if [ -z "$DEPS" ]; then
+            if echo "$LABELS" | grep -Fxq "agent:blocked" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
+              echo "Clearing stale blocked label on #$NUM (no hard blockers)."
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:blocked" \
+                --add-label "agent:actionable" || true
+            fi
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           for DEP in $DEPS; do
             STATE=$(gh issue view "$DEP" -R "$REPO" --json state --jq '.state')
             if [ "$STATE" = "OPEN" ]; then
+              SOFT_DEP=$(is_soft_dependency "$DEP")
+              if [ "$SOFT_DEP" = "true" ]; then
+                echo "Skipping soft dependency #$DEP for #$NUM"
+                continue
+              fi
               echo "::warning::Issue #$NUM is blocked by open dependency #$DEP"
               # Label it blocked and find next issue
               gh issue edit "$NUM" -R "$REPO" --add-label "agent:blocked"
@@ -1281,6 +1364,13 @@ jobs:
               exit 0
             fi
           done
+
+          if echo "$LABELS" | grep -Fxq "agent:blocked" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
+            echo "All hard blockers resolved for #$NUM; removing agent:blocked."
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:blocked" \
+              --add-label "agent:actionable" || true
+          fi
           echo "blocked=false" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
