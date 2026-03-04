@@ -1,0 +1,86 @@
+{
+  "schema": "LCIBQueryCorpus.v1",
+  "repoId": "fastify",
+  "version": "2026.03",
+  "curatedBy": "LCIB bootstrap",
+  "description": "Initial Fastify LCIB slice (10 of 50 required queries).",
+  "queries": [
+    {
+      "id": "router-find-my-way",
+      "queryType": "architecture",
+      "query": "Where does Fastify integrate the find-my-way router and register routes?",
+      "relevantFiles": ["lib/router.js"],
+      "relevantFunctions": ["buildRouting", "setupRouting"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "plugin-register-flow",
+      "queryType": "navigation",
+      "query": "Show the plugin registration function that applies encapsulation.",
+      "relevantFiles": ["lib/pluginOverride.js", "lib/pluginUtils.js"],
+      "relevantFunctions": ["fastify.register", "registerPlugin"],
+      "difficulty": "investigation"
+    },
+    {
+      "id": "lifecycle-hooks",
+      "queryType": "behavior",
+      "query": "Where are onRequest/onSend hooks executed?",
+      "relevantFiles": ["lib/hooks.js"],
+      "relevantFunctions": ["buildHooks", "hookRunner"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "serializer-determination",
+      "queryType": "performance",
+      "query": "Locate the reply serializer selection logic used for content negotiation.",
+      "relevantFiles": ["lib/reply.js"],
+      "relevantFunctions": ["Reply.serializer", "getDefaultSerializer"],
+      "difficulty": "performance"
+    },
+    {
+      "id": "validation-compilers",
+      "queryType": "navigation",
+      "query": "Find where Fastify configures AJV validators for schemas.",
+      "relevantFiles": ["lib/validation.js"],
+      "relevantFunctions": ["buildValidator", "getSchema"]
+    },
+    {
+      "id": "http2-support",
+      "queryType": "architecture",
+      "query": "Where is HTTP/2 server support wired up?",
+      "relevantFiles": ["lib/server.js"],
+      "relevantFunctions": ["buildServer"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "logger-child",
+      "queryType": "navigation",
+      "query": "Show how Fastify creates child pino loggers per request.",
+      "relevantFiles": ["lib/logger.js"],
+      "relevantFunctions": ["createLogger", "loggerUtils.child"]
+    },
+    {
+      "id": "reply-send-stream",
+      "queryType": "bugfix",
+      "query": "Where is reply.send stream handling implemented?",
+      "relevantFiles": ["lib/reply.js"],
+      "relevantFunctions": ["Reply.send"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "content-type-parser",
+      "queryType": "behavior",
+      "query": "Locate the content type parser registry and default parsers.",
+      "relevantFiles": ["lib/contentTypeParser.js"],
+      "relevantFunctions": ["ContentTypeParser.add"],
+      "difficulty": "investigation"
+    },
+    {
+      "id": "types-declaration",
+      "queryType": "compliance",
+      "query": "Where are Fastify TypeScript declaration files exported from?",
+      "relevantFiles": ["types/index.d.ts"],
+      "relevantFunctions": ["FastifyInstance", "FastifyPlugin"]
+    }
+  ]
+}

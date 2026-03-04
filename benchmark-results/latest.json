@@ -1,0 +1,90 @@
+{
+  "schema": "LCIBenchmarkReport.v1",
+  "generatedAt": "2026-03-04T14:50:36.844Z",
+  "librarianVersion": "2.0.0",
+  "repoResults": [
+    {
+      "repoId": "django",
+      "repoName": "Django",
+      "status": "skipped",
+      "errors": [
+        "dry_run_enabled"
+      ],
+      "metrics": {
+        "precisionAt5": 0,
+        "recallAt10": 0,
+        "mrr": 0,
+        "latencyP50Ms": 0,
+        "latencyP95Ms": 0,
+        "latencyP99Ms": 0,
+        "queryCount": 10
+      },
+      "queries": []
+    },
+    {
+      "repoId": "grafana",
+      "repoName": "Grafana",
+      "status": "skipped",
+      "errors": [
+        "dry_run_enabled"
+      ],
+      "metrics": {
+        "precisionAt5": 0,
+        "recallAt10": 0,
+        "mrr": 0,
+        "latencyP50Ms": 0,
+        "latencyP95Ms": 0,
+        "latencyP99Ms": 0,
+        "queryCount": 10
+      },
+      "queries": []
+    },
+    {
+      "repoId": "fastify",
+      "repoName": "Fastify",
+      "status": "skipped",
+      "errors": [
+        "dry_run_enabled"
+      ],
+      "metrics": {
+        "precisionAt5": 0,
+        "recallAt10": 0,
+        "mrr": 0,
+        "latencyP50Ms": 0,
+        "latencyP95Ms": 0,
+        "latencyP99Ms": 0,
+        "queryCount": 10
+      },
+      "queries": []
+    }
+  ],
+  "competitorBaselines": [
+    {
+      "vendor": "jolt",
+      "precisionAt5": 0.74,
+      "recallAt10": 0.82,
+      "mrr": 0.69,
+      "latencyP50Ms": 420,
+      "notes": "Published Django/Grafana benchmark blog (Jan 2026).",
+      "source": "https://jolt.build/blog/django-grafana-benchmark"
+    },
+    {
+      "vendor": "greptile",
+      "precisionAt5": 0.61,
+      "recallAt10": 0.71,
+      "mrr": 0.58,
+      "latencyP50Ms": 530,
+      "notes": "Greptile code intelligence whitepaper.",
+      "source": "https://greptile.dev/blog/benchmark"
+    },
+    {
+      "vendor": "sourcegraph",
+      "precisionAt5": 0.55,
+      "recallAt10": 0.66,
+      "mrr": 0.5,
+      "latencyP50Ms": 610,
+      "notes": "Sourcegraph Cody release metrics.",
+      "source": "https://sourcegraph.com/blog/cody-metrics"
+    }
+  ]
+}

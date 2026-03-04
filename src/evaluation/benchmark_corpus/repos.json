@@ -1,0 +1,75 @@
+{
+  "schema": "LCIBRepoConfig.v1",
+  "updatedAt": "2026-03-04T00:00:00.000Z",
+  "repos": [
+    {
+      "id": "django",
+      "name": "Django",
+      "description": "Python web framework (monolith, ORM, templating, ASGI/WSGI).",
+      "gitUrl": "https://github.com/django/django.git",
+      "defaultBranch": "main",
+      "languages": ["Python"],
+      "locEstimate": "500k+",
+      "stackNotes": "Python 3.11+, ORM, async views, admin site.",
+      "setup": {
+        "commands": [
+          "python -m venv .venv",
+          "source .venv/bin/activate",
+          "pip install -r requirements/py3.txt"
+        ],
+        "notes": "Docs build optional; LCIB focuses on django/ and docs/ref/."
+      },
+      "bootstrap": {
+        "include": ["django/**/*.py", "docs/**/*.rst"],
+        "exclude": ["**/tests/perf/**", "**/_build/**"]
+      },
+      "groundTruthFile": "django.json",
+      "tags": ["python", "web"]
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "description": "Observability dashboard (Go backend + TypeScript frontend).",
+      "gitUrl": "https://github.com/grafana/grafana.git",
+      "defaultBranch": "main",
+      "languages": ["Go", "TypeScript"],
+      "locEstimate": "1M+",
+      "stackNotes": "Go services, React front-end, provisioning plugins.",
+      "setup": {
+        "commands": [
+          "yarn install --immutable",
+          "mage build"
+        ],
+        "notes": "Benchmark uses pkg/ and public/app/ along with plugin SDKs."
+      },
+      "bootstrap": {
+        "include": ["pkg/**/*.go", "public/app/**/*.ts", "public/app/**/*.tsx"],
+        "exclude": ["**/node_modules/**", "**/pkg/build/**"]
+      },
+      "groundTruthFile": "grafana.json",
+      "tags": ["observability", "go", "typescript"]
+    },
+    {
+      "id": "fastify",
+      "name": "Fastify",
+      "description": "High-performance Node.js web framework (plugins, hooks).",
+      "gitUrl": "https://github.com/fastify/fastify.git",
+      "defaultBranch": "main",
+      "languages": ["TypeScript", "JavaScript"],
+      "locEstimate": "120k+",
+      "stackNotes": "Node.js core with TypeScript type definitions and plugins.",
+      "setup": {
+        "commands": [
+          "npm install"
+        ],
+        "notes": "LCIB covers lib/, packages/ while skipping docs/."
+      },
+      "bootstrap": {
+        "include": ["lib/**/*.js", "lib/**/*.ts", "packages/**/*.ts"],
+        "exclude": ["**/benchmarks/**", "**/examples/**"]
+      },
+      "groundTruthFile": "fastify.json",
+      "tags": ["node", "http"]
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "schema": "LCIBQueryCorpus.v1",
+  "repoId": "grafana",
+  "version": "2026.03",
+  "curatedBy": "LCIB bootstrap",
+  "description": "Initial Grafana LCIB slice (10 of 50 required queries).",
+  "queries": [
+    {
+      "id": "server-http-router",
+      "queryType": "architecture",
+      "query": "Where does Grafana's HTTP server register API routes and middleware?",
+      "relevantFiles": ["pkg/api/server.go"],
+      "relevantFunctions": ["HTTPServer.Run", "HTTPServer.registerRoutes"],
+      "tags": ["backend", "http"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "datasource-prometheus",
+      "queryType": "bugfix",
+      "query": "Locate the Prometheus datasource implementation used by tsdb queries.",
+      "relevantFiles": ["pkg/tsdb/prometheus/prometheus.go"],
+      "relevantFunctions": ["NewPrometheusExecutor", "executeQuery"],
+      "tags": ["prometheus", "datasource"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "plugin-loader",
+      "queryType": "navigation",
+      "query": "Where is the plugin loader that discovers backend plugins?",
+      "relevantFiles": ["pkg/services/pluginsintegration/pluginloader.go"],
+      "relevantFunctions": ["PluginLoader.Load"],
+      "tags": ["plugins"],
+      "difficulty": "investigation"
+    },
+    {
+      "id": "dashgrid-render",
+      "queryType": "navigation",
+      "query": "Show the React component responsible for laying out dashboard panels (DashGrid).",
+      "relevantFiles": ["public/app/features/dashboard/components/DashGrid/DashGrid.tsx"],
+      "relevantFunctions": ["DashGrid"],
+      "tags": ["frontend", "react"],
+      "difficulty": "intro"
+    },
+    {
+      "id": "alerting-ruler",
+      "queryType": "architecture",
+      "query": "Where is the unified alerting ruler that evaluates rules?",
+      "relevantFiles": ["pkg/services/ngalert/state/ruler.go"],
+      "relevantFunctions": ["Ruler.EvalAlertRule"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "provisioning-datasources",
+      "queryType": "navigation",
+      "query": "Locate the provisioning code that loads datasources from YAML files.",
+      "relevantFiles": ["pkg/services/provisioning/datasources/service.go"],
+      "relevantFunctions": ["Service.ApplyChanges"],
+      "tags": ["provisioning"],
+      "difficulty": "investigation"
+    },
+    {
+      "id": "sqlstore-session",
+      "queryType": "bugfix",
+      "query": "Where is the sqlstore session wrapper that applies org scoping?",
+      "relevantFiles": ["pkg/services/sqlstore/session.go"],
+      "relevantFunctions": ["SessionWithSignedInUser"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "variable-query-editor",
+      "queryType": "navigation",
+      "query": "Show the Angular-compatible variable query editor React wrapper.",
+      "relevantFiles": ["public/app/features/variables/editor/VariableQueryEditor.tsx"],
+      "relevantFunctions": ["VariableQueryEditor"],
+      "difficulty": "intro"
+    },
+    {
+      "id": "access-control-service",
+      "queryType": "compliance",
+      "query": "Find the access control service enforcing fine-grained permissions.",
+      "relevantFiles": ["pkg/services/accesscontrol/service.go"],
+      "relevantFunctions": ["AccessControlService.Check"],
+      "tags": ["security"]
+    },
+    {
+      "id": "feature-toggle-registry",
+      "queryType": "navigation",
+      "query": "Where are feature toggles registered and queried on the frontend?",
+      "relevantFiles": ["public/app/core/services/featureToggles.ts"],
+      "relevantFunctions": ["featureEnabled", "initFeatureFlags"],
+      "difficulty": "intro"
+    }
+  ]
+}

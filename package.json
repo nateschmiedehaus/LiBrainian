@@ -96,6 +96,7 @@
   "scripts": {
     "ask": "node dist/cli/index.js query",
     "build": "tsc && mkdir -p dist/migrations && cp -r src/migrations/*.sql dist/migrations/",
+    "benchmark": "node scripts/run-with-tmpdir.mjs -- tsx scripts/lcib.ts",
     "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "dev": "node scripts/run-with-tmpdir.mjs -- tsx src/cli/index.ts",

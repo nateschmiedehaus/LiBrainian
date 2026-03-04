@@ -1,0 +1,95 @@
+{
+  "schema": "LCIBQueryCorpus.v1",
+  "repoId": "django",
+  "version": "2026.03",
+  "curatedBy": "LCIB bootstrap",
+  "description": "Initial Django LCIB slice (10 of 50 required queries).",
+  "queries": [
+    {
+      "id": "auth-middleware-entrypoint",
+      "queryType": "navigation",
+      "query": "Where is the AuthenticationMiddleware implemented and how does it attach the authenticated user?",
+      "relevantFiles": ["django/contrib/auth/middleware.py"],
+      "relevantFunctions": ["AuthenticationMiddleware.__call__"],
+      "tags": ["auth", "middleware"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "orm-queryset-clone",
+      "queryType": "behavior",
+      "query": "Show the QuerySet.clone logic that ensures filters are copied during chaining.",
+      "relevantFiles": ["django/db/models/query.py"],
+      "relevantFunctions": ["QuerySet._chain", "QuerySet._clone"],
+      "tags": ["orm", "queryset"],
+      "difficulty": "investigation"
+    },
+    {
+      "id": "dispatch-signal-flow",
+      "queryType": "architecture",
+      "query": "How do Django signals connect senders to receivers?",
+      "relevantFiles": ["django/dispatch/dispatcher.py"],
+      "relevantFunctions": ["Signal.connect", "Signal.send"],
+      "tags": ["signals"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "template-engine-loader",
+      "queryType": "navigation",
+      "query": "Locate the template loader utilities responsible for resolving template names.",
+      "relevantFiles": ["django/template/loader.py", "django/template/loaders/filesystem.py"],
+      "relevantFunctions": ["get_template", "FilesystemLoader.get_template_sources"],
+      "tags": ["templates"],
+      "difficulty": "intro"
+    },
+    {
+      "id": "async-class-based-view-flow",
+      "queryType": "architecture",
+      "query": "Where is the AsyncContextMixin defined for class-based views?",
+      "relevantFiles": ["django/views/generic/base.py"],
+      "relevantFunctions": ["AsyncContextMixin.__call__"],
+      "difficulty": "architecture"
+    },
+    {
+      "id": "migration-executor",
+      "queryType": "bugfix",
+      "query": "Find the migration executor that tracks unapplied migrations.",
+      "relevantFiles": ["django/db/migrations/executor.py"],
+      "relevantFunctions": ["MigrationExecutor.migrate"],
+      "tags": ["migrations"],
+      "difficulty": "bugfix"
+    },
+    {
+      "id": "settings-loader",
+      "queryType": "navigation",
+      "query": "Where does Django load project settings and default environment overrides?",
+      "relevantFiles": ["django/conf/__init__.py"],
+      "relevantFunctions": ["LazySettings._setup"],
+      "difficulty": "intro"
+    },
+    {
+      "id": "csrf-middleware",
+      "queryType": "compliance",
+      "query": "Locate the CSRF middleware that validates tokens on incoming requests.",
+      "relevantFiles": ["django/middleware/csrf.py"],
+      "relevantFunctions": ["CsrfViewMiddleware._reject"],
+      "tags": ["security"],
+      "difficulty": "compliance"
+    },
+    {
+      "id": "url-resolver",
+      "queryType": "navigation",
+      "query": "Which module resolves URL patterns to view callables?",
+      "relevantFiles": ["django/urls/resolvers.py"],
+      "relevantFunctions": ["ResolverMatch"],
+      "difficulty": "intro"
+    },
+    {
+      "id": "cache-backend",
+      "queryType": "performance",
+      "query": "Find the base cache backend class that custom cache stores extend.",
+      "relevantFiles": ["django/core/cache/backends/base.py"],
+      "relevantFunctions": ["BaseCache.get", "BaseCache._base"],
+      "difficulty": "performance"
+    }
+  ]
+}
