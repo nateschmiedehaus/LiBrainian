@@ -52,6 +52,7 @@ env:
   DEFAULT_VERIFY_TURNS: 32
   MAX_VERIFY_ATTEMPTS: 8
   VERIFY_LONG_RUN_THRESHOLD: 50
+  CODEX_VERIFY_TIMEOUT_MIN: 22
 
 jobs:
   verify:
@@ -676,7 +677,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          codex exec \
+          timeout "${CODEX_VERIFY_TIMEOUT_MIN}m" codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
@@ -686,6 +687,9 @@ jobs:
           EXIT=$?
           set -e
           tail -n 150 .verify-codex-primary.log || true
+          if [ "$EXIT" -eq 124 ]; then
+            echo "::warning::Codex verifier primary run timed out after ${CODEX_VERIFY_TIMEOUT_MIN} minutes."
+          fi
           if [ "$EXIT" -ne 0 ]; then
             exit "$EXIT"
           fi
@@ -704,7 +708,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          codex exec \
+          timeout "${CODEX_VERIFY_TIMEOUT_MIN}m" codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
@@ -714,6 +718,9 @@ jobs:
           EXIT=$?
           set -e
           tail -n 150 .verify-codex-fallback.log || true
+          if [ "$EXIT" -eq 124 ]; then
+            echo "::warning::Codex verifier fallback run timed out after ${CODEX_VERIFY_TIMEOUT_MIN} minutes."
+          fi
           if [ "$EXIT" -ne 0 ]; then
             exit "$EXIT"
           fi
