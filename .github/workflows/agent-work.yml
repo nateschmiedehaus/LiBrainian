@@ -963,13 +963,37 @@ jobs:
           fi
 
           # Auto-select: find issues that are ready + actionable + not claimed
-          # Priority: M0 > M1 > M2 > M3 > M4, then by issue number (oldest first)
+          # Priority lock: never advance beyond the earliest milestone that still has open issues.
+          ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
+            --json milestone,labels | jq -r '
+              [.[] |
+                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                (.milestone.title // empty) |
+                select(. != "") |
+                {title: ., order: (
+                  if . == "M0: Dogfood-Ready" then 0
+                  elif . == "M1: Construction MVP" then 1
+                  elif . == "M2: Agent Integration" then 2
+                  elif . == "M3: Scale & Epistemics" then 3
+                  elif . == "M4: World-Class" then 4
+                  else 99 end
+                )}
+              ] | sort_by(.order, .title) | first | .title // "none"
+            ')
+          echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
+
+          if [ "$ACTIVE_MILESTONE" = "none" ]; then
+            echo "No active milestone found among open source issues."
+            echo "issue_number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           ISSUES=$(gh issue list -R "$REPO" --state open \
             --label "triage/ready" --label "agent:actionable" \
-            --limit 50 \
-            --json number,title,labels,milestone \
-            --jq '
+            --limit 200 \
+            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" '
               [.[] |
+                select((.milestone.title // "none") == $active_milestone) |
                 select(.labels | map(.name) |
                   (contains(["agent:claimed"]) | not) and
                   (contains(["lifecycle/frozen"]) | not) and
@@ -981,7 +1005,7 @@ jobs:
                       contains(["agent:management-ticket"]) and
                       (
                         (contains(["agent:provider-auth-failure"]) | not) or
-                        ("$HAS_CODEX" == "true")
+                        ($has_codex == "true")
                       )
                     )
                   )
@@ -991,21 +1015,13 @@ jobs:
                   title,
                   milestone: (.milestone.title // "none"),
                   is_management: (.labels | map(.name) | contains(["agent:management-ticket"])),
-                  management_order: (if (.labels | map(.name) | contains(["agent:management-ticket"])) then 1 else 0 end),
-                  milestone_order: (
-                    if .milestone.title == "M0: Dogfood-Ready" then 0
-                    elif .milestone.title == "M1: Construction MVP" then 1
-                    elif .milestone.title == "M2: Agent Integration" then 2
-                    elif .milestone.title == "M3: Scale & Epistemics" then 3
-                    elif .milestone.title == "M4: World-Class" then 4
-                    else 5 end
-                  )
+                  management_order: (if (.labels | map(.name) | contains(["agent:management-ticket"])) then 0 else 1 end)
                 }
-              ] | sort_by(.milestone_order, .management_order, .number) | first
+              ] | sort_by(.management_order, .number) | first
             ')
 
           if [ -z "$ISSUES" ] || [ "$ISSUES" = "null" ]; then
-            echo "No ready+actionable issues found. Nothing to dispatch."
+            echo "No runnable issue in active milestone $ACTIVE_MILESTONE. Holding worker selection."
             echo "issue_number=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
