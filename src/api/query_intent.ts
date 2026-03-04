@@ -17,6 +17,7 @@ import type { EmbeddableEntityType } from '../storage/types.js';
 import type { GraphEdgeType } from '../types.js';
 import { parseStructuralQueryIntent, type StructuralQueryIntent } from './dependency_query.js';
 import { classifyTestQuery, type TestQueryClassification } from './test_file_correlation.js';
+import { ARCHITECTURE_QUERY_PATTERNS, SYMBOL_QUERY_PATTERNS } from './query_intent_patterns.js';
 
 // ============================================================================
 // TYPES
@@ -26,11 +27,13 @@ import { classifyTestQuery, type TestQueryClassification } from './test_file_cor
  * Query intent types that determine retrieval strategy:
  * - 'structural': Graph-based queries (depends on, imports, calls) -> use graph traversal
  * - 'location': Find/locate queries (where is, find) -> use search/index
+ * - 'symbol': Direct symbol lookups (find class/function) -> use precise search + symbol table
+ * - 'architecture': Module/layer structure queries -> use module-level summaries
  * - 'explanation': Understanding queries (what does, how does, why) -> use summaries
  * - 'meta': Project-level queries (what is this project) -> use documentation
  * - 'test': Test file queries (tests for X) -> use test correlation
  */
-export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta' | 'test';
+export type QueryIntentType = 'structural' | 'location' | 'symbol' | 'architecture' | 'explanation' | 'meta' | 'test';
 
 /**
  * Retrieval strategy that maps to intent type:
@@ -208,6 +211,10 @@ function getRetrievalStrategy(intentType: QueryIntentType): RetrievalStrategy {
       return 'graph';
     case 'location':
       return 'search';
+    case 'symbol':
+      return 'search';
+    case 'architecture':
+      return 'summary';
     case 'explanation':
       return 'summary';
     case 'meta':
@@ -230,6 +237,12 @@ function getFallbackStrategies(intentType: QueryIntentType): RetrievalStrategy[]
     case 'location':
       // If search doesn't find it, try graph relationships
       return ['graph', 'summary'];
+    case 'symbol':
+      // For symbols, try graph callers then summaries for surrounding code
+      return ['graph', 'summary'];
+    case 'architecture':
+      // Architecture queries prefer module summaries, then docs for diagrams
+      return ['docs', 'search'];
     case 'explanation':
       // If no good summaries, search for the entity then check docs
       return ['search', 'docs'];
@@ -255,6 +268,12 @@ function getEntityTypesForIntent(intentType: QueryIntentType): EmbeddableEntityT
     case 'location':
       // Location queries search all code entities
       return ['function', 'module'];
+    case 'symbol':
+      // Symbol queries should focus on direct definitions then surrounding modules
+      return ['function', 'module'];
+    case 'architecture':
+      // Architecture queries should prioritize module-level summaries/documents
+      return ['module', 'document'];
     case 'explanation':
       // Explanation queries prefer summaries, which come from function/module packs
       return ['function', 'module', 'document'];
@@ -278,6 +297,10 @@ function getDocumentBias(intentType: QueryIntentType, confidence: number): numbe
       return 0.1; // Strong code preference
     case 'location':
       return 0.2; // Code preference
+    case 'symbol':
+      return 0.05; // Strong code preference (precise definitions)
+    case 'architecture':
+      return 0.35 + (confidence * 0.1); // Mix of module summaries and doc context
     case 'explanation':
       return 0.4; // Slight code preference with docs as supplement
     case 'meta':
@@ -303,9 +326,11 @@ function getDocumentBias(intentType: QueryIntentType, confidence: number): numbe
  * The classification prioritizes in order:
  * 1. Structural queries (graph traversal) - most specific
  * 2. Test queries (test file correlation) - deterministic
- * 3. Location queries (search)
- * 4. Explanation queries (summaries)
- * 5. Meta queries (documentation)
+ * 3. Architecture queries (module/layer structure) - summary-first
+ * 4. Symbol queries (direct definitions) - precise search
+ * 5. Location queries (search)
+ * 6. Explanation queries (summaries)
+ * 7. Meta queries (documentation)
  *
  * @param intent The query string to classify
  * @returns UnifiedQueryIntent with complete routing information
@@ -349,7 +374,47 @@ export function classifyUnifiedQueryIntent(intent: string): UnifiedQueryIntent {
     };
   }
 
-  // 3. Pattern-based classification for location/explanation/meta
+  // 3. Architecture vs symbol discrimination (before generic location/explanation)
+  const architectureMatches = countPatternMatches(normalizedIntent, ARCHITECTURE_QUERY_PATTERNS);
+  const symbolMatches = countPatternMatches(normalizedIntent, SYMBOL_QUERY_PATTERNS);
+
+  if (architectureMatches > 0) {
+    const architectureConfidence = Math.min(
+      0.95,
+      0.55 + (architectureMatches * 0.12) + (symbolMatches > 0 ? 0.05 : 0)
+    );
+    const explanation =
+      `Architecture query detected with ${architectureMatches} structural/organization patterns` +
+      (symbolMatches > 0 ? ' (symbol hints present but architecture dominated).' : '.');
+
+    return {
+      intentType: 'architecture',
+      intentConfidence: architectureConfidence,
+      primaryStrategy: getRetrievalStrategy('architecture'),
+      fallbackStrategies: getFallbackStrategies('architecture'),
+      entityTypes: getEntityTypesForIntent('architecture'),
+      documentBias: getDocumentBias('architecture', architectureConfidence),
+      explanation,
+      requiresExhaustive,
+    };
+  }
+
+  if (symbolMatches > 0) {
+    const symbolConfidence = Math.min(0.9, 0.55 + (symbolMatches * 0.1));
+    const explanation = `Symbol query detected with ${symbolMatches} direct symbol lookup patterns.`;
+    return {
+      intentType: 'symbol',
+      intentConfidence: symbolConfidence,
+      primaryStrategy: getRetrievalStrategy('symbol'),
+      fallbackStrategies: getFallbackStrategies('symbol'),
+      entityTypes: getEntityTypesForIntent('symbol'),
+      documentBias: getDocumentBias('symbol', symbolConfidence),
+      explanation,
+      requiresExhaustive,
+    };
+  }
+
+  // 4. Pattern-based classification for location/explanation/meta
   const locationMatches = countPatternMatches(normalizedIntent, LOCATION_QUERY_PATTERNS);
   const explanationMatches = countPatternMatches(normalizedIntent, EXPLANATION_QUERY_PATTERNS);
   const metaMatches = countPatternMatches(normalizedIntent, META_QUERY_PATTERNS);
@@ -451,17 +516,34 @@ export function applyRetrievalStrategyAdjustments(
       }
       break;
 
-    case 'search':
-      // For location queries, use more results with tighter similarity
-      adjustedLimit = Math.min(limit * 1.5, 30);
-      explanation = `Location query (${classification.intentConfidence.toFixed(2)} conf). Expanded results: ${adjustedLimit}.`;
+    case 'search': {
+      if (classification.intentType === 'symbol') {
+        // For symbol queries, tighten similarity and keep window focused
+        adjustedThreshold = similarityThreshold * 1.15;
+        const tightenedLimit = Math.max(8, Math.min(limit, 16));
+        adjustedLimit = tightenedLimit;
+        explanation = `Symbol query (${classification.intentConfidence.toFixed(2)} conf). Tight window (${adjustedLimit}) for precise definitions.`;
+      } else {
+        // For generic location queries, use more results with tighter similarity
+        adjustedLimit = Math.min(limit * 1.5, 30);
+        explanation = `Location query (${classification.intentConfidence.toFixed(2)} conf). Expanded results: ${adjustedLimit}.`;
+      }
       break;
+    }
 
-    case 'summary':
-      // For explanation queries, prioritize high-confidence summaries
-      adjustedThreshold = similarityThreshold * 1.1;
-      explanation = `Explanation query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing summaries.`;
+    case 'summary': {
+      if (classification.intentType === 'architecture') {
+        // Architecture queries need broader module coverage, not leaf spam
+        adjustedThreshold = similarityThreshold;
+        adjustedLimit = Math.min(Math.max(limit * 1.2, 18), 40);
+        explanation = `Architecture query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing module-level summaries (${adjustedLimit} packs).`;
+      } else {
+        // For explanation queries, prioritize high-confidence summaries
+        adjustedThreshold = similarityThreshold * 1.1;
+        explanation = `Explanation query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing summaries.`;
+      }
       break;
+    }
 
     case 'docs':
       // For meta queries, prioritize documentation

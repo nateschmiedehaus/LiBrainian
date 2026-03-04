@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARCHITECTURE_VERIFICATION_PATTERNS,
+  ARCHITECTURE_QUERY_PATTERNS,
   BUG_INVESTIGATION_PATTERNS,
   CODE_QUALITY_PATTERNS,
   CODE_QUERY_PATTERNS,
@@ -14,6 +15,7 @@ import {
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
   SECURITY_AUDIT_PATTERNS,
+  SYMBOL_QUERY_PATTERNS,
   WHY_QUERY_PATTERNS,
 } from '../query_intent_patterns.js';
 
@@ -61,6 +63,16 @@ describe('query_intent_patterns', () => {
     expect(hasMatch(BUG_INVESTIGATION_PATTERNS, 'debug this bug')).toBe(true);
     expect(hasMatch(SECURITY_AUDIT_PATTERNS, 'check for SQL injection')).toBe(true);
     expect(hasMatch(ARCHITECTURE_VERIFICATION_PATTERNS, 'verify architecture boundaries')).toBe(true);
+  });
+
+  it('matches canonical architecture overview intents', () => {
+    expect(hasMatch(ARCHITECTURE_QUERY_PATTERNS, 'module structure for auth')).toBe(true);
+    expect(hasMatch(ARCHITECTURE_QUERY_PATTERNS, 'how is the ingestion layer organized')).toBe(true);
+  });
+
+  it('matches canonical symbol lookup intents', () => {
+    expect(hasMatch(SYMBOL_QUERY_PATTERNS, 'find the EmbeddingService class')).toBe(true);
+    expect(hasMatch(SYMBOL_QUERY_PATTERNS, 'definition of QueryPlanner')).toBe(true);
   });
 
   it('matches canonical quality/review/location/refactor-opportunity intents', () => {

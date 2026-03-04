@@ -671,12 +671,6 @@ describe('classifyUnifiedQueryIntent', () => {
       expect(result.primaryStrategy).toBe('search');
     });
 
-    it('classifies "Find the EmbeddingService class" as location', () => {
-      const result = classifyUnifiedQueryIntent('Find the EmbeddingService class');
-      expect(result.intentType).toBe('location');
-      expect(result.primaryStrategy).toBe('search');
-    });
-
     it('classifies "Which file contains the storage interface?" as location', () => {
       const result = classifyUnifiedQueryIntent('Which file contains the storage interface?');
       expect(result.intentType).toBe('location');
@@ -685,6 +679,32 @@ describe('classifyUnifiedQueryIntent', () => {
     it('classifies "Locate the bootstrap function" as location', () => {
       const result = classifyUnifiedQueryIntent('Locate the bootstrap function');
       expect(result.intentType).toBe('location');
+    });
+  });
+
+  describe('architecture vs symbol discrimination', () => {
+    it('classifies "How is the auth module structured?" as architecture', () => {
+      const result = classifyUnifiedQueryIntent('How is the auth module structured?');
+      expect(result.intentType).toBe('architecture');
+      expect(result.primaryStrategy).toBe('summary');
+      expect(result.entityTypes).toEqual(['module', 'document']);
+    });
+
+    it('defaults to architecture when symbol and architecture signals mix', () => {
+      const result = classifyUnifiedQueryIntent('Where is the auth module and how is it organized?');
+      expect(result.intentType).toBe('architecture');
+    });
+
+    it('classifies "Find the EmbeddingService class" as symbol intent', () => {
+      const result = classifyUnifiedQueryIntent('Find the EmbeddingService class');
+      expect(result.intentType).toBe('symbol');
+      expect(result.primaryStrategy).toBe('search');
+      expect(result.entityTypes).toEqual(['function', 'module']);
+    });
+
+    it('classifies "Definition of QueryPlanner" as symbol intent', () => {
+      const result = classifyUnifiedQueryIntent('Definition of QueryPlanner');
+      expect(result.intentType).toBe('symbol');
     });
   });
 
@@ -783,6 +803,16 @@ describe('classifyUnifiedQueryIntent', () => {
       const result = classifyUnifiedQueryIntent('How do I use this project?');
       expect(result.fallbackStrategies).toEqual(['summary', 'search']);
     });
+
+    it('provides docs -> search fallback for architecture queries', () => {
+      const result = classifyUnifiedQueryIntent('How is the storage module organized?');
+      expect(result.fallbackStrategies).toEqual(['docs', 'search']);
+    });
+
+    it('provides graph -> summary fallback for symbol queries', () => {
+      const result = classifyUnifiedQueryIntent('Usage of Bootstrapper class');
+      expect(result.fallbackStrategies).toEqual(['graph', 'summary']);
+    });
   });
 
   describe('entity type routing', () => {
@@ -838,6 +868,22 @@ describe('applyRetrievalStrategyAdjustments', () => {
     const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 14 });
 
     expect(adjustments.adjustedLimit).toBeGreaterThan(14);
+  });
+
+  it('widens module coverage for architecture queries', () => {
+    const intent = classifyUnifiedQueryIntent('How is the ingestion module structured?');
+    const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 14, similarityThreshold: 0.35 });
+
+    expect(adjustments.adjustedLimit).toBeGreaterThanOrEqual(18);
+    expect(adjustments.explanation).toContain('Architecture query');
+  });
+
+  it('tightens similarity for symbol queries', () => {
+    const intent = classifyUnifiedQueryIntent('Definition of EmbeddingService');
+    const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 20, similarityThreshold: 0.35 });
+
+    expect(adjustments.adjustedLimit).toBeLessThan(20);
+    expect(adjustments.adjustedThreshold).toBeGreaterThan(0.35);
   });
 
   it('sets useDocsFirst for meta queries', () => {

@@ -62,6 +62,36 @@ export const CODE_QUERY_PATTERNS: RegExp[] = [
 ];
 
 /**
+ * Keywords that indicate an ARCHITECTURE query asking about module layout or structure.
+ * These should bias routing toward directory/module level summaries rather than leaf files.
+ */
+export const ARCHITECTURE_QUERY_PATTERNS: RegExp[] = [
+  /\bmodule\s+structure\b/i,
+  /\bmodule\s+overview\b/i,
+  /\bhigh[- ]level\s+(architecture|structure|overview)\b/i,
+  /\barchitecture\s+of\b/i,
+  /\boverview\s+of\s+(?:the\s+)?(?:architecture|system|module|component|service)\b/i,
+  /\bdesign\s+of\s+(?:the\s+)?(?:architecture|system|module|component|service)\b/i,
+  /\blayout\s+of\s+(?:the\s+)?(?:architecture|system|module|component|service)\b/i,
+  /\bhow\s+is\s+(?:[\w\s]+?)\borganized\b/i,
+  /\bhow\s+is\s+(?:[\w\s]+?)\bstructured\b/i,
+];
+
+/**
+ * Keywords that indicate a SYMBOL lookup style query asking for specific definitions/usages.
+ */
+export const SYMBOL_QUERY_PATTERNS: RegExp[] = [
+  /\bwhere\s+is\s+(?:the\s+)?(?:[\w$]+\s+)+(?:function|class|method|symbol)\b/i,
+  /\bwhere\s+is\s+(?:the\s+)?(?:function|class|method|symbol)\s+[\w$]+\b/i,
+  /\bfind\s+(?:the\s+)?(?:[\w$]+\s+)+(?:function|class|method|symbol)\b/i,
+  /\bfind\s+(?:the\s+)?(?:function|class|method|symbol)\s+[\w$]+\b/i,
+  /\bdefinition\s+of\s+(?:the\s+)?[\w$]+\b/i,
+  /\busage\s+of\s+(?:the\s+)?[\w$]+\b/i,
+  /\bwho\s+calls\s+(?:the\s+)?[\w$]+\b/i,
+  /\bwhere\s+does\s+(?:the\s+)?[\w$]+\s+(?:live|reside)\b/i,
+];
+
+/**
  * Keywords that indicate a definition/contract query.
  * These queries should prioritize TypeScript interface/type declarations
  * over function implementations (abstract boundaries over concrete code).
