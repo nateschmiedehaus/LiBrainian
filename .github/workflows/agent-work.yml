@@ -70,6 +70,9 @@ env:
   RECENT_INFRA_WINDOW_MIN: 90
   MAX_RECENT_INFRA_BLOCKED: 2
   PROVIDER_RETRY_COOLDOWN_MIN: 180
+  CODEX_WORKER_TIMEOUT_MIN: 45
+  CLAUDE_WORKER_TIMEOUT_MIN: 45
+  WORKER_HEARTBEAT_SEC: 120
 
 jobs:
   work:
@@ -1681,6 +1684,7 @@ jobs:
           steps.breaker.outputs.open != 'true' &&
           steps.provider.outputs.primary == 'claude'
         id: agent-claude-primary
+        timeout-minutes: 45
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -1708,18 +1712,37 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-75}
-          timeout "${TIMEOUT_MIN}m" codex exec \
+          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          HEARTBEAT_SEC=${WORKER_HEARTBEAT_SEC:-120}
+          echo "timed_out=false" >> "$GITHUB_OUTPUT"
+
+          START_TS=$(date -u +%s)
+          (
+            while true; do
+              sleep "$HEARTBEAT_SEC"
+              NOW_TS=$(date -u +%s)
+              ELAPSED=$((NOW_TS - START_TS))
+              echo "::notice::Codex primary still running (elapsed=${ELAPSED}s, timeout=${TIMEOUT_MIN}m)."
+            done
+          ) &
+          HEARTBEAT_PID=$!
+
+          set -o pipefail
+          timeout "${TIMEOUT_MIN}m" stdbuf -oL -eL codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
             -C "$PWD" \
             --model "${CODEX_MODEL:-gpt-5-codex}" \
-            - < .agent-worker-prompt.md > .agent-codex-primary.log 2>&1
+            - < .agent-worker-prompt.md 2>&1 | tee .agent-codex-primary.log
           EXIT=$?
+          set +o pipefail
+          kill "$HEARTBEAT_PID" >/dev/null 2>&1 || true
+          wait "$HEARTBEAT_PID" 2>/dev/null || true
           set -e
           tail -n 150 .agent-codex-primary.log || true
           if [ "$EXIT" -eq 124 ]; then
+            echo "timed_out=true" >> "$GITHUB_OUTPUT"
             echo "::warning::Codex primary worker timed out after ${TIMEOUT_MIN} minutes."
           fi
           if [ "$EXIT" -ne 0 ]; then
@@ -1744,18 +1767,37 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-75}
-          timeout "${TIMEOUT_MIN}m" codex exec \
+          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          HEARTBEAT_SEC=${WORKER_HEARTBEAT_SEC:-120}
+          echo "timed_out=false" >> "$GITHUB_OUTPUT"
+
+          START_TS=$(date -u +%s)
+          (
+            while true; do
+              sleep "$HEARTBEAT_SEC"
+              NOW_TS=$(date -u +%s)
+              ELAPSED=$((NOW_TS - START_TS))
+              echo "::notice::Codex fallback still running (elapsed=${ELAPSED}s, timeout=${TIMEOUT_MIN}m)."
+            done
+          ) &
+          HEARTBEAT_PID=$!
+
+          set -o pipefail
+          timeout "${TIMEOUT_MIN}m" stdbuf -oL -eL codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
             -C "$PWD" \
             --model "${CODEX_MODEL:-gpt-5-codex}" \
-            - < .agent-worker-prompt.md > .agent-codex-fallback.log 2>&1
+            - < .agent-worker-prompt.md 2>&1 | tee .agent-codex-fallback.log
           EXIT=$?
+          set +o pipefail
+          kill "$HEARTBEAT_PID" >/dev/null 2>&1 || true
+          wait "$HEARTBEAT_PID" 2>/dev/null || true
           set -e
           tail -n 150 .agent-codex-fallback.log || true
           if [ "$EXIT" -eq 124 ]; then
+            echo "timed_out=true" >> "$GITHUB_OUTPUT"
             echo "::warning::Codex fallback worker timed out after ${TIMEOUT_MIN} minutes."
           fi
           if [ "$EXIT" -ne 0 ]; then
@@ -1777,6 +1819,7 @@ jobs:
           steps.provider.outputs.fallback == 'claude' &&
           steps.agent-codex-primary.outcome == 'failure'
         id: agent-claude-fallback
+        timeout-minutes: 45
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -2126,7 +2169,10 @@ jobs:
           RUN_URL=${RUN_URL:-}
           BUILD_FAILED=${BUILD_FAILED:-false}
           BUILD_FAILURE_KIND=${BUILD_FAILURE_KIND:-none}
+          CODEX_PRIMARY_TIMED_OUT=${CODEX_PRIMARY_TIMED_OUT:-false}
+          CODEX_FALLBACK_TIMED_OUT=${CODEX_FALLBACK_TIMED_OUT:-false}
           CLAUDE_AUTH_HINT=false
+          WORKER_TIMED_OUT=false
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
@@ -2134,6 +2180,9 @@ jobs:
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
           if ! [[ "$GATE_COMMITS" =~ ^[0-9]+$ ]]; then GATE_COMMITS=0; fi
           if ! [[ "$GATE_CHANGED_COUNT" =~ ^[0-9]+$ ]]; then GATE_CHANGED_COUNT=0; fi
+          if [ "$CODEX_PRIMARY_TIMED_OUT" = "true" ] || [ "$CODEX_FALLBACK_TIMED_OUT" = "true" ]; then
+            WORKER_TIMED_OUT=true
+          fi
 
           if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
             if gh run view "$RUN_ID" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
@@ -2336,6 +2385,57 @@ jobs:
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
+          elif [ "$WORKER_TIMED_OUT" = "true" ]; then
+            if [ "$ATTEMPTS" -ge 4 ]; then
+              echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+              echo "escalate=true" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=worker_timeout_nonconvergent" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed" || true
+              {
+                echo "**Agent Work Loop** — worker timed out repeatedly."
+                echo ""
+                echo "- **Provider attempted:** $PROVIDER_USED"
+                echo "- **Attempts:** $ATTEMPTS"
+                echo "- **Timeout signals:** codex_primary=$CODEX_PRIMARY_TIMED_OUT, codex_fallback=$CODEX_FALLBACK_TIMED_OUT"
+                echo ""
+                echo "Automation escalated this issue for management tuning (scope split / timeout strategy / provider selection)."
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"timeout_strategy_patch\",\"next_action\":\"manual_review\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+            else
+              echo "result=retry-infra" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=worker_timeout_transient" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:management-needed" \
+                --remove-label "agent:manual-review-needed" \
+                --remove-label "agent:infra-blocked" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" || true
+              {
+                echo "**Agent Work Loop** — worker timed out."
+                echo ""
+                echo "- **Provider attempted:** $PROVIDER_USED"
+                echo "- **Attempts:** $ATTEMPTS"
+                echo "- **Timeout signals:** codex_primary=$CODEX_PRIMARY_TIMED_OUT, codex_fallback=$CODEX_FALLBACK_TIMED_OUT"
+                echo ""
+                echo "Issue was automatically re-queued for another attempt with updated strategy."
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"timeout_strategy_patch\",\"next_action\":\"retry\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+            fi
           elif [ "$WORKER_OUTCOME" != "success" ]; then
             echo "result=infra-failure" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
@@ -2636,6 +2736,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_FAILED: ${{ steps.install-build.outputs.failed }}
           BUILD_FAILURE_KIND: ${{ steps.install-build.outputs.failure_kind }}
+          CODEX_PRIMARY_TIMED_OUT: ${{ steps.agent-codex-primary.outputs.timed_out }}
+          CODEX_FALLBACK_TIMED_OUT: ${{ steps.agent-codex-fallback.outputs.timed_out }}
 
       - name: Requeue on cancellation
         if: always() && steps.find.outputs.issue_number && job.status == 'cancelled'
