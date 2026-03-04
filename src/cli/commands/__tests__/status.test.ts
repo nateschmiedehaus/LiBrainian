@@ -391,6 +391,18 @@ describe('statusCommand', () => {
 
   it('reports structural-only synthesis mode when nested Claude session markers are present', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
+    const synthesis = {
+      synthesisMode: 'structural-only' as const,
+      synthesisUnavailableReason: 'Nested Claude Code session detected (CLAUDE_CODE_SESSION)',
+    };
+    vi.mocked(getBootstrapStatus).mockReturnValue({
+      status: 'synthesis_unavailable',
+      currentPhase: null,
+      progress: 0,
+      startedAt: null,
+      completedAt: null,
+      synthesis,
+    });
     process.env.CLAUDE_CODE_SESSION = '1';
 
     try {
@@ -399,9 +411,13 @@ describe('statusCommand', () => {
       const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
       const parsed = JSON.parse(output ?? '{}') as {
         runtime?: { synthesisMode?: string; synthesisUnavailableReason?: string };
+        bootstrap?: { currentRun?: { status?: string; synthesis?: { synthesisMode?: string; synthesisUnavailableReason?: string } } };
       };
       expect(parsed.runtime?.synthesisMode).toBe('structural-only');
       expect(parsed.runtime?.synthesisUnavailableReason).toMatch(/nested claude code session/i);
+      expect(parsed.bootstrap?.currentRun?.status).toBe('synthesis_unavailable');
+      expect(parsed.bootstrap?.currentRun?.synthesis?.synthesisMode).toBe('structural-only');
+      expect(parsed.bootstrap?.currentRun?.synthesis?.synthesisUnavailableReason).toMatch(/nested claude code session/i);
     } finally {
       delete process.env.CLAUDE_CODE_SESSION;
     }

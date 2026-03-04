@@ -9,7 +9,7 @@ import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
-import { resolveSynthesisAvailability } from '../../api/llm_env.js';
+import { resolveSynthesisAvailability, type SynthesisAvailability } from '../../api/llm_env.js';
 import { computeEmbeddingCoverage, type EmbeddingCoverageSummary } from '../../api/embedding_coverage.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
@@ -84,6 +84,7 @@ type StatusReport = {
       progress: number;
       startedAt: string | null;
       completedAt: string | null;
+      synthesis?: SynthesisAvailability;
     } | null;
   };
   index?: {
@@ -371,6 +372,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
             progress: bootstrapState.progress,
             startedAt: bootstrapState.startedAt?.toISOString() ?? null,
             completedAt: bootstrapState.completedAt?.toISOString() ?? null,
+            synthesis: bootstrapState.synthesis,
           }
         : null,
     };
@@ -415,6 +417,15 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
           { key: 'Started At', value: formatTimestamp(bootstrapState.startedAt) },
           { key: 'Completed At', value: formatTimestamp(bootstrapState.completedAt) },
         ]);
+        if (bootstrapState.synthesis) {
+          printKeyValue([
+            { key: 'Synthesis Mode', value: bootstrapState.synthesis.synthesisMode },
+            {
+              key: 'Synthesis Reason',
+              value: bootstrapState.synthesis.synthesisUnavailableReason ?? 'llm available',
+            },
+          ]);
+        }
       }
       console.log();
 

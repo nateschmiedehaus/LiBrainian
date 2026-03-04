@@ -140,7 +140,7 @@ import {
 } from '../integration/workspace_lock.js';
 
 export interface BootstrapState {
-  status: 'not_started' | 'in_progress' | 'completed' | 'failed' | 'upgrade_required';
+  status: 'not_started' | 'synthesis_unavailable' | 'in_progress' | 'completed' | 'failed' | 'upgrade_required';
   currentPhase: BootstrapPhase | null;
   progress: number; // 0-1
   startedAt: Date | null;
@@ -2194,15 +2194,19 @@ export async function isBootstrapRequired(
  * Get current bootstrap status for a workspace.
  */
 export function getBootstrapStatus(workspace: string): BootstrapState {
-  return (
-    bootstrapStates.get(workspace) || {
-      status: 'not_started',
-      currentPhase: null,
-      progress: 0,
-      startedAt: null,
-      completedAt: null,
-    }
-  );
+  const existing = bootstrapStates.get(workspace);
+  if (existing) return existing;
+  const synthesis = resolveSynthesisAvailability();
+  const status: BootstrapState['status'] =
+    synthesis.synthesisMode === 'structural-only' ? 'synthesis_unavailable' : 'not_started';
+  return {
+    status,
+    currentPhase: null,
+    progress: 0,
+    startedAt: null,
+    completedAt: null,
+    synthesis,
+  };
 }
 
 /**
@@ -2309,8 +2313,10 @@ export async function bootstrapProject(
   const governorRunState = createGovernorRunState();
 
   // Initialize state
+  const initialStatus: BootstrapState['status'] =
+    synthesisAvailability.synthesisMode === 'structural-only' ? 'synthesis_unavailable' : 'in_progress';
   const state: BootstrapState = {
-    status: 'in_progress',
+    status: initialStatus,
     currentPhase: null,
     progress: 0,
     startedAt: new Date(),
