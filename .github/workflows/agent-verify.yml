@@ -437,8 +437,13 @@ jobs:
         id: provider
         run: |
           REQUESTED="${{ inputs.agent_provider || 'auto' }}"
-          ALLOW_FALLBACK="${{ inputs.enable_fallback != false }}"
+          ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          ALLOW_FALLBACK=true
+          if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
+            ALLOW_FALLBACK=false
+          fi
           ATTEMPTS="${{ steps.verify-retries.outputs.attempts || '1' }}"
+          NUM="${{ steps.find.outputs.issue_number }}"
 
           HAS_CLAUDE=false
           HAS_CODEX=false
@@ -448,10 +453,6 @@ jobs:
           fi
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=1; fi
-          if [ "$ATTEMPTS" -ge 3 ]; then
-            ALLOW_FALLBACK=false
-            echo "Disabling verifier fallback for high retry count (attempts=$ATTEMPTS)."
-          fi
 
           if [ "$REQUESTED" = "claude" ] && [ "$HAS_CLAUDE" != "true" ]; then
             echo "::error::agent_provider=claude but CLAUDE_CODE_OAUTH_TOKEN is unavailable."
@@ -468,6 +469,20 @@ jobs:
 
           PRIMARY=""
           FALLBACK=""
+          PRIOR_CLAUDE_UNKNOWNS=0
+          if [ "$REQUESTED" = "auto" ]; then
+            PRIOR_CLAUDE_UNKNOWNS=$(gh issue view "$NUM" -R "$REPO" --json comments \
+              --jq '[.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.provider // "") == "claude")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") == "provider_or_infra_failure" or (.status // "") == "missing_metadata")
+              ] | length' 2>/dev/null || echo 0)
+            if ! [[ "$PRIOR_CLAUDE_UNKNOWNS" =~ ^[0-9]+$ ]]; then PRIOR_CLAUDE_UNKNOWNS=0; fi
+          fi
+
           if [ "$REQUESTED" = "claude" ]; then
             PRIMARY="claude"
             [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
@@ -475,7 +490,11 @@ jobs:
             PRIMARY="codex"
             [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
           else
-            if [ "$HAS_CLAUDE" = "true" ]; then
+            if [ "$HAS_CODEX" = "true" ] && [ "$PRIOR_CLAUDE_UNKNOWNS" -ge 1 ]; then
+              PRIMARY="codex"
+              [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+              echo "Auto-provider override: preferring codex due to prior claude UNKNOWN verifier outcomes ($PRIOR_CLAUDE_UNKNOWNS)."
+            elif [ "$HAS_CLAUDE" = "true" ]; then
               PRIMARY="claude"
               [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CODEX" = "true" ] && FALLBACK="codex"
             else
@@ -488,6 +507,7 @@ jobs:
           echo "fallback=$FALLBACK" >> "$GITHUB_OUTPUT"
           echo "Provider plan: primary=$PRIMARY fallback=${FALLBACK:-none}"
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
           CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
