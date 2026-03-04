@@ -36,6 +36,7 @@ import {
   type AuthorizationScope,
   type BootstrapToolInput,
   type StatusToolInput,
+  type HealthToolInput,
   type GetSessionBriefingToolInput,
   type SemanticSearchToolInput,
   type GetContextPackToolInput,
@@ -179,7 +180,7 @@ import { buildCapabilityInventory } from '../capabilities/inventory.js';
 import { recordHumanFeedbackOutcome } from '../epistemics/calibration_integration.js';
 import { validateImportReference } from '../runtime/api_surface_index.js';
 import { runCompletenessOracle, isCompletionSignalClaim, type CompletenessCounterevidence } from '../api/completeness_oracle.js';
-import { preloadEmbeddingModel } from '../api/embedding_providers/real_embeddings.js';
+import { isModelLoaded, preloadEmbeddingModel } from '../api/embedding_providers/real_embeddings.js';
 import { preloadReranker } from '../api/embedding_providers/cross_encoder_reranker.js';
 
 // ============================================================================
@@ -376,9 +377,19 @@ interface ToolHintMetadata {
   estimatedTokens: number;
 }
 
+interface StructuredToolErrorEnvelope {
+  error: string;
+  retryable: boolean;
+  retry_after_ms: number | null;
+  fallback: string;
+  timestamp: string;
+  agent_error: Record<string, unknown>;
+}
+
 const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   bootstrap: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 12000 },
   status: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 900 },
+  health: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 600 },
   get_session_briefing: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1200 },
   semantic_search: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4200 },
   get_context_pack: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 2600 },
@@ -438,6 +449,8 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   get_repo_map: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 4200 },
   get_context_pack_bundle: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: true, estimatedTokens: 4000 },
 };
+
+const HEALTH_INDEX_STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
 type ConstructionOperator =
   | 'seq'
@@ -948,6 +961,143 @@ function getWorkspaceArg(args: unknown): string | undefined {
   return trimmed || undefined;
 }
 
+function extractSearchTerm(args: unknown): string | null {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return null;
+  }
+  const container = args as Record<string, unknown>;
+  const candidateKeys = [
+    'query',
+    'intent',
+    'description',
+    'task',
+    'symbol',
+    'pattern',
+    'target',
+    'term',
+    'goal',
+  ];
+  for (const key of candidateKeys) {
+    const value = container[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+const NON_RETRYABLE_AGENT_CODES = new Set([
+  'tool_not_found',
+  'invalid_input',
+  'claim_not_found',
+  'workspace_not_found',
+]);
+
+function sanitizeSearchTerm(term: string): string {
+  const compact = term.replace(/[\r\n]+/g, ' ').replace(/["`]+/g, "'");
+  const trimmed = compact.trim() || 'your query';
+  if (trimmed.length <= 80) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 77)}…`;
+}
+
+function buildFallbackCommand(params: { toolName: string; args: unknown; fallbackQuery?: string }): string {
+  const sourceTerm =
+    (typeof params.fallbackQuery === 'string' && params.fallbackQuery.trim().length > 0
+      ? params.fallbackQuery.trim()
+      : extractSearchTerm(params.args))
+    ?? params.toolName;
+  const term = sanitizeSearchTerm(sourceTerm);
+  const workspace = getWorkspaceArg(params.args) ?? '<workspace>';
+  return `Use Grep to search for "${term}" inside ${workspace}: rg -n "${term}" -n src`;
+}
+
+function extractRetryAfterMs(
+  ...sources: Array<Record<string, unknown> | undefined>
+): number | undefined {
+  const candidateKeys = ['retryAfterMs', 'retry_after_ms', 'retry_after', 'retryAfter'];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of candidateKeys) {
+      const raw = source[key];
+      if (raw === undefined || raw === null) continue;
+      const value = Number(raw);
+      if (Number.isFinite(value) && value >= 0) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function deriveRetryableFlag(
+  overrides: { retryableOverride?: boolean },
+  basePayload?: Record<string, unknown>,
+  agentPayload?: Record<string, unknown>
+): boolean {
+  if (typeof overrides.retryableOverride === 'boolean') {
+    return overrides.retryableOverride;
+  }
+  if (basePayload && typeof basePayload.retryable === 'boolean') {
+    return basePayload.retryable;
+  }
+  const agentCode = agentPayload && typeof agentPayload.code === 'string'
+    ? agentPayload.code
+    : undefined;
+  if (agentCode && NON_RETRYABLE_AGENT_CODES.has(agentCode)) {
+    return false;
+  }
+  if (agentPayload && typeof agentPayload.retry_safe === 'boolean') {
+    return agentPayload.retry_safe;
+  }
+  const severity = agentPayload && typeof agentPayload.severity === 'string'
+    ? agentPayload.severity
+    : undefined;
+  if (severity === 'blocking') {
+    return false;
+  }
+  return true;
+}
+
+function buildStructuredToolErrorEnvelope(params: {
+  toolName: string;
+  args: unknown;
+  message: string;
+  basePayload?: Record<string, unknown>;
+  fallbackQuery?: string;
+  retryableOverride?: boolean;
+  retryAfterOverride?: number;
+}): StructuredToolErrorEnvelope {
+  const agentPayload = toAgentErrorPayload({
+    toolName: params.toolName,
+    args: params.args,
+    message: params.message,
+    basePayload: params.basePayload,
+  });
+  const retryAfterMs = params.retryAfterOverride ?? extractRetryAfterMs(params.basePayload, agentPayload);
+  const resolvedMessage = typeof agentPayload.message === 'string'
+    ? agentPayload.message
+    : params.message;
+  const fallback = buildFallbackCommand({
+    toolName: params.toolName,
+    args: params.args,
+    fallbackQuery: params.fallbackQuery,
+  });
+  return {
+    error: resolvedMessage,
+    retryable: deriveRetryableFlag(
+      { retryableOverride: params.retryableOverride },
+      params.basePayload,
+      agentPayload
+    ),
+    retry_after_ms: retryAfterMs ?? null,
+    fallback,
+    timestamp: new Date().toISOString(),
+    agent_error: agentPayload,
+  };
+}
+
 function buildAgentNextSteps(code: string, toolName: string, workspace: string | undefined): {
   nextSteps: string[];
   recoverWith?: { tool: string; args: Record<string, unknown> };
@@ -1210,12 +1360,12 @@ function toAgentErrorPayload(params: {
   };
 }
 
-function normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null {
+function normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): StructuredToolErrorEnvelope | null {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
   const base = result as Record<string, unknown>;
 
   if (base.error === true && typeof base.message === 'string') {
-    return toAgentErrorPayload({
+    return buildStructuredToolErrorEnvelope({
       toolName,
       args,
       message: base.message,
@@ -1224,7 +1374,7 @@ function normalizeToolErrorResult(toolName: string, args: unknown, result: unkno
   }
 
   if (typeof base.error === 'string') {
-    return toAgentErrorPayload({
+    return buildStructuredToolErrorEnvelope({
       toolName,
       args,
       message: base.error,
@@ -1233,7 +1383,7 @@ function normalizeToolErrorResult(toolName: string, args: unknown, result: unkno
   }
 
   if (base.success === false && typeof base.message === 'string') {
-    return toAgentErrorPayload({
+    return buildStructuredToolErrorEnvelope({
       toolName,
       args,
       message: base.message,
@@ -1391,6 +1541,18 @@ export class LiBrainianMCPServer {
             sessionId: { type: 'string', description: 'Optional session identifier for session-scoped status details' },
             planId: { type: 'string', description: 'Optional plan ID to retrieve a specific synthesized plan' },
             costBudgetUsd: { type: 'number', description: 'Optional budget threshold (USD) for session cost alerts' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'health',
+        description: 'Report LiBrainian readiness, staleness, and fallback guidance for the active workspace',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            workspace: { type: 'string', description: 'Workspace path (optional, defaults to first registered)' },
+            fallbackQuery: { type: 'string', description: 'Optional search phrase to seed fallback command guidance' },
           },
           required: [],
         },
@@ -2581,7 +2743,7 @@ export class LiBrainianMCPServer {
       const maxConcurrent = Math.max(1, Number(this.config.performance.maxConcurrent ?? 1));
       if (this.inFlightToolCalls >= maxConcurrent) {
         const retryAfterMs = Math.max(200, Math.min(5000, Math.floor((this.config.performance.timeoutMs ?? 1000) / 10)));
-        const busyPayload = toAgentErrorPayload({
+        const structuredBusy = buildStructuredToolErrorEnvelope({
           toolName: name,
           args: validation.data,
           message: `Server busy: ${this.inFlightToolCalls} tool calls in flight. Retry in ${retryAfterMs}ms.`,
@@ -2593,6 +2755,8 @@ export class LiBrainianMCPServer {
               'Reduce concurrent tool calls or increase performance.maxConcurrent.',
             ],
           },
+          retryableOverride: true,
+          retryAfterOverride: retryAfterMs,
         });
         this.logAudit({
           id: entryId,
@@ -2608,7 +2772,7 @@ export class LiBrainianMCPServer {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(busyPayload, null, 2),
+              text: JSON.stringify(structuredBusy, null, 2),
             },
           ],
           isError: true,
@@ -2645,7 +2809,7 @@ export class LiBrainianMCPServer {
           input: sanitizedInput,
           status: 'failure',
           durationMs: Date.now() - startTime,
-          error: String(normalizedError.message ?? 'Tool execution failed'),
+          error: normalizedError.error,
         });
 
         return {
@@ -2690,7 +2854,7 @@ export class LiBrainianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      const normalizedError = toAgentErrorPayload({
+      const structuredError = buildStructuredToolErrorEnvelope({
         toolName: name,
         args: invocation.toolArgs,
         message: error instanceof Error ? error.message : String(error),
@@ -2700,7 +2864,7 @@ export class LiBrainianMCPServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(normalizedError, null, 2),
+            text: JSON.stringify(structuredError, null, 2),
           },
         ],
         isError: true,
@@ -3621,6 +3785,8 @@ export class LiBrainianMCPServer {
         return this.executeBootstrapDeduped(args as BootstrapToolInput);
       case 'status':
         return this.executeStatus(args as StatusToolInput, context);
+      case 'health':
+        return this.executeHealth(args as HealthToolInput);
       case 'get_session_briefing':
         return this.executeGetSessionBriefing(args as GetSessionBriefingToolInput, context);
       case 'system_contract':
@@ -4359,6 +4525,111 @@ export class LiBrainianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  private async executeHealth(input: HealthToolInput): Promise<unknown> {
+    const modelLoaded = isModelLoaded();
+
+    const resolvedWorkspace = input.workspace
+      ? path.resolve(input.workspace)
+      : this.state.workspaces.keys().next().value;
+    const fallbackArgs = {
+      workspace: resolvedWorkspace ?? input.workspace ?? '<workspace>',
+      query: input.fallbackQuery ?? 'your query',
+    };
+    const fallbackCommand = buildFallbackCommand({
+      toolName: 'health',
+      args: fallbackArgs,
+      fallbackQuery: input.fallbackQuery,
+    });
+
+    if (!resolvedWorkspace) {
+      return {
+        ready: false,
+        reason: 'No workspace registered in this MCP session',
+        registered_workspaces: 0,
+        model_loaded: modelLoaded,
+        fallback_command: fallbackCommand,
+        timestamp: new Date().toISOString(),
+        warnings: ['Call bootstrap(...) to register a workspace before using LiBrainian tools.'],
+      };
+    }
+
+    const workspace = this.state.workspaces.get(resolvedWorkspace);
+    if (!workspace) {
+      return {
+        ready: false,
+        reason: `Workspace not registered: ${resolvedWorkspace}`,
+        registered_workspaces: this.state.workspaces.size,
+        model_loaded: modelLoaded,
+        fallback_command: fallbackCommand,
+        timestamp: new Date().toISOString(),
+        warnings: ['Call bootstrap(...) for this workspace to attach storage and index state.'],
+      };
+    }
+
+    let fileCount: number | undefined;
+    let indexedAtIso: string | undefined = typeof workspace.indexedAt === 'string' ? workspace.indexedAt : undefined;
+    let indexAgeSeconds: number | null = null;
+    let indexStale = workspace.indexState !== 'ready';
+
+    if (workspace.librarian) {
+      try {
+        const status = await workspace.librarian.getStatus();
+        if (!indexedAtIso && status.lastBootstrap) {
+          indexedAtIso = status.lastBootstrap.toISOString();
+        }
+        const stats = status.stats as Record<string, unknown> | undefined;
+        if (stats) {
+          const filesIndexed = Number((stats as { filesIndexed?: unknown }).filesIndexed);
+          if (Number.isFinite(filesIndexed) && filesIndexed >= 0) {
+            fileCount = filesIndexed;
+          }
+        }
+      } catch {
+        // Ignore status errors; health should still return degraded info.
+      }
+    }
+
+    if (indexedAtIso) {
+      const parsed = Date.parse(indexedAtIso);
+      if (Number.isFinite(parsed)) {
+        indexAgeSeconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+        if (indexAgeSeconds * 1000 > HEALTH_INDEX_STALE_THRESHOLD_MS) {
+          indexStale = true;
+        }
+      }
+    }
+
+    const ready = Boolean(workspace.librarian && workspace.indexState === 'ready' && !indexStale);
+    const warnings: string[] = [];
+
+    if (!workspace.librarian) {
+      warnings.push('LiBrainian has not been created for this workspace. Run bootstrap first.');
+    }
+    if (indexStale) {
+      warnings.push('Index appears stale. Run bootstrap to refresh before relying on semantic search.');
+    }
+    if (!modelLoaded) {
+      warnings.push('Embedding model not preloaded; first query may incur cold-start or fail if model load crashes.');
+    }
+
+    return {
+      ready,
+      workspace: resolvedWorkspace,
+      reason: ready ? undefined : (warnings[0] ?? 'Workspace not ready'),
+      index_state: workspace.indexState,
+      index_age_seconds: indexAgeSeconds,
+      index_stale: indexStale,
+      stale_after_seconds: Math.floor(HEALTH_INDEX_STALE_THRESHOLD_MS / 1000),
+      model_loaded: modelLoaded,
+      file_count: fileCount ?? null,
+      fallback_command: fallbackCommand,
+      registered_workspaces: this.state.workspaces.size,
+      last_bootstrap_run_id: workspace.lastBootstrapRunId ?? null,
+      timestamp: new Date().toISOString(),
+      warnings,
+    };
   }
 
   private async executeStatus(input: StatusToolInput, context: ToolExecutionContext = {}): Promise<unknown> {

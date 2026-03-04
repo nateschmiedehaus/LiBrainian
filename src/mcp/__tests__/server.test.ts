@@ -208,6 +208,35 @@ describe('MCP Server', () => {
       expect(contextPackTool?.description?.toLowerCase()).toContain('token-budgeted');
     });
 
+    it('includes health tool for readiness + fallback guidance', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        description?: string;
+        inputSchema?: Record<string, unknown>;
+      }>;
+
+      const healthTool = tools.find((tool) => tool.name === 'health');
+
+      expect(healthTool).toBeDefined();
+      expect(healthTool?.description?.toLowerCase()).toContain('readiness');
+      expect(healthTool?.inputSchema).toMatchObject({ type: 'object' });
+    });
+
+    it('wraps unknown tool errors with fallback metadata', async () => {
+      const result = await (server as any).callTool('nonexistent_tool', {});
+      const payload = JSON.parse(result.content[0].text) as {
+        error: string;
+        retryable: boolean;
+        fallback: string;
+        agent_error?: { code?: string };
+      };
+
+      expect(payload.error).toContain('Unknown tool');
+      expect(payload.retryable).toBe(false);
+      expect(payload.fallback).toContain('rg -n');
+      expect(payload.agent_error?.code).toBe('invalid_input');
+    });
+
     it('includes estimate_budget as pre-task feasibility gate', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;

@@ -468,6 +468,15 @@ export interface StatusToolInput {
   costBudgetUsd?: number;
 }
 
+/** Health tool input */
+export interface HealthToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Optional query text to seed fallback guidance */
+  fallbackQuery?: string;
+}
+
 /** get_session_briefing tool input */
 export interface GetSessionBriefingToolInput {
   /** Workspace path (optional, uses first available if not specified) */
@@ -2072,6 +2081,12 @@ export const TOOL_AUTHORIZATION: Record<string, ToolAuthorization> = {
     requiresConsent: true,
     consentMessage: 'Bootstrap will index the workspace and write to .librarian directory',
     riskLevel: 'medium',
+  },
+  health: {
+    tool: 'health',
+    requiredScopes: ['read'],
+    requiresConsent: false,
+    riskLevel: 'low',
   },
   get_session_briefing: {
     tool: 'get_session_briefing',
