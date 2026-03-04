@@ -1648,7 +1648,8 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          codex exec \
+          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-75}
+          timeout "${TIMEOUT_MIN}m" codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
@@ -1658,6 +1659,9 @@ jobs:
           EXIT=$?
           set -e
           tail -n 150 .agent-codex-primary.log || true
+          if [ "$EXIT" -eq 124 ]; then
+            echo "::warning::Codex primary worker timed out after ${TIMEOUT_MIN} minutes."
+          fi
           if [ "$EXIT" -ne 0 ]; then
             exit "$EXIT"
           fi
@@ -1680,7 +1684,8 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          codex exec \
+          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-75}
+          timeout "${TIMEOUT_MIN}m" codex exec \
             --dangerously-bypass-approvals-and-sandbox \
             --skip-git-repo-check \
             --color never \
@@ -1690,6 +1695,9 @@ jobs:
           EXIT=$?
           set -e
           tail -n 150 .agent-codex-fallback.log || true
+          if [ "$EXIT" -eq 124 ]; then
+            echo "::warning::Codex fallback worker timed out after ${TIMEOUT_MIN} minutes."
+          fi
           if [ "$EXIT" -ne 0 ]; then
             exit "$EXIT"
           fi
@@ -1784,10 +1792,34 @@ jobs:
             echo "status=$STATUS" >> "$GITHUB_OUTPUT"
             echo "next_action=$NEXT_ACTION" >> "$GITHUB_OUTPUT"
             echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "source=issue_comment" >> "$GITHUB_OUTPUT"
           else
-            echo "status=missing" >> "$GITHUB_OUTPUT"
-            echo "next_action=unknown" >> "$GITHUB_OUTPUT"
-            echo "found=false" >> "$GITHUB_OUTPUT"
+            LOG_MATCH=""
+            for LOG in .agent-codex-primary.log .agent-codex-fallback.log; do
+              if [ ! -f "$LOG" ]; then
+                continue
+              fi
+              CAND=$(sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' "$LOG" | \
+                jq -c "select(.role==\"worker\" and ((has(\"run\")|not) or (.run|tostring)==\"$RUN_ID\"))" 2>/dev/null | tail -n 1 || true)
+              if [ -n "$CAND" ]; then
+                LOG_MATCH="$CAND"
+                break
+              fi
+            done
+
+            if [ -n "$LOG_MATCH" ]; then
+              STATUS=$(echo "$LOG_MATCH" | jq -r '.status // "unknown"')
+              NEXT_ACTION=$(echo "$LOG_MATCH" | jq -r '.next_action // "unknown"')
+              echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+              echo "next_action=$NEXT_ACTION" >> "$GITHUB_OUTPUT"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              echo "source=worker_log" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=missing" >> "$GITHUB_OUTPUT"
+              echo "next_action=unknown" >> "$GITHUB_OUTPUT"
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              echo "source=none" >> "$GITHUB_OUTPUT"
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1813,6 +1845,7 @@ jobs:
           BRANCH=${{ steps.branch.outputs.name }}
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "should_create_pr=false" >> "$GITHUB_OUTPUT"
+          echo "no_changes=false" >> "$GITHUB_OUTPUT"
 
           COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
           CHANGED=$(git diff --name-only origin/main.."$BRANCH" | sed '/^\s*$/d' || true)
@@ -1834,6 +1867,7 @@ jobs:
               COMMITS=1
             else
               echo "No changes produced. Nothing to gate."
+              echo "no_changes=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
@@ -1999,8 +2033,12 @@ jobs:
           GATE_OUTCOME=${{ steps.gates.outcome || 'unknown' }}
           EVIDENCE_FOUND=${{ steps.evidence.outputs.found || 'false' }}
           EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
+          EVIDENCE_SOURCE=${{ steps.evidence.outputs.source || 'none' }}
           NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
           ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
+          GATE_NO_CHANGES=${{ steps.gates.outputs.no_changes || 'false' }}
+          GATE_COMMITS=${{ steps.gates.outputs.commits || '0' }}
+          GATE_CHANGED_COUNT=${{ steps.gates.outputs.changed_count || '0' }}
           IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
           HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
           CLAUDE_AUTH_HINT=false
@@ -2009,6 +2047,8 @@ jobs:
           echo "escalation_reason=none" >> "$GITHUB_OUTPUT"
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
+          if ! [[ "$GATE_COMMITS" =~ ^[0-9]+$ ]]; then GATE_COMMITS=0; fi
+          if ! [[ "$GATE_CHANGED_COUNT" =~ ^[0-9]+$ ]]; then GATE_CHANGED_COUNT=0; fi
 
           if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
             if gh run view "${{ github.run_id }}" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
@@ -2248,32 +2288,151 @@ jobs:
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
+          elif [ "$WORKER_OUTCOME" = "success" ] && [ "$GATE_OUTCOME" = "success" ] && [ -z "$PR" ] && [ "$PUSH_FAILED" != "true" ]; then
+            NO_PROGRESS=false
+            if [ "$GATE_NO_CHANGES" = "true" ] || { [ "$GATE_COMMITS" -eq 0 ] && [ "$GATE_CHANGED_COUNT" -eq 0 ]; }; then
+              NO_PROGRESS=true
+            fi
+            if [ "$EVIDENCE_STATUS" = "no_changes" ]; then
+              NO_PROGRESS=true
+            fi
+
+            if [ "$NO_PROGRESS" = "true" ]; then
+              if [ "$ATTEMPTS" -ge 4 ]; then
+                echo "result=needs-management" >> "$GITHUB_OUTPUT"
+                echo "escalate=true" >> "$GITHUB_OUTPUT"
+                echo "escalation_reason=no_progress_nonconvergent" >> "$GITHUB_OUTPUT"
+                gh issue edit "$NUM" -R "$REPO" \
+                  --remove-label "agent:claimed" \
+                  --remove-label "verify:pending" \
+                  --remove-label "agent:actionable" \
+                  --remove-label "agent:needs-decomposition" \
+                  --add-label "agent:management-needed" \
+                  --add-label "agent:manual-review-needed" \
+                  --add-label "triage/missing-essentials"
+                {
+                  echo "**Agent Work Loop** — repeated no-progress runs detected."
+                  echo ""
+                  echo "- **Provider:** $PROVIDER_USED"
+                  echo "- **Worker outcome:** $WORKER_OUTCOME"
+                  echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
+                  echo "- **Commits produced:** $GATE_COMMITS"
+                  echo "- **Changed files:** $GATE_CHANGED_COUNT"
+                  echo "- **Attempts:** $ATTEMPTS"
+                  echo ""
+                  echo "Automation escalated this issue to management for scope/requirements correction."
+                  echo ""
+                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+                } > .outcome-comment.md
+                gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+                rm -f .outcome-comment.md
+              else
+                echo "result=retry-no-progress" >> "$GITHUB_OUTPUT"
+                gh issue edit "$NUM" -R "$REPO" \
+                  --remove-label "agent:claimed" \
+                  --remove-label "verify:pending" \
+                  --remove-label "agent:needs-decomposition" \
+                  --remove-label "agent:management-needed" \
+                  --remove-label "agent:manual-review-needed" \
+                  --add-label "agent:actionable" \
+                  --add-label "triage/ready" || true
+                {
+                  echo "**Agent Work Loop** — no code changes were produced."
+                  echo ""
+                  echo "- **Provider:** $PROVIDER_USED"
+                  echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
+                  echo "- **Commits produced:** $GATE_COMMITS"
+                  echo "- **Changed files:** $GATE_CHANGED_COUNT"
+                  echo "- **Attempts:** $ATTEMPTS"
+                  echo ""
+                  echo "Issue remains actionable for another focused attempt (narrower scope and explicit file targets)."
+                  echo ""
+                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"no_changes\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+                } > .outcome-comment.md
+                gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+                rm -f .outcome-comment.md
+              fi
+            elif [ "$EVIDENCE_STATUS" = "needs_decomposition" ] || [ "$NEXT_ACTION" = "decompose" ]; then
+              echo "result=needs-decomposition" >> "$GITHUB_OUTPUT"
+              echo "escalate=true" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=decomposition_required" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:actionable" \
+                --add-label "agent:needs-decomposition" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed" \
+                --add-label "triage/missing-essentials"
+              {
+                echo "**Agent Work Loop** — issue needs decomposition before further automation."
+                echo ""
+                echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                echo "- **Provider:** $PROVIDER_USED"
+                echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
+                echo "- **Suggested next_action:** $NEXT_ACTION"
+                echo ""
+                echo "Decomposition checklist:"
+                echo "1. Split into 2-4 narrow sub-issues with explicit file paths."
+                echo "2. Add measurable acceptance criteria per sub-issue."
+                echo "3. Re-add \`agent:actionable\` only to well-scoped sub-issues."
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+            else
+              echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+              echo "escalate=true" >> "$GITHUB_OUTPUT"
+              echo "escalation_reason=outcome_inconsistent_state" >> "$GITHUB_OUTPUT"
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --remove-label "agent:needs-decomposition" \
+                --add-label "agent:actionable" \
+                --add-label "triage/ready" \
+                --add-label "agent:management-needed" \
+                --add-label "agent:manual-review-needed" || true
+              {
+                echo "**Agent Work Loop** — inconsistent success state detected."
+                echo ""
+                echo "- **Provider:** $PROVIDER_USED"
+                echo "- **Worker outcome:** $WORKER_OUTCOME"
+                echo "- **Gate outcome:** $GATE_OUTCOME"
+                echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
+                echo "- **Commits produced:** $GATE_COMMITS"
+                echo "- **Changed files:** $GATE_CHANGED_COUNT"
+                echo ""
+                echo "Automation routed this to management for workflow/instrumentation correction and retry."
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+            fi
           else
-            echo "result=needs-decomposition" >> "$GITHUB_OUTPUT"
+            echo "result=infra-failure" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
-            echo "escalation_reason=decomposition_required" >> "$GITHUB_OUTPUT"
+            echo "escalation_reason=outcome_inconsistent_state" >> "$GITHUB_OUTPUT"
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "agent:claimed" \
               --remove-label "verify:pending" \
-              --remove-label "agent:actionable" \
-              --add-label "agent:needs-decomposition" \
+              --remove-label "agent:needs-decomposition" \
+              --add-label "agent:actionable" \
+              --add-label "triage/ready" \
               --add-label "agent:management-needed" \
-              --add-label "agent:manual-review-needed" \
-              --add-label "triage/missing-essentials"
+              --add-label "agent:manual-review-needed" || true
             {
-              echo "**Agent Work Loop** — issue needs decomposition before further automation."
+              echo "**Agent Work Loop** — outcome state was not classifiable."
               echo ""
               echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               echo "- **Provider:** $PROVIDER_USED"
-              echo "- **Evidence status:** $EVIDENCE_STATUS"
-              echo "- **Suggested next_action:** $NEXT_ACTION"
+              echo "- **Worker/Gate outcomes:** $WORKER_OUTCOME / $GATE_OUTCOME"
+              echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
               echo ""
-              echo "Decomposition checklist:"
-              echo "1. Split into 2-4 narrow sub-issues with explicit file paths."
-              echo "2. Add measurable acceptance criteria per sub-issue."
-              echo "3. Re-add \`agent:actionable\` only to well-scoped sub-issues."
+              echo "Automation escalated this to management for workflow-state correction and rerun."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
