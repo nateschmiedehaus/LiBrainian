@@ -878,10 +878,39 @@ jobs:
             if ! [[ "$CHANGED_COUNT" =~ ^[0-9]+$ ]]; then CHANGED_COUNT=0; fi
             if [ "$CHANGED_COUNT" -gt 0 ]; then
               echo "Running mandatory post-verification live-provider functionality gate..."
+              rm -f .verify-live-provider-system-vitest.json
               if ! timeout 25m npx vitest run src/__tests__/librarian_live_provider.system.test.ts \
-                --testNamePattern "bootstrap and become ready|query for context"; then
+                --testNamePattern "bootstrap and become ready|query for context" \
+                --reporter=json \
+                --outputFile .verify-live-provider-system-vitest.json; then
                 echo "::warning::Post-verify live-provider system test failed."
                 post_unknown "post_verify_live_provider_system_test_failed" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ ! -s .verify-live-provider-system-vitest.json ]; then
+                echo "::warning::Post-verify live-provider system test report missing."
+                post_unknown "post_verify_live_provider_report_missing" "$QUALITY"
+                echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              set +e
+              node -e '
+                const fs = require("fs");
+                const p = process.argv[1];
+                const raw = fs.readFileSync(p, "utf8");
+                const data = JSON.parse(raw);
+                const pending = Number(data.numPendingTests ?? data.numPendingTestCases ?? 0);
+                const todo = Number(data.numTodoTests ?? data.numTodoTestCases ?? 0);
+                const skipped = pending + todo;
+                console.log(`Mandatory live-provider skip check: pending=${pending} todo=${todo} total_skipped=${skipped}`);
+                if (skipped > 0) process.exit(1);
+              ' .verify-live-provider-system-vitest.json
+              SKIP_CHECK_EXIT=$?
+              set -e
+              if [ "$SKIP_CHECK_EXIT" -ne 0 ]; then
+                echo "::warning::Post-verify live-provider system tests reported skipped/todo cases."
+                post_unknown "post_verify_live_provider_skipped_tests" "$QUALITY"
                 echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
