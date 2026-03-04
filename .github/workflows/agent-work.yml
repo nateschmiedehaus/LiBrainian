@@ -1305,12 +1305,23 @@ jobs:
           HAS_CLAUDE=false
           HAS_CODEX=false
           HAS_AUTH_HINT=false
+          HAS_GLOBAL_CLAUDE_AUTH_INCIDENT=false
           [ -n "${CLAUDE_TOKEN:-}" ] && HAS_CLAUDE=true
           if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
             HAS_CODEX=true
           fi
           echo "$ISSUE_LABELS" | grep -Eq '(^|,)agent:provider-auth-failure(,|$)' && HAS_AUTH_HINT=true
           echo "$ISSUE_COMMENTS" | grep -Eiq 'provider_auth_or_runtime_failure|authentication_error|OAuth token has expired' && HAS_AUTH_HINT=true
+
+          CUTOFF=$(date -u -d "${RECENT_INFRA_WINDOW_MIN} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
+          RECENT_AUTH=$(gh issue list -R "$REPO" --state open \
+            --label "agent:provider-auth-failure" \
+            --search "updated:>=$CUTOFF -label:agent:management-ticket" \
+            --limit 200 \
+            --json number --jq 'length')
+          if [ "$RECENT_AUTH" -ge 1 ]; then
+            HAS_GLOBAL_CLAUDE_AUTH_INCIDENT=true
+          fi
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=0; fi
           if [ "$ATTEMPTS" -ge 3 ]; then
@@ -1333,6 +1344,19 @@ jobs:
             exit 1
           fi
 
+          if [ "$REQUESTED" = "auto" ] && [ "$HAS_GLOBAL_CLAUDE_AUTH_INCIDENT" = "true" ] && [ "$HAS_CODEX" = "true" ]; then
+            PRIMARY="codex"
+            FALLBACK=""
+            echo "Provider plan override: recent global provider-auth incidents detected; preferring codex primary."
+            echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
+            echo "fallback=$FALLBACK" >> "$GITHUB_OUTPUT"
+            echo "has_claude=$HAS_CLAUDE" >> "$GITHUB_OUTPUT"
+            echo "has_codex=$HAS_CODEX" >> "$GITHUB_OUTPUT"
+            echo "has_auth_hint=$HAS_AUTH_HINT" >> "$GITHUB_OUTPUT"
+            echo "has_global_claude_auth_incident=$HAS_GLOBAL_CLAUDE_AUTH_INCIDENT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "$REQUESTED" = "auto" ] && [ "$HAS_AUTH_HINT" = "true" ] && [ "$HAS_CODEX" = "true" ]; then
             PRIMARY="codex"
             FALLBACK=""
@@ -1342,6 +1366,7 @@ jobs:
             echo "has_claude=$HAS_CLAUDE" >> "$GITHUB_OUTPUT"
             echo "has_codex=$HAS_CODEX" >> "$GITHUB_OUTPUT"
             echo "has_auth_hint=$HAS_AUTH_HINT" >> "$GITHUB_OUTPUT"
+            echo "has_global_claude_auth_incident=$HAS_GLOBAL_CLAUDE_AUTH_INCIDENT" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -1368,12 +1393,14 @@ jobs:
           echo "has_claude=$HAS_CLAUDE" >> "$GITHUB_OUTPUT"
           echo "has_codex=$HAS_CODEX" >> "$GITHUB_OUTPUT"
           echo "has_auth_hint=$HAS_AUTH_HINT" >> "$GITHUB_OUTPUT"
+          echo "has_global_claude_auth_incident=$HAS_GLOBAL_CLAUDE_AUTH_INCIDENT" >> "$GITHUB_OUTPUT"
           echo "Provider plan: primary=$PRIMARY fallback=${FALLBACK:-none}"
         env:
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
           CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RECENT_INFRA_WINDOW_MIN: ${{ env.RECENT_INFRA_WINDOW_MIN }}
 
       # Free disk space — LiBrainian + node_modules need ~4GB
       - name: Free disk space
