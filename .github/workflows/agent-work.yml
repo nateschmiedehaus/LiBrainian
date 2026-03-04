@@ -1322,7 +1322,11 @@ jobs:
         id: provider
         run: |
           REQUESTED="${{ inputs.agent_provider || 'auto' }}"
-          ALLOW_FALLBACK="${{ inputs.enable_fallback != false }}"
+          ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          ALLOW_FALLBACK=true
+          if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
+            ALLOW_FALLBACK=false
+          fi
           ATTEMPTS="${{ steps.strategy.outputs.attempts || '0' }}"
           NUM="${{ steps.find.outputs.issue_number }}"
           ISSUE_LABELS=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
@@ -2980,6 +2984,11 @@ jobs:
           ESC_REASON="${{ steps.outcome.outputs.escalation_reason || '' }}"
           PR_PERMISSION_HEALED="${{ steps.pr-perm-heal.outputs.healed || 'false' }}"
           REMAINING="${{ inputs.batch_remaining || '1' }}"
+          ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          NEXT_ENABLE_FALLBACK=true
+          if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
+            NEXT_ENABLE_FALLBACK=false
+          fi
           if ! [[ "$REMAINING" =~ ^[0-9]+$ ]]; then
             echo "batch_remaining is not numeric; stopping chain."
             exit 0
@@ -3013,7 +3022,7 @@ jobs:
           echo "Dispatching chained run with batch_remaining=$NEXT"
           gh workflow run agent-work.yml -R "$REPO" \
             -f agent_provider="${{ inputs.agent_provider || 'auto' }}" \
-            -f enable_fallback="${{ inputs.enable_fallback != false }}" \
+            -f enable_fallback="$NEXT_ENABLE_FALLBACK" \
             -f dry_run=false \
             -f max_turns="${{ inputs.max_turns || env.DEFAULT_MAX_TURNS }}" \
             -f batch_remaining="$NEXT"
