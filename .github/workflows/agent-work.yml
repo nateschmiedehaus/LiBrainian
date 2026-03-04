@@ -142,12 +142,24 @@ jobs:
             exit 0
           fi
 
+          HAS_CODEX=false
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
+
           CUTOFF=$(date -u -d "${RECENT_INFRA_WINDOW_MIN} minutes ago" '+%Y-%m-%dT%H:%M:%SZ')
-          RECENT_INFRA=$(gh issue list -R "$REPO" --state open \
+          RECENT_INFRA_RAW=$(gh issue list -R "$REPO" --state open \
             --label "agent:infra-blocked" \
             --search "updated:>=$CUTOFF -label:agent:management-ticket" \
             --limit 200 \
-            --json number --jq 'length')
+            --json number,labels)
+
+          if [ "$HAS_CODEX" = "true" ]; then
+            # When Codex is available, provider-auth-only incidents are not infra blockers.
+            RECENT_INFRA=$(echo "$RECENT_INFRA_RAW" | jq '[.[] | select((.labels | map(.name) | contains(["agent:provider-auth-failure"])) | not)] | length')
+          else
+            RECENT_INFRA=$(echo "$RECENT_INFRA_RAW" | jq 'length')
+          fi
 
           echo "Recent infra-blocked issues in last ${RECENT_INFRA_WINDOW_MIN}m: $RECENT_INFRA"
           if [ "$RECENT_INFRA" -ge "$MAX_RECENT_INFRA_BLOCKED" ]; then
@@ -157,6 +169,8 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Abort if infra incident gate open
         if: steps.infra-gate.outputs.open == 'true'
