@@ -141,6 +141,165 @@ import {
 import { logWarning } from '../telemetry/logger.js';
 import { globalEventBus, createIndexChangeEvent } from '../events.js';
 
+type LockLogContext = Parameters<typeof logWarning>[1];
+
+interface LockDiagnosticEntry {
+  count: number;
+  message: string;
+  context?: LockLogContext;
+  timer: NodeJS.Timeout | null;
+}
+
+const LOCK_DIAGNOSTIC_FLUSH_DELAY_MS = 5_000;
+const LOCK_DIAGNOSTIC_REMEDIATION =
+  'Run `librarian doctor --heal` to inspect lock holders or safely remove stale lock files before retrying.';
+const lockDiagnosticState = new Map<string, LockDiagnosticEntry>();
+
+function scheduleLockDiagnosticFlush(key: string): NodeJS.Timeout {
+  const timer = setTimeout(() => {
+    flushLockDiagnostic(key);
+  }, LOCK_DIAGNOSTIC_FLUSH_DELAY_MS);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+  return timer;
+}
+
+function logLockDiagnostic(message: string, context?: LockLogContext): void {
+  const key = buildLockDiagnosticKey(message, context);
+  const existing = lockDiagnosticState.get(key);
+  if (!existing) {
+    const entry: LockDiagnosticEntry = {
+      count: 1,
+      message,
+      context,
+      timer: scheduleLockDiagnosticFlush(key),
+    };
+    lockDiagnosticState.set(key, entry);
+    logWarning(message, context);
+    return;
+  }
+  existing.count += 1;
+  existing.context = context;
+  if (existing.timer) {
+    clearTimeout(existing.timer);
+  }
+  existing.timer = scheduleLockDiagnosticFlush(key);
+}
+
+function flushLockDiagnostic(key: string): void {
+  const entry = lockDiagnosticState.get(key);
+  if (!entry) return;
+  lockDiagnosticState.delete(key);
+  if (entry.timer) {
+    clearTimeout(entry.timer);
+  }
+  if (entry.count <= 1) return;
+  const suppressedDuplicates = entry.count - 1;
+  const context: Record<string, unknown> = {
+    suppressedDuplicates,
+    lastMessage: entry.message,
+    remediation: LOCK_DIAGNOSTIC_REMEDIATION,
+  };
+  if (entry.context) {
+    addSummaryContext(context, entry.context);
+  }
+  logWarning('[librarian] SQLite lock contention persisted; suppressed duplicate diagnostics', context);
+}
+
+function addSummaryContext(summary: Record<string, unknown>, context: LockLogContext): void {
+  if (!context) return;
+  const record = context as Record<string, unknown>;
+  const pathValue = record.path;
+  if (typeof pathValue === 'string' && pathValue.length > 0) {
+    summary.path = pathValue;
+  }
+  const actionsValue = record.actions;
+  if (Array.isArray(actionsValue) && actionsValue.length > 0) {
+    summary.actions = actionsValue;
+  }
+  const errorsValue = record.errors;
+  if (Array.isArray(errorsValue) && errorsValue.length > 0) {
+    summary.errors = errorsValue;
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'error')) {
+    summary.lastError = formatDiagnosticValue(record.error);
+  }
+}
+
+function buildLockDiagnosticKey(message: string, context?: LockLogContext): string {
+  return `${message}|${serializeDiagnosticContext(context)}`;
+}
+
+function serializeDiagnosticContext(context?: LockLogContext): string {
+  if (!context) return '';
+  const sortedEntries = Object.entries(context)
+    .map(([key, value]) => [key, formatDiagnosticValue(value)] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of sortedEntries) {
+    normalized[key] = value;
+  }
+  return JSON.stringify(normalized);
+}
+
+function formatDiagnosticValue(value: unknown): unknown {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return value.toString();
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => formatDiagnosticValue(entry));
+  }
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message, code: (value as NodeJS.ErrnoException).code };
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => [key, formatDiagnosticValue(entry)] as const)
+      .sort(([a], [b]) => a.localeCompare(b));
+    const normalized: Record<string, unknown> = {};
+    for (const [key, entryValue] of entries) {
+      normalized[key] = entryValue;
+    }
+    return normalized;
+  }
+  if (typeof value === 'symbol' || typeof value === 'function' || value === undefined) {
+    return String(value);
+  }
+  return value;
+}
+
+function flushAllLockDiagnostics(): void {
+  for (const key of Array.from(lockDiagnosticState.keys())) {
+    flushLockDiagnostic(key);
+  }
+}
+
+function resetLockDiagnosticState(): void {
+  for (const entry of lockDiagnosticState.values()) {
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+    }
+  }
+  lockDiagnosticState.clear();
+}
+
+process.once('exit', flushAllLockDiagnostics);
+
+export const __testing = {
+  emitLockDiagnostic: logLockDiagnostic,
+  flushAllLockDiagnostics,
+  resetLockDiagnosticState,
+  LOCK_DIAGNOSTIC_FLUSH_DELAY_MS,
+};
+
 // ============================================================================
 // LOCK CONFIGURATION
 // ============================================================================
@@ -570,7 +729,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         errors: [String(recoveryError)],
       }));
       if (recovery.recovered) {
-        logWarning('Recovered stale storage lock state; retrying lock acquisition', {
+        logLockDiagnostic('Recovered stale storage lock state; retrying lock acquisition', {
           path: this.lockPath,
           actions: recovery.actions,
         });
@@ -599,14 +758,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         try {
           const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
           if (proactiveRecovery.recovered) {
-            logWarning('Recovered stale lock state before acquisition', {
+            logLockDiagnostic('Recovered stale lock state before acquisition', {
               path: this.lockPath,
               actions: proactiveRecovery.actions,
             });
           }
         } catch (checkError) {
           // Recovery check failed; direct acquisition path still handles stale locks.
-          logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
+          logLockDiagnostic('Proactive lock recovery check failed, proceeding with acquisition', {
             path: this.lockPath,
             error: checkError instanceof Error ? checkError.message : String(checkError),
           });
@@ -624,7 +783,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`unverified_by_trace:storage_locked:${message}`);
           }
-          logWarning('Recovered storage lock state; retrying lock acquisition', {
+          logLockDiagnostic('Recovered storage lock state; retrying lock acquisition', {
             path: this.lockPath,
             actions: recovery.actions,
           });
@@ -676,7 +835,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         }
         if (this.releaseLock) {
           await this.releaseLock().catch((lockError) => {
-            logWarning('Failed to release lock during initialization cleanup', { path: this.lockPath, error: lockError });
+            logLockDiagnostic('Failed to release lock during initialization cleanup', { path: this.lockPath, error: lockError });
           });
           this.releaseLock = null;
         }
@@ -689,7 +848,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             errors: [String(recoveryError)],
           }));
           if (recovery.recovered) {
-            logWarning('Recovered corrupt sqlite state during initialization; retrying open', {
+            logLockDiagnostic('Recovered corrupt sqlite state during initialization; retrying open', {
               path: this.dbPath,
               actions: recovery.actions,
             });
@@ -712,7 +871,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       this.initialized = false;
       if (this.releaseLock) {
         await this.releaseLock().catch((lockError) => {
-          logWarning('Failed to release lock during close', { path: this.lockPath, error: lockError });
+          logLockDiagnostic('Failed to release lock during close', { path: this.lockPath, error: lockError });
         });
         this.releaseLock = null;
       }
