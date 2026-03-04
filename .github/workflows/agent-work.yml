@@ -1004,10 +1004,7 @@ jobs:
                     (contains(["agent:infra-blocked"]) | not) or
                     (
                       contains(["agent:management-ticket"]) and
-                      (
-                        (contains(["agent:provider-auth-failure"]) | not) or
-                        ($has_codex == "true")
-                      )
+                      (contains(["agent:provider-auth-failure"]) | not)
                     )
                   )
                 ) |
