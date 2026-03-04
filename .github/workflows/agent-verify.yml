@@ -444,7 +444,9 @@ jobs:
           HAS_CLAUDE=false
           HAS_CODEX=false
           [ -n "${CLAUDE_TOKEN:-}" ] && HAS_CLAUDE=true
-          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
 
           if ! [[ "$ATTEMPTS" =~ ^[0-9]+$ ]]; then ATTEMPTS=1; fi
           if [ "$ATTEMPTS" -ge 3 ]; then
@@ -457,11 +459,11 @@ jobs:
             exit 1
           fi
           if [ "$REQUESTED" = "codex" ] && [ "$HAS_CODEX" != "true" ]; then
-            echo "::error::agent_provider=codex but OPENAI_API_KEY is unavailable."
+            echo "::error::agent_provider=codex but Codex credentials are unavailable (need OPENAI_API_KEY or CODEX_AUTH_JSON)."
             exit 1
           fi
           if [ "$HAS_CLAUDE" != "true" ] && [ "$HAS_CODEX" != "true" ]; then
-            echo "::error::No verifier provider credentials available."
+            echo "::error::No verifier provider credentials available (need CLAUDE_CODE_OAUTH_TOKEN and either CODEX_AUTH_JSON or OPENAI_API_KEY)."
             exit 1
           fi
 
@@ -489,6 +491,7 @@ jobs:
         env:
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       # ── Setup ────────────────────────────────────────────────────────
       - uses: actions/checkout@v4
@@ -602,6 +605,32 @@ jobs:
           (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
         run: npm install -g @openai/codex
 
+      - name: Prepare Codex auth (OAuth/API key)
+        if: >-
+          steps.find.outputs.pr_found == 'true' &&
+          steps.verify-retries.outputs.halt != 'true' &&
+          (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
+        run: |
+          if [ -z "${CODEX_AUTH_JSON:-}" ]; then
+            echo "No CODEX_AUTH_JSON provided; Codex will use OPENAI_API_KEY if available."
+            exit 0
+          fi
+
+          CODEX_HOME_DIR="$RUNNER_TEMP/codex-home"
+          mkdir -p "$CODEX_HOME_DIR"
+          chmod 700 "$CODEX_HOME_DIR"
+          printf '%s' "$CODEX_AUTH_JSON" > "$CODEX_HOME_DIR/auth.json"
+          chmod 600 "$CODEX_HOME_DIR/auth.json"
+          echo "CODEX_HOME=$CODEX_HOME_DIR" >> "$GITHUB_ENV"
+
+          if jq -e '.auth_mode and .tokens' "$CODEX_HOME_DIR/auth.json" >/dev/null 2>&1; then
+            echo "Prepared CODEX_HOME with OAuth auth payload."
+          else
+            echo "::warning::CODEX_AUTH_JSON does not look like a valid Codex auth.json payload."
+          fi
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+
       # ── Verification Agent ──────────────────────────────────────────
       - name: Run Claude verifier (primary)
         if: >-
@@ -643,6 +672,7 @@ jobs:
           fi
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Run Codex verifier (fallback)
         if: >-
@@ -670,6 +700,7 @@ jobs:
           fi
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Run Claude verifier (fallback)
         if: >-
