@@ -1038,11 +1038,20 @@ jobs:
             exit 0
           fi
 
-          # Count no-change and failed workflow attempts from evidence comments.
-          FAIL_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
-            --jq '[.comments[].body | select(contains("\"status\":\"no_changes\"") or contains("\"status\":\"needs_decomposition\"") or contains("\"status\":\"failed\""))] | length')
+          # Count failure attempts from structured worker evidence since the last submitted run.
+          # This prevents stale historical decomposition markers from permanently shelving an issue.
+          FAIL_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments --jq '
+            [ .comments[].body
+              | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+              | (try fromjson catch empty)
+              | select(.role == "worker")
+            ] as $events
+            | ([$events | to_entries[] | select(.value.status == "submitted") | .key] | last // -1) as $last_success
+            | [$events | to_entries[] | select(.key > $last_success) | .value
+               | select(.status == "failed" or .status == "no_changes")] | length
+          ')
 
-          echo "Issue #$NUM has $FAIL_COUNT previous no-change attempts (max $MAX_ATTEMPTS)"
+          echo "Issue #$NUM has $FAIL_COUNT failed/no-change attempts since last submitted run (max $MAX_ATTEMPTS)"
           echo "attempt_count=$FAIL_COUNT" >> "$GITHUB_OUTPUT"
 
           if [ "$FAIL_COUNT" -ge "$MAX_ATTEMPTS" ]; then
@@ -1052,7 +1061,7 @@ jobs:
               --add-label "agent:needs-decomposition" \
               --add-label "triage/missing-essentials"
             {
-              echo "**Agent Work Loop** — shelved after $FAIL_COUNT failed attempts."
+              echo "**Agent Work Loop** — shelved after $FAIL_COUNT failed/no-change attempts since last submitted run."
               echo ""
               echo "### Adaptive diagnosis"
               echo "- Repeated attempts are not converging."
