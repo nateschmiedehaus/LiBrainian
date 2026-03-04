@@ -263,7 +263,7 @@ export function createOperationalProofGateConstruction(): Construction<
 
         events.push({
           stage: check.id,
-          type: evaluation.passed ? 'stage_end' : 'warning',
+          type: evaluation.passed ? 'stage_complete' : 'warning',
           timestamp: new Date().toISOString(),
           detail: evaluation.passed ? 'operational_proof_check_passed' : 'operational_proof_check_failed',
         });

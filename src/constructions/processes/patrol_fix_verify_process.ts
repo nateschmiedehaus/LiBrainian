@@ -567,7 +567,7 @@ export function createPatrolFixVerifyProcessConstruction(): Construction<
         events: [
           {
             stage: 'patrol-fix-verify',
-            type: completed ? 'stage_end' : 'warning',
+            type: completed ? 'stage_complete' : 'warning',
             timestamp: new Date().toISOString(),
             detail: completed
               ? 'closed_loop_completed'
