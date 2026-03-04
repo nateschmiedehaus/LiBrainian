@@ -1789,6 +1789,12 @@ jobs:
         id: gates
         continue-on-error: true
         run: |
+          run_with_timeout() {
+            local minutes="$1"
+            shift
+            timeout "${minutes}m" "$@"
+          }
+
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
@@ -1819,20 +1825,20 @@ jobs:
           fi
 
           echo "Running hard gates on produced changes..."
-          npm run build
-          npx tsc --noEmit
+          run_with_timeout 12 npm run build
+          run_with_timeout 10 npx tsc --noEmit
 
           TEST_PATTERN=$(echo "$CHANGED" | grep -E '^src/.*\.(ts|tsx|js)$' | sed 's#^src/##' | sed 's#\.[^.]*$##' | paste -sd'|' - || true)
           if [ -n "$TEST_PATTERN" ]; then
-            npm test -- --run --testPathPattern "$TEST_PATTERN" || npm test -- --run
+            run_with_timeout 20 npm test -- --run --testPathPattern "$TEST_PATTERN" || run_with_timeout 20 npm test -- --run
           else
             PROFILE="${{ steps.strategy.outputs.test_profile }}"
             if [ "$PROFILE" = "scale" ]; then
-              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/performance_regression.test.ts
+              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/performance_regression.test.ts
             elif [ "$PROFILE" = "integration" ]; then
-              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/semantic_composition_selector.integration.test.ts
+              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/semantic_composition_selector.integration.test.ts
             else
-              npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts
+              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts
             fi
           fi
           echo "quality_ok=true" >> "$GITHUB_OUTPUT"
