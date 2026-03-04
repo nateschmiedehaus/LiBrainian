@@ -1947,6 +1947,8 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
           echo "push_failed=false" >> "$GITHUB_OUTPUT"
+          echo "pr_create_failed=false" >> "$GITHUB_OUTPUT"
+          echo "pr_create_error_kind=none" >> "$GITHUB_OUTPUT"
 
           # Re-authenticate git — claude-code-action may revoke its token on completion.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
@@ -2016,6 +2018,12 @@ jobs:
               echo "::warning::PR creation failed."
               echo "$PR_URL"
               echo "pr_number=" >> "$GITHUB_OUTPUT"
+              echo "pr_create_failed=true" >> "$GITHUB_OUTPUT"
+              if echo "$PR_URL" | grep -Eqi 'createPullRequest|not permitted to create or approve pull requests'; then
+                echo "pr_create_error_kind=permissions" >> "$GITHUB_OUTPUT"
+              else
+                echo "pr_create_error_kind=unknown" >> "$GITHUB_OUTPUT"
+              fi
               exit 0
             fi
 
@@ -2041,6 +2049,8 @@ jobs:
           WORKER_OUTCOME=${{ steps.worker.outputs.outcome || 'unknown' }}
           PROVIDER_USED=${{ steps.worker.outputs.provider_used || 'unknown' }}
           PUSH_FAILED=${{ steps.create-pr.outputs.push_failed || 'false' }}
+          PR_CREATE_FAILED=${{ steps.create-pr.outputs.pr_create_failed || 'false' }}
+          PR_CREATE_ERROR_KIND=${{ steps.create-pr.outputs.pr_create_error_kind || 'none' }}
           GATE_OUTCOME=${{ steps.gates.outcome || 'unknown' }}
           EVIDENCE_FOUND=${{ steps.evidence.outputs.found || 'false' }}
           EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
@@ -2176,6 +2186,36 @@ jobs:
               echo "Action needed:"
               echo "1. Check repository permissions/protection and branch push access."
               echo "2. Keep issue actionable for retry once SCM path is healthy."
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+            } > .outcome-comment.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+            rm -f .outcome-comment.md
+          elif [ "$PR_CREATE_FAILED" = "true" ]; then
+            echo "result=infra-failure" >> "$GITHUB_OUTPUT"
+            echo "escalate=true" >> "$GITHUB_OUTPUT"
+            if [ "$PR_CREATE_ERROR_KIND" = "permissions" ]; then
+              echo "escalation_reason=scm_pr_creation_permission" >> "$GITHUB_OUTPUT"
+            else
+              echo "escalation_reason=scm_pr_creation_failure" >> "$GITHUB_OUTPUT"
+            fi
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:claimed" \
+              --remove-label "verify:pending" \
+              --add-label "agent:actionable" \
+              --add-label "triage/ready" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:manual-review-needed" || true
+            {
+              echo "**Agent Work Loop** — PR creation failure after successful branch push."
+              echo ""
+              echo "- **Provider attempted:** $PROVIDER_USED"
+              echo "- **Worker outcome:** $WORKER_OUTCOME"
+              echo "- **PR create error kind:** $PR_CREATE_ERROR_KIND"
+              echo ""
+              echo "Action needed:"
+              echo "1. Allow GitHub Actions token to create pull requests (or provide alternate bot token)."
+              echo "2. Retry once PR creation permissions are restored."
               echo ""
               echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
