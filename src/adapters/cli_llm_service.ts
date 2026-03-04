@@ -20,6 +20,10 @@ import {
   type ProviderChaosResult,
   type ProviderExecResult,
 } from './provider_chaos.js';
+import {
+  CLAUDE_NESTED_SESSION_ENV_VARS,
+  detectNestedClaudeSession,
+} from '../api/nested_session.js';
 
 type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: number) => void; recordRetry?: () => void };
 
@@ -113,17 +117,6 @@ function estimateTokenCount(text: string): number {
   return trimmed ? Math.max(1, Math.ceil(trimmed.length / 4)) : 1;
 }
 
-/** Env vars that Claude Code sets to detect nested sessions. */
-const NESTED_SESSION_VARS = [
-  'CLAUDECODE',
-  'CLAUDE_CODE',
-  'CLAUDE_CODE_ENTRYPOINT',
-  'CLAUDE_CODE_SESSION_ID',
-  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
-  'CLAUDE_SESSION',
-  'SESSION_ID',
-];
-
 function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const home = process.env.HOME || '';
   const prefix = home ? path.join(home, '.local', 'bin') : '';
@@ -141,7 +134,7 @@ function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  */
 function sanitizedCliEnv(overrides?: Record<string, string>): NodeJS.ProcessEnv {
   const env = withCliPath({ ...process.env, ...(overrides ?? {}) });
-  for (const key of NESTED_SESSION_VARS) {
+  for (const key of CLAUDE_NESTED_SESSION_ENV_VARS) {
     delete env[key];
   }
   return env;
@@ -156,12 +149,6 @@ function coerceGovernorContext(value: unknown): GovernorContextLike | null {
 
 function hasEnvValue(value: string | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
-}
-
-function isNestedClaudeCodeSession(): boolean {
-  return hasEnvValue(process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
-    || hasEnvValue(process.env.CLAUDE_CODE_SESSION_ID)
-    || hasEnvValue(process.env.CLAUDECODE);
 }
 
 function parseTransport(value: string | undefined): ProviderTransport {
@@ -250,6 +237,15 @@ function shouldUseOpenAiApiTransport(): boolean {
 
 function buildNestedClaudeUnavailableMessage(): string {
   return 'Claude CLI cannot run inside nested Claude Code sessions; set ANTHROPIC_API_KEY for API transport, set LIBRARIAN_CLAUDE_BROKER_URL for broker transport, or switch provider.';
+}
+
+function resolveNestedClaudeBlockReason(): string | undefined {
+  const detection = detectNestedClaudeSession();
+  if (!detection.isNested) return undefined;
+  if (shouldUseAnthropicApiTransport()) return undefined;
+  if (shouldUseClaudeBrokerTransport()) return undefined;
+  const markers = detection.markers.length > 0 ? detection.markers.join(', ') : 'unknown markers';
+  return `Nested Claude Code session detected (${markers}). ${buildNestedClaudeUnavailableMessage()}`;
 }
 
 function normalizeAnthropicModelId(modelId: string | undefined): string {
@@ -583,6 +579,18 @@ export class CliLlmService {
     const cached = this.health.claude;
     if (!forceCheck && cached.lastCheck && now - cached.lastCheck < this.healthCheckIntervalMs) {
       return cached;
+    }
+
+    const nestedBlockReason = resolveNestedClaudeBlockReason();
+    if (nestedBlockReason) {
+      this.health.claude = {
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: now,
+        error: nestedBlockReason,
+      };
+      return this.health.claude;
     }
 
     if (shouldUseAnthropicApiTransport()) {
@@ -1128,6 +1136,12 @@ export class CliLlmService {
       if (systemPrompt) {
         args.push('--system-prompt', systemPrompt);
       }
+      const nestedBlockReason = resolveNestedClaudeBlockReason();
+      if (nestedBlockReason) {
+        await this.recordFailure('claude', nestedBlockReason, nestedBlockReason);
+        throw new Error(`unverified_by_trace(provider_unavailable): ${nestedBlockReason}`);
+      }
+
       const env = sanitizedCliEnv(options.modelId ? { CLAUDE_MODEL: options.modelId } : undefined);
       logInfo('CLI LLM: claude call', { promptLength: fullPrompt.length });
       const result = await this.executeWithChaos(async () => {

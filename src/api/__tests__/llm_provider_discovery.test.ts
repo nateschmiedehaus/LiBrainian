@@ -179,7 +179,7 @@ describe('llm provider discovery', () => {
     expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers claude during nested Claude Code sessions (env stripping makes CLI work)', async () => {
+  it('skips claude probe entirely during nested Claude Code sessions and selects codex', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
 
     const claudeProbe: LlmProviderProbe = {
@@ -213,12 +213,11 @@ describe('llm provider discovery', () => {
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
-    // Nested sessions no longer force codex fallback — Claude CLI works via env stripping
-    expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.provider).toBe('codex');
+    expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers claude during nested Claude Code sessions when ANTHROPIC_API_KEY is configured', async () => {
+  it('still degrades to codex during nested sessions even when ANTHROPIC_API_KEY is configured', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
 
@@ -253,11 +252,11 @@ describe('llm provider discovery', () => {
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
-    expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.provider).toBe('codex');
+    expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers claude during nested Claude Code sessions when Claude broker is configured', async () => {
+  it('degrades to codex during nested sessions even when Claude broker is configured', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
 
@@ -292,8 +291,8 @@ describe('llm provider discovery', () => {
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
-    expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.provider).toBe('codex');
+    expect(discovered?.modelId).toBe('codex-model');
   });
 
   it('returns null when no providers are available', async () => {

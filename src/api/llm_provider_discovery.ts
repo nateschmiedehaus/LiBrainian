@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { CLI_BINARY_HASHES } from './cli_hash_manifest.js';
+import { detectNestedClaudeSession } from './nested_session.js';
 
 export type LlmAuthMethod = 'cli_login' | 'local' | 'oauth' | 'none' | 'api_key';
 export type LibrarianLlmProvider = 'claude' | 'codex';
@@ -772,6 +773,16 @@ function resolveCodexHome(): string | null {
 
 async function checkClaudeCli(): Promise<LlmProviderProbeResult> {
   try {
+    const nested = detectNestedClaudeSession();
+    if (nested.isNested) {
+      const markers = nested.markers.length > 0 ? nested.markers.join(', ') : 'unknown markers';
+      return {
+        available: false,
+        authenticated: false,
+        error: `Nested Claude Code session detected (${markers})`,
+      };
+    }
+
     const version = await runCliCheck('claude', ['--version']);
     if (!version.ok) {
       return {

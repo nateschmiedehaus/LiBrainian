@@ -372,13 +372,38 @@ describe('statusCommand', () => {
 
       const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
       const parsed = JSON.parse(output ?? '{}') as {
-        runtime?: { offlineMode?: boolean; availableFeatures?: string[]; unavailableFeatures?: string[] };
+        runtime?: {
+          offlineMode?: boolean;
+          availableFeatures?: string[];
+          unavailableFeatures?: string[];
+          synthesisMode?: string;
+          synthesisUnavailableReason?: string;
+        };
       };
       expect(parsed.runtime?.offlineMode).toBe(true);
       expect(parsed.runtime?.availableFeatures).toContain('search');
       expect(parsed.runtime?.unavailableFeatures).toContain('synthesis');
+      expect(parsed.runtime?.synthesisMode).toBe('llm');
     } finally {
       delete process.env.LIBRARIAN_OFFLINE;
+    }
+  });
+
+  it('reports structural-only synthesis mode when nested Claude session markers are present', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    process.env.CLAUDE_CODE_SESSION = '1';
+
+    try {
+      await statusCommand({ workspace, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        runtime?: { synthesisMode?: string; synthesisUnavailableReason?: string };
+      };
+      expect(parsed.runtime?.synthesisMode).toBe('structural-only');
+      expect(parsed.runtime?.synthesisUnavailableReason).toMatch(/nested claude code session/i);
+    } finally {
+      delete process.env.CLAUDE_CODE_SESSION;
     }
   });
 

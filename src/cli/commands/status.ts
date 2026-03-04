@@ -9,6 +9,7 @@ import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
+import { resolveSynthesisAvailability } from '../../api/llm_env.js';
 import { computeEmbeddingCoverage, type EmbeddingCoverageSummary } from '../../api/embedding_coverage.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
@@ -58,6 +59,8 @@ type StatusReport = {
     offlineMode: boolean;
     availableFeatures: string[];
     unavailableFeatures: string[];
+    synthesisMode?: 'llm' | 'structural-only';
+    synthesisUnavailableReason?: string;
   };
   storage: { status: 'ready' | 'degraded' | 'not_initialized'; reason?: string };
   schema?: {
@@ -243,9 +246,18 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     availableFeatures: ['search', 'graph', 'symbols'],
     unavailableFeatures: [],
   };
-  if (runtime.offlineMode) {
-    runtime.unavailableFeatures = ['synthesis', 'llm_enrichment'];
+  const synthesisStatus = resolveSynthesisAvailability();
+  runtime.synthesisMode = synthesisStatus.synthesisMode;
+  if (synthesisStatus.synthesisUnavailableReason) {
+    runtime.synthesisUnavailableReason = synthesisStatus.synthesisUnavailableReason;
   }
+  if (synthesisStatus.synthesisMode === 'structural-only') {
+    runtime.unavailableFeatures.push('synthesis', 'llm_enrichment');
+  }
+  if (runtime.offlineMode) {
+    runtime.unavailableFeatures.push('synthesis', 'llm_enrichment');
+  }
+  runtime.unavailableFeatures = Array.from(new Set(runtime.unavailableFeatures));
 
   const report: StatusReport = {
     workspace: workspaceRoot,
@@ -269,6 +281,8 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       { key: 'Offline Mode', value: runtime.offlineMode },
       { key: 'Available Features', value: runtime.availableFeatures.join(', ') || 'none' },
       { key: 'Unavailable Features', value: runtime.unavailableFeatures.join(', ') || 'none' },
+      { key: 'Synthesis Mode', value: runtime.synthesisMode ?? 'llm' },
+      { key: 'Synthesis Reason', value: runtime.synthesisUnavailableReason ?? 'llm available' },
     ]);
     console.log();
 

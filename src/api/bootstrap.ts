@@ -64,7 +64,11 @@ import { storeSCCAnalysis } from '../analysis/deterministic_analysis.js';
 import { buildModuleGraphs } from '../knowledge/module_graph.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { detectLibrarianVersion, upgradeRequired, runUpgrade } from './versioning.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import {
+  resolveLibrarianModelConfigWithDiscovery,
+  resolveSynthesisAvailability,
+  type SynthesisAvailability,
+} from './llm_env.js';
 import { EmbeddingService } from './embeddings.js';
 import { preloadEmbeddingModel } from './embedding_providers/real_embeddings.js';
 import { generateContextPacks } from './packs.js';
@@ -142,6 +146,7 @@ export interface BootstrapState {
   startedAt: Date | null;
   completedAt: Date | null;
   error?: string;
+  synthesis?: SynthesisAvailability;
 }
 
 interface WorkspaceFingerprint {
@@ -2301,6 +2306,7 @@ export async function bootstrapProject(
     progress: 0,
     startedAt: new Date(),
     completedAt: null,
+    synthesis: resolveSynthesisAvailability(),
   };
   bootstrapStates.set(workspace, state);
 

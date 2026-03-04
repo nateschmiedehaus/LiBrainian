@@ -4,9 +4,29 @@ import {
   llmProviderRegistry,
   type LibrarianLlmProvider,
 } from './llm_provider_discovery.js';
+import { detectNestedClaudeSession } from './nested_session.js';
 
 export type { LibrarianLlmProvider };
 export { llmProviderRegistry };
+
+export interface SynthesisAvailability {
+  synthesisMode: 'llm' | 'structural-only';
+  synthesisUnavailableReason?: string;
+}
+
+export function resolveSynthesisAvailability(env: NodeJS.ProcessEnv = process.env): SynthesisAvailability {
+  const detection = detectNestedClaudeSession(env);
+  if (detection.isNested) {
+    const markers = detection.markers.length > 0 ? detection.markers.join(', ') : 'unknown markers';
+    return {
+      synthesisMode: 'structural-only',
+      synthesisUnavailableReason: `Nested Claude Code session detected (${markers})`,
+    };
+  }
+  return { synthesisMode: 'llm' };
+}
+
+export const resolveLiBrainianSynthesisAvailability = resolveSynthesisAvailability;
 
 export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
   const raw =
