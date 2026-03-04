@@ -526,7 +526,6 @@ const MAX_RUN_LIST_LIMIT = 100;
 const DEFAULT_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 60 * 60 * 1000;
 const MIN_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 60 * 1000;
 const MAX_CONTEXT_PACK_FRESHNESS_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
-const MIN_PARAMETER_DESCRIPTION_WORDS = 20;
 const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
@@ -582,17 +581,6 @@ const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.recency_weight': 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible payloads while tuning episodic recency influence in retrieval ranking and hint injection.',
 };
 
-function countWords(value: string): number {
-  return value.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function ensureMinimumDescriptionWords(description: string): string {
-  if (countWords(description) >= MIN_PARAMETER_DESCRIPTION_WORDS) {
-    return description;
-  }
-  return `${description} This guidance is intentionally explicit so MCP prompt injection remains actionable without extra system-prompt scaffolding.`;
-}
-
 function formatParameterLabel(parameterPath: string[]): string {
   const leaf = parameterPath[parameterPath.length - 1] ?? 'parameter';
   return leaf
@@ -601,59 +589,9 @@ function formatParameterLabel(parameterPath: string[]): string {
     .toLowerCase();
 }
 
-function inferFormatHint(parameterPath: string[], schema: MutableToolSchemaNode): string {
-  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-    return `One of: ${schema.enum.map((item) => JSON.stringify(item)).join(', ')}`;
-  }
-  switch (schema.type) {
-    case 'string':
-      return 'String value';
-    case 'number':
-    case 'integer':
-      return 'Numeric value';
-    case 'boolean':
-      return 'Boolean value (true or false)';
-    case 'array':
-      return 'Array value';
-    case 'object':
-      return `JSON object with nested fields${parameterPath[parameterPath.length - 1] === 'customRatings' ? ' for pack-level feedback ratings' : ''}`;
-    default:
-      return 'JSON value';
-  }
-}
-
-function inferExampleValue(parameterPath: string[], schema: MutableToolSchemaNode): string {
-  const leaf = parameterPath[parameterPath.length - 1] ?? '';
-  if (leaf === 'workspace') return '"/workspace"';
-  if (leaf === 'outputFile') return '"/workspace/.librarian/reports/page-0.json"';
-  if (leaf.toLowerCase().includes('path') || leaf.toLowerCase().includes('file')) return '"/workspace/src/example.ts"';
-  if (leaf.toLowerCase().includes('id')) return '"id_123"';
-  if (leaf === 'scope') return '["src/**/*.ts", "docs/**/*.md"]';
-  if (leaf === 'include' || leaf === 'exclude') return '["src/**/*.ts"]';
-  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-    return JSON.stringify(schema.enum[0]);
-  }
-  switch (schema.type) {
-    case 'string':
-      return '"example"';
-    case 'number':
-    case 'integer':
-      return '20';
-    case 'boolean':
-      return 'true';
-    case 'array':
-      return '["example"]';
-    case 'object':
-      return '{"key":"value"}';
-    default:
-      return '"example"';
-  }
-}
-
-function buildDetailedParameterDescription(
+function buildParameterDescription(
   toolName: string,
   parameterPath: string[],
-  schema: MutableToolSchemaNode,
   existingDescription: string
 ): string {
   const specialKey = `${toolName}.${parameterPath.join('.')}`;
@@ -662,18 +600,13 @@ function buildDetailedParameterDescription(
     return special;
   }
 
+  const trimmed = existingDescription.trim();
+  if (trimmed.length > 0) {
+    return trimmed;
+  }
+
   const label = formatParameterLabel(parameterPath);
-  const formatHint = inferFormatHint(parameterPath, schema);
-  const example = inferExampleValue(parameterPath, schema);
-  const base = existingDescription.trim().length > 0
-    ? existingDescription.trim()
-    : `Controls ${label} for the ${toolName} tool.`;
-  const whenToOverride = schema.default !== undefined
-    ? `Use a non-default value when the default (${JSON.stringify(schema.default)}) does not match the precision, cost, or safety profile required by this task.`
-    : 'Set this explicitly when you need to constrain scope, tune behavior, or override automatic defaults for this operation.';
-  return ensureMinimumDescriptionWords(
-    `${base} Format: ${formatHint}. ${whenToOverride} Example: ${example}.`
-  );
+  return `Controls ${label} for the ${toolName} tool.`;
 }
 
 function enrichSchemaDescriptions(toolName: string, schemaNode: MutableToolSchemaNode, parameterPath: string[] = []): void {
@@ -683,7 +616,7 @@ function enrichSchemaDescriptions(toolName: string, schemaNode: MutableToolSchem
 
   if (parameterPath.length > 0) {
     const existing = typeof schemaNode.description === 'string' ? schemaNode.description : '';
-    schemaNode.description = buildDetailedParameterDescription(toolName, parameterPath, schemaNode, existing);
+    schemaNode.description = buildParameterDescription(toolName, parameterPath, existing);
   }
 
   if (schemaNode.properties) {

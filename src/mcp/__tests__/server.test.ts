@@ -344,7 +344,7 @@ describe('MCP Server', () => {
       expect(exportTool?.annotations?.openWorldHint).toBe(false);
     });
 
-    it('ensures parameter descriptions are usage-guided for prompt injection clients', () => {
+    it('ensures parameter descriptions stay informative without boilerplate filler', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
         inputSchema?: {
@@ -376,12 +376,21 @@ describe('MCP Server', () => {
         return descriptions;
       };
 
+      const bannedPatterns = [
+        /Format:/,
+        /Set this explicitly when you need to/i,
+        /Use a non-default value when the default/i,
+        /This guidance is intentionally explicit/i,
+      ];
+
       for (const tool of tools) {
         const descriptions = collectDescriptions(tool.inputSchema);
         expect(descriptions.length).toBeGreaterThan(0);
         for (const description of descriptions) {
-          const words = description.trim().split(/\s+/).filter(Boolean);
-          expect(words.length).toBeGreaterThanOrEqual(20);
+          expect(description.trim().length).toBeGreaterThan(0);
+          for (const pattern of bannedPatterns) {
+            expect(pattern.test(description)).toBe(false);
+          }
         }
       }
     });
