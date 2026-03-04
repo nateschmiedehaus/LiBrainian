@@ -254,11 +254,41 @@ jobs:
           if [ -n "${{ inputs.issue_number }}" ]; then
             NUM="${{ inputs.issue_number }}"
           else
-            # Find oldest issue with verify:pending label
-            NUM=$(gh issue list -R "$REPO" --state open \
-              --label "verify:pending" \
-              --limit 200 \
-              --json number --jq 'sort_by(.number) | first | .number // empty')
+            # Milestone lock: prioritize verification in the earliest open milestone.
+            ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
+              --json milestone,labels | jq -r '
+                [.[] |
+                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  (.milestone.title // empty) |
+                  select(. != "") |
+                  {title: ., order: (
+                    if . == "M0: Dogfood-Ready" then 0
+                    elif . == "M1: Construction MVP" then 1
+                    elif . == "M2: Agent Integration" then 2
+                    elif . == "M3: Scale & Epistemics" then 3
+                    elif . == "M4: World-Class" then 4
+                    else 99 end
+                  )}
+                ] | sort_by(.order, .title) | first | .title // "none"
+              ')
+
+            NUM=""
+            if [ "$ACTIVE_MILESTONE" != "none" ]; then
+              NUM=$(gh issue list -R "$REPO" --state open \
+                --label "verify:pending" \
+                --limit 300 \
+                --json number,milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
+                  [.[] | select((.milestone.title // "none") == $m) | .number] | sort | first // empty
+                ')
+            fi
+
+            # Fallback: if none in active milestone, pick oldest verify:pending globally.
+            if [ -z "$NUM" ]; then
+              NUM=$(gh issue list -R "$REPO" --state open \
+                --label "verify:pending" \
+                --limit 300 \
+                --json number | jq -r 'sort_by(.number) | first | .number // empty')
+            fi
           fi
 
           if [ -z "$NUM" ]; then
