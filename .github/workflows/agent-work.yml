@@ -71,6 +71,7 @@ env:
   MAX_RECENT_INFRA_BLOCKED: 2
   PROVIDER_RETRY_COOLDOWN_MIN: 180
   CODEX_WORKER_TIMEOUT_MIN: 45
+  MANAGEMENT_CODEX_WORKER_TIMEOUT_MIN: 25
   CLAUDE_WORKER_TIMEOUT_MIN: 45
   WORKER_HEARTBEAT_SEC: 120
 
@@ -1733,7 +1734,12 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            TIMEOUT_MIN=${MANAGEMENT_CODEX_WORKER_TIMEOUT_MIN:-25}
+          else
+            TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          fi
           HEARTBEAT_SEC=${WORKER_HEARTBEAT_SEC:-120}
           echo "timed_out=false" >> "$GITHUB_OUTPUT"
 
@@ -1788,7 +1794,12 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            TIMEOUT_MIN=${MANAGEMENT_CODEX_WORKER_TIMEOUT_MIN:-25}
+          else
+            TIMEOUT_MIN=${CODEX_WORKER_TIMEOUT_MIN:-45}
+          fi
           HEARTBEAT_SEC=${WORKER_HEARTBEAT_SEC:-120}
           echo "timed_out=false" >> "$GITHUB_OUTPUT"
 
