@@ -1606,6 +1606,36 @@ jobs:
           inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         run: |
+          IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            cat > .agent-worker-prompt.md <<'PROMPT'
+          You are handling management ticket #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}".
+
+          This is a workflow-management task, not a feature implementation task.
+
+          ## Required actions
+          1. Read `.claude-issue-context.json` and extract `Source issue: #N` metadata from the ticket body.
+          2. Diagnose why the source issue is blocked/non-convergent.
+          3. Use `gh` commands to update the source issue with a concrete unblock plan:
+             - tighten acceptance criteria and file-level scope
+             - correct labels (`agent:actionable`, `agent:blocked`, `agent:management-needed`, `verify:pending`) based on current state
+             - add a concise management comment with next autonomous action
+          4. Update this management ticket with what you changed and why.
+          5. Do not modify repository code, do not create commits, and do not create a PR.
+
+          ## Evidence comment format
+          Post one issue comment with:
+          - Source issue diagnosis
+          - Label/criteria updates applied
+          - Remaining risks
+          - Next autonomous step
+
+          End comment with this metadata tag (valid JSON):
+          <!-- agent_evidence = {"v":3,"issue":${{ steps.find.outputs.issue_number }},"role":"worker","run":"${{ github.run_id }}","provider":"${{ steps.provider.outputs.primary }}","status":"submitted|failed","attempt":${{ steps.strategy.outputs.attempts }},"focus":"management","meta_eval":"on_track|replanned|non_convergent","managerial_fix":"none|scope_split|test_plan_patch|requirements_patch","next_action":"retry|verify|decompose"} -->
+          PROMPT
+            exit 0
+          fi
+
           cat > .agent-worker-prompt.md <<'PROMPT'
           You are implementing GitHub issue #${{ steps.find.outputs.issue_number }}: "${{ steps.find.outputs.issue_title }}".
 
@@ -1978,9 +2008,16 @@ jobs:
 
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
+          IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "should_create_pr=false" >> "$GITHUB_OUTPUT"
           echo "no_changes=false" >> "$GITHUB_OUTPUT"
+
+          if [ "$IS_MANAGEMENT" = "true" ]; then
+            echo "Management ticket mode: skipping code quality gates and PR requirement."
+            echo "quality_ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           COMMITS=$(git log origin/main.."$BRANCH" --oneline 2>/dev/null | wc -l | tr -d ' ')
           CHANGED=$(git diff --name-only origin/main.."$BRANCH" | sed '/^\s*$/d' || true)
@@ -2606,6 +2643,61 @@ jobs:
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
           elif [ "$WORKER_OUTCOME" = "success" ] && [ "$GATE_OUTCOME" = "success" ] && [ -z "$PR" ] && [ "$PUSH_FAILED" != "true" ]; then
+            if [ "$IS_MANAGEMENT" = "true" ]; then
+              MBODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body // ""' 2>/dev/null || echo "")
+              SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
+              if [ -z "$SRC" ]; then
+                SRC=$(echo "$MBODY" | grep -oE 'source_issue=[0-9]+' | grep -oE '[0-9]+' | head -n1)
+              fi
+
+              SHOULD_CLOSE=false
+              CLOSE_REASON="management_applied"
+              if [ -n "$SRC" ]; then
+                SJSON=$(gh issue view "$SRC" -R "$REPO" --json state,labels 2>/dev/null || true)
+                if [ -n "$SJSON" ] && [ "$SJSON" != "null" ]; then
+                  SSTATE=$(echo "$SJSON" | jq -r '.state // "OPEN"')
+                  if [ "$SSTATE" = "CLOSED" ]; then
+                    SHOULD_CLOSE=true
+                    CLOSE_REASON="source_closed"
+                  else
+                    SLABELS=$(echo "$SJSON" | jq -r '.labels[].name')
+                    if ! echo "$SLABELS" | grep -Fxq "agent:management-needed" && ! echo "$SLABELS" | grep -Fxq "verify:manual-needed"; then
+                      SHOULD_CLOSE=true
+                      CLOSE_REASON="source_unblocked"
+                    fi
+                  fi
+                fi
+              fi
+
+              gh issue edit "$NUM" -R "$REPO" \
+                --remove-label "agent:claimed" \
+                --remove-label "verify:pending" \
+                --add-label "triage/ready" \
+                --add-label "agent:actionable" || true
+
+              if [ "$SHOULD_CLOSE" = "true" ]; then
+                gh issue close "$NUM" -R "$REPO" \
+                  --comment "Auto-closing management ticket after successful management run ($CLOSE_REASON)." || true
+              fi
+
+              {
+                echo "**Agent Work Loop** completed management actions."
+                echo ""
+                echo "- **Provider:** $PROVIDER_USED"
+                echo "- **Management ticket:** #$NUM"
+                if [ -n "$SRC" ]; then
+                  echo "- **Source issue:** #$SRC"
+                fi
+                echo "- **Closed ticket:** $SHOULD_CLOSE"
+                echo ""
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"submitted\",\"meta_eval\":\"on_track\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+              } > .outcome-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
+              rm -f .outcome-comment.md
+              echo "result=success" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             NO_PROGRESS=false
             if [ "$GATE_NO_CHANGES" = "true" ] || { [ "$GATE_COMMITS" -eq 0 ] && [ "$GATE_CHANGED_COUNT" -eq 0 ]; }; then
               NO_PROGRESS=true
