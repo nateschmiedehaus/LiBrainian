@@ -83,6 +83,7 @@ const MIGRATIONS: MigrationDefinition[] = [
   { version: 9, name: 'multi_vectors', file: 'inline:009_multi_vectors' },
   { version: 10, name: 'advanced_analysis', file: '010_advanced_analysis.sql' },
   { version: 11, name: 'indexing_history_skips', file: 'inline:011_indexing_history_skips' },
+  { version: 12, name: 'conventions', file: '012_conventions.sql' },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

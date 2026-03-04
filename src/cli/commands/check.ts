@@ -14,6 +14,7 @@ import { emitJsonOutput } from '../json_output.js';
 import { createError } from '../errors.js';
 import type { LibrarianStorage } from '../../storage/types.js';
 import type { FunctionKnowledge, GraphEdge } from '../../types.js';
+import { evaluateConventionsForFile } from '../../conventions/convention_checker.js';
 
 export interface CheckCommandOptions {
   workspace: string;
@@ -314,8 +315,9 @@ async function runChecks(storage: LibrarianStorage, workspaceRoot: string, chang
   const orphanedClaims = await checkOrphanedClaims(storage, workspaceRoot, changedExisting);
   const coverageRegression = await checkCoverageRegression(storage, workspaceRoot, changedExisting);
   const callGraphIntegrity = await checkCallGraphIntegrity(storage, workspaceRoot, changedExisting);
+  const conventionEnforcement = await checkConventionAdherence(storage, workspaceRoot, changedExisting);
 
-  return [staleContext, brokenImports, orphanedClaims, coverageRegression, callGraphIntegrity];
+  return [staleContext, brokenImports, orphanedClaims, coverageRegression, callGraphIntegrity, conventionEnforcement];
 }
 
 async function checkStaleContext(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
@@ -550,6 +552,59 @@ async function checkCallGraphIntegrity(storage: LibrarianStorage, workspaceRoot:
     message: `${changedFunctions.length} changed functions touch ${impactedCallers.size} callers and ${impactedCallees.size} callees outside the diff.`,
     files: [...impactedPaths].map((filePath) => normalizeDisplayPath(workspaceRoot, filePath)),
     fix: 'Review impacted callers/callees and refresh index before merging.',
+  };
+}
+
+async function checkConventionAdherence(storage: LibrarianStorage, workspaceRoot: string, changedExisting: string[]): Promise<LintCheck> {
+  if (changedExisting.length === 0) {
+    return {
+      name: 'conventions',
+      status: 'pass',
+      message: 'No changed files to evaluate conventions.',
+    };
+  }
+
+  const conventions = await storage.getConventions();
+  if (conventions.length === 0) {
+    return {
+      name: 'conventions',
+      status: 'pass',
+      message: 'No conventions mined for this workspace yet.',
+    };
+  }
+
+  const violationSummaries: string[] = [];
+  for (const filePath of changedExisting) {
+    let content: string;
+    try {
+      content = await fs.readFile(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const relativePath = normalizeDisplayPath(workspaceRoot, filePath);
+    const normalized = relativePath.split(path.sep).join(path.posix.sep);
+    const fileViolations = evaluateConventionsForFile(normalized, content, conventions);
+    for (const violation of fileViolations) {
+      violationSummaries.push(`${relativePath}: ${violation.name}`);
+      if (violationSummaries.length >= 15) break;
+    }
+    if (violationSummaries.length >= 15) break;
+  }
+
+  if (violationSummaries.length === 0) {
+    return {
+      name: 'conventions',
+      status: 'pass',
+      message: 'Changed files adhere to discovered conventions.',
+    };
+  }
+
+  return {
+    name: 'conventions',
+    status: 'warn',
+    message: `${violationSummaries.length} convention deviations detected.`,
+    files: violationSummaries,
+    fix: 'Review convention violations with `librainian check --format text` or the MCP check_conventions tool.',
   };
 }
 

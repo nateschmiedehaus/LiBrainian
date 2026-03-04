@@ -55,6 +55,7 @@ import {
   type GetChangeImpactToolInput,
   type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
+  type CheckConventionsToolInput,
   type LibrarianCompletenessCheckToolInput,
   type ClaimWorkScopeToolInput,
   type AppendClaimToolInput,
@@ -181,6 +182,7 @@ import { validateImportReference } from '../runtime/api_surface_index.js';
 import { runCompletenessOracle, isCompletionSignalClaim, type CompletenessCounterevidence } from '../api/completeness_oracle.js';
 import { preloadEmbeddingModel } from '../api/embedding_providers/real_embeddings.js';
 import { preloadReranker } from '../api/embedding_providers/cross_encoder_reranker.js';
+import { evaluateConventionsForFile } from '../conventions/convention_checker.js';
 
 // ============================================================================
 // TYPES
@@ -3697,6 +3699,8 @@ export class LiBrainianMCPServer {
         return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'pre_commit_check':
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
+      case 'check_conventions':
+        return this.executeCheckConventions(args as CheckConventionsToolInput);
       case 'librarian_completeness_check':
         return this.executeCompletenessCheck(args as LibrarianCompletenessCheckToolInput);
       case 'claim_work_scope':
@@ -9786,6 +9790,93 @@ export class LiBrainianMCPServer {
         highRiskCount,
       },
       recommendedActions,
+    };
+  }
+
+  private async executeCheckConventions(input: CheckConventionsToolInput): Promise<unknown> {
+    const fileEntries = Array.isArray(input.files)
+      ? input.files
+          .map((entry): { path: string; content?: string; diff?: string } => ({
+            path: typeof entry.path === 'string' ? entry.path.trim() : '',
+            content: typeof entry.content === 'string' ? entry.content : undefined,
+            diff: typeof entry.diff === 'string' ? entry.diff : undefined,
+          }))
+          .filter((entry) => entry.path.length > 0)
+      : [];
+    if (fileEntries.length === 0) {
+      return {
+        success: false,
+        error: 'files must contain at least one path',
+      };
+    }
+
+    const workspacePath = input.workspace
+      ? path.resolve(input.workspace)
+      : this.findReadyWorkspace()?.path ?? this.state.workspaces.keys().next().value;
+    if (!workspacePath) {
+      return {
+        success: false,
+        error: 'No workspace specified and no workspaces registered.',
+      };
+    }
+
+    let storage: LiBrainianStorage;
+    try {
+      storage = await this.getOrCreateStorage(workspacePath);
+    } catch (error) {
+      return {
+        success: false,
+        workspace: workspacePath,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    let conventions = await storage.getConventions();
+    if (conventions.length === 0) {
+      return {
+        success: true,
+        workspace: workspacePath,
+        files: [],
+        warning: 'No conventions available. Run librarian bootstrap or indexing to mine conventions.',
+      };
+    }
+
+    const files = [];
+    for (const entry of fileEntries) {
+      const resolvedPath = path.isAbsolute(entry.path)
+        ? entry.path
+        : path.join(workspacePath, entry.path);
+      let content = entry.content;
+      if (!content) {
+        try {
+          content = await fs.readFile(resolvedPath, 'utf8');
+        } catch (error) {
+          files.push({
+            path: entry.path,
+            error: error instanceof Error ? error.message : String(error),
+            violations: [],
+          });
+          continue;
+        }
+      }
+      const relative = path.relative(workspacePath, resolvedPath) || entry.path;
+      const normalized = relative.split(path.sep).join(path.posix.sep);
+      const violations = evaluateConventionsForFile(normalized, content, conventions);
+      files.push({
+        path: entry.path,
+        violations,
+        diff: entry.diff,
+      });
+    }
+
+    return {
+      success: true,
+      workspace: workspacePath,
+      files,
+      summary: {
+        totalFiles: files.length,
+        filesWithViolations: files.filter((entry) => Array.isArray(entry.violations) && entry.violations.length > 0).length,
+      },
     };
   }
 

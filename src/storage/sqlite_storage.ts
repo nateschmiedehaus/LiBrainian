@@ -100,6 +100,12 @@ import type {
   IndexChangeEvent,
   IndexChangeEventType,
   IndexChangeQueryOptions,
+  ConventionRecord,
+  ConventionQueryOptions,
+  ConventionSource,
+  ConventionCategory,
+  ConventionRuleType,
+  ConventionPattern,
 } from './types.js';
 import type { FlashAssessment, FlashFinding } from '../knowledge/extractors/flash_assessments.js';
 import { VectorIndex } from './vector_index.js';
@@ -125,7 +131,7 @@ import type { IngestionItem } from '../ingest/types.js';
 import { LIBRARIAN_VERSION } from '../index.js';
 import { applyMigrations } from '../api/migrations.js';
 import { noResult } from '../api/empty_values.js';
-import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
+import { safeJsonParse, safeJsonParseOrNull, safeJsonParseSimple, getResultErrorMessage } from '../utils/safe_json.js';
 import { attemptStorageRecovery, isRecoverableStorageError } from './storage_recovery.js';
 import { TransactionConflictError } from './transactions.js';
 import { sha256Hex } from '../spine/hashes.js';
@@ -175,6 +181,22 @@ interface EvidenceFileState {
   lines?: string[];
   contentHash?: string;
   mtimeMs?: number;
+}
+
+interface ConventionRow {
+  id: string;
+  name: string;
+  category: string;
+  rule_type: string;
+  pattern: string;
+  evidence_count: number;
+  total_count: number;
+  confidence: number;
+  exceptions: string;
+  source: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface StorageProcessLockCore {
@@ -665,6 +687,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.ensureStrategicContractTable();
         this.ensureAdvancedAnalysisTables();
         this.ensureAdvancedLibraryFeaturesTables();
+        this.ensureConventionTables();
         this.rebindWorkspacePathsIfNeeded();
 
         this.initialized = true;
@@ -1672,6 +1695,102 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       CREATE INDEX IF NOT EXISTS idx_fault_signature ON librarian_fault_localizations(failure_signature);
       CREATE INDEX IF NOT EXISTS idx_fault_methodology ON librarian_fault_localizations(methodology);
     `);
+  }
+
+  private ensureConventionTables(): void {
+    if (!this.db) return;
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS librarian_conventions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        pattern TEXT NOT NULL,
+        evidence_count INTEGER NOT NULL DEFAULT 0,
+        total_count INTEGER NOT NULL DEFAULT 0,
+        confidence REAL NOT NULL DEFAULT 0,
+        exceptions TEXT NOT NULL DEFAULT '[]',
+        source TEXT NOT NULL DEFAULT 'mined',
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_librarian_conventions_category
+        ON librarian_conventions(category, rule_type);
+      CREATE INDEX IF NOT EXISTS idx_librarian_conventions_source
+        ON librarian_conventions(source);
+      CREATE INDEX IF NOT EXISTS idx_librarian_conventions_confidence
+        ON librarian_conventions(confidence DESC);
+    `);
+  }
+
+  private deserializeConventionRow(row: ConventionRow): ConventionRecord {
+    const patternValue = safeJsonParseSimple<ConventionPattern | Record<string, unknown>>(row.pattern);
+    const exceptionsValue = safeJsonParseSimple<string[]>(row.exceptions);
+    const pattern = this.parseConventionPattern(patternValue ?? null);
+    const exceptions = Array.isArray(exceptionsValue) ? exceptionsValue.map((entry) => String(entry)) : [];
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category as ConventionCategory,
+      ruleType: row.rule_type as ConventionRuleType,
+      pattern,
+      evidenceCount: Number(row.evidence_count) || 0,
+      totalCount: Number(row.total_count) || 0,
+      confidence: Number(row.confidence) || 0,
+      exceptions,
+      source: (row.source as ConventionSource) ?? 'mined',
+      description: row.description,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private parseConventionPattern(value: unknown): ConventionPattern {
+    if (value && typeof value === 'object' && 'kind' in (value as Record<string, unknown>)) {
+      return value as ConventionPattern;
+    }
+    return {
+      kind: 'document_rule',
+      keywords: [],
+      sourceFile: '',
+    };
+  }
+
+  private serializeConvention(record: ConventionRecord): Record<string, unknown> {
+    return {
+      id: record.id,
+      name: record.name,
+      category: record.category,
+      rule_type: record.ruleType,
+      pattern: JSON.stringify(record.pattern),
+      evidence_count: record.evidenceCount,
+      total_count: record.totalCount,
+      confidence: record.confidence,
+      exceptions: JSON.stringify(record.exceptions ?? []),
+      source: record.source,
+      description: record.description,
+      created_at: record.createdAt,
+      updated_at: record.updatedAt,
+    };
+  }
+
+  private conventionMatchesPrefix(record: ConventionRecord, prefix: string): boolean {
+    const normalizedPrefix = normalizeSqlPath(prefix).toLowerCase();
+    const dirs: string[] = [];
+    if ('directories' in record.pattern && Array.isArray((record.pattern as { directories?: string[] }).directories)) {
+      dirs.push(
+        ...(record.pattern as { directories?: string[] }).directories?.map((dir) => normalizeSqlPath(dir).toLowerCase() ?? '') ??
+          []
+      );
+    }
+    if (record.pattern.kind === 'document_rule' && record.pattern.sourceFile) {
+      dirs.push(normalizeSqlPath(record.pattern.sourceFile).toLowerCase());
+    }
+    if (dirs.length === 0) {
+      return normalizedPrefix.length === 0;
+    }
+    return dirs.some((dir) => dir.startsWith(normalizedPrefix));
   }
 
   private parseIngestionRow(row: {
@@ -3273,6 +3392,131 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     params.push(packId);
 
     db.prepare(sql).run(...params);
+  }
+
+  // --------------------------------------------------------------------------
+  // Conventions
+  // --------------------------------------------------------------------------
+
+  async getConventions(options: ConventionQueryOptions = {}): Promise<ConventionRecord[]> {
+    const db = this.ensureDb();
+    let sql = 'SELECT * FROM librarian_conventions';
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+
+    if (options.category) {
+      clauses.push('category = ?');
+      params.push(options.category);
+    }
+    if (options.ruleType) {
+      clauses.push('rule_type = ?');
+      params.push(options.ruleType);
+    }
+    if (options.source) {
+      clauses.push('source = ?');
+      params.push(options.source);
+    }
+    if (typeof options.minConfidence === 'number') {
+      clauses.push('confidence >= ?');
+      params.push(options.minConfidence);
+    }
+
+    if (clauses.length > 0) {
+      sql += ` WHERE ${clauses.join(' AND ')}`;
+    }
+    sql += ' ORDER BY confidence DESC, updated_at DESC';
+    if (options.limit) {
+      sql += ' LIMIT ?';
+      params.push(options.limit);
+    }
+
+    const rows = db.prepare(sql).all(...params) as ConventionRow[];
+    let conventions = rows.map((row) => this.deserializeConventionRow(row));
+
+    if (options.pathPrefix) {
+      conventions = conventions.filter((record) => this.conventionMatchesPrefix(record, options.pathPrefix!));
+    }
+
+    return conventions;
+  }
+
+  async getConvention(id: string): Promise<ConventionRecord | null> {
+    const db = this.ensureDb();
+    const row = db
+      .prepare('SELECT * FROM librarian_conventions WHERE id = ?')
+      .get(id) as ConventionRow | undefined;
+    return row ? this.deserializeConventionRow(row) : null;
+  }
+
+  async upsertConvention(convention: ConventionRecord): Promise<void> {
+    await this.upsertConventions([convention]);
+  }
+
+  async upsertConventions(conventions: ConventionRecord[]): Promise<void> {
+    if (conventions.length === 0) return;
+    const db = this.ensureDb();
+    const stmt = db.prepare(`
+      INSERT INTO librarian_conventions (
+        id,
+        name,
+        category,
+        rule_type,
+        pattern,
+        evidence_count,
+        total_count,
+        confidence,
+        exceptions,
+        source,
+        description,
+        created_at,
+        updated_at
+      ) VALUES (
+        @id,
+        @name,
+        @category,
+        @rule_type,
+        @pattern,
+        @evidence_count,
+        @total_count,
+        @confidence,
+        @exceptions,
+        @source,
+        @description,
+        @created_at,
+        @updated_at
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        category = excluded.category,
+        rule_type = excluded.rule_type,
+        pattern = excluded.pattern,
+        evidence_count = excluded.evidence_count,
+        total_count = excluded.total_count,
+        confidence = excluded.confidence,
+        exceptions = excluded.exceptions,
+        source = excluded.source,
+        description = excluded.description,
+        updated_at = excluded.updated_at
+    `);
+
+    const payloads = conventions.map((record) => this.serializeConvention(record));
+    const run = db.transaction((entries: Record<string, unknown>[]) => {
+      for (const entry of entries) {
+        stmt.run(entry);
+      }
+    });
+    run(payloads);
+  }
+
+  async deleteConvention(id: string): Promise<void> {
+    const db = this.ensureDb();
+    db.prepare('DELETE FROM librarian_conventions WHERE id = ?').run(id);
+  }
+
+  async deleteConventionsBySource(source: ConventionSource): Promise<number> {
+    const db = this.ensureDb();
+    const result = db.prepare('DELETE FROM librarian_conventions WHERE source = ?').run(source);
+    return result?.changes ?? 0;
   }
 
   // --------------------------------------------------------------------------

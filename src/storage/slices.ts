@@ -178,6 +178,14 @@ const SLICE_METHODS: SliceMethodMap = {
   clones: ['getCloneEntries', 'getClonesByEntity', 'getCloneClusters', 'upsertCloneEntries', 'deleteCloneEntries'],
   debt: ['getDebtMetrics', 'getDebtForEntity', 'getDebtHotspots', 'upsertDebtMetrics', 'deleteDebtMetrics'],
   faults: ['getFaultLocalizations', 'upsertFaultLocalization', 'deleteFaultLocalization'],
+  conventions: [
+    'getConventions',
+    'getConvention',
+    'upsertConvention',
+    'upsertConventions',
+    'deleteConvention',
+    'deleteConventionsBySource',
+  ],
   maintenance: ['transaction', 'getStats', 'vacuum'],
 };
 

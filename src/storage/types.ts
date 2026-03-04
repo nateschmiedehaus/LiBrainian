@@ -33,6 +33,98 @@ export type { FunctionKnowledge, ModuleKnowledge, FileKnowledge, DirectoryKnowle
 export type { GraphEdge, GraphEdgeType, GraphEntityType } from '../types.js';
 
 // ============================================================================
+// CONVENTION TYPES
+// ============================================================================
+
+export type ConventionCategory =
+  | 'import_pattern'
+  | 'middleware'
+  | 'file_structure'
+  | 'naming'
+  | 'architecture'
+  | 'documentation';
+
+export type ConventionRuleType = 'always' | 'never' | 'prefer';
+
+export type ConventionSource = 'mined' | 'agents_md' | 'manual';
+
+export interface ImportPresencePattern {
+  kind: 'import_presence';
+  directories: string[];
+  importPath: string;
+  minRatio?: number;
+  requiredIdentifiers?: string[];
+}
+
+export interface MiddlewareChainPattern {
+  kind: 'middleware_chain';
+  directories: string[];
+  importPaths: string[];
+  requiredIdentifiers?: string[];
+}
+
+export interface NamingConventionPattern {
+  kind: 'naming_style';
+  appliesTo: 'function' | 'file';
+  style: 'camelCase' | 'PascalCase' | 'snake_case' | 'kebab-case';
+  directories?: string[];
+  suffix?: string;
+}
+
+export interface FileStructurePattern {
+  kind: 'file_structure';
+  testSuffix?: string;
+  colocated?: boolean;
+  directories?: string[];
+}
+
+export interface DependencyDirectionPattern {
+  kind: 'dependency_direction';
+  fromLayer: string;
+  toLayer: string;
+  relation: 'never' | 'only';
+}
+
+export interface DocumentRulePattern {
+  kind: 'document_rule';
+  keywords: string[];
+  sourceFile: string;
+}
+
+export type ConventionPattern =
+  | ImportPresencePattern
+  | MiddlewareChainPattern
+  | NamingConventionPattern
+  | FileStructurePattern
+  | DependencyDirectionPattern
+  | DocumentRulePattern;
+
+export interface ConventionRecord {
+  id: string;
+  name: string;
+  category: ConventionCategory;
+  ruleType: ConventionRuleType;
+  pattern: ConventionPattern;
+  evidenceCount: number;
+  totalCount: number;
+  confidence: number;
+  exceptions: string[];
+  source: ConventionSource;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConventionQueryOptions {
+  category?: ConventionCategory;
+  ruleType?: ConventionRuleType;
+  source?: ConventionSource;
+  minConfidence?: number;
+  pathPrefix?: string;
+  limit?: number;
+}
+
+// ============================================================================
 // STORAGE INTERFACE
 // ============================================================================
 
@@ -151,6 +243,14 @@ export interface LibrarianStorage {
   invalidateContextPacks(triggerPath: string): Promise<number>;
   deleteContextPack(packId: string): Promise<void>;
   recordContextPackAccess(packId: string, outcome?: 'success' | 'failure'): Promise<void>;
+
+  // Conventions
+  getConventions(options?: ConventionQueryOptions): Promise<ConventionRecord[]>;
+  getConvention(id: string): Promise<ConventionRecord | null>;
+  upsertConvention(convention: ConventionRecord): Promise<void>;
+  upsertConventions(conventions: ConventionRecord[]): Promise<void>;
+  deleteConvention(id: string): Promise<void>;
+  deleteConventionsBySource(source: ConventionSource): Promise<number>;
 
   // Strategic contracts (runtime model for strategic context contracts)
   upsertStrategicContracts(contracts: StrategicContractRecord[]): Promise<void>;
@@ -666,6 +766,16 @@ export type FaultLocalizationStorage = Pick<
   'getFaultLocalizations' | 'upsertFaultLocalization' | 'deleteFaultLocalization'
 >;
 
+export type ConventionStorage = Pick<
+  LibrarianStorage,
+  | 'getConventions'
+  | 'getConvention'
+  | 'upsertConvention'
+  | 'upsertConventions'
+  | 'deleteConvention'
+  | 'deleteConventionsBySource'
+>;
+
 export type MaintenanceStorage = Pick<LibrarianStorage, 'transaction' | 'getStats' | 'vacuum'>;
 
 export interface StorageSlices {
@@ -690,6 +800,7 @@ export interface StorageSlices {
   clones: CloneStorage;
   debt: DebtStorage;
   faults: FaultLocalizationStorage;
+  conventions: ConventionStorage;
   maintenance: MaintenanceStorage;
   raw: LibrarianStorage;
 }

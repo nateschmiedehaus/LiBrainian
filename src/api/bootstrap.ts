@@ -62,6 +62,7 @@ import { analyzeDebt } from '../analysis/technical_debt_analysis.js';
 import { buildKnowledgeGraph } from '../graphs/knowledge_graph.js';
 import { storeSCCAnalysis } from '../analysis/deterministic_analysis.js';
 import { buildModuleGraphs } from '../knowledge/module_graph.js';
+import { rebuildConventionRegistry } from '../conventions/convention_registry.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { detectLibrarianVersion, upgradeRequired, runUpgrade } from './versioning.js';
 import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
@@ -4108,6 +4109,22 @@ async function runAdvancedLibraryFeatures(
     }
   } catch (error) {
     logWarning('Advanced Library: Knowledge graph build failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const conventions = await rebuildConventionRegistry({
+      workspace: config.workspace,
+      storage,
+    });
+    logInfo('Advanced Library: Convention registry updated', {
+      totalConventions: conventions.total,
+      mined: conventions.sources.mined ?? 0,
+      documented: conventions.sources.agents_md ?? 0,
+    });
+  } catch (error) {
+    logWarning('Advanced Library: Convention registry build failed', {
       error: error instanceof Error ? error.message : String(error),
     });
   }

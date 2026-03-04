@@ -228,6 +228,18 @@ export const PreCommitCheckToolInputSchema = z.object({
 }).strict();
 
 /**
+ * check_conventions tool input schema
+ */
+export const CheckConventionsToolInputSchema = z.object({
+  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
+  files: z.array(z.object({
+    path: z.string().min(1).describe('File path to evaluate (absolute or workspace-relative)'),
+    content: z.string().optional().describe('Optional file content override (defaults to workspace file)'),
+    diff: z.string().optional().describe('Optional diff context to include in diagnostics'),
+  }).strict()).min(1).max(50).describe('Files to evaluate against discovered conventions'),
+}).strict();
+
+/**
  * librarian_completeness_check tool input schema
  */
 export const LibrarianCompletenessCheckToolInputSchema = z.object({
@@ -773,6 +785,7 @@ export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInput
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
 export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
+export type CheckConventionsToolInput = z.infer<typeof CheckConventionsToolInputSchema>;
 export type LibrarianCompletenessCheckToolInputType = z.infer<typeof LibrarianCompletenessCheckToolInputSchema>;
 export type ValidateImportToolInputType = z.infer<typeof ValidateImportToolInputSchema>;
 export type ClaimWorkScopeToolInputType = z.infer<typeof ClaimWorkScopeToolInputSchema>;
@@ -859,6 +872,7 @@ export const TOOL_INPUT_SCHEMAS = {
   get_change_impact: GetChangeImpactToolInputSchema,
   blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
+  check_conventions: CheckConventionsToolInputSchema,
   librarian_completeness_check: LibrarianCompletenessCheckToolInputSchema,
   claim_work_scope: ClaimWorkScopeToolInputSchema,
   append_claim: AppendClaimToolInputSchema,

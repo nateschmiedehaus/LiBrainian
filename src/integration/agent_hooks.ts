@@ -26,7 +26,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import type { LibrarianContext } from './wave0_integration.js';
 import { formatLibrarianContext } from './wave0_integration.js';
 import { processAgentFeedback, type AgentFeedback } from './agent_feedback.js';
-import type { LibrarianStorage } from '../storage/types.js';
+import type { LibrarianStorage, ConventionCategory, ConventionRecord, ConventionRuleType } from '../storage/types.js';
 import { logInfo, logWarning } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { getTaskQualityNorms, type TaskQualityNorm } from '../constructions/processes/quality_bar_constitution_construction.js';
@@ -105,6 +105,17 @@ export interface TaskContext {
   phaseDetection: PhaseDetectionResult;
   /** Phase-specific proactive intelligence suggestions */
   proactiveIntel: PhaseProactiveIntel[];
+  /** Repository conventions relevant to this task */
+  conventions: TaskConventionBrief[];
+}
+
+export interface TaskConventionBrief {
+  id: string;
+  name: string;
+  category: ConventionCategory;
+  ruleType: ConventionRuleType;
+  summary: string;
+  confidence: number;
 }
 
 /**
@@ -284,6 +295,19 @@ export async function getTaskContext(
       });
     }
 
+    let conventionBriefs: TaskConventionBrief[] = [];
+    try {
+      const storage = session.librarian?.getStorage?.();
+      if (storage) {
+        conventionBriefs = await getConventionBriefs(storage, filesForNormSelection ?? []);
+      }
+    } catch (error) {
+      logWarning('[agent_hooks] Failed to resolve conventions', {
+        taskId,
+        error: getErrorMessage(error),
+      });
+    }
+
     const phaseResult = detectTaskPhase({
       intent: request.intent,
       recentToolCalls: request.recentToolCalls,
@@ -308,7 +332,10 @@ export async function getTaskContext(
 
     // Format for prompt injection
     const formatted = appendPhaseIntelSection(
-      appendQualityNormsSection(formatLibrarianContext(librarianContext), qualityNorms),
+      appendConventionSection(
+        appendQualityNormsSection(formatLibrarianContext(librarianContext), qualityNorms),
+        conventionBriefs
+      ),
       phaseResult.detection,
       phaseResult.proactiveIntel
     );
@@ -323,6 +350,7 @@ export async function getTaskContext(
       drillDownHints: sessionContext.drillDownHints,
       methodHints: sessionContext.methodHints,
       qualityNorms,
+      conventions: conventionBriefs,
       phaseDetection: phaseResult.detection,
       proactiveIntel: phaseResult.proactiveIntel,
     };
@@ -850,6 +878,7 @@ function createFallbackContext(
     drillDownHints: [],
     methodHints: [],
     qualityNorms: [],
+    conventions: [],
     phaseDetection: {
       phase: AgentPhase.Unknown,
       confidence: 0,
@@ -871,6 +900,22 @@ function appendQualityNormsSection(formattedContext: string, qualityNorms: TaskQ
   for (const norm of qualityNorms) {
     const frequency = Math.round(norm.frequency * 100);
     sections.push(`- [${norm.level}] ${norm.rule} (${frequency}% observed, example: ${norm.example})`);
+  }
+  return sections.join('\n');
+}
+
+function appendConventionSection(formattedContext: string, conventions: TaskConventionBrief[]): string {
+  if (conventions.length === 0) {
+    return formattedContext;
+  }
+  const sections: string[] = [];
+  if (formattedContext.trim().length > 0) {
+    sections.push(formattedContext.trimEnd(), '');
+  }
+  sections.push('### Conventions');
+  for (const convention of conventions) {
+    const confidence = Math.round(convention.confidence * 100);
+    sections.push(`- [${convention.ruleType.toUpperCase()}] ${convention.name} (${confidence}% confidence) — ${convention.summary}`);
   }
   return sections.join('\n');
 }
@@ -898,6 +943,53 @@ function appendPhaseIntelSection(
     }
   }
   return sections.join('\n');
+}
+
+async function getConventionBriefs(storage: LibrarianStorage, filesToModify: string[]): Promise<TaskConventionBrief[]> {
+  const conventions = await storage.getConventions({ limit: 50 });
+  if (conventions.length === 0) {
+    return [];
+  }
+  const normalizedFiles = filesToModify
+    .map((filePath) => normalizeConventionPath(filePath))
+    .filter((entry): entry is string => entry.length > 0);
+  const relevant = conventions.filter((convention) => {
+    if (normalizedFiles.length === 0) return true;
+    return normalizedFiles.some((filePath) => conventionMatchesPath(convention, filePath));
+  });
+  const selected = (relevant.length > 0 ? relevant : conventions).slice(0, 3);
+  return selected.map((record) => ({
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    ruleType: record.ruleType,
+    summary: record.description,
+    confidence: record.confidence,
+  }));
+}
+
+function conventionMatchesPath(convention: ConventionRecord, filePath: string): boolean {
+  const pattern = convention.pattern;
+  if ('directories' in pattern && Array.isArray(pattern.directories) && pattern.directories.length > 0) {
+    return pattern.directories.some((dir) => filePath.startsWith(normalizeConventionDir(dir)));
+  }
+  if (pattern.kind === 'dependency_direction') {
+    return filePath.startsWith(normalizeConventionDir(`src/${pattern.fromLayer}`));
+  }
+  if (pattern.kind === 'document_rule' && pattern.sourceFile) {
+    return filePath.endsWith(pattern.sourceFile);
+  }
+  return true;
+}
+
+function normalizeConventionPath(filePath: string): string {
+  if (!filePath) return '';
+  return filePath.split(path.sep).join(path.posix.sep);
+}
+
+function normalizeConventionDir(dir: string): string {
+  const normalized = dir.split(path.sep).join(path.posix.sep);
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
 }
 
 function buildCacheKey(request: TaskContextRequest, workspace: string): string {

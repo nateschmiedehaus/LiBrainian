@@ -1086,6 +1086,24 @@ export interface PreCommitCheckToolInput {
   maxRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
 }
 
+/** check_conventions tool input */
+export interface CheckConventionsToolInput {
+  /** Workspace path (optional, uses first available if not specified) */
+  workspace?: string;
+
+  /** Files to evaluate against discovered conventions */
+  files: Array<{
+    /** File path to evaluate (absolute or workspace-relative) */
+    path: string;
+
+    /** Optional file content override (defaults to workspace file) */
+    content?: string;
+
+    /** Optional diff context for diagnostics */
+    diff?: string;
+  }>;
+}
+
 /** librarian_completeness_check tool input */
 export interface LibrarianCompletenessCheckToolInput {
   /** Workspace path (optional, uses first available if not specified) */
@@ -2873,6 +2891,24 @@ export function isPreCommitCheckToolInput(value: unknown): value is PreCommitChe
     || obj.maxRiskLevel === 'critical'
     || typeof obj.maxRiskLevel === 'undefined';
   return changedFilesOk && workspaceOk && strictOk && maxRiskLevelOk;
+}
+
+/** Type guard for CheckConventionsToolInput */
+export function isCheckConventionsToolInput(value: unknown): value is CheckConventionsToolInput {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  const workspaceOk = typeof obj.workspace === 'string' || typeof obj.workspace === 'undefined';
+  const files = obj.files;
+  if (!Array.isArray(files) || files.length === 0) return false;
+  const filesOk = files.every((entry) => {
+    if (typeof entry !== 'object' || entry === null) return false;
+    const file = entry as Record<string, unknown>;
+    const pathOk = typeof file.path === 'string' && file.path.trim().length > 0;
+    const contentOk = typeof file.content === 'string' || typeof file.content === 'undefined';
+    const diffOk = typeof file.diff === 'string' || typeof file.diff === 'undefined';
+    return pathOk && contentOk && diffOk;
+  });
+  return workspaceOk && filesOk;
 }
 
 /** Type guard for ClaimWorkScopeToolInput */
