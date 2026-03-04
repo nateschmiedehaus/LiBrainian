@@ -1828,17 +1828,45 @@ jobs:
           run_with_timeout 12 npm run build
           run_with_timeout 10 npx tsc --noEmit
 
-          TEST_PATTERN=$(echo "$CHANGED" | grep -E '^src/.*\.(ts|tsx|js)$' | sed 's#^src/##' | sed 's#\.[^.]*$##' | paste -sd'|' - || true)
-          if [ -n "$TEST_PATTERN" ]; then
-            run_with_timeout 20 npm test -- --run --testPathPattern "$TEST_PATTERN" || run_with_timeout 20 npm test -- --run
+          CHANGED_TESTS=$(echo "$CHANGED" | grep -E '^src/.*\.(test|spec)\.(ts|tsx|js)$' || true)
+          if [ -n "$CHANGED_TESTS" ]; then
+            mapfile -t CHANGED_TEST_ARRAY < <(echo "$CHANGED_TESTS" | sed '/^\s*$/d')
+            echo "Running changed test files:"
+            printf ' - %s\n' "${CHANGED_TEST_ARRAY[@]}"
+            run_with_timeout 20 npm test -- --run "${CHANGED_TEST_ARRAY[@]}"
           else
-            PROFILE="${{ steps.strategy.outputs.test_profile }}"
-            if [ "$PROFILE" = "scale" ]; then
-              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/performance_regression.test.ts
-            elif [ "$PROFILE" = "integration" ]; then
-              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/semantic_composition_selector.integration.test.ts
+            # Derive likely test files from changed source files and run only those that exist.
+            mapfile -t SOURCE_CHANGED < <(echo "$CHANGED" | grep -E '^src/.*\.(ts|tsx|js)$' | sed '/^\s*$/d')
+            DERIVED=""
+            for SRC in "${SOURCE_CHANGED[@]}"; do
+              NO_EXT="${SRC%.*}"
+              BASE="$(basename "$NO_EXT")"
+              DIR="$(dirname "$NO_EXT")"
+              for CAND in \
+                "$DIR/__tests__/${BASE}.test.ts" \
+                "$DIR/__tests__/${BASE}.spec.ts" \
+                "$DIR/${BASE}.test.ts" \
+                "$DIR/${BASE}.spec.ts"; do
+                if [ -f "$CAND" ]; then
+                  DERIVED="${DERIVED}${CAND}"$'\n'
+                fi
+              done
+            done
+            DERIVED=$(echo "$DERIVED" | awk '!seen[$0]++' | sed '/^\s*$/d' || true)
+            if [ -n "$DERIVED" ]; then
+              mapfile -t DERIVED_ARRAY < <(echo "$DERIVED")
+              echo "Running derived related test files:"
+              printf ' - %s\n' "${DERIVED_ARRAY[@]}"
+              run_with_timeout 20 npm test -- --run "${DERIVED_ARRAY[@]}"
             else
-              run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts
+              PROFILE="${{ steps.strategy.outputs.test_profile }}"
+              if [ "$PROFILE" = "scale" ]; then
+                run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/performance_regression.test.ts
+              elif [ "$PROFILE" = "integration" ]; then
+                run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts src/__tests__/semantic_composition_selector.integration.test.ts
+              else
+                run_with_timeout 20 npm test -- --run src/__tests__/provider_failures.test.ts src/__tests__/issue_quality_analysis_script.test.ts
+              fi
             fi
           fi
           echo "quality_ok=true" >> "$GITHUB_OUTPUT"
