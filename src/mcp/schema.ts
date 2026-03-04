@@ -207,17 +207,6 @@ export const GetChangeImpactToolInputSchema = z.object({
 }).strict();
 
 /**
- * blast_radius tool input schema
- */
-export const BlastRadiusToolInputSchema = z.object({
-  target: z.string().min(1).describe('Changed file/module/function identifier to analyze'),
-  workspace: z.string().optional().describe('Workspace path (optional, uses first available if not specified)'),
-  depth: z.number().int().min(1).max(8).optional().default(3).describe('Maximum transitive depth for propagation (default: 3)'),
-  maxResults: z.number().int().min(1).max(1000).optional().default(200).describe('Maximum impacted files to return (default: 200)'),
-  changeType: z.enum(['modify', 'delete', 'rename', 'move']).optional().describe('Optional change type to refine risk scoring'),
-}).strict();
-
-/**
  * pre_commit_check tool input schema
  */
 export const PreCommitCheckToolInputSchema = z.object({
@@ -771,7 +760,6 @@ export type EstimateBudgetToolInputType = z.infer<typeof EstimateBudgetToolInput
 export type EstimateTaskComplexityToolInputType = z.infer<typeof EstimateTaskComplexityToolInputSchema>;
 export type SynthesizePlanToolInputType = z.infer<typeof SynthesizePlanToolInputSchema>;
 export type GetChangeImpactToolInputType = z.infer<typeof GetChangeImpactToolInputSchema>;
-export type BlastRadiusToolInputType = z.infer<typeof BlastRadiusToolInputSchema>;
 export type PreCommitCheckToolInputType = z.infer<typeof PreCommitCheckToolInputSchema>;
 export type LibrarianCompletenessCheckToolInputType = z.infer<typeof LibrarianCompletenessCheckToolInputSchema>;
 export type ValidateImportToolInputType = z.infer<typeof ValidateImportToolInputSchema>;
@@ -857,7 +845,6 @@ export const TOOL_INPUT_SCHEMAS = {
   explain_operator: ExplainOperatorToolInputSchema,
   check_construction_types: CheckConstructionTypesToolInputSchema,
   get_change_impact: GetChangeImpactToolInputSchema,
-  blast_radius: BlastRadiusToolInputSchema,
   pre_commit_check: PreCommitCheckToolInputSchema,
   librarian_completeness_check: LibrarianCompletenessCheckToolInputSchema,
   claim_work_scope: ClaimWorkScopeToolInputSchema,
@@ -988,18 +975,6 @@ export const queryToolJsonSchema: JSONSchema = {
       },
       additionalProperties: false,
     },
-    context_hints: {
-      type: 'object',
-      description: 'Snake-case alias for contextHints with identical semantics so legacy clients can pass session topology hints and receive the same retrieval behavior.',
-      properties: {
-        active_file: { type: 'string' },
-        active_symbol: { type: 'string' },
-        recently_edited_files: { type: 'array', items: { type: 'string' } },
-        recent_tool_calls: { type: 'array', items: { type: 'string' } },
-        conversation_context: { type: 'string' },
-      },
-      additionalProperties: false,
-    },
     filter: {
       type: 'object',
       description: 'Structured retrieval filter for path/language/export/test constraints',
@@ -1016,7 +991,6 @@ export const queryToolJsonSchema: JSONSchema = {
     workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection', minLength: 1 },
     alpha: { type: 'number', description: 'Conformal error-rate target alpha in [0.01, 0.5]. Example: alpha=0.10 targets a 90% coverage guarantee and adjusts retrieval thresholds accordingly.', minimum: 0.01, maximum: 0.5 },
     recencyWeight: { type: 'number', description: 'Optional episodic recency-bias weight in [0,1]. Set 0 for cold retrieval, or increase toward 1 to bias toward recent session files that pass semantic relevance checks.', minimum: 0, maximum: 1 },
-    recency_weight: { type: 'number', description: 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible clients that prefer snake-case payload conventions.', minimum: 0, maximum: 1 },
     minConfidence: { type: 'number', description: `Minimum confidence threshold. ${CONFIDENCE_BEHAVIOR_CONTRACT}`, minimum: 0, maximum: 1, default: 0.5 },
     depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Depth of context', default: 'L1' },
     includeEngines: { type: 'boolean', description: 'Include engine results', default: false },
@@ -1025,7 +999,6 @@ export const queryToolJsonSchema: JSONSchema = {
     pageIdx: { type: 'number', description: 'Zero-based page index (default: 0)', minimum: 0, default: 0 },
     outputFile: { type: 'string', description: 'Write paged response payload to file and return a file reference', minLength: 1 },
     explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics', default: false },
-    explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
     stream: { type: 'boolean', description: 'Enable chunked stream view metadata for progressive result consumption', default: false },
     streamChunkSize: { type: 'number', description: 'Chunk size for stream view metadata (default: 5, max: 200)', minimum: 1, maximum: 200, default: 5 },
   },
@@ -1164,24 +1137,6 @@ export const getChangeImpactToolJsonSchema: JSONSchema = {
   $id: 'librarian://schemas/get-change-impact-tool-input',
   title: 'GetChangeImpactToolInput',
   description: 'Input for get_change_impact - ranked blast-radius and risk analysis for a proposed change',
-  type: 'object',
-  properties: {
-    target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
-    workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
-    depth: { type: 'number', description: 'Maximum transitive depth for propagation (default: 3, max: 8)', minimum: 1, maximum: 8, default: 3 },
-    maxResults: { type: 'number', description: 'Maximum impacted files to return (default: 200, max: 1000)', minimum: 1, maximum: 1000, default: 200 },
-    changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
-  },
-  required: ['target'],
-  additionalProperties: false,
-};
-
-/** blast_radius tool JSON Schema */
-export const blastRadiusToolJsonSchema: JSONSchema = {
-  $schema: JSON_SCHEMA_DRAFT,
-  $id: 'librarian://schemas/blast-radius-tool-input',
-  title: 'BlastRadiusToolInput',
-  description: 'Input for blast_radius - pre-edit transitive impact analysis (alias for get_change_impact)',
   type: 'object',
   properties: {
     target: { type: 'string', description: 'Changed file/module/function identifier to analyze', minLength: 1 },
@@ -1753,7 +1708,6 @@ export const JSON_SCHEMAS: Record<string, JSONSchema> = {
   explain_operator: explainOperatorToolJsonSchema,
   check_construction_types: checkConstructionTypesToolJsonSchema,
   get_change_impact: getChangeImpactToolJsonSchema,
-  blast_radius: blastRadiusToolJsonSchema,
   pre_commit_check: preCommitCheckToolJsonSchema,
   claim_work_scope: claimWorkScopeToolJsonSchema,
   append_claim: appendClaimToolJsonSchema,

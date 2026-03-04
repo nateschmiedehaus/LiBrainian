@@ -25,7 +25,6 @@ import {
   EstimateTaskComplexityToolInputSchema,
   SemanticSearchToolInputSchema,
   SynthesizePlanToolInputSchema,
-  BlastRadiusToolInputSchema,
   PreCommitCheckToolInputSchema,
   ClaimWorkScopeToolInputSchema,
   AppendClaimToolInputSchema,
@@ -70,7 +69,6 @@ import {
   isEstimateTaskComplexityToolInput,
   isSemanticSearchToolInput,
   isSynthesizePlanToolInput,
-  isBlastRadiusToolInput,
   isPreCommitCheckToolInput,
   isClaimWorkScopeToolInput,
   isAppendClaimToolInput,
@@ -162,7 +160,6 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('compile_technique_composition');
       expect(schemas).toContain('compile_intent_bundles');
       expect(schemas).toContain('get_change_impact');
-      expect(schemas).toContain('blast_radius');
       expect(schemas).toContain('pre_commit_check');
       expect(schemas).toContain('librarian_completeness_check');
       expect(schemas).toContain('claim_work_scope');
@@ -175,7 +172,7 @@ describe('MCP Schema', () => {
       expect(schemas).toContain('memory_delete');
       expect(schemas).toContain('list_capabilities');
       expect(schemas).toContain('find_symbol');
-      expect(schemas).toHaveLength(61);
+      expect(schemas).toHaveLength(60);
     });
 
     it('should return schema for known tools', () => {
@@ -690,38 +687,6 @@ describe('MCP Schema', () => {
       expect(isGetExplorationSuggestionsToolInput({})).toBe(true);
       expect(isGetExplorationSuggestionsToolInput({ entityType: 'function', limit: 5 })).toBe(true);
       expect(isGetExplorationSuggestionsToolInput({ entityType: 'bad' })).toBe(false);
-    });
-  });
-
-  describe('Blast Radius Tool Schema', () => {
-    it('should validate required fields', () => {
-      const result = validateToolInput('blast_radius', {
-        target: 'src/api/auth.ts',
-      });
-      expect(result.valid).toBe(true);
-      expect(BlastRadiusToolInputSchema).toBeDefined();
-    });
-
-    it('should validate optional fields', () => {
-      const result = validateToolInput('blast_radius', {
-        target: 'src/api/auth.ts',
-        depth: 4,
-        maxResults: 50,
-        changeType: 'modify',
-      });
-      expect(result.valid).toBe(true);
-    });
-
-    it('should reject missing target', () => {
-      const result = validateToolInput('blast_radius', {});
-      expect(result.valid).toBe(false);
-    });
-
-    it('should pass type guard', () => {
-      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts' })).toBe(true);
-      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'rename' })).toBe(true);
-      expect(isBlastRadiusToolInput({ target: 'src/api/auth.ts', changeType: 'invalid' })).toBe(false);
-      expect(isBlastRadiusToolInput(null)).toBe(false);
     });
   });
 

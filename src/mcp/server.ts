@@ -53,7 +53,6 @@ import {
   type ExplainOperatorToolInput,
   type CheckConstructionTypesToolInput,
   type GetChangeImpactToolInput,
-  type BlastRadiusToolInput,
   type PreCommitCheckToolInput,
   type LibrarianCompletenessCheckToolInput,
   type ClaimWorkScopeToolInput,
@@ -407,7 +406,6 @@ const TOOL_HINTS: Record<string, ToolHintMetadata> = {
   explain_operator: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1400 },
   check_construction_types: { readOnlyHint: true, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1700 },
   get_change_impact: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
-  blast_radius: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2600 },
   pre_commit_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 3200 },
   librarian_completeness_check: { readOnlyHint: true, openWorldHint: false, requiresIndex: true, requiresEmbeddings: false, estimatedTokens: 2800 },
   claim_work_scope: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false, requiresIndex: false, requiresEmbeddings: false, estimatedTokens: 1100 },
@@ -564,22 +562,15 @@ const SPECIAL_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   'query.depth': 'Context depth for retrieval scope. L0=summary only (fastest, ~500 tokens), L1=summary plus key facts (default, ~2000 tokens), L2=full pack with related files (~5000 tokens), L3=comprehensive cross-module context with richer call-graph evidence (~10000 tokens). Use L1 for routine work, L2 for impact analysis, and L3 only for deep architectural investigation.',
   'query.affectedFiles': 'Absolute paths of files to include as a hard retrieval scope filter. Use this when you already know likely hotspots and need precise context. If omitted, LiBrainian searches the full indexed workspace. Example: ["/workspace/src/auth.ts", "/workspace/src/middleware/session.ts"].',
   'query.contextHints': 'Optional agent-state hints that bias retrieval toward the active session topology. Provide active_file and recently_edited_files to auto-scope context, active_symbol to bias semantic matching toward the current symbol neighborhood, and conversation_context for recent intent continuity.',
-  'query.context_hints': 'Snake-case alias for contextHints with identical retrieval semantics, preserving backward compatibility for clients that send snake-case payloads and expect consistent routing behavior.',
   'query.contextHints.active_file': 'Absolute path to the file currently being edited. LiBrainian uses this as a strong topology prior so retrieval favors symbols near the active code region.',
   'query.contextHints.active_symbol': 'Name of the function, class, or module currently in focus. LiBrainian uses this signal to bias retrieval toward semantically and structurally related entities.',
   'query.contextHints.recently_edited_files': 'List of files recently edited in this session. These paths are merged into retrieval scope so follow-up queries stay aligned with ongoing work.',
   'query.contextHints.recent_tool_calls': 'Recent tool names invoked by the agent, such as find_symbol or trace_imports. LiBrainian uses this to preserve trajectory continuity across consecutive reasoning steps.',
   'query.contextHints.conversation_context': 'Short conversational snippet from the latest turns. LiBrainian appends this as lightweight routing context to reduce ambiguity in underspecified intents.',
-  'query.context_hints.active_file': 'Snake-case alias for contextHints.active_file. Provide an absolute active file path so retrieval can prioritize the local symbol neighborhood around current edits.',
-  'query.context_hints.active_symbol': 'Snake-case alias for contextHints.active_symbol. Provide active symbol identity so retrieval prioritizes directly connected implementations, call-graph neighbors, and module-level dependencies during multi-step investigations.',
-  'query.context_hints.recently_edited_files': 'Snake-case alias for contextHints.recently_edited_files. Include recent edits so retrieval scope stays aligned with the files currently changing in this implementation session.',
-  'query.context_hints.recent_tool_calls': 'Snake-case alias for contextHints.recent_tool_calls. Include recent tool history so LiBrainian preserves multi-step investigation trajectory and related context continuity between adjacent requests.',
-  'query.context_hints.conversation_context': 'Snake-case alias for contextHints.conversation_context. Include a compact recent summary so LiBrainian can disambiguate underspecified intents and overloaded query phrasing consistently.',
   'query.filter': 'Structured retrieval filter for scoped search. Use pathPrefix to isolate one package in a monorepo and optionally combine language, isExported, or excludeTests for higher precision.',
   'query.workingFile': 'Active file path hint used to auto-derive package scope in monorepos. When provided, LiBrainian infers a pathPrefix filter from workspace package boundaries.',
   'query.alpha': 'Conformal error-rate target alpha in [0.01, 0.5]. Lower alpha requests stricter coverage guarantees, while higher alpha allows tighter context sets with lower guaranteed coverage.',
   'query.recencyWeight': 'Optional episodic recency-bias weight in [0,1]. Set 0 to disable recency influence, or increase toward 1 to prioritize recently accessed files that still satisfy semantic relevance checks.',
-  'query.recency_weight': 'Snake-case alias for recencyWeight with identical semantics, preserving backward-compatible payloads while tuning episodic recency influence in retrieval ranking and hint injection.',
 };
 
 function countWords(value: string): number {
@@ -1670,17 +1661,6 @@ export class LiBrainianMCPServer {
                 conversation_context: { type: 'string', description: 'Short recent conversational context used as a lightweight semantic hint to disambiguate broad intents and preserve continuity across adjacent turns.' },
               },
             },
-            context_hints: {
-              type: 'object',
-              description: 'Snake-case alias for contextHints with identical semantics, enabling backward-compatible clients to pass session topology hints while preserving the same retrieval behavior and prioritization logic.',
-              properties: {
-                active_file: { type: 'string', description: 'Snake-case alias for contextHints.active_file, providing the absolute path of the currently active file for topology-aware retrieval biasing.' },
-                active_symbol: { type: 'string', description: 'Snake-case alias for contextHints.active_symbol, identifying the active symbol so retrieval can prioritize directly related implementations and dependencies.' },
-                recently_edited_files: { type: 'array', items: { type: 'string' }, description: 'Snake-case alias for contextHints.recently_edited_files, listing recently edited files that should be merged into retrieval scope automatically.' },
-                recent_tool_calls: { type: 'array', items: { type: 'string' }, description: 'Snake-case alias for contextHints.recent_tool_calls, listing recent tool usage to preserve search trajectory in multi-step workflows.' },
-                conversation_context: { type: 'string', description: 'Snake-case alias for contextHints.conversation_context, carrying a compact recent context snippet that improves disambiguation for underspecified intents.' },
-              },
-            },
             filter: {
               type: 'object',
               description: 'Structured retrieval filter (pathPrefix, language, isExported, excludeTests, maxFileSizeBytes)',
@@ -1695,7 +1675,6 @@ export class LiBrainianMCPServer {
             workingFile: { type: 'string', description: 'Active file path used for monorepo package-scope auto-detection' },
             alpha: { type: 'number', description: 'Conformal error-rate target alpha in [0.01, 0.5]. Example: alpha=0.10 targets a 90% coverage guarantee and adjusts retrieval thresholds accordingly.' },
             recencyWeight: { type: 'number', description: 'Optional episodic recency-bias weight in [0,1]. Set 0 for cold retrieval, or increase toward 1 to prioritize recent files that remain semantically relevant.' },
-            recency_weight: { type: 'number', description: 'Snake-case alias for recencyWeight with identical semantics, preserving compatibility with clients that prefer snake-case payload conventions.' },
             minConfidence: { type: 'number', description: `Min confidence (0-1). ${CONFIDENCE_BEHAVIOR_CONTRACT}` },
             depth: { type: 'string', enum: ['L0', 'L1', 'L2', 'L3'], description: 'Context depth' },
             includeEngines: { type: 'boolean', description: 'Include engine results' },
@@ -1704,7 +1683,6 @@ export class LiBrainianMCPServer {
             pageIdx: { type: 'number', description: 'Zero-based page index (default 0)' },
             outputFile: { type: 'string', description: 'Write page payload to file and return a reference' },
             explainMisses: { type: 'boolean', description: 'Include near-miss retrieval diagnostics' },
-            explain_misses: { type: 'boolean', description: 'Alias for explainMisses' },
             stream: { type: 'boolean', description: 'Enable chunked stream metadata so clients can consume packs incrementally after the query completes' },
             streamChunkSize: { type: 'number', description: 'Chunk size for stream metadata groups (default 5, max 200)' },
           },
@@ -1963,22 +1941,7 @@ export class LiBrainianMCPServer {
       },
       {
         name: 'get_change_impact',
-        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            target: { type: 'string', description: 'Changed file/module/function identifier to analyze' },
-            workspace: { type: 'string', description: 'Workspace path (optional, uses first available if not specified)' },
-            depth: { type: 'number', description: 'Maximum transitive depth for propagation (default 3, max 8)' },
-            maxResults: { type: 'number', description: 'Maximum impacted files to return (default 200, max 1000)' },
-            changeType: { type: 'string', enum: ['modify', 'delete', 'rename', 'move'], description: 'Optional change type to refine risk scoring' },
-          },
-          required: ['target'],
-        },
-      },
-      {
-        name: 'blast_radius',
-        description: 'Pre-edit transitive impact analysis before changing a function/module (alias of get_change_impact)',
+        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk). Also known as blast_radius for legacy prompts.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -3693,8 +3656,6 @@ export class LiBrainianMCPServer {
         return this.executeCheckConstructionTypes(args as CheckConstructionTypesToolInput);
       case 'get_change_impact':
         return this.executeGetChangeImpact(args as GetChangeImpactToolInput);
-      case 'blast_radius':
-        return this.executeBlastRadius(args as BlastRadiusToolInput);
       case 'pre_commit_check':
         return this.executePreCommitCheck(args as PreCommitCheckToolInput);
       case 'librarian_completeness_check':
@@ -9621,45 +9582,6 @@ export class LiBrainianMCPServer {
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  }
-
-  private async executeBlastRadius(input: BlastRadiusToolInput): Promise<unknown> {
-    const base = await this.executeGetChangeImpact({
-      target: input.target,
-      workspace: input.workspace,
-      depth: input.depth,
-      maxResults: input.maxResults,
-      changeType: input.changeType,
-    });
-
-    if (!base || typeof base !== 'object') {
-      return base;
-    }
-
-    const payload = base as Record<string, unknown>;
-    if (payload.success === false) {
-      return {
-        ...payload,
-        tool: 'blast_radius',
-        aliasOf: 'get_change_impact',
-      };
-    }
-
-    const summary = (payload.summary ?? {}) as Record<string, unknown>;
-    const riskLevel = summary.riskLevel;
-    const nextTools = riskLevel === 'critical' || riskLevel === 'high'
-      ? ['request_human_review', 'synthesize_plan']
-      : ['synthesize_plan', 'query'];
-
-    return {
-      ...payload,
-      tool: 'blast_radius',
-      aliasOf: 'get_change_impact',
-      preEditGuidance: {
-        recommendation: 'Run blast radius before edits; if risk is high, pause for review and create an explicit plan.',
-        nextTools,
-      },
-    };
   }
 
   private async executePreCommitCheck(input: PreCommitCheckToolInput): Promise<unknown> {

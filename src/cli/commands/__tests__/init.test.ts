@@ -9,6 +9,16 @@ vi.mock('../quickstart.js', () => ({
   quickstartCommand: vi.fn().mockResolvedValue(undefined),
 }));
 
+const GOLDEN_PATH_TOOL_NAMES = [
+  'query',
+  'get_context_pack',
+  'find_symbol',
+  'get_change_impact',
+  'explain_function',
+  'find_usages',
+  'get_repo_map',
+];
+
 describe('initCommand', () => {
   let workspace: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
@@ -96,13 +106,23 @@ describe('initCommand', () => {
     await initCommand({ workspace, args: [], rawArgs: ['init', '--mcp-config'] });
 
     const parsed = JSON.parse(await fs.readFile(mcpPath, 'utf8')) as {
-      mcpServers: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+      mcpServers: Record<string, {
+        command: string;
+        args: string[];
+        env?: Record<string, string>;
+        serverInstructions?: string[];
+      }>;
     };
 
     expect(parsed.mcpServers.existing).toBeTruthy();
     expect(parsed.mcpServers.librarian.command).toBe('npx');
     expect(parsed.mcpServers.librarian.args).toEqual(['-y', 'librainian', 'mcp']);
     expect(parsed.mcpServers.librarian.env?.LIBRARIAN_WORKSPACE).toBe(workspace);
+    expect(Array.isArray(parsed.mcpServers.librarian.serverInstructions)).toBe(true);
+    const instructions = parsed.mcpServers.librarian.serverInstructions ?? [];
+    GOLDEN_PATH_TOOL_NAMES.forEach((toolName) => {
+      expect(instructions.join(' ')).toContain(toolName);
+    });
   });
 
   it('does not overwrite existing librarian MCP entry without --force', async () => {

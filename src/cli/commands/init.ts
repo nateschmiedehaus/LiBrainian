@@ -7,6 +7,16 @@ import { quickstartCommand } from './quickstart.js';
 const LIBRARIAN_SECTION_START = '<!-- LIBRARIAN_DOCS_START -->';
 const LIBRARIAN_SECTION_END = '<!-- LIBRARIAN_DOCS_END -->';
 
+const GOLDEN_PATH_SERVER_INSTRUCTIONS = [
+  'query → default semantic retrieval entrypoint before touching unfamiliar code.',
+  'get_context_pack → assemble token-budgeted task context once intent is understood.',
+  'find_symbol → locate definitions quickly when you already know the identifier.',
+  'get_change_impact → run blast-radius style impact analysis before edits.',
+  'explain_function → summarize a specific function when reviewing existing behavior.',
+  'find_usages → audit direct usages/callers before refactors.',
+  'get_repo_map → snapshot repo topology for fast orientation on new projects.',
+];
+
 export interface InitCommandOptions {
   workspace: string;
   args: string[];
@@ -245,6 +255,7 @@ function buildDesiredMcpEntry(workspace: string): Record<string, unknown> {
     env: {
       LIBRARIAN_WORKSPACE: workspace,
     },
+    serverInstructions: GOLDEN_PATH_SERVER_INSTRUCTIONS,
   };
 }
 

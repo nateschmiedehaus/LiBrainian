@@ -175,15 +175,33 @@ describe('MCP Server', () => {
       expect(briefingTool?.inputSchema?.properties?.includeConstructions?.description).toContain('construction onboarding hints');
     });
 
-    it('includes blast_radius in available tools for pre-edit impact analysis', () => {
+    it('describes blast_radius as part of get_change_impact without listing a duplicate tool', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
         description?: string;
       }>;
+      const changeImpactTool = tools.find((tool) => tool.name === 'get_change_impact');
       const blastRadiusTool = tools.find((tool) => tool.name === 'blast_radius');
 
-      expect(blastRadiusTool).toBeDefined();
-      expect(blastRadiusTool?.description).toContain('Pre-edit transitive impact analysis');
+      expect(changeImpactTool).toBeDefined();
+      expect(changeImpactTool?.description).toContain('blast_radius');
+      expect(blastRadiusTool).toBeUndefined();
+    });
+
+    it('omits snake_case query aliases from advertised schemas while keeping camelCase parameters', () => {
+      const tools = (server as any).getAvailableTools() as Array<{
+        name: string;
+        inputSchema?: { properties?: Record<string, unknown> };
+      }>;
+      const queryTool = tools.find((tool) => tool.name === 'query');
+      const propNames = Object.keys(queryTool?.inputSchema?.properties ?? {});
+
+      expect(propNames).toContain('contextHints');
+      expect(propNames).toContain('recencyWeight');
+      expect(propNames).toContain('explainMisses');
+      expect(propNames).not.toContain('context_hints');
+      expect(propNames).not.toContain('recency_weight');
+      expect(propNames).not.toContain('explain_misses');
     });
 
     it('includes semantic_search as primary localization tool', () => {
@@ -416,22 +434,6 @@ describe('MCP Server', () => {
       expect(Array.isArray(result.recommendedActions)).toBe(true);
       expect(result.recommendedActions[0]?.tool).toBe('bootstrap');
       expect(result.constructions?.quickstart).toBe('docs/constructions/quickstart.md');
-    });
-
-    it('wraps get_change_impact in blast_radius guidance', async () => {
-      vi.spyOn(server as any, 'executeGetChangeImpact').mockResolvedValue({
-        success: true,
-        summary: { riskLevel: 'high' },
-        impacted: [],
-      });
-
-      const result = await (server as any).executeBlastRadius({ target: 'src/api/auth.ts' });
-      expect(result.success).toBe(true);
-      expect(result.tool).toBe('blast_radius');
-      expect(result.aliasOf).toBe('get_change_impact');
-      expect(result.preEditGuidance?.nextTools).toEqual(
-        expect.arrayContaining(['request_human_review', 'synthesize_plan']),
-      );
     });
 
     it('wraps query in semantic_search with related files and next-tool guidance', async () => {
