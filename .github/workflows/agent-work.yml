@@ -2044,24 +2044,35 @@ jobs:
         if: always() && steps.find.outputs.issue_number && job.status != 'cancelled'
         id: outcome
         run: |
-          NUM=${{ steps.find.outputs.issue_number }}
-          PR=${{ steps.create-pr.outputs.pr_number }}
-          WORKER_OUTCOME=${{ steps.worker.outputs.outcome || 'unknown' }}
-          PROVIDER_USED=${{ steps.worker.outputs.provider_used || 'unknown' }}
-          PUSH_FAILED=${{ steps.create-pr.outputs.push_failed || 'false' }}
-          PR_CREATE_FAILED=${{ steps.create-pr.outputs.pr_create_failed || 'false' }}
-          PR_CREATE_ERROR_KIND=${{ steps.create-pr.outputs.pr_create_error_kind || 'none' }}
-          GATE_OUTCOME=${{ steps.gates.outcome || 'unknown' }}
-          EVIDENCE_FOUND=${{ steps.evidence.outputs.found || 'false' }}
-          EVIDENCE_STATUS=${{ steps.evidence.outputs.status || 'missing' }}
-          EVIDENCE_SOURCE=${{ steps.evidence.outputs.source || 'none' }}
-          NEXT_ACTION=${{ steps.evidence.outputs.next_action || 'unknown' }}
-          ATTEMPTS=${{ steps.strategy.outputs.attempts || '0' }}
-          GATE_NO_CHANGES=${{ steps.gates.outputs.no_changes || 'false' }}
-          GATE_COMMITS=${{ steps.gates.outputs.commits || '0' }}
-          GATE_CHANGED_COUNT=${{ steps.gates.outputs.changed_count || '0' }}
-          IS_MANAGEMENT=${{ steps.find.outputs.issue_is_management || 'false' }}
-          HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
+          NUM=${NUM:-}
+          PR=${PR:-}
+          WORKER_OUTCOME=${WORKER_OUTCOME:-unknown}
+          PROVIDER_USED=${PROVIDER_USED:-unknown}
+          PUSH_FAILED=${PUSH_FAILED:-false}
+          PR_CREATE_FAILED=${PR_CREATE_FAILED:-false}
+          PR_CREATE_ERROR_KIND=${PR_CREATE_ERROR_KIND:-none}
+          GATE_OUTCOME=${GATE_OUTCOME:-unknown}
+          EVIDENCE_FOUND=${EVIDENCE_FOUND:-false}
+          EVIDENCE_STATUS=${EVIDENCE_STATUS:-missing}
+          EVIDENCE_SOURCE=${EVIDENCE_SOURCE:-none}
+          NEXT_ACTION=${NEXT_ACTION:-unknown}
+          ATTEMPTS=${ATTEMPTS:-0}
+          GATE_NO_CHANGES=${GATE_NO_CHANGES:-false}
+          GATE_COMMITS=${GATE_COMMITS:-0}
+          GATE_CHANGED_COUNT=${GATE_CHANGED_COUNT:-0}
+          IS_MANAGEMENT=${IS_MANAGEMENT:-false}
+          HAS_CODEX_AVAILABLE=${HAS_CODEX_AVAILABLE:-false}
+          PROVIDER_PRIMARY=${PROVIDER_PRIMARY:-unknown}
+          PROVIDER_FALLBACK=${PROVIDER_FALLBACK:-}
+          BREAKER_OPEN=${BREAKER_OPEN:-false}
+          IS_DRY_RUN=${IS_DRY_RUN:-false}
+          DEPS_BLOCKED=${DEPS_BLOCKED:-false}
+          RETRIES_SHELVED=${RETRIES_SHELVED:-false}
+          READINESS_READY=${READINESS_READY:-true}
+          READINESS_SCORE=${READINESS_SCORE:-unknown}
+          STRATEGY_FOCUS=${STRATEGY_FOCUS:-unknown}
+          RUN_ID=${RUN_ID:-}
+          RUN_URL=${RUN_URL:-}
           CLAUDE_AUTH_HINT=false
 
           echo "escalate=false" >> "$GITHUB_OUTPUT"
@@ -2072,30 +2083,30 @@ jobs:
           if ! [[ "$GATE_CHANGED_COUNT" =~ ^[0-9]+$ ]]; then GATE_CHANGED_COUNT=0; fi
 
           if [ "$WORKER_OUTCOME" != "success" ] && [ "$PROVIDER_USED" = "claude" ]; then
-            if gh run view "${{ github.run_id }}" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
+            if gh run view "$RUN_ID" -R "$REPO" --log 2>/dev/null | grep -Eq 'OAuth token has expired|authentication_error'; then
               CLAUDE_AUTH_HINT=true
             fi
-            if [ "${{ steps.provider.outputs.primary }}" = "claude" ] && [ -z "${{ steps.provider.outputs.fallback }}" ]; then
+            if [ "$PROVIDER_PRIMARY" = "claude" ] && [ -z "$PROVIDER_FALLBACK" ]; then
               CLAUDE_AUTH_HINT=true
             fi
           fi
 
-          if [ "${{ steps.breaker.outputs.open }}" = "true" ]; then
+          if [ "$BREAKER_OPEN" = "true" ]; then
             echo "result=skipped-breaker" >> "$GITHUB_OUTPUT"
             echo "Outcome skipped due to open circuit breaker."
             exit 0
           fi
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "$IS_DRY_RUN" = "true" ]; then
             echo "result=skipped-dry-run" >> "$GITHUB_OUTPUT"
             echo "Outcome skipped in dry-run mode."
             exit 0
           fi
-          if [ "${{ steps.deps.outputs.blocked }}" = "true" ]; then
+          if [ "$DEPS_BLOCKED" = "true" ]; then
             echo "result=blocked" >> "$GITHUB_OUTPUT"
             echo "Outcome blocked by dependencies."
             exit 0
           fi
-          if [ "${{ steps.retries.outputs.shelved }}" = "true" ]; then
+          if [ "$RETRIES_SHELVED" = "true" ]; then
             echo "result=needs-management" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
             echo "escalation_reason=retry_exhausted" >> "$GITHUB_OUTPUT"
@@ -2113,13 +2124,13 @@ jobs:
               echo "- **Attempts observed:** $ATTEMPTS"
               echo "- **Escalation reason:** retry_exhausted"
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
             exit 0
           fi
-          if [ "${{ steps.readiness.outputs.ready }}" = "false" ]; then
+          if [ "$READINESS_READY" = "false" ]; then
             echo "result=needs-management" >> "$GITHUB_OUTPUT"
             echo "escalate=true" >> "$GITHUB_OUTPUT"
             echo "escalation_reason=readiness_gap" >> "$GITHUB_OUTPUT"
@@ -2134,10 +2145,10 @@ jobs:
             {
               echo "**Agent Work Loop** escalated this issue due to readiness gaps."
               echo ""
-              echo "- **Readiness score:** ${{ steps.readiness.outputs.readiness_score || 'unknown' }}/3"
+              echo "- **Readiness score:** $READINESS_SCORE/3"
               echo "- **Escalation reason:** readiness_gap"
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2158,10 +2169,10 @@ jobs:
               echo "- **PR:** #$PR"
               echo "- **Status:** Implementation submitted"
               echo "- **Provider:** $PROVIDER_USED"
-              echo "- **Focus:** ${{ steps.strategy.outputs.focus }}"
+              echo "- **Focus:** $STRATEGY_FOCUS"
               echo "- **Next:** Awaiting independent verification"
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"submitted\",\"meta_eval\":\"on_track\",\"managerial_fix\":\"none\",\"next_action\":\"verify\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"pr\":$PR,\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"submitted\",\"meta_eval\":\"on_track\",\"managerial_fix\":\"none\",\"next_action\":\"verify\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2187,7 +2198,7 @@ jobs:
               echo "1. Check repository permissions/protection and branch push access."
               echo "2. Keep issue actionable for retry once SCM path is healthy."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2217,7 +2228,7 @@ jobs:
               echo "1. Allow GitHub Actions token to create pull requests (or provide alternate bot token)."
               echo "2. Retry once PR creation permissions are restored."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2294,7 +2305,7 @@ jobs:
               echo "**Agent Work Loop** — provider/infra failure."
               echo ""
               echo "- **Provider attempted:** $PROVIDER_USED"
-              echo "- **Primary/Fallback plan:** ${{ steps.provider.outputs.primary }} / ${{ steps.provider.outputs.fallback || 'none' }}"
+              echo "- **Primary/Fallback plan:** $PROVIDER_PRIMARY / ${PROVIDER_FALLBACK:-none}"
               echo "- **Worker outcome:** $WORKER_OUTCOME"
               echo "- **Detected auth/access failure hint:** $CLAUDE_AUTH_HINT"
               if [ "$IS_MANAGEMENT" = "true" ] && [ "$CLAUDE_AUTH_HINT" = "true" ] && [ "$HAS_CODEX_AVAILABLE" != "true" ]; then
@@ -2307,7 +2318,7 @@ jobs:
               echo "   - If Claude reports 401/authentication_error, refresh \`CLAUDE_CODE_OAUTH_TOKEN\`."
               echo "   - If Codex is used, verify \`CODEX_AUTH_JSON\` (OAuth) or \`OPENAI_API_KEY\`."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2335,7 +2346,7 @@ jobs:
               echo ""
               echo "This issue remains actionable for rework. Next run should focus on failing gates."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"test_plan_patch\",\"next_action\":\"retry\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"test_plan_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
@@ -2373,7 +2384,7 @@ jobs:
                   echo ""
                   echo "Automation escalated this issue to management for scope/requirements correction."
                   echo ""
-                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
+                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
                 } > .outcome-comment.md
                 gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
                 rm -f .outcome-comment.md
@@ -2398,7 +2409,7 @@ jobs:
                   echo ""
                   echo "Issue remains actionable for another focused attempt (narrower scope and explicit file targets)."
                   echo ""
-                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"no_changes\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+                  echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"no_changes\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
                 } > .outcome-comment.md
                 gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
                 rm -f .outcome-comment.md
@@ -2418,7 +2429,7 @@ jobs:
               {
                 echo "**Agent Work Loop** — issue needs decomposition before further automation."
                 echo ""
-                echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                echo "- **Run:** $RUN_URL"
                 echo "- **Provider:** $PROVIDER_USED"
                 echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
                 echo "- **Suggested next_action:** $NEXT_ACTION"
@@ -2428,7 +2439,7 @@ jobs:
                 echo "2. Add measurable acceptance criteria per sub-issue."
                 echo "3. Re-add \`agent:actionable\` only to well-scoped sub-issues."
                 echo ""
-                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"needs_decomposition\",\"meta_eval\":\"non_convergent\",\"managerial_fix\":\"scope_split\",\"next_action\":\"manual_review\"} -->"
               } > .outcome-comment.md
               gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
               rm -f .outcome-comment.md
@@ -2456,7 +2467,7 @@ jobs:
                 echo ""
                 echo "Automation routed this to management for workflow/instrumentation correction and retry."
                 echo ""
-                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+                echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
               } > .outcome-comment.md
               gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
               rm -f .outcome-comment.md
@@ -2476,20 +2487,49 @@ jobs:
             {
               echo "**Agent Work Loop** — outcome state was not classifiable."
               echo ""
-              echo "- **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              echo "- **Run:** $RUN_URL"
               echo "- **Provider:** $PROVIDER_USED"
               echo "- **Worker/Gate outcomes:** $WORKER_OUTCOME / $GATE_OUTCOME"
               echo "- **Evidence status/source:** $EVIDENCE_STATUS / $EVIDENCE_SOURCE"
               echo ""
               echo "Automation escalated this to management for workflow-state correction and rerun."
               echo ""
-              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"$RUN_ID\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"retry\"} -->"
             } > .outcome-comment.md
             gh issue comment "$NUM" -R "$REPO" --body-file .outcome-comment.md
             rm -f .outcome-comment.md
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUM: ${{ steps.find.outputs.issue_number }}
+          PR: ${{ steps.create-pr.outputs.pr_number }}
+          WORKER_OUTCOME: ${{ steps.worker.outputs.outcome }}
+          PROVIDER_USED: ${{ steps.worker.outputs.provider_used }}
+          PUSH_FAILED: ${{ steps.create-pr.outputs.push_failed }}
+          PR_CREATE_FAILED: ${{ steps.create-pr.outputs.pr_create_failed }}
+          PR_CREATE_ERROR_KIND: ${{ steps.create-pr.outputs.pr_create_error_kind }}
+          GATE_OUTCOME: ${{ steps.gates.outcome }}
+          EVIDENCE_FOUND: ${{ steps.evidence.outputs.found }}
+          EVIDENCE_STATUS: ${{ steps.evidence.outputs.status }}
+          EVIDENCE_SOURCE: ${{ steps.evidence.outputs.source }}
+          NEXT_ACTION: ${{ steps.evidence.outputs.next_action }}
+          ATTEMPTS: ${{ steps.strategy.outputs.attempts }}
+          GATE_NO_CHANGES: ${{ steps.gates.outputs.no_changes }}
+          GATE_COMMITS: ${{ steps.gates.outputs.commits }}
+          GATE_CHANGED_COUNT: ${{ steps.gates.outputs.changed_count }}
+          IS_MANAGEMENT: ${{ steps.find.outputs.issue_is_management }}
+          HAS_CODEX_AVAILABLE: ${{ steps.provider.outputs.has_codex }}
+          PROVIDER_PRIMARY: ${{ steps.provider.outputs.primary }}
+          PROVIDER_FALLBACK: ${{ steps.provider.outputs.fallback }}
+          BREAKER_OPEN: ${{ steps.breaker.outputs.open }}
+          IS_DRY_RUN: ${{ inputs.dry_run }}
+          DEPS_BLOCKED: ${{ steps.deps.outputs.blocked }}
+          RETRIES_SHELVED: ${{ steps.retries.outputs.shelved }}
+          READINESS_READY: ${{ steps.readiness.outputs.ready }}
+          READINESS_SCORE: ${{ steps.readiness.outputs.readiness_score }}
+          STRATEGY_FOCUS: ${{ steps.strategy.outputs.focus }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Requeue on cancellation
         if: always() && steps.find.outputs.issue_number && job.status == 'cancelled'
