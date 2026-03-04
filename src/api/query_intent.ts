@@ -16,6 +16,7 @@
 import type { EmbeddableEntityType } from '../storage/types.js';
 import type { GraphEdgeType } from '../types.js';
 import { parseStructuralQueryIntent, type StructuralQueryIntent } from './dependency_query.js';
+import { detectPathLikeQuery, type PathLookupTarget } from './query_intent_targets.js';
 import { classifyTestQuery, type TestQueryClassification } from './test_file_correlation.js';
 
 // ============================================================================
@@ -30,7 +31,7 @@ import { classifyTestQuery, type TestQueryClassification } from './test_file_cor
  * - 'meta': Project-level queries (what is this project) -> use documentation
  * - 'test': Test file queries (tests for X) -> use test correlation
  */
-export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta' | 'test';
+export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta' | 'test' | 'path_lookup';
 
 /**
  * Retrieval strategy that maps to intent type:
@@ -41,7 +42,14 @@ export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta'
  * - 'test_correlation': Use deterministic test file correlation
  * - 'hybrid': Use multiple strategies with blending
  */
-export type RetrievalStrategy = 'graph' | 'search' | 'summary' | 'docs' | 'test_correlation' | 'hybrid';
+export type RetrievalStrategy =
+  | 'graph'
+  | 'search'
+  | 'summary'
+  | 'docs'
+  | 'test_correlation'
+  | 'path_lookup'
+  | 'hybrid';
 
 /**
  * Unified query intent classification with confidence and routing information.
@@ -73,6 +81,12 @@ export interface UnifiedQueryIntent {
 
   /** Test query details (if intent is test-related) */
   testQueryIntent?: TestQueryClassification;
+
+  /** Path lookup target (if query is path-like) */
+  pathLookupTarget?: string;
+
+  /** Detection type for path-like intent */
+  pathLookupDetection?: PathLookupTarget['detectionType'];
 
   /** Explanation of how the intent was classified */
   explanation: string;
@@ -214,6 +228,8 @@ function getRetrievalStrategy(intentType: QueryIntentType): RetrievalStrategy {
       return 'docs';
     case 'test':
       return 'test_correlation';
+    case 'path_lookup':
+      return 'path_lookup';
     default:
       return 'hybrid';
   }
@@ -238,6 +254,9 @@ function getFallbackStrategies(intentType: QueryIntentType): RetrievalStrategy[]
       return ['summary', 'search'];
     case 'test':
       // If test correlation fails, try search
+      return ['search', 'summary'];
+    case 'path_lookup':
+      // Direct path lookup should fall back to semantic search
       return ['search', 'summary'];
     default:
       return ['search', 'summary', 'docs'];
@@ -264,6 +283,9 @@ function getEntityTypesForIntent(intentType: QueryIntentType): EmbeddableEntityT
     case 'test':
       // Test queries focus on test files which are modules
       return ['module', 'function'];
+    case 'path_lookup':
+      // Path queries map directly to file modules
+      return ['module'];
     default:
       return ['function', 'module', 'document'];
   }
@@ -284,6 +306,8 @@ function getDocumentBias(intentType: QueryIntentType, confidence: number): numbe
       return 0.8 + (confidence * 0.15); // Strong docs preference
     case 'test':
       return 0.1; // Code preference (test files are code)
+    case 'path_lookup':
+      return 0.05; // Strong file preference, minimal doc bias
     default:
       return 0.3; // Neutral
   }
@@ -349,7 +373,24 @@ export function classifyUnifiedQueryIntent(intent: string): UnifiedQueryIntent {
     };
   }
 
-  // 3. Pattern-based classification for location/explanation/meta
+  // 3. High-confidence path-like query detection
+  const pathDetection = detectPathLikeQuery(intent);
+  if (pathDetection && pathDetection.confidence >= 0.7) {
+    return {
+      intentType: 'path_lookup',
+      intentConfidence: pathDetection.confidence,
+      primaryStrategy: 'path_lookup',
+      fallbackStrategies: ['search', 'summary'],
+      entityTypes: ['module'],
+      documentBias: getDocumentBias('path_lookup', pathDetection.confidence),
+      explanation: `Path-like query detected targeting "${pathDetection.normalizedPath}".`,
+      requiresExhaustive: false,
+      pathLookupTarget: pathDetection.normalizedPath,
+      pathLookupDetection: pathDetection.detectionType,
+    };
+  }
+
+  // 4. Pattern-based classification for location/explanation/meta
   const locationMatches = countPatternMatches(normalizedIntent, LOCATION_QUERY_PATTERNS);
   const explanationMatches = countPatternMatches(normalizedIntent, EXPLANATION_QUERY_PATTERNS);
   const metaMatches = countPatternMatches(normalizedIntent, META_QUERY_PATTERNS);
@@ -423,6 +464,7 @@ export function applyRetrievalStrategyAdjustments(
   useGraphFirst: boolean;
   useDocsFirst: boolean;
   useTestCorrelation: boolean;
+  usePathLookup: boolean;
   explanation: string;
 } {
   const { similarityThreshold = 0.35, limit = 14, graphDepth = 2 } = options;
@@ -433,6 +475,7 @@ export function applyRetrievalStrategyAdjustments(
   let useGraphFirst = false;
   let useDocsFirst = false;
   let useTestCorrelation = false;
+  let usePathLookup = false;
   let explanation = '';
 
   switch (classification.primaryStrategy) {
@@ -476,6 +519,14 @@ export function applyRetrievalStrategyAdjustments(
       explanation = `Test query (${classification.intentConfidence.toFixed(2)} conf). Using test file correlation.`;
       break;
 
+    case 'path_lookup':
+      // For path lookup queries, bypass semantic search unless fallback needed
+      adjustedLimit = Math.min(limit, 8);
+      adjustedThreshold = similarityThreshold;
+      usePathLookup = true;
+      explanation = `Path lookup query (${classification.intentConfidence.toFixed(2)} conf). Using direct file retrieval.`;
+      break;
+
     default:
       explanation = `Hybrid query. Using balanced retrieval.`;
   }
@@ -492,6 +543,7 @@ export function applyRetrievalStrategyAdjustments(
     useGraphFirst,
     useDocsFirst,
     useTestCorrelation,
+    usePathLookup,
     explanation,
   };
 }

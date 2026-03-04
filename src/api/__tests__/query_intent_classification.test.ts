@@ -763,6 +763,23 @@ describe('classifyUnifiedQueryIntent', () => {
     });
   });
 
+  describe('path lookup detection (direct strategy)', () => {
+    it('classifies raw file paths as path lookup queries', () => {
+      const result = classifyUnifiedQueryIntent('src/auth/token.ts');
+      expect(result.intentType).toBe('path_lookup');
+      expect(result.primaryStrategy).toBe('path_lookup');
+      expect(result.pathLookupTarget).toBe('src/auth/token.ts');
+      expect(result.entityTypes).toEqual(['module']);
+    });
+
+    it('detects natural language wrapped path mentions', () => {
+      const result = classifyUnifiedQueryIntent('show me packages/api/src/index.ts please');
+      expect(result.intentType).toBe('path_lookup');
+      expect(result.pathLookupTarget).toBe('packages/api/src/index.ts');
+      expect(result.fallbackStrategies).toEqual(['search', 'summary']);
+    });
+  });
+
   describe('fallback strategies', () => {
     it('provides graph -> search -> summary fallback for structural queries', () => {
       const result = classifyUnifiedQueryIntent('What imports utils.ts?');
@@ -875,6 +892,14 @@ describe('applyRetrievalStrategyAdjustments', () => {
 
     const adjustments = applyRetrievalStrategyAdjustments(intent, {});
     expect(adjustments.explanation).toContain('fallback');
+  });
+
+  it('signals direct retrieval for path lookup queries', () => {
+    const intent = classifyUnifiedQueryIntent('src/api/query.ts');
+    const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 20, similarityThreshold: 0.4 });
+    expect(adjustments.usePathLookup).toBe(true);
+    expect(adjustments.adjustedLimit).toBeLessThanOrEqual(20);
+    expect(adjustments.explanation).toContain('Path lookup');
   });
 });
 

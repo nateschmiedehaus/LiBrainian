@@ -1,3 +1,27 @@
+export const FILE_PATH_EXTENSION_PATTERN =
+  '(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala|md|markdown|json|yaml|yml|toml|ini|sql|sh|bash|ps1|txt|cjsx|coffee)';
+
+const PATH_SEGMENT_PATTERN = '[A-Za-z0-9._@-]+';
+const KNOWN_DIRECTORY_PREFIXES = '(?:src|lib|libs|app|apps|api|server|client|packages?|pkg|services?|components?|test|tests|__tests__|spec|config|scripts?|bin|dist|docs|documentation|examples?|types|domain|feature|features|workers?)';
+
+export const PATH_LIKE_QUERY_PATTERNS: RegExp[] = [
+  // File paths with explicit extensions and at least one directory separator.
+  new RegExp(
+    `(?:^|[^A-Za-z0-9._@-])((?:\.{0,2}\/)?(?:${PATH_SEGMENT_PATTERN}\/)+${PATH_SEGMENT_PATTERN}\.(?:${FILE_PATH_EXTENSION_PATTERN}))(?=$|[^A-Za-z0-9._@-])`,
+    'i'
+  ),
+  // Paths that begin with canonical repo directories (src/, packages/, etc.).
+  new RegExp(
+    `(?:^|[^A-Za-z0-9._@-])((?:\.{0,2}\/)?${KNOWN_DIRECTORY_PREFIXES}\/${PATH_SEGMENT_PATTERN}(?:\/${PATH_SEGMENT_PATTERN})+)(?=$|[^A-Za-z0-9._@-])`,
+    'i'
+  ),
+  // Generic multi-segment slash paths (3+ segments) even without known prefixes.
+  new RegExp(
+    `(?:^|[^A-Za-z0-9._@-])((?:\.{0,2}\/)?${PATH_SEGMENT_PATTERN}\/${PATH_SEGMENT_PATTERN}\/${PATH_SEGMENT_PATTERN}(?:\/${PATH_SEGMENT_PATTERN})*)(?=$|[^A-Za-z0-9._@-])`,
+    'i'
+  ),
+];
+
 /**
  * Keywords that indicate a meta-query about usage, integration, or concepts.
  * These queries should prefer documentation over code.

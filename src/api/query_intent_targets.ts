@@ -1,4 +1,44 @@
-const FILE_PATH_EXTENSION_PATTERN = '(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala|md|json|yaml|yml|toml|ini|sql|sh)';
+import { FILE_PATH_EXTENSION_PATTERN, PATH_LIKE_QUERY_PATTERNS } from './query_intent_patterns.js';
+
+const FILE_EXTENSION_REGEX = new RegExp(`\\.(${FILE_PATH_EXTENSION_PATTERN})$`, 'i');
+const KNOWN_PATH_PREFIXES = [
+  'src',
+  'lib',
+  'libs',
+  'app',
+  'apps',
+  'api',
+  'server',
+  'client',
+  'packages',
+  'package',
+  'pkg',
+  'services',
+  'service',
+  'components',
+  'component',
+  'test',
+  'tests',
+  '__tests__',
+  'spec',
+  'config',
+  'scripts',
+  'script',
+  'bin',
+  'dist',
+  'docs',
+  'doc',
+  'documentation',
+  'examples',
+  'example',
+  'types',
+  'type',
+  'domain',
+  'feature',
+  'features',
+  'worker',
+  'workers',
+];
 
 function sanitizeExtractedPath(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -136,6 +176,69 @@ export function extractReferencedFilePath(intent: string): string | undefined {
     }
   }
   return undefined;
+}
+
+export interface PathLookupTarget {
+  matchedPath: string;
+  normalizedPath: string;
+  detectionType: 'explicit_file' | 'directory' | 'multi_segment';
+  confidence: number;
+}
+
+export function detectPathLikeQuery(intent: string): PathLookupTarget | undefined {
+  const trimmed = intent?.trim();
+  if (!trimmed) return undefined;
+
+  const normalizedIntent = trimmed.replace(/\\/g, '/');
+  const explicitPath = extractReferencedFilePath(normalizedIntent);
+  if (explicitPath) {
+    return {
+      matchedPath: explicitPath,
+      normalizedPath: explicitPath,
+      detectionType: 'explicit_file',
+      confidence: 0.95,
+    };
+  }
+
+  for (const pattern of PATH_LIKE_QUERY_PATTERNS) {
+    const match = pattern.exec(normalizedIntent);
+    if (!match?.[1]) continue;
+    const sanitized = sanitizeExtractedPath(match[1]);
+    if (!sanitized || !sanitized.includes('/')) continue;
+    const detectionType = classifyPathDetectionType(sanitized);
+    if (!detectionType) continue;
+
+    return {
+      matchedPath: match[1],
+      normalizedPath: sanitized,
+      detectionType,
+      confidence: detectionType === 'explicit_file' ? 0.9 : detectionType === 'directory' ? 0.82 : 0.72,
+    };
+  }
+
+  return undefined;
+}
+
+function classifyPathDetectionType(pathCandidate: string): PathLookupTarget['detectionType'] | null {
+  if (FILE_EXTENSION_REGEX.test(pathCandidate)) {
+    return 'explicit_file';
+  }
+
+  const withoutPrefix = pathCandidate.replace(/^\.{0,2}\//, '');
+  const [firstSegment, ...rest] = withoutPrefix.split('/');
+  if (!firstSegment || rest.length === 0) {
+    return null;
+  }
+  const normalizedFirst = firstSegment.toLowerCase();
+  if (KNOWN_PATH_PREFIXES.some(prefix => normalizedFirst === prefix || normalizedFirst === `${prefix}s`)) {
+    return 'directory';
+  }
+
+  if (rest.length >= 2) {
+    return 'multi_segment';
+  }
+
+  return null;
 }
 
 /**

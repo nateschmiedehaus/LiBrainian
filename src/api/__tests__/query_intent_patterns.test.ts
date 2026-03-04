@@ -11,6 +11,7 @@ import {
   ENTRY_POINT_QUERY_PATTERNS,
   FEATURE_LOCATION_PATTERNS,
   META_QUERY_PATTERNS,
+  PATH_LIKE_QUERY_PATTERNS,
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
   SECURITY_AUDIT_PATTERNS,
@@ -73,5 +74,11 @@ describe('query_intent_patterns', () => {
   it('matches canonical entry-point name and path signals', () => {
     expect(hasMatch(ENTRY_POINT_NAME_PATTERNS, 'createLibrarian')).toBe(true);
     expect(hasMatch(ENTRY_POINT_PATH_PATTERNS, '/workspace/src/index.ts')).toBe(true);
+  });
+
+  it('matches high confidence path-like intents', () => {
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'Open src/auth/token.ts')).toBe(true);
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'Need packages/api/src/app.ts')).toBe(true);
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'Discuss and/or logic operators')).toBe(false);
   });
 });

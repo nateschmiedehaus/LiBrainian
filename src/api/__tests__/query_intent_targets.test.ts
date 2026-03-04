@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractBugContext,
+  detectPathLikeQuery,
   extractCodeReviewFilePath,
   extractFeatureTarget,
   extractReferencedFilePath,
@@ -58,5 +59,26 @@ describe('query intent target extractors', () => {
       topic: undefined,
       comparisonTopic: undefined,
     });
+  });
+
+  it('detects explicit file path queries', () => {
+    const detection = detectPathLikeQuery('Show me src/api/query.ts');
+    expect(detection?.normalizedPath).toBe('src/api/query.ts');
+    expect(detection?.detectionType).toBe('explicit_file');
+    expect(detection?.confidence).toBeGreaterThan(0.9);
+  });
+
+  it('detects directory prefixed paths and multi-segment fallbacks', () => {
+    const directoryDetection = detectPathLikeQuery('Need src/core/auth');
+    expect(directoryDetection?.normalizedPath).toBe('src/core/auth');
+    expect(directoryDetection?.detectionType).toBe('directory');
+
+    const multiSegmentDetection = detectPathLikeQuery('investigate foo/bar/baz/qux handler');
+    expect(multiSegmentDetection?.normalizedPath).toBe('foo/bar/baz/qux');
+    expect(multiSegmentDetection?.detectionType).toBe('multi_segment');
+  });
+
+  it('ignores non-path slash usage', () => {
+    expect(detectPathLikeQuery('discuss and/or operators')).toBeUndefined();
   });
 });
