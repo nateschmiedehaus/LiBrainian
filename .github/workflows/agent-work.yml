@@ -5,7 +5,8 @@ name: Agent Work Loop
 # creates a PR, and labels the issue for verification.
 #
 # Auth: Requires CLAUDE_CODE_OAUTH_TOKEN (Max subscription OAuth) in repo secrets.
-# If you prefer API key auth, set ANTHROPIC_API_KEY instead.
+# Codex can authenticate via CODEX_AUTH_JSON (preferred OAuth auth.json payload)
+# or OPENAI_API_KEY.
 
 on:
   schedule:
@@ -174,9 +175,19 @@ jobs:
             echo "open=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -n "${OPENAI_KEY:-}" ]; then
-            echo "OPENAI_API_KEY is available; provider auth incident gate disabled."
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            echo "Codex credentials are available (OPENAI_API_KEY or CODEX_AUTH_JSON); provider auth incident gate disabled."
             echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          OPEN_INCIDENTS=$(gh issue list -R "$REPO" --state open \
+            --label "agent:credential-incident" \
+            --limit 20 \
+            --json number --jq 'length')
+          if [ "$OPEN_INCIDENTS" -ge 1 ]; then
+            echo "Open credential incident issue(s) detected: $OPEN_INCIDENTS"
+            echo "open=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -196,11 +207,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Abort if provider auth incident gate open
         if: steps.provider-auth-gate.outputs.open == 'true'
         run: |
-          echo "::warning::Provider auth incident gate open — recent auth failures detected and OPENAI_API_KEY is unavailable."
+          echo "::warning::Provider auth incident gate open — recent auth failures detected and Codex credentials are unavailable."
           echo "::warning::Worker issue selection is paused to avoid repeated provider-auth failures; management/meta maintenance will continue."
           echo "::warning::Auto-heal: gate closes after auth-failure issues are quiet for ${RECENT_INFRA_WINDOW_MIN} minutes or Codex credentials become available."
           exit 0
@@ -248,7 +260,7 @@ jobs:
 
           ### Required actions
           1. Refresh \`CLAUDE_CODE_OAUTH_TOKEN\` (or remove it if intentionally disabled).
-          2. Optionally configure \`OPENAI_API_KEY\` to allow Codex fallback.
+          2. Configure \`CODEX_AUTH_JSON\` (preferred OAuth) or \`OPENAI_API_KEY\` to allow Codex fallback.
           3. Trigger \`agent-work.yml\` after credentials are repaired and verify gate closure.
           EOF
 
@@ -336,7 +348,9 @@ jobs:
           RELABELED=0
           CREATED=0
           HAS_CODEX=false
-          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
           GLOBAL_AUTH_GATE_OPEN="${{ steps.provider-auth-gate.outputs.open || 'false' }}"
 
           has_label() {
@@ -499,6 +513,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Normalize milestone coverage
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
@@ -586,7 +601,9 @@ jobs:
           REQUEUED=0
           MAX_MANAGEMENT_PER_RUN=60
           HAS_CODEX=false
-          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
 
           MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
@@ -836,6 +853,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       # ── Pre-flight: unblock resolved dependencies ───────────────────
       # Before selecting work, check if any agent:blocked issues have had
@@ -908,7 +926,9 @@ jobs:
         id: find
         run: |
           HAS_CODEX=false
-          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
 
           if [ -n "${{ inputs.issue_number }}" ]; then
             # Manual override — work on specific issue
@@ -984,6 +1004,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       # ── Retry limit — skip issues that keep failing ─────────────────
       # If the agent has failed on this issue many times (no convergent progress),
@@ -1285,7 +1306,9 @@ jobs:
           HAS_CODEX=false
           HAS_AUTH_HINT=false
           [ -n "${CLAUDE_TOKEN:-}" ] && HAS_CLAUDE=true
-          [ -n "${OPENAI_KEY:-}" ] && HAS_CODEX=true
+          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
+            HAS_CODEX=true
+          fi
           echo "$ISSUE_LABELS" | grep -Eq '(^|,)agent:provider-auth-failure(,|$)' && HAS_AUTH_HINT=true
           echo "$ISSUE_COMMENTS" | grep -Eiq 'provider_auth_or_runtime_failure|authentication_error|OAuth token has expired' && HAS_AUTH_HINT=true
 
@@ -1301,12 +1324,12 @@ jobs:
             exit 1
           fi
           if [ "$REQUESTED" = "codex" ] && [ "$HAS_CODEX" != "true" ]; then
-            echo "::error::agent_provider=codex but OPENAI_API_KEY is unavailable."
+            echo "::error::agent_provider=codex but Codex credentials are unavailable (need OPENAI_API_KEY or CODEX_AUTH_JSON)."
             exit 1
           fi
 
           if [ "$HAS_CLAUDE" != "true" ] && [ "$HAS_CODEX" != "true" ]; then
-            echo "::error::No provider credentials available. Set CLAUDE_CODE_OAUTH_TOKEN and/or OPENAI_API_KEY."
+            echo "::error::No provider credentials available. Set CLAUDE_CODE_OAUTH_TOKEN and either CODEX_AUTH_JSON or OPENAI_API_KEY."
             exit 1
           fi
 
@@ -1349,6 +1372,7 @@ jobs:
         env:
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Free disk space — LiBrainian + node_modules need ~4GB
@@ -1516,6 +1540,36 @@ jobs:
           (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
         run: npm install -g @openai/codex
 
+      - name: Prepare Codex auth (OAuth/API key)
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true' &&
+          (steps.provider.outputs.primary == 'codex' || steps.provider.outputs.fallback == 'codex')
+        run: |
+          if [ -z "${CODEX_AUTH_JSON:-}" ]; then
+            echo "No CODEX_AUTH_JSON provided; Codex will use OPENAI_API_KEY if available."
+            exit 0
+          fi
+
+          CODEX_HOME_DIR="$RUNNER_TEMP/codex-home"
+          mkdir -p "$CODEX_HOME_DIR"
+          chmod 700 "$CODEX_HOME_DIR"
+          printf '%s' "$CODEX_AUTH_JSON" > "$CODEX_HOME_DIR/auth.json"
+          chmod 600 "$CODEX_HOME_DIR/auth.json"
+          echo "CODEX_HOME=$CODEX_HOME_DIR" >> "$GITHUB_ENV"
+
+          if jq -e '.auth_mode and .tokens' "$CODEX_HOME_DIR/auth.json" >/dev/null 2>&1; then
+            echo "Prepared CODEX_HOME with OAuth auth payload."
+          else
+            echo "::warning::CODEX_AUTH_JSON does not look like a valid Codex auth.json payload."
+          fi
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+
       - name: Run Claude worker (primary)
         if: >-
           steps.find.outputs.issue_number &&
@@ -1568,6 +1622,7 @@ jobs:
           fi
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Run Codex worker (fallback)
         if: >-
@@ -1599,6 +1654,7 @@ jobs:
           fi
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       - name: Run Claude worker (fallback)
         if: >-
@@ -2045,7 +2101,7 @@ jobs:
               echo "1. Workflow created/updated a management queue item automatically."
               echo "2. Restore provider credentials or CI environment health."
               echo "   - If Claude reports 401/authentication_error, refresh \`CLAUDE_CODE_OAUTH_TOKEN\`."
-              echo "   - If Codex is used, verify \`OPENAI_API_KEY\`."
+              echo "   - If Codex is used, verify \`CODEX_AUTH_JSON\` (OAuth) or \`OPENAI_API_KEY\`."
               echo ""
               echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"worker\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"status\":\"failed\",\"meta_eval\":\"replanned\",\"managerial_fix\":\"requirements_patch\",\"next_action\":\"manual_review\"} -->"
             } > .outcome-comment.md
