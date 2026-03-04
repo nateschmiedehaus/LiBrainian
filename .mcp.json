@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "librainian": {
+      "command": "node",
+      "args": ["dist/cli/index.js", "mcp", "--stdio"],
+      "env": {
+        "LIBRARIAN_WORKSPACE": "${workspaceRoot}",
+        "LIBRAINIAN_SKIP_PROVIDER_CHECK": "1"
+      },
+      "serverInstructions": "Use LiBrainian first for all non-trivial work: mcp__librainian__query for architecture + intent grounding, mcp__librainian__get_context_pack before multi-file edits, mcp__librainian__blast_radius to gauge impact, and mcp__librainian__find_callers or mcp__librainian__find_usages when touching shared functions. Reserve Grep for exact literal matches only."
+    }
+  }
+}
