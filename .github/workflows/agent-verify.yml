@@ -473,9 +473,9 @@ jobs:
               ] | last // ""
             ')
           RECENT_FAMILY=$(status_family "$RECENT_STATUS")
-          RECENT_FAMILY_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
-            --jq --arg fam "$RECENT_FAMILY" '
-              def fam($s):
+          COMMENTS_JSON=$(gh issue view "$NUM" -R "$REPO" --json comments)
+          RECENT_FAMILY_COUNT=$(echo "$COMMENTS_JSON" | jq -r --arg target_family "$RECENT_FAMILY" '
+              def family_for($s):
                 if (($s // "") | test("provider|infra|post_verify_live_provider")) then "provider_runtime"
                 elif (($s // "") | test("missing_metadata|unclear_verdict|pass_with_low_quality")) then "verifier_contract"
                 elif (($s // "") | test("verify_pending_without_pr|pr_not_mergeable_state|merge_not_completed")) then "state_transition"
@@ -488,8 +488,8 @@ jobs:
                 | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
                 | select((.status // "") != "adaptive_retry")
                 | .status
-                | fam(.)
-              ] | reverse | .[:4] | map(select(. == $fam)) | length
+                | family_for(.)
+              ] | reverse | .[:4] | map(select(. == $target_family)) | length
             ')
           if ! [[ "$RECENT_FAMILY_COUNT" =~ ^[0-9]+$ ]]; then RECENT_FAMILY_COUNT=0; fi
 
