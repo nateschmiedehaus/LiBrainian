@@ -55,7 +55,7 @@ concurrency:
 env:
   REPO: nateschmiedehaus/LiBrainian
   DEFAULT_VERIFY_TURNS: 32
-  MAX_VERIFY_ATTEMPTS: 8
+  MAX_VERIFY_ATTEMPTS: 6
   VERIFY_LONG_RUN_THRESHOLD: 50
   CODEX_VERIFY_TIMEOUT_MIN: 22
 
@@ -364,6 +364,64 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           MAX_ATTEMPTS=${MAX_VERIFY_ATTEMPTS}
 
+          enter_recovery_mode() {
+            local halt_reason="$1"
+            local note="$2"
+            local provider_recovery="false"
+            if [[ "$halt_reason" == provider_* ]] || [[ "$halt_reason" == *provider_runtime* ]] || [[ "$halt_reason" == *infra* ]]; then
+              provider_recovery="true"
+            fi
+
+            echo "adaptive=false" >> "$GITHUB_OUTPUT"
+            echo "halt=true" >> "$GITHUB_OUTPUT"
+            echo "halt_reason=$halt_reason" >> "$GITHUB_OUTPUT"
+
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "verify:pending" \
+              --remove-label "verify:manual-needed" \
+              --remove-label "agent:manual-review-needed" \
+              --add-label "agent:management-needed" \
+              --add-label "agent:blocked" \
+              --add-label "agent:actionable" || true
+
+            if [ "$provider_recovery" = "true" ]; then
+              gh issue edit "$NUM" -R "$REPO" \
+                --add-label "agent:infra-blocked" \
+                --add-label "agent:provider-auth-failure" \
+                --add-label "agent:manual-review-needed" || true
+            fi
+
+            {
+              echo "**Agent Verify Loop** entered autonomous recovery mode."
+              echo ""
+              echo "- Unknown verifier outcomes recorded: $UNKNOWN_COUNT"
+              echo "- Recovery trigger threshold: $MAX_ATTEMPTS"
+              echo "- Recovery reason: \`$halt_reason\`"
+              echo "- Detection: $note"
+              echo "- Action: paused verify loop for this issue; routed to management recovery queue until stability is restored."
+            } > .verify-retry-escalation.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .verify-retry-escalation.md
+            rm -f .verify-retry-escalation.md
+          }
+
+          status_family() {
+            local status="$1"
+            case "$status" in
+              provider_*|*provider*|*infra*|post_verify_live_provider_*)
+                echo "provider_runtime"
+                ;;
+              missing_metadata|unclear_verdict|pass_with_low_quality)
+                echo "verifier_contract"
+                ;;
+              verify_pending_without_pr|pr_not_mergeable_state|merge_not_completed)
+                echo "state_transition"
+                ;;
+              *)
+                echo "generic_verify_failure"
+                ;;
+            esac
+          }
+
           UNKNOWN_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '
               [.comments[].body
@@ -401,39 +459,64 @@ jobs:
           echo "halt=false" >> "$GITHUB_OUTPUT"
           echo "halt_reason=none" >> "$GITHUB_OUTPUT"
 
+          # Fast anomaly gate: if recent UNKNOWNs cluster in the same failure family,
+          # route immediately to recovery instead of waiting for full retry budget.
+          RECENT_STATUS=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+                | .status
+              ] | last // ""
+            ')
+          RECENT_FAMILY=$(status_family "$RECENT_STATUS")
+          RECENT_FAMILY_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq --arg fam "$RECENT_FAMILY" '
+              def fam($s):
+                if (($s // "") | test("provider|infra|post_verify_live_provider")) then "provider_runtime"
+                elif (($s // "") | test("missing_metadata|unclear_verdict|pass_with_low_quality")) then "verifier_contract"
+                elif (($s // "") | test("verify_pending_without_pr|pr_not_mergeable_state|merge_not_completed")) then "state_transition"
+                else "generic_verify_failure"
+                end;
+              [ .comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+                | .status
+                | fam(.)
+              ] | reverse | .[:4] | map(select(. == $fam)) | length
+            ')
+          if ! [[ "$RECENT_FAMILY_COUNT" =~ ^[0-9]+$ ]]; then RECENT_FAMILY_COUNT=0; fi
+
+          if [ "$RECENT_FAMILY" = "verifier_contract" ] && [ "$UNKNOWN_COUNT" -ge 1 ]; then
+            HALT_REASON="recurring_verifier_contract_failure"
+            enter_recovery_mode "$HALT_REASON" "fast-pattern-anomaly (contract failure is immediate-halt)"
+            exit 0
+          fi
+
+          if [ "$RECENT_FAMILY" = "provider_runtime" ] && [ "$RECENT_FAMILY_COUNT" -ge 2 ] && [ "$UNKNOWN_COUNT" -ge 1 ]; then
+            HALT_REASON="recurring_provider_runtime_failure"
+            enter_recovery_mode "$HALT_REASON" "fast-pattern-anomaly (provider/runtime repeats: $RECENT_FAMILY_COUNT/4)"
+            exit 0
+          fi
+
+          if [ "$RECENT_FAMILY" != "none" ] && [ "$RECENT_FAMILY_COUNT" -ge 2 ] && [ "$UNKNOWN_COUNT" -ge 2 ]; then
+            HALT_REASON="recurring_${RECENT_FAMILY}_failure"
+            enter_recovery_mode "$HALT_REASON" "fast-pattern-anomaly (recent family repeats: $RECENT_FAMILY_COUNT/4)"
+            exit 0
+          fi
+
           if [ "$UNKNOWN_COUNT" -ge "$MAX_ATTEMPTS" ]; then
             HALT_REASON="verify_retry_budget_exhausted"
             if [ "$PROVIDER_UNKNOWN_COUNT" -ge 1 ] || [ "$LAST_UNKNOWN_STATUS" = "provider_or_infra_failure" ]; then
               HALT_REASON="provider_recovery_required"
             fi
-
-            echo "adaptive=false" >> "$GITHUB_OUTPUT"
-            echo "halt=true" >> "$GITHUB_OUTPUT"
-            echo "halt_reason=$HALT_REASON" >> "$GITHUB_OUTPUT"
-
-            gh issue edit "$NUM" -R "$REPO" \
-              --remove-label "verify:pending" \
-              --remove-label "verify:manual-needed" \
-              --remove-label "agent:manual-review-needed" \
-              --add-label "agent:management-needed" \
-              --add-label "agent:blocked" \
-              --add-label "agent:actionable" || true
-            if [ "$HALT_REASON" = "provider_recovery_required" ]; then
-              gh issue edit "$NUM" -R "$REPO" \
-                --add-label "agent:infra-blocked" \
-                --add-label "agent:provider-auth-failure" \
-                --add-label "agent:manual-review-needed" || true
-            fi
-            {
-              echo "**Agent Verify Loop** entered autonomous recovery mode."
-              echo ""
-              echo "- Unknown verifier outcomes recorded: $UNKNOWN_COUNT"
-              echo "- Recovery trigger threshold: $MAX_ATTEMPTS"
-              echo "- Recovery reason: \`$HALT_REASON\`"
-              echo "- Action: paused verify loop for this issue; routed to management recovery queue until provider + verifier stability is restored."
-            } > .verify-retry-escalation.md
-            gh issue comment "$NUM" -R "$REPO" --body-file .verify-retry-escalation.md
-            rm -f .verify-retry-escalation.md
+            enter_recovery_mode "$HALT_REASON" "retry-budget-threshold"
             exit 0
           else
             echo "adaptive=false" >> "$GITHUB_OUTPUT"
