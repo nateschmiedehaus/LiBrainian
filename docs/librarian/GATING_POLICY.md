@@ -11,6 +11,20 @@ Within an active milestone, order issues using these rules:
 3. Prefer issues that unblock multiple queued issues.
 4. Keep batch size small: one active issue unless two issues are provably independent.
 
+Milestone accounting rules:
+
+- `total` = every open issue assigned to the milestone
+- `executable_source` = open issues that are not management/meta, tracking, frozen, or post-ship
+- `execution_ready` = executable source issues minus `triage/missing-essentials`
+- Milestone completion is based on `executable_source`, not raw milestone totals
+
+Workspace integrity rules:
+
+- Dirty worktree state is part of run control and must be assessed before implementation work.
+- Pre-existing dirty files are foreign state until proven otherwise.
+- Salvage commits may include only agent-owned delta created after the run baseline snapshot.
+- If agent work overlaps with pre-existing dirty files, the run must surface that explicitly and avoid implicit salvage.
+
 Cross-milestone rule:
 
 - Only one active milestone at a time.
@@ -39,6 +53,8 @@ Use this template before starting the next milestone:
 
 - Milestone: `<Mx>`
 - Open count at review: `<N>`
+- Executable source count: `<N>`
+- Execution-ready count: `<N>`
 - Ship-blocking issues remaining: `<list>`
 - Evidence summary:
   - typecheck status
@@ -58,9 +74,15 @@ If an issue is blocked:
 3. Move to next dependency-independent issue in the same milestone.
 4. Revisit blocked issue in the next wave; do not silently skip.
 
+For M0 specifically:
+
+- tracking/umbrella parents do not block milestone completion directly
+- post-ship issues do not block milestone completion
+- management/meta tickets do not block milestone completion
+- only the true executable M0 source set counts toward M0 pass/fail
+
 ## 6) Evidence Discipline
 
 - Do not close issues on unit tests alone when behavior is user-facing.
 - Do not use fallback/degraded/unverified output as release evidence.
 - Keep a direct trace from issue -> commit -> tests -> quality analysis -> closure comment.
-

@@ -173,6 +173,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/checkout@v4
+
+      - name: Portfolio state repair
+        id: portfolio-repair
+        run: |
+          node scripts/portfolio-control.mjs repair \
+            --repo "$REPO" \
+            --apply \
+            --github-output "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Embedded verify-management queue pass
         run: |
           PROCESSED=0
@@ -316,6 +328,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Portfolio ledger
+        id: portfolio
+        run: |
+          node scripts/portfolio-control.mjs ledger \
+            --repo "$REPO" \
+            --out state/portfolio/open-issue-ledger.json \
+            --scorecard-dir state/milestones \
+            --github-output "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # ── Find Issue Needing Verification ──────────────────────────────
       - name: Find issue to verify
         id: find
@@ -323,26 +346,7 @@ jobs:
           if [ -n "${{ inputs.issue_number }}" ]; then
             NUM="${{ inputs.issue_number }}"
           else
-            # Milestone lock: prioritize verification in the earliest open milestone.
-            ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
-              --json milestone,labels | jq -r '
-                [.[] |
-                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
-                  select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                  select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
-                  select((.labels | map(.name) | contains(["post-ship"]) | not)) |
-                  (.milestone.title // empty) |
-                  select(. != "") |
-                  {title: ., order: (
-                    if . == "M0: Dogfood-Ready" then 0
-                    elif . == "M1: Construction MVP" then 1
-                    elif . == "M2: Agent Integration" then 2
-                    elif . == "M3: Scale & Epistemics" then 3
-                    elif . == "M4: World-Class" then 4
-                    else 99 end
-                  )}
-                ] | sort_by(.order, .title) | first | .title // "none"
-              ')
+            ACTIVE_MILESTONE="${{ steps.portfolio.outputs.active_milestone || 'none' }}"
 
             NUM=""
             if [ "$ACTIVE_MILESTONE" != "none" ]; then

@@ -17,6 +17,7 @@ graphs so agents can make better decisions without reading every file.
 
 ```bash
 npm run build          # compile TypeScript → dist/
+npm run check          # Inner-loop guardrail: type-check + changed tests
 npm test               # T0 unit tests (no live providers required)
 npm run test:tier0     # same as npm test --run (CI gate)
 npm run test:integration   # T1 integration tests (providers optional)
@@ -54,6 +55,7 @@ Use conventional commits (`feat/fix/test/docs/refactor/chore`). Do not force-pus
 - Do not treat fallback/degraded mode output as release evidence
 - Do not add runtime dependencies not justified by a spec
 - Do not publish to npm without explicit instruction
+- Do not absorb unrelated dirty worktree state into your issue branch or salvage commit
 
 ## Using LiBrainian (Mandatory for Non-Trivial Tasks)
 
@@ -114,6 +116,21 @@ CLI-to-MCP equivalence:
 | `query({ intent: "...", json: true })` | `./ask --json "..."` |
 | `status()` | `node dist/cli/index.js status` |
 | `doctor()` | `node dist/cli/index.js doctor` |
+
+---
+
+## Dirty Worktree Cognition
+
+Dirty worktree state is part of the run context, not incidental noise.
+
+Rules:
+1. Snapshot and assess pre-existing dirty state before implementation work.
+2. Treat baseline dirty files as foreign state unless the issue explicitly requires touching them.
+3. Never rely on broad `git add -A` behavior to salvage partial work.
+4. If your issue genuinely needs a baseline-dirty file, make that decision explicit in the evidence comment and commit intentionally.
+5. Use `librarian triage --json` when the workspace is already dirty and the ownership/safety of those changes is unclear.
+
+This exists to prevent false issue progress, contaminated commits, and accidental destruction or capture of user-owned work.
 
 ---
 

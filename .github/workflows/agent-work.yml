@@ -342,42 +342,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Issue contract audit
+      - uses: actions/checkout@v4
+        if: steps.breaker.outputs.open != 'true'
+
+      - name: Portfolio state repair
+        id: portfolio-repair
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
-          FIXED=0
-          CANDIDATES=$(gh issue list -R "$REPO" --state open --limit 300 \
-            --json number,milestone,labels --jq '.[] | @base64')
-
-          has_label() {
-            local labels="$1"
-            local label="$2"
-            echo "$labels" | grep -Fxq "$label"
-          }
-
-          for ROW in $CANDIDATES; do
-            ITEM=$(echo "$ROW" | base64 --decode)
-            NUM=$(echo "$ITEM" | jq -r '.number')
-            MILESTONE=$(echo "$ITEM" | jq -r '.milestone.title // "none"')
-            LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
-
-            if has_label "$LABELS" "triage/ready" && has_label "$LABELS" "triage/missing-essentials"; then
-              gh issue edit "$NUM" -R "$REPO" --remove-label "triage/ready" || true
-              FIXED=$((FIXED + 1))
-            fi
-
-            if [ "$MILESTONE" = "M0: Dogfood-Ready" ] && has_label "$LABELS" "m1"; then
-              gh issue edit "$NUM" -R "$REPO" --remove-label "m1" --add-label "m0" || true
-              FIXED=$((FIXED + 1))
-            fi
-
-            if [ "$MILESTONE" = "M1: Construction MVP" ] && has_label "$LABELS" "m0"; then
-              gh issue edit "$NUM" -R "$REPO" --remove-label "m0" --add-label "m1" || true
-              FIXED=$((FIXED + 1))
-            fi
-          done
-
-          echo "Issue contract audit summary: fixed=$FIXED"
+          node scripts/portfolio-control.mjs repair \
+            --repo "$REPO" \
+            --apply \
+            --github-output "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -485,111 +460,11 @@ jobs:
         id: throughput
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
-          ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
-            --json milestone,labels | jq -r '
-              [.[] |
-                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
-                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
-                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
-                (.milestone.title // empty) |
-                select(. != "") |
-                {title: ., order: (
-                  if . == "M0: Dogfood-Ready" then 0
-                  elif . == "M1: Construction MVP" then 1
-                  elif . == "M2: Agent Integration" then 2
-                  elif . == "M3: Scale & Epistemics" then 3
-                  elif . == "M4: World-Class" then 4
-                  else 99 end
-                )}
-              ] | sort_by(.order, .title) | first | .title // "none"
-            ')
-
-          if [ "$ACTIVE_MILESTONE" = "none" ]; then
-            echo "active_milestone=none" >> "$GITHUB_OUTPUT"
-            echo "runnable_source=0" >> "$GITHUB_OUTPUT"
-            echo "closed_source_24h=0" >> "$GITHUB_OUTPUT"
-            echo "source_starved=false" >> "$GITHUB_OUTPUT"
-            echo "open_source=0" >> "$GITHUB_OUTPUT"
-            echo "open_meta=0" >> "$GITHUB_OUTPUT"
-            echo "meta_budget=0" >> "$GITHUB_OUTPUT"
-            echo "meta_budget_exceeded=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          OPEN_SOURCE=$(gh issue list -R "$REPO" --state open --limit 500 \
-            --json milestone,labels | jq -r --arg m "$ACTIVE_MILESTONE" '
-              [
-                .[] |
-                select((.milestone.title // "none") == $m) |
-                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
-                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
-                select((.labels | map(.name) | contains(["post-ship"]) | not))
-              ] | length
-            ')
-
-          OPEN_META=$(gh issue list -R "$REPO" --state open \
-            --label "agent:management-ticket" \
-            --limit 300 \
-            --json milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
-              [.[] | select((.milestone.title // "none") == $m)] | length
-            ')
-
-          RUNNABLE_SOURCE=$(gh issue list -R "$REPO" --state open \
-            --label "triage/ready" --label "agent:actionable" \
-            --limit 300 \
-            --json number,milestone,labels | jq -r --arg m "$ACTIVE_MILESTONE" '
-              [
-                .[] |
-                select((.milestone.title // "none") == $m) |
-                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
-                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
-                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
-                select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
-                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                select((.labels | map(.name) | contains(["triage/missing-essentials"]) | not)) |
-                select((.labels | map(.name) | contains(["agent:needs-recovery"]) | not)) |
-                select((.labels | map(.name) | contains(["verify:pending"]) | not)) |
-                select((.labels | map(.name) | contains(["agent:infra-blocked"]) | not))
-              ] | length
-            ')
-
-          CUTOFF=$(date -u -d "24 hours ago" '+%Y-%m-%dT%H:%M:%SZ')
-          CLOSED_SOURCE_24H=$(gh issue list -R "$REPO" --state closed \
-            --search "closed:>=$CUTOFF -label:agent:management-ticket" \
-            --limit 300 \
-            --json number,milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
-              [.[] | select((.milestone.title // "none") == $m)] | length
-            ')
-
-          STARVED=false
-          if [ "$RUNNABLE_SOURCE" -ge 1 ] && [ "$CLOSED_SOURCE_24H" -eq 0 ]; then
-            STARVED=true
-          fi
-
-          META_BUDGET=0
-          if [ "$OPEN_SOURCE" -gt 0 ]; then
-            META_BUDGET=$(( (OPEN_SOURCE + META_BUDGET_DIVISOR - 1) / META_BUDGET_DIVISOR ))
-            if [ "$META_BUDGET" -lt 1 ]; then META_BUDGET=1; fi
-            if [ "$META_BUDGET" -gt "$META_BUDGET_ABS" ]; then META_BUDGET="$META_BUDGET_ABS"; fi
-          fi
-
-          META_BUDGET_EXCEEDED=false
-          if [ "$OPEN_META" -gt "$META_BUDGET" ]; then
-            META_BUDGET_EXCEEDED=true
-          fi
-
-          echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
-          echo "runnable_source=$RUNNABLE_SOURCE" >> "$GITHUB_OUTPUT"
-          echo "closed_source_24h=$CLOSED_SOURCE_24H" >> "$GITHUB_OUTPUT"
-          echo "source_starved=$STARVED" >> "$GITHUB_OUTPUT"
-          echo "open_source=$OPEN_SOURCE" >> "$GITHUB_OUTPUT"
-          echo "open_meta=$OPEN_META" >> "$GITHUB_OUTPUT"
-          echo "meta_budget=$META_BUDGET" >> "$GITHUB_OUTPUT"
-          echo "meta_budget_exceeded=$META_BUDGET_EXCEEDED" >> "$GITHUB_OUTPUT"
-          echo "Throughput health: milestone=$ACTIVE_MILESTONE open_source=$OPEN_SOURCE open_meta=$OPEN_META meta_budget=$META_BUDGET meta_budget_exceeded=$META_BUDGET_EXCEEDED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H source_starved=$STARVED"
+          node scripts/portfolio-control.mjs ledger \
+            --repo "$REPO" \
+            --out state/portfolio/open-issue-ledger.json \
+            --scorecard-dir state/milestones \
+            --github-output "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1416,27 +1291,9 @@ jobs:
             exit 0
           fi
 
-          # Auto-select: find issues that are ready + actionable + not claimed
-          # Priority lock: never advance beyond the earliest milestone that still has open issues.
-          ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
-            --json milestone,labels | jq -r '
-              [.[] |
-                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
-                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
-                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
-                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
-                (.milestone.title // empty) |
-                select(. != "") |
-                {title: ., order: (
-                  if . == "M0: Dogfood-Ready" then 0
-                  elif . == "M1: Construction MVP" then 1
-                  elif . == "M2: Agent Integration" then 2
-                  elif . == "M3: Scale & Epistemics" then 3
-                  elif . == "M4: World-Class" then 4
-                  else 99 end
-                )}
-              ] | sort_by(.order, .title) | first | .title // "none"
-            ')
+          # Auto-select: find issues that are ready + actionable + not claimed.
+          # Active milestone is computed by the shared portfolio-control ledger.
+          ACTIVE_MILESTONE="${{ steps.throughput.outputs.active_milestone || 'none' }}"
           echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
 
           if [ "$ACTIVE_MILESTONE" = "none" ]; then
@@ -1485,6 +1342,18 @@ jobs:
                   title,
                   milestone: (.milestone.title // "none"),
                   is_management: (.labels | map(.name) | contains(["agent:management-ticket"])),
+                  bundle_rank: (
+                    if $active_milestone == "M0: Dogfood-Ready" then
+                      (if (.labels | map(.name) | contains(["m0:bundle-b"])) then 0
+                       elif (.labels | map(.name) | contains(["m0:bundle-a"])) then 1
+                       elif (.labels | map(.name) | contains(["m0:bundle-c"])) then 2
+                       elif (.labels | map(.name) | contains(["m0:bundle-d"])) then 3
+                       elif (.labels | map(.name) | contains(["agent:management-ticket"])) then 9
+                       else 8 end)
+                    else
+                      0
+                    end
+                  ),
                   objective_bucket: (
                     if (.labels | map(.name) | contains(["agent:management-ticket"])) then
                       (if $source_starved == "true" then 3 else 2 end)
@@ -1495,7 +1364,18 @@ jobs:
                     end
                   )
                 }
-              ] | sort_by(.objective_bucket, .number) | first
+              ] |
+              map(
+                if $active_milestone == "M0: Dogfood-Ready" then
+                  select(
+                    .is_management or
+                    .bundle_rank < 8
+                  )
+                else
+                  .
+                end
+              ) |
+              sort_by(.objective_bucket, .bundle_rank, .number) | first
             ')
 
           if [ -z "$ISSUES" ] || [ "$ISSUES" = "null" ]; then
@@ -2149,6 +2029,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Snapshot baseline worktree context
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: worktree-before
+        run: |
+          node scripts/portfolio-control.mjs worktree \
+            --out .agent-worktree-before.json \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Build worker prompt
         if: >-
           steps.find.outputs.issue_number &&
@@ -2205,7 +2099,16 @@ jobs:
 
           ## Issue Context
           Read `.claude-issue-context.json` first.
+          Then read `.agent-worktree-before.json`.
           If this issue has prior failed attempts, prioritize narrowing scope and shipping one concrete, verifiable increment.
+
+          ## Worktree Context
+          - Baseline dirty files before your work: ${{ steps.worktree-before.outputs.dirty_count || '0' }}
+          - Baseline dirty severity: ${{ steps.worktree-before.outputs.dirty_severity || 'clean' }}
+          - Baseline dirty paths JSON: `${{ steps.worktree-before.outputs.dirty_paths_json || '[]' }}`
+          Treat baseline dirty state as foreign state unless the issue explicitly requires touching it.
+          Do not modify, stage, or commit those files implicitly.
+          If the issue genuinely requires one of those files, make that decision explicit in your evidence comment and create an intentional commit yourself.
 
           ## Hard Requirements
           1. Make code changes (non-empty diff) and commit them.
@@ -2545,6 +2448,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Assess post-worker worktree delta
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: worktree-after
+        run: |
+          node scripts/portfolio-control.mjs worktree \
+            --baseline-in .agent-worktree-before.json \
+            --out .agent-worktree-after.json \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Post-agent quality gates
         if: >-
           steps.find.outputs.issue_number &&
@@ -2625,6 +2543,10 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           BRANCH=${{ steps.branch.outputs.name }}
           IS_MANAGEMENT="${{ steps.find.outputs.issue_is_management || 'false' }}"
+          WORKTREE_GUARD_ACTION="${{ steps.worktree-after.outputs.dirty_guard_action || 'clean' }}"
+          WORKTREE_CURRENT_DIRTY="${{ steps.worktree-after.outputs.current_dirty_count || '0' }}"
+          WORKTREE_NEW_DIRTY="${{ steps.worktree-after.outputs.new_dirty_count || '0' }}"
+          WORKTREE_TOUCHED_BASELINE="${{ steps.worktree-after.outputs.touched_baseline_count || '0' }}"
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "should_create_pr=false" >> "$GITHUB_OUTPUT"
           echo "no_changes=false" >> "$GITHUB_OUTPUT"
@@ -2640,14 +2562,6 @@ jobs:
           CHANGED_COUNT=$(echo "$CHANGED" | sed '/^\s*$/d' | wc -l | tr -d ' ')
           if [ -z "$CHANGED" ]; then CHANGED_COUNT=0; fi
           echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
-          echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
-
-          REQUIRE_LIVE_PROVIDER=false
-          FEATURE_CHANGED=$(echo "$CHANGED" | grep -E '^(src/|scripts/|ask|package\.json|config/)' | grep -Ev '^(docs/|src/__tests__/|\.github/)' || true)
-          if [ -n "$FEATURE_CHANGED" ]; then
-            REQUIRE_LIVE_PROVIDER=true
-          fi
-          echo "require_live_provider=$REQUIRE_LIVE_PROVIDER" >> "$GITHUB_OUTPUT"
 
           if [ "$COMMITS" -eq 0 ] && [ "${{ steps.worker.outputs.outcome }}" != "success" ]; then
             echo "No agent commits and worker failed. Skip quality gates."
@@ -2656,16 +2570,54 @@ jobs:
 
           if [ "$COMMITS" -eq 0 ]; then
             echo "No commits made by agent. Checking for uncommitted changes..."
-            if [ -n "$(git status --porcelain)" ]; then
-              git add -A
-              git commit -m "wip: agent partial work on #$NUM (uncommitted changes)"
-              COMMITS=1
-            else
+            echo "Worktree guard action: $WORKTREE_GUARD_ACTION"
+            if [ "$WORKTREE_CURRENT_DIRTY" -eq 0 ]; then
               echo "No changes produced. Nothing to gate."
               echo "no_changes=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
+
+            if [ "$WORKTREE_TOUCHED_BASELINE" -gt 0 ]; then
+              BASELINE_OVERLAP=$(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(JSON.stringify((data.delta?.touchedBaselineEntries || []).map((entry) => entry.path)));' .agent-worktree-after.json)
+              echo "::error::Refusing salvage commit because worker output overlaps with pre-existing dirty files."
+              echo "Baseline-overlap paths: $BASELINE_OVERLAP"
+              exit 1
+            fi
+
+            if [ "$WORKTREE_NEW_DIRTY" -gt 0 ]; then
+              mapfile -t ELIGIBLE_PATHS < <(node -e 'const fs = require("fs"); const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); for (const value of (data.delta?.newEntries || []).map((entry) => entry.path)) console.log(value);' .agent-worktree-after.json)
+              if [ "${#ELIGIBLE_PATHS[@]}" -eq 0 ]; then
+                echo "No eligible agent-owned paths found after worktree guard analysis."
+                echo "no_changes=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              git add -- "${ELIGIBLE_PATHS[@]}"
+              STAGED=$(git diff --cached --name-only | sed '/^\s*$/d' || true)
+              if [ -z "$STAGED" ]; then
+                echo "No agent-owned paths staged after worktree guard analysis."
+                echo "no_changes=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              git commit -m "wip: agent partial work on #$NUM (guarded delta)"
+              COMMITS=1
+            else
+              echo "Dirty state exists, but no agent-owned delta was detected beyond preserved baseline changes."
+              echo "no_changes=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
+
+          CHANGED=$(git diff --name-only origin/main.."$BRANCH" | sed '/^\s*$/d' || true)
+          CHANGED_COUNT=$(echo "$CHANGED" | sed '/^\s*$/d' | wc -l | tr -d ' ')
+          if [ -z "$CHANGED" ]; then CHANGED_COUNT=0; fi
+          echo "changed_count=$CHANGED_COUNT" >> "$GITHUB_OUTPUT"
+
+          REQUIRE_LIVE_PROVIDER=false
+          FEATURE_CHANGED=$(echo "$CHANGED" | grep -E '^(src/|scripts/|ask|package\.json|config/)' | grep -Ev '^(docs/|src/__tests__/|\.github/)' || true)
+          if [ -n "$FEATURE_CHANGED" ]; then
+            REQUIRE_LIVE_PROVIDER=true
+          fi
+          echo "require_live_provider=$REQUIRE_LIVE_PROVIDER" >> "$GITHUB_OUTPUT"
 
           if [ "$REQUIRE_LIVE_PROVIDER" = "true" ]; then
             echo "Running mandatory live-provider check during implementation stage..."
