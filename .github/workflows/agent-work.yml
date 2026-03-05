@@ -75,6 +75,7 @@ env:
   CLAUDE_WORKER_TIMEOUT_MIN: 45
   WORKER_HEARTBEAT_SEC: 120
   VERIFY_DRAIN_BATCH: 3
+  MAX_MANAGEMENT_PASS_PER_RUN: 15
 
 jobs:
   work:
@@ -376,10 +377,79 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Assess source throughput health
+        id: throughput
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          ACTIVE_MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
+            --json milestone,labels | jq -r '
+              [.[] |
+                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                (.milestone.title // empty) |
+                select(. != "") |
+                {title: ., order: (
+                  if . == "M0: Dogfood-Ready" then 0
+                  elif . == "M1: Construction MVP" then 1
+                  elif . == "M2: Agent Integration" then 2
+                  elif . == "M3: Scale & Epistemics" then 3
+                  elif . == "M4: World-Class" then 4
+                  else 99 end
+                )}
+              ] | sort_by(.order, .title) | first | .title // "none"
+            ')
+
+          if [ "$ACTIVE_MILESTONE" = "none" ]; then
+            echo "active_milestone=none" >> "$GITHUB_OUTPUT"
+            echo "runnable_source=0" >> "$GITHUB_OUTPUT"
+            echo "closed_source_24h=0" >> "$GITHUB_OUTPUT"
+            echo "source_starved=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RUNNABLE_SOURCE=$(gh issue list -R "$REPO" --state open \
+            --label "triage/ready" --label "agent:actionable" \
+            --limit 300 \
+            --json number,milestone,labels | jq -r --arg m "$ACTIVE_MILESTONE" '
+              [
+                .[] |
+                select((.milestone.title // "none") == $m) |
+                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
+                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["agent:needs-recovery"]) | not)) |
+                select((.labels | map(.name) | contains(["verify:pending"]) | not)) |
+                select((.labels | map(.name) | contains(["agent:infra-blocked"]) | not))
+              ] | length
+            ')
+
+          CUTOFF=$(date -u -d "24 hours ago" '+%Y-%m-%dT%H:%M:%SZ')
+          CLOSED_SOURCE_24H=$(gh issue list -R "$REPO" --state closed \
+            --search "closed:>=$CUTOFF -label:agent:management-ticket" \
+            --limit 300 \
+            --json number,milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
+              [.[] | select((.milestone.title // "none") == $m)] | length
+            ')
+
+          STARVED=false
+          if [ "$RUNNABLE_SOURCE" -ge 1 ] && [ "$CLOSED_SOURCE_24H" -eq 0 ]; then
+            STARVED=true
+          fi
+
+          echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
+          echo "runnable_source=$RUNNABLE_SOURCE" >> "$GITHUB_OUTPUT"
+          echo "closed_source_24h=$CLOSED_SOURCE_24H" >> "$GITHUB_OUTPUT"
+          echo "source_starved=$STARVED" >> "$GITHUB_OUTPUT"
+          echo "Throughput health: milestone=$ACTIVE_MILESTONE runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H source_starved=$STARVED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Self-heal management ticket coverage
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
           MAX_REPAIR_PER_RUN=12
+          if [ "${{ steps.throughput.outputs.source_starved || 'false' }}" = "true" ]; then
+            MAX_REPAIR_PER_RUN=6
+          fi
           PROCESSED=0
           RELABELED=0
           CREATED=0
@@ -416,6 +486,24 @@ jobs:
             NUM=$(echo "$ITEM" | jq -r '.number')
             TITLE=$(echo "$ITEM" | jq -r '.title // ""')
             LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
+
+            # If source issue is already runnable, remove stale management-needed
+            # instead of spawning another management ticket.
+            if ! has_label "$LABELS" "agent:management-ticket"; then
+              if has_label "$LABELS" "agent:actionable" &&
+                 has_label "$LABELS" "triage/ready" &&
+                 ! has_label "$LABELS" "agent:needs-decomposition" &&
+                 ! has_label "$LABELS" "agent:manual-review-needed" &&
+                 ! has_label "$LABELS" "agent:needs-recovery" &&
+                 ! has_label "$LABELS" "agent:infra-blocked" &&
+                 ! has_label "$LABELS" "verify:manual-needed" &&
+                 ! has_label "$LABELS" "verify:pending"; then
+                gh issue edit "$NUM" -R "$REPO" \
+                  --remove-label "agent:management-needed" || true
+                RELABELED=$((RELABELED + 1))
+                continue
+              fi
+            fi
 
             if has_label "$LABELS" "agent:management-ticket"; then
               if [ "$GLOBAL_AUTH_GATE_OPEN" = "true" ] && [ "$HAS_CODEX" != "true" ]; then
@@ -728,7 +816,10 @@ jobs:
           PROCESSED=0
           RESOLVED=0
           REQUEUED=0
-          MAX_MANAGEMENT_PER_RUN=60
+          MAX_MANAGEMENT_PER_RUN="${MAX_MANAGEMENT_PASS_PER_RUN:-15}"
+          if [ "${{ steps.throughput.outputs.source_starved || 'false' }}" = "true" ]; then
+            MAX_MANAGEMENT_PER_RUN=6
+          fi
           HAS_CODEX=false
           if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
             HAS_CODEX=true
@@ -736,7 +827,7 @@ jobs:
 
           MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
-            --limit 60 \
+            --limit 120 \
             --json number,labels \
             --jq '[.[] | select((.labels | map(.name) | contains(["agent:claimed"]) | not)) | .number] | sort | .[]')
 
@@ -850,6 +941,20 @@ jobs:
             if has_label "$SLABELS" "agent:management-ticket"; then
               gh issue close "$MNUM" -R "$REPO" \
                 --comment "Auto-closing management ticket: source issue #$SRC is already a management ticket and is handled in-place."
+              RESOLVED=$((RESOLVED + 1))
+              continue
+            fi
+
+            if has_label "$SLABELS" "agent:actionable" &&
+               has_label "$SLABELS" "triage/ready" &&
+               ! has_label "$SLABELS" "agent:management-needed" &&
+               ! has_label "$SLABELS" "agent:manual-review-needed" &&
+               ! has_label "$SLABELS" "agent:needs-decomposition" &&
+               ! has_label "$SLABELS" "agent:needs-recovery" &&
+               ! has_label "$SLABELS" "agent:infra-blocked" &&
+               ! has_label "$SLABELS" "verify:pending"; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing management ticket: source issue #$SRC is already runnable in the worker queue."
               RESOLVED=$((RESOLVED + 1))
               continue
             fi
@@ -1143,10 +1248,15 @@ jobs:
             exit 0
           fi
 
+          SOURCE_STARVED="${{ steps.throughput.outputs.source_starved || 'false' }}"
+          RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
+          CLOSED_SOURCE_24H="${{ steps.throughput.outputs.closed_source_24h || '0' }}"
+          echo "Objective function: source_throughput_primary=$SOURCE_STARVED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H"
+
           ISSUES=$(gh issue list -R "$REPO" --state open \
             --label "triage/ready" --label "agent:actionable" \
             --limit 200 \
-            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" '
+            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" --arg source_starved "$SOURCE_STARVED" '
               [.[] |
                 select((.milestone.title // "none") == $active_milestone) |
                 select(.labels | map(.name) |
@@ -1167,9 +1277,17 @@ jobs:
                   title,
                   milestone: (.milestone.title // "none"),
                   is_management: (.labels | map(.name) | contains(["agent:management-ticket"])),
-                  management_order: (if (.labels | map(.name) | contains(["agent:management-ticket"])) then 0 else 1 end)
+                  objective_bucket: (
+                    if (.labels | map(.name) | contains(["agent:management-ticket"])) then
+                      (if $source_starved == "true" then 3 else 2 end)
+                    elif (.labels | map(.name) | contains(["agent:management-needed"])) then
+                      1
+                    else
+                      0
+                    end
+                  )
                 }
-              ] | sort_by(.management_order, .number) | first
+              ] | sort_by(.objective_bucket, .number) | first
             ')
 
           if [ -z "$ISSUES" ] || [ "$ISSUES" = "null" ]; then
