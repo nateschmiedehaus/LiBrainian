@@ -876,6 +876,7 @@ jobs:
       - name: Build verifier prompt
         if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         run: |
+          rm -f .verify-result.json .verify-comment.md
           cat > .agent-verifier-prompt.md <<'PROMPT'
           You are a strategic verifier for PR #${{ steps.find.outputs.pr_number }} (issue #${{ steps.find.outputs.issue_number }}).
 
@@ -908,7 +909,12 @@ jobs:
           7. Run live-provider checks via `./ask` and fail if provider is unavailable/offline.
 
           ## Output
-          Post one issue comment with:
+          Write the full issue comment body to `.verify-comment.md`.
+          Write `.verify-result.json` with exact valid JSON:
+          `{"v":3,"issue":${{ steps.find.outputs.issue_number }},"role":"verifier","run":"${{ github.run_id }}","provider":"${{ steps.provider.outputs.primary }}","verdict":"PASS|FAIL|UNKNOWN","quality":"Excellent|Good|Acceptable|Poor|Broken|UNKNOWN","pr":${{ steps.find.outputs.pr_number }},"quality_sensitive":"${{ steps.gather.outputs.quality_sensitive }}","meta_eval":"on_track|replanned|non_convergent","managerial_fix":"none|scope_split|test_plan_patch|requirements_patch"}`
+          Then post one issue comment with the exact same body from `.verify-comment.md`.
+
+          The issue comment body must contain:
           - Verdict line: `**Verdict: PASS**` or `**Verdict: FAIL**`
           - Mechanical checks (build/tests/acceptance criteria)
           - Intent assessment
@@ -1108,11 +1114,34 @@ jobs:
             ' "$file"
           }
 
-          RAW=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
-            '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
-            head -n 20 || true)
-          MATCH=$(echo "$RAW" | sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' | \
-            jq -c "select(.role==\"verifier\" and (.run|tostring)==\"$RUN_ID\")" 2>/dev/null | head -n 1 || true)
+          MATCH=""
+
+          if [ -s .verify-result.json ]; then
+            FILE_MATCH=$(jq -c --arg run "$RUN_ID" '
+                select(
+                  (.role // "verifier") == "verifier" and
+                  ((.run // "" | tostring) == $run)
+                )
+              ' .verify-result.json 2>/dev/null | head -n 1 || true)
+            if [ -n "$FILE_MATCH" ]; then
+              MATCH="$FILE_MATCH"
+              ISSUE_COMMENT_MATCH=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
+                '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
+                head -n 20 | sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' | \
+                jq -c "select(.role==\"verifier\" and (.run|tostring)==\"$RUN_ID\")" 2>/dev/null | head -n 1 || true)
+              if [ -z "$ISSUE_COMMENT_MATCH" ] && [ -s .verify-comment.md ]; then
+                gh issue comment "$NUM" -R "$REPO" --body-file .verify-comment.md
+              fi
+            fi
+          fi
+
+          if [ -z "$MATCH" ]; then
+            RAW=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
+              '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
+              head -n 20 || true)
+            MATCH=$(echo "$RAW" | sed -n 's/.*agent_evidence = \({.*}\).*/\1/p' | \
+              jq -c "select(.role==\"verifier\" and (.run|tostring)==\"$RUN_ID\")" 2>/dev/null | head -n 1 || true)
+          fi
 
           if [ -n "$MATCH" ]; then
             VERDICT=$(echo "$MATCH" | jq -r '.verdict // "UNKNOWN"' | tr '[:lower:]' '[:upper:]')
@@ -1120,7 +1149,11 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
             echo "quality=$QUALITY" >> "$GITHUB_OUTPUT"
-            echo "source=issue_comment" >> "$GITHUB_OUTPUT"
+            if [ -s .verify-result.json ]; then
+              echo "source=local_file" >> "$GITHUB_OUTPUT"
+            else
+              echo "source=issue_comment" >> "$GITHUB_OUTPUT"
+            fi
           else
             RECOVERED=""
             for LOG_FILE in .verify-codex-primary.log .verify-codex-fallback.log .verify-claude-primary.log .verify-claude-fallback.log; do
