@@ -1988,6 +1988,29 @@ jobs:
         id: branch
         run: |
           BRANCH="claude/issue-${{ steps.find.outputs.issue_number }}"
+          REQUIRED_FILES=("package.json" "scripts/portfolio-control.mjs")
+
+          reset_branch_from_main() {
+            local reason="$1"
+            echo "::warning::Resetting $BRANCH from main ($reason)."
+            git checkout main
+            git branch -D "$BRANCH" 2>/dev/null || true
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+            git checkout -b "$BRANCH"
+            echo "has_prior_work=false" >> "$GITHUB_OUTPUT"
+            echo "reset_reason=$reason" >> "$GITHUB_OUTPUT"
+          }
+
+          branch_has_required_files() {
+            local missing=0
+            for required in "${REQUIRED_FILES[@]}"; do
+              if [ ! -f "$required" ]; then
+                echo "::warning::Branch $BRANCH is missing required file: $required"
+                missing=1
+              fi
+            done
+            return "$missing"
+          }
 
           # Check if a previous branch exists with commits (partial work)
           if git ls-remote --heads origin "$BRANCH" | grep -q .; then
@@ -1998,16 +2021,23 @@ jobs:
             if [ "$PREV_COMMITS" -gt 0 ]; then
               echo "Branch has $PREV_COMMITS previous commit(s) — continuing from prior work"
               git checkout -b "$BRANCH" origin/"$BRANCH"
-              echo "has_prior_work=true" >> "$GITHUB_OUTPUT"
+              if branch_has_required_files; then
+                echo "has_prior_work=true" >> "$GITHUB_OUTPUT"
+                echo "reset_reason=none" >> "$GITHUB_OUTPUT"
+              else
+                reset_branch_from_main "missing_required_files"
+              fi
             else
               echo "Branch exists but has no commits — starting fresh"
               git push origin --delete "$BRANCH" 2>/dev/null || true
               git checkout -b "$BRANCH"
               echo "has_prior_work=false" >> "$GITHUB_OUTPUT"
+              echo "reset_reason=empty_remote_branch" >> "$GITHUB_OUTPUT"
             fi
           else
             git checkout -b "$BRANCH"
             echo "has_prior_work=false" >> "$GITHUB_OUTPUT"
+            echo "reset_reason=new_branch" >> "$GITHUB_OUTPUT"
           fi
 
           echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
