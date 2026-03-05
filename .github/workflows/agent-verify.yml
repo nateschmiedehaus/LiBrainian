@@ -328,6 +328,9 @@ jobs:
               --json milestone,labels | jq -r '
                 [.[] |
                   select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                  select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                  select((.labels | map(.name) | contains(["post-ship"]) | not)) |
                   (.milestone.title // empty) |
                   select(. != "") |
                   {title: ., order: (
@@ -1420,7 +1423,10 @@ jobs:
                 [
                   .[] |
                   select((.milestone.title // "none") == $m) |
-                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not))
+                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                  select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                  select((.labels | map(.name) | contains(["post-ship"]) | not))
                 ] | length
               ')
             OPEN_META=$(gh issue list -R "$REPO" --state open \
@@ -1446,6 +1452,9 @@ jobs:
                   .[] |
                   select((.milestone.title // "none") == $m) |
                   select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                  select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                  select((.labels | map(.name) | contains(["post-ship"]) | not)) |
                   select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
                   select((.labels | map(.name) | contains(["triage/missing-essentials"]) | not)) |
                   select((.labels | map(.name) | contains(["agent:needs-recovery"]) | not)) |

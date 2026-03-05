@@ -342,6 +342,45 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Issue contract audit
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          FIXED=0
+          CANDIDATES=$(gh issue list -R "$REPO" --state open --limit 300 \
+            --json number,milestone,labels --jq '.[] | @base64')
+
+          has_label() {
+            local labels="$1"
+            local label="$2"
+            echo "$labels" | grep -Fxq "$label"
+          }
+
+          for ROW in $CANDIDATES; do
+            ITEM=$(echo "$ROW" | base64 --decode)
+            NUM=$(echo "$ITEM" | jq -r '.number')
+            MILESTONE=$(echo "$ITEM" | jq -r '.milestone.title // "none"')
+            LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
+
+            if has_label "$LABELS" "triage/ready" && has_label "$LABELS" "triage/missing-essentials"; then
+              gh issue edit "$NUM" -R "$REPO" --remove-label "triage/ready" || true
+              FIXED=$((FIXED + 1))
+            fi
+
+            if [ "$MILESTONE" = "M0: Dogfood-Ready" ] && has_label "$LABELS" "m1"; then
+              gh issue edit "$NUM" -R "$REPO" --remove-label "m1" --add-label "m0" || true
+              FIXED=$((FIXED + 1))
+            fi
+
+            if [ "$MILESTONE" = "M1: Construction MVP" ] && has_label "$LABELS" "m0"; then
+              gh issue edit "$NUM" -R "$REPO" --remove-label "m0" --add-label "m1" || true
+              FIXED=$((FIXED + 1))
+            fi
+          done
+
+          echo "Issue contract audit summary: fixed=$FIXED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Track provider credential incident
         if: steps.provider-auth-gate.conclusion == 'success' && steps.provider-auth-gate.outputs.open == 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
@@ -450,6 +489,9 @@ jobs:
             --json milestone,labels | jq -r '
               [.[] |
                 select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
                 (.milestone.title // empty) |
                 select(. != "") |
                 {title: ., order: (
@@ -480,7 +522,10 @@ jobs:
               [
                 .[] |
                 select((.milestone.title // "none") == $m) |
-                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not))
+                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                select((.labels | map(.name) | contains(["post-ship"]) | not))
               ] | length
             ')
 
@@ -499,6 +544,9 @@ jobs:
                 .[] |
                 select((.milestone.title // "none") == $m) |
                 select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
                 select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
                 select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
                 select((.labels | map(.name) | contains(["triage/missing-essentials"]) | not)) |
@@ -1374,6 +1422,9 @@ jobs:
             --json milestone,labels | jq -r '
               [.[] |
                 select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["kind/tracking"]) | not)) |
+                select((.labels | map(.name) | contains(["post-ship"]) | not)) |
                 (.milestone.title // empty) |
                 select(. != "") |
                 {title: ., order: (
