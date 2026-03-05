@@ -58,6 +58,9 @@ env:
   MAX_VERIFY_ATTEMPTS: 6
   VERIFY_LONG_RUN_THRESHOLD: 50
   CODEX_VERIFY_TIMEOUT_MIN: 22
+  QUEUE_WATCHDOG_MIN: 12
+  META_BUDGET_ABS: 4
+  META_BUDGET_DIVISOR: 6
 
 jobs:
   verify:
@@ -65,6 +68,39 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Queue watchdog
+        run: |
+          CANCELLED=0
+          NOW_EPOCH=$(date -u +%s)
+          QUEUED=$(gh run list -R "$REPO" -w "Agent Verify Loop" --status queued --limit 30 \
+            --json databaseId,createdAt --jq '.[] | @base64')
+
+          if [ -z "$QUEUED" ]; then
+            echo "Queue watchdog: no queued runs."
+            exit 0
+          fi
+
+          for ROW in $QUEUED; do
+            ITEM=$(echo "$ROW" | base64 --decode)
+            RID=$(echo "$ITEM" | jq -r '.databaseId')
+            CREATED=$(echo "$ITEM" | jq -r '.createdAt')
+            CREATED_EPOCH=$(date -u -d "$CREATED" +%s 2>/dev/null || echo 0)
+            if [ "$CREATED_EPOCH" -le 0 ]; then
+              continue
+            fi
+            AGE_MIN=$(( (NOW_EPOCH - CREATED_EPOCH) / 60 ))
+            if [ "$AGE_MIN" -lt "$QUEUE_WATCHDOG_MIN" ]; then
+              continue
+            fi
+            echo "Queue watchdog: cancelling stale queued run $RID age=${AGE_MIN}m"
+            gh run cancel "$RID" -R "$REPO" || true
+            CANCELLED=$((CANCELLED + 1))
+          done
+
+          echo "Queue watchdog summary: cancelled=$CANCELLED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Ensure verification/escalation labels exist
         run: |
           ensure_label() {
@@ -1344,6 +1380,9 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
+          TICKET_SUPPRESSED=false
+          META_BUDGET_EXCEEDED=false
+          ACTIVE_RUNNABLE_SOURCE=0
           infer_from_labels() {
             local labels="$1"
             if echo "$labels" | grep -Eq '(^|,)m0(,|$)'; then echo "M0: Dogfood-Ready"; return; fi
@@ -1373,6 +1412,46 @@ jobs:
                     else 99 end
                   )}
                 ] | sort_by(.order, .title) | first | .title // "M0: Dogfood-Ready"
+              ')
+          fi
+          if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+            OPEN_SOURCE=$(gh issue list -R "$REPO" --state open --limit 500 \
+              --json milestone,labels | jq -r --arg m "$MILESTONE" '
+                [
+                  .[] |
+                  select((.milestone.title // "none") == $m) |
+                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not))
+                ] | length
+              ')
+            OPEN_META=$(gh issue list -R "$REPO" --state open \
+              --label "agent:management-ticket" \
+              --limit 300 \
+              --json milestone | jq -r --arg m "$MILESTONE" '
+                [.[] | select((.milestone.title // "none") == $m)] | length
+              ')
+            META_BUDGET=0
+            if [ "$OPEN_SOURCE" -gt 0 ]; then
+              META_BUDGET=$(( (OPEN_SOURCE + META_BUDGET_DIVISOR - 1) / META_BUDGET_DIVISOR ))
+              if [ "$META_BUDGET" -lt 1 ]; then META_BUDGET=1; fi
+              if [ "$META_BUDGET" -gt "$META_BUDGET_ABS" ]; then META_BUDGET="$META_BUDGET_ABS"; fi
+            fi
+            if [ "$OPEN_META" -gt "$META_BUDGET" ]; then
+              META_BUDGET_EXCEEDED=true
+            fi
+            ACTIVE_RUNNABLE_SOURCE=$(gh issue list -R "$REPO" --state open \
+              --label "triage/ready" --label "agent:actionable" \
+              --limit 300 \
+              --json number,milestone,labels | jq -r --arg m "$MILESTONE" '
+                [
+                  .[] |
+                  select((.milestone.title // "none") == $m) |
+                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
+                  select((.labels | map(.name) | contains(["triage/missing-essentials"]) | not)) |
+                  select((.labels | map(.name) | contains(["agent:needs-recovery"]) | not)) |
+                  select((.labels | map(.name) | contains(["verify:pending"]) | not)) |
+                  select((.labels | map(.name) | contains(["agent:infra-blocked"]) | not))
+                ] | length
               ')
           fi
           reason_family() {
@@ -1452,19 +1531,34 @@ jobs:
             else
               gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
             fi
+            MNUM="$EXISTING"
           else
-            CREATE_ARGS=()
-            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
-              CREATE_ARGS+=(--milestone "$MILESTONE")
+            if [ "$META_BUDGET_EXCEEDED" = "true" ] && [ "$ACTIVE_RUNNABLE_SOURCE" -gt 0 ]; then
+              {
+                echo "**Verification escalation routing (suppressed ticket creation)**"
+                echo ""
+                echo "- Escalation reason: \`$REASON\`"
+                echo "- Separate verification-management ticket suppressed because source throughput is the hard priority and the meta budget is exceeded."
+                echo "- Verification state remains on the source issue for continued autonomous handling."
+              } > .verify-management-suppressed.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .verify-management-suppressed.md
+              rm -f .verify-management-suppressed.md
+              TICKET_SUPPRESSED=true
+              MNUM="suppressed"
+            else
+              CREATE_ARGS=()
+              if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+                CREATE_ARGS+=(--milestone "$MILESTONE")
+              fi
+              gh issue create -R "$REPO" \
+                --title "meta: verify issue #$NUM — $TITLE_CLEAN" \
+                --body-file .verify-management.md \
+                --label "agent:management-ticket" \
+                --label "agent:management-needed" \
+                --label "triage/ready" \
+                --label "agent:actionable" \
+                "${CREATE_ARGS[@]}"
             fi
-            gh issue create -R "$REPO" \
-              --title "meta: verify issue #$NUM — $TITLE_CLEAN" \
-              --body-file .verify-management.md \
-              --label "agent:management-ticket" \
-              --label "agent:management-needed" \
-              --label "triage/ready" \
-              --label "agent:actionable" \
-              "${CREATE_ARGS[@]}"
           fi
           rm -f .verify-management.md
 

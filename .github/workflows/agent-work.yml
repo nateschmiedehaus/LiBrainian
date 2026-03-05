@@ -79,6 +79,9 @@ env:
   VERIFY_DRAIN_BATCH: 3
   MAX_MANAGEMENT_PASS_PER_RUN: 15
   MAX_PARALLEL_WORKERS: 3
+  QUEUE_WATCHDOG_MIN: 12
+  META_BUDGET_ABS: 4
+  META_BUDGET_DIVISOR: 6
 
 jobs:
   work:
@@ -93,6 +96,39 @@ jobs:
       outcome: ${{ steps.outcome.outputs.result }}
 
     steps:
+      - name: Queue watchdog
+        run: |
+          CANCELLED=0
+          NOW_EPOCH=$(date -u +%s)
+          QUEUED=$(gh run list -R "$REPO" -w "Agent Work Loop" --status queued --limit 30 \
+            --json databaseId,createdAt --jq '.[] | @base64')
+
+          if [ -z "$QUEUED" ]; then
+            echo "Queue watchdog: no queued runs."
+            exit 0
+          fi
+
+          for ROW in $QUEUED; do
+            ITEM=$(echo "$ROW" | base64 --decode)
+            RID=$(echo "$ITEM" | jq -r '.databaseId')
+            CREATED=$(echo "$ITEM" | jq -r '.createdAt')
+            CREATED_EPOCH=$(date -u -d "$CREATED" +%s 2>/dev/null || echo 0)
+            if [ "$CREATED_EPOCH" -le 0 ]; then
+              continue
+            fi
+            AGE_MIN=$(( (NOW_EPOCH - CREATED_EPOCH) / 60 ))
+            if [ "$AGE_MIN" -lt "$QUEUE_WATCHDOG_MIN" ]; then
+              continue
+            fi
+            echo "Queue watchdog: cancelling stale queued run $RID age=${AGE_MIN}m"
+            gh run cancel "$RID" -R "$REPO" || true
+            CANCELLED=$((CANCELLED + 1))
+          done
+
+          echo "Queue watchdog summary: cancelled=$CANCELLED"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # ── Circuit Breaker ──────────────────────────────────────────────
       # Counts CONSECUTIVE failures from the most recent run backwards.
       # One success auto-clears the breaker — no manual intervention needed.
@@ -432,8 +468,28 @@ jobs:
             echo "runnable_source=0" >> "$GITHUB_OUTPUT"
             echo "closed_source_24h=0" >> "$GITHUB_OUTPUT"
             echo "source_starved=false" >> "$GITHUB_OUTPUT"
+            echo "open_source=0" >> "$GITHUB_OUTPUT"
+            echo "open_meta=0" >> "$GITHUB_OUTPUT"
+            echo "meta_budget=0" >> "$GITHUB_OUTPUT"
+            echo "meta_budget_exceeded=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          OPEN_SOURCE=$(gh issue list -R "$REPO" --state open --limit 500 \
+            --json milestone,labels | jq -r --arg m "$ACTIVE_MILESTONE" '
+              [
+                .[] |
+                select((.milestone.title // "none") == $m) |
+                select((.labels | map(.name) | contains(["agent:management-ticket"]) | not))
+              ] | length
+            ')
+
+          OPEN_META=$(gh issue list -R "$REPO" --state open \
+            --label "agent:management-ticket" \
+            --limit 300 \
+            --json milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
+              [.[] | select((.milestone.title // "none") == $m)] | length
+            ')
 
           RUNNABLE_SOURCE=$(gh issue list -R "$REPO" --state open \
             --label "triage/ready" --label "agent:actionable" \
@@ -465,11 +521,27 @@ jobs:
             STARVED=true
           fi
 
+          META_BUDGET=0
+          if [ "$OPEN_SOURCE" -gt 0 ]; then
+            META_BUDGET=$(( (OPEN_SOURCE + META_BUDGET_DIVISOR - 1) / META_BUDGET_DIVISOR ))
+            if [ "$META_BUDGET" -lt 1 ]; then META_BUDGET=1; fi
+            if [ "$META_BUDGET" -gt "$META_BUDGET_ABS" ]; then META_BUDGET="$META_BUDGET_ABS"; fi
+          fi
+
+          META_BUDGET_EXCEEDED=false
+          if [ "$OPEN_META" -gt "$META_BUDGET" ]; then
+            META_BUDGET_EXCEEDED=true
+          fi
+
           echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
           echo "runnable_source=$RUNNABLE_SOURCE" >> "$GITHUB_OUTPUT"
           echo "closed_source_24h=$CLOSED_SOURCE_24H" >> "$GITHUB_OUTPUT"
           echo "source_starved=$STARVED" >> "$GITHUB_OUTPUT"
-          echo "Throughput health: milestone=$ACTIVE_MILESTONE runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H source_starved=$STARVED"
+          echo "open_source=$OPEN_SOURCE" >> "$GITHUB_OUTPUT"
+          echo "open_meta=$OPEN_META" >> "$GITHUB_OUTPUT"
+          echo "meta_budget=$META_BUDGET" >> "$GITHUB_OUTPUT"
+          echo "meta_budget_exceeded=$META_BUDGET_EXCEEDED" >> "$GITHUB_OUTPUT"
+          echo "Throughput health: milestone=$ACTIVE_MILESTONE open_source=$OPEN_SOURCE open_meta=$OPEN_META meta_budget=$META_BUDGET meta_budget_exceeded=$META_BUDGET_EXCEEDED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H source_starved=$STARVED"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -488,6 +560,9 @@ jobs:
             HAS_CODEX=true
           fi
           GLOBAL_AUTH_GATE_OPEN="${{ steps.provider-auth-gate.outputs.open || 'false' }}"
+          ACTIVE_MILESTONE="${{ steps.throughput.outputs.active_milestone || 'none' }}"
+          META_BUDGET_EXCEEDED="${{ steps.throughput.outputs.meta_budget_exceeded || 'false' }}"
+          RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
 
           has_label() {
             local labels="$1"
@@ -591,6 +666,11 @@ jobs:
                 .[] | select((src == $src) and (queue == "work")) | .number
               ' | head -n1)
             if [ -n "$EXISTING" ]; then
+              continue
+            fi
+
+            if [ "$META_BUDGET_EXCEEDED" = "true" ] && [ "$RUNNABLE_SOURCE" -gt 0 ] && [ "$ACTIVE_MILESTONE" = "$MILESTONE" ]; then
+              echo "Suppressing new management ticket for source issue #$SRC because meta budget is exceeded in $MILESTONE while runnable source work exists."
               continue
             fi
 
@@ -1317,12 +1397,15 @@ jobs:
           SOURCE_STARVED="${{ steps.throughput.outputs.source_starved || 'false' }}"
           RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
           CLOSED_SOURCE_24H="${{ steps.throughput.outputs.closed_source_24h || '0' }}"
-          echo "Objective function: source_throughput_primary=$SOURCE_STARVED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H"
+          OPEN_META="${{ steps.throughput.outputs.open_meta || '0' }}"
+          META_BUDGET="${{ steps.throughput.outputs.meta_budget || '0' }}"
+          META_BUDGET_EXCEEDED="${{ steps.throughput.outputs.meta_budget_exceeded || 'false' }}"
+          echo "Objective function: source_throughput_primary=$SOURCE_STARVED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H open_meta=$OPEN_META meta_budget=$META_BUDGET meta_budget_exceeded=$META_BUDGET_EXCEEDED"
 
           ISSUES=$(gh issue list -R "$REPO" --state open \
             --label "triage/ready" --label "agent:actionable" \
             --limit 200 \
-            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" --arg source_starved "$SOURCE_STARVED" '
+            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" --arg source_starved "$SOURCE_STARVED" --arg runnable_source "$RUNNABLE_SOURCE" '
               [.[] |
                 select((.milestone.title // "none") == $active_milestone) |
                 select(.labels | map(.name) |
@@ -1338,6 +1421,13 @@ jobs:
                       (contains(["agent:provider-auth-failure"]) | not)
                     )
                   )
+                ) |
+                select(
+                  if $runnable_source != "0" then
+                    (.labels | map(.name) | contains(["agent:management-ticket"]) | not)
+                  else
+                    true
+                  end
                 ) |
                 {
                   number,
@@ -3465,6 +3555,8 @@ jobs:
           REASON=${{ steps.outcome.outputs.escalation_reason }}
           MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
           HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
+          RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
+          META_BUDGET_EXCEEDED="${{ steps.throughput.outputs.meta_budget_exceeded || 'false' }}"
           infer_from_labels() {
             local labels="$1"
             if echo "$labels" | grep -Eq '(^|,)m0(,|$)'; then echo "M0: Dogfood-Ready"; return; fi
@@ -3573,6 +3665,18 @@ jobs:
             fi
             MNUM="$EXISTING"
           else
+            if [ "$META_BUDGET_EXCEEDED" = "true" ] && [ "$RUNNABLE_SOURCE" -gt 0 ]; then
+              {
+                echo "**Workflow management routing (suppressed ticket creation)**"
+                echo ""
+                echo "- Escalation reason: \`$REASON\`"
+                echo "- Separate management ticket suppressed because source throughput is the hard priority and the meta budget is exceeded."
+                echo "- State is preserved on source issue labels for continued autonomous handling."
+              } > .management-link-comment.md
+              gh issue comment "$NUM" -R "$REPO" --body-file .management-link-comment.md
+              rm -f .management-body.md .management-link-comment.md
+              exit 0
+            fi
             CREATE_ARGS=()
             if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
               CREATE_ARGS+=(--milestone "$MILESTONE")
