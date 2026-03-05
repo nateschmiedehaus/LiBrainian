@@ -2368,7 +2368,7 @@ jobs:
           run_live_provider_system_tests_strict() {
             local report=".live-provider-system-vitest.json"
             rm -f "$report"
-            run_with_timeout 25 npx vitest run src/__tests__/librarian_live_provider.system.test.ts \
+            run_with_timeout 25 env LIBRAINIAN_TEST_MODE=system npx vitest run src/__tests__/librarian_live_provider.system.test.ts \
               --testNamePattern "bootstrap and become ready|query for context" \
               --reporter=json \
               --outputFile "$report"
