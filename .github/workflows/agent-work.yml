@@ -55,9 +55,11 @@ permissions:
   issues: write
   id-token: write
 
-# Only one work loop at a time. New triggers queue (don't cancel in-progress work).
+# Concurrency policy:
+# - Auto-selection runs share one lane (`auto`) to avoid selection races.
+# - Manual issue-targeted runs are keyed by issue number, enabling safe parallelism.
 concurrency:
-  group: agent-work-loop
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.issue_number != '' && format('issue-{0}', github.event.inputs.issue_number) || 'auto' }}
   cancel-in-progress: false
 
 env:
@@ -76,6 +78,7 @@ env:
   WORKER_HEARTBEAT_SEC: 120
   VERIFY_DRAIN_BATCH: 3
   MAX_MANAGEMENT_PASS_PER_RUN: 15
+  MAX_PARALLEL_WORKERS: 3
 
 jobs:
   work:
@@ -136,6 +139,32 @@ jobs:
         if: steps.breaker.outputs.open == 'true'
         run: |
           echo "::warning::Circuit breaker is open — ${{ env.MAX_CONSECUTIVE_FAILURES }} consecutive failures. Will auto-heal when workflow is updated."
+          exit 0
+
+      - name: Parallel capacity gate
+        id: parallel-capacity
+        if: steps.breaker.outputs.open != 'true'
+        run: |
+          # Keep auto lane single-threaded; cap manual issue-targeted parallel runs.
+          if [ -z "${{ inputs.issue_number }}" ]; then
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ACTIVE=$(gh run list -R "$REPO" -w "Agent Work Loop" --status in_progress --limit 100 --json databaseId --jq 'length')
+          echo "Active Agent Work Loop runs: $ACTIVE (cap=${MAX_PARALLEL_WORKERS})"
+          if [ "$ACTIVE" -gt "$MAX_PARALLEL_WORKERS" ]; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Abort if parallel capacity gate open
+        if: steps.parallel-capacity.outputs.open == 'true'
+        run: |
+          echo "::warning::Parallel capacity gate open — active runs exceed cap (${MAX_PARALLEL_WORKERS})."
+          echo "::warning::This manual run will exit and can be retried once capacity frees."
           exit 0
 
       - name: Infra incident gate
@@ -1202,7 +1231,7 @@ jobs:
 
       # ── Find Issue ───────────────────────────────────────────────────
       - name: Find next ready issue
-        if: steps.breaker.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && steps.provider-auth-gate.outputs.open != 'true'
+        if: steps.breaker.outputs.open != 'true' && steps.parallel-capacity.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && steps.provider-auth-gate.outputs.open != 'true'
         id: find
         run: |
           HAS_CODEX=false
@@ -1449,6 +1478,34 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           BODY=$(gh issue view "$NUM" -R "$REPO" --json body --jq '.body')
           LABELS=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '.labels[].name' || true)
+
+          # Manual parallel runs must not compete on the same domain.
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            extract_domains() {
+              echo "$1" | grep -E '^(area:.*|mcp|mcp-adoption|construction-system|area: retrieval|area: query|area: agents|area: indexing|area: testing|area: process)$' | sort -u
+            }
+            TARGET_DOMAINS=$(extract_domains "$LABELS" || true)
+            if [ -n "$TARGET_DOMAINS" ]; then
+              CLAIMED_ROWS=$(gh issue list -R "$REPO" --state open \
+                --label "agent:claimed" \
+                --limit 200 \
+                --json number,labels \
+                --jq ".[] | select(.number != $NUM) | @base64")
+              for ROW in $CLAIMED_ROWS; do
+                ITEM=$(echo "$ROW" | base64 --decode)
+                CNUM=$(echo "$ITEM" | jq -r '.number')
+                CLABELS=$(echo "$ITEM" | jq -r '.labels[].name')
+                CLAIMED_DOMAINS=$(extract_domains "$CLABELS" || true)
+                [ -z "$CLAIMED_DOMAINS" ] && continue
+                SHARED=$(comm -12 <(echo "$TARGET_DOMAINS") <(echo "$CLAIMED_DOMAINS") | tr '\n' ' ')
+                if [ -n "$SHARED" ]; then
+                  echo "::warning::Issue #$NUM conflicts with claimed issue #$CNUM on domains: $SHARED"
+                  echo "blocked=true" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+              done
+            fi
+          fi
 
           is_soft_dependency() {
             local dep="$1"
