@@ -2333,10 +2333,19 @@ jobs:
             local phase="$1"
             local out=".live-provider-${phase}.json"
             local err=".live-provider-${phase}.err"
+            local query="Where is the query pipeline implemented and what are its stages?"
             set +e
-            run_with_timeout 8 ./ask --json "Where is the query pipeline implemented and what are its stages?" > "$out" 2> "$err"
+            run_with_timeout 8 ./ask --json "$query" > "$out" 2> "$err"
             local ask_exit=$?
             set -e
+            if [ "$ask_exit" -ne 0 ] && grep -Eiq 'EQUERY_TIMEOUT|timed out after 120000ms' "$out" "$err"; then
+              echo "::warning::Live-provider query timed out during ${phase}; applying recovery and retrying with extended timeout."
+              run_with_timeout 6 node dist/cli/index.js doctor --heal >/tmp/live-provider-heal-${phase}.log 2>&1 || true
+              set +e
+              run_with_timeout 12 ./ask --json --timeout 180000 "$query" > "$out" 2> "$err"
+              ask_exit=$?
+              set -e
+            fi
             if [ "$ask_exit" -ne 0 ]; then
               echo "::error::Live-provider query failed during ${phase}."
               tail -n 80 "$err" || true
