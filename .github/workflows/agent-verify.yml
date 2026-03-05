@@ -269,9 +269,9 @@ jobs:
               continue
             fi
 
-            if ! has_label "$SLABELS" "verify:manual-needed" && ! has_label "$SLABELS" "agent:management-needed"; then
+            if ! has_label "$SLABELS" "verify:manual-needed" && ! has_label "$SLABELS" "verify:pending"; then
               gh issue close "$MNUM" -R "$REPO" \
-                --comment "Auto-closing management ticket: source issue #$SRC no longer requires verification management."
+                --comment "Auto-closing verification management ticket: source issue #$SRC is no longer in verify management state (\`verify:pending\`/\`verify:manual-needed\`)."
               CLOSED=$((CLOSED + 1))
             fi
           done
