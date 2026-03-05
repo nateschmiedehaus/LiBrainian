@@ -147,8 +147,25 @@ jobs:
           MGMT_NUMS=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
             --limit 60 \
-            --json number,title,labels \
-            --jq '[.[] | select((.labels | map(.name) | contains(["agent:claimed"]) | not)) | .number] | sort | .[]')
+            --json number,title,body,labels \
+            --jq '
+              [
+                .[] |
+                {
+                  number,
+                  title: (.title // ""),
+                  body: (.body // ""),
+                  claimed: (.labels | map(.name) | contains(["agent:claimed"])),
+                  queue: (
+                    (try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null) //
+                    (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end)
+                  )
+                } |
+                select(.claimed | not) |
+                select(.queue == "verify") |
+                .number
+              ] | sort | .[]
+            ')
 
           if [ -z "$MGMT_NUMS" ]; then
             echo "No verify-management issues to process."
@@ -184,6 +201,7 @@ jobs:
             if [ -z "$MJSON" ] || [ "$MJSON" = "null" ]; then
               continue
             fi
+            MTITLE=$(echo "$MJSON" | jq -r '.title // ""')
             MBODY=$(echo "$MJSON" | jq -r '.body // ""')
             MLABELS=$(echo "$MJSON" | jq -r '.labels[].name')
             SRC=$(echo "$MBODY" | grep -ioE 'source issue:\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
@@ -191,20 +209,19 @@ jobs:
               SRC=$(echo "$MBODY" | grep -oE 'source_issue=[0-9]+' | grep -oE '[0-9]+' | head -n1)
             fi
             if [ -z "$SRC" ]; then
-              gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              if ! has_label "$MLABELS" "agent:management-malformed"; then
-                gh issue comment "$MNUM" -R "$REPO" \
-                  --body "Verification management ticket is missing \`Source issue: #N\` metadata. Automation skipped auto-close for safety."
-              fi
+              SRC=$(echo "$MTITLE" | grep -oE 'issue\s*#[0-9]+' | grep -oE '[0-9]+' | head -n1)
+            fi
+            if [ -z "$SRC" ]; then
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing malformed verification management ticket: missing source issue metadata (\`Source issue: #N\`, \`source_issue=N\`, or title \`issue #N\`)."
+              CLOSED=$((CLOSED + 1))
               continue
             fi
 
             if [ "$SRC" = "$MNUM" ]; then
-              gh issue edit "$MNUM" -R "$REPO" --add-label "agent:management-malformed" || true
-              if ! has_label "$MLABELS" "agent:management-malformed"; then
-                gh issue comment "$MNUM" -R "$REPO" \
-                  --body "Verification management ticket metadata resolved to itself (#$MNUM). Automation skipped auto-close for safety."
-              fi
+              gh issue close "$MNUM" -R "$REPO" \
+                --comment "Auto-closing malformed verification management ticket: source metadata self-references #$MNUM."
+              CLOSED=$((CLOSED + 1))
               continue
             fi
 
@@ -1327,6 +1344,37 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
+          infer_from_labels() {
+            local labels="$1"
+            if echo "$labels" | grep -Eq '(^|,)m0(,|$)'; then echo "M0: Dogfood-Ready"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m1(,|$)'; then echo "M1: Construction MVP"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m2(,|$)'; then echo "M2: Agent Integration"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m3(,|$)'; then echo "M3: Scale & Epistemics"; return; fi
+            if echo "$labels" | grep -Eq '(^|,)m4(,|$)'; then echo "M4: World-Class"; return; fi
+            echo ""
+          }
+          if [ -z "$MILESTONE" ] || [ "$MILESTONE" = "none" ]; then
+            ISSUE_LABELS=$(gh issue view "$NUM" -R "$REPO" --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || true)
+            MILESTONE=$(infer_from_labels "$ISSUE_LABELS")
+          fi
+          if [ -z "$MILESTONE" ] || [ "$MILESTONE" = "none" ]; then
+            MILESTONE=$(gh issue list -R "$REPO" --state open --limit 500 \
+              --json milestone,labels | jq -r '
+                [.[] |
+                  select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
+                  (.milestone.title // empty) |
+                  select(. != "") |
+                  {title: ., order: (
+                    if . == "M0: Dogfood-Ready" then 0
+                    elif . == "M1: Construction MVP" then 1
+                    elif . == "M2: Agent Integration" then 2
+                    elif . == "M3: Scale & Epistemics" then 3
+                    elif . == "M4: World-Class" then 4
+                    else 99 end
+                  )}
+                ] | sort_by(.order, .title) | first | .title // "M0: Dogfood-Ready"
+              ')
+          fi
           reason_family() {
             local reason="$1"
             case "$reason" in
@@ -1392,6 +1440,12 @@ jobs:
           if [ -n "$EXISTING" ]; then
             EXISTING_REASON=$(gh issue view "$EXISTING" -R "$REPO" --json body \
               --jq '(.body // "" | capture("Escalation reason:\\s*(?<r>[^\\n]+)").r) // ""' 2>/dev/null || true)
+            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+              EXISTING_MS=$(gh issue view "$EXISTING" -R "$REPO" --json milestone --jq '.milestone.title // empty' 2>/dev/null || true)
+              if [ -z "$EXISTING_MS" ]; then
+                gh issue edit "$EXISTING" -R "$REPO" --milestone "$MILESTONE" || true
+              fi
+            fi
             EXISTING_FAMILY=$(reason_family "$EXISTING_REASON")
             if [ "$EXISTING_FAMILY" = "$REASON_FAMILY" ] && [ "$HALTED" != "true" ]; then
               echo "Existing management ticket #$EXISTING already tracks family=$REASON_FAMILY; skipping duplicate comment."
@@ -1399,13 +1453,18 @@ jobs:
               gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
             fi
           else
+            CREATE_ARGS=()
+            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
+              CREATE_ARGS+=(--milestone "$MILESTONE")
+            fi
             gh issue create -R "$REPO" \
               --title "meta: verify issue #$NUM — $TITLE_CLEAN" \
               --body-file .verify-management.md \
               --label "agent:management-ticket" \
               --label "agent:management-needed" \
               --label "triage/ready" \
-              --label "agent:actionable"
+              --label "agent:actionable" \
+              "${CREATE_ARGS[@]}"
           fi
           rm -f .verify-management.md
 
