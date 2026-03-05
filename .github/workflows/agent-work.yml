@@ -416,6 +416,7 @@ jobs:
                 select((.labels | map(.name) | contains(["agent:management-ticket"]) | not)) |
                 select((.labels | map(.name) | contains(["agent:claimed"]) | not)) |
                 select((.labels | map(.name) | contains(["lifecycle/frozen"]) | not)) |
+                select((.labels | map(.name) | contains(["triage/missing-essentials"]) | not)) |
                 select((.labels | map(.name) | contains(["agent:needs-recovery"]) | not)) |
                 select((.labels | map(.name) | contains(["verify:pending"]) | not)) |
                 select((.labels | map(.name) | contains(["agent:infra-blocked"]) | not))
@@ -492,6 +493,7 @@ jobs:
             if ! has_label "$LABELS" "agent:management-ticket"; then
               if has_label "$LABELS" "agent:actionable" &&
                  has_label "$LABELS" "triage/ready" &&
+                 ! has_label "$LABELS" "triage/missing-essentials" &&
                  ! has_label "$LABELS" "agent:needs-decomposition" &&
                  ! has_label "$LABELS" "agent:manual-review-needed" &&
                  ! has_label "$LABELS" "agent:needs-recovery" &&
@@ -1262,6 +1264,7 @@ jobs:
                 select(.labels | map(.name) |
                   (contains(["agent:claimed"]) | not) and
                   (contains(["lifecycle/frozen"]) | not) and
+                  (contains(["triage/missing-essentials"]) | not) and
                   (contains(["agent:needs-recovery"]) | not) and
                   (contains(["verify:pending"]) | not) and
                   (
