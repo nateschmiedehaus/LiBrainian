@@ -447,6 +447,62 @@ jobs:
           echo "Adaptive verification escalation active for issue #${{ steps.find.outputs.issue_number }}."
           echo "Workflow will continue automated verification with management-guided adjustments."
 
+      - name: Pattern-based self-healing assessment
+        if: steps.find.outputs.pr_found == 'true'
+        id: pattern-heal
+        run: |
+          NUM=${{ steps.find.outputs.issue_number }}
+
+          read -r DOMINANT_FAMILY DOMINANT_COUNT < <(
+            gh issue view "$NUM" -R "$REPO" --json comments --jq '
+              def fam($s):
+                if (($s // "") | test("provider|infra|post_verify_live_provider")) then "provider_runtime"
+                elif (($s // "") | test("missing_metadata|unclear_verdict|pass_with_low_quality")) then "verifier_contract"
+                elif (($s // "") | test("verify_pending_without_pr|pr_not_mergeable_state|merge_not_completed")) then "state_transition"
+                else "generic_verify_failure"
+                end;
+              [ .comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+                | fam(.status // "")
+              ] as $families
+              | ($families | reduce .[] as $f ({}; .[$f] = (.[$f] // 0) + 1)) as $counts
+              | ($counts | to_entries | sort_by(.value) | last // {"key":"none","value":0})
+              | "\(.key) \(.value)"
+            '
+          )
+
+          [ -z "$DOMINANT_FAMILY" ] && DOMINANT_FAMILY="none"
+          [ -z "$DOMINANT_COUNT" ] && DOMINANT_COUNT="0"
+
+          ACTION="none"
+          if [[ "$DOMINANT_COUNT" =~ ^[0-9]+$ ]] && [ "$DOMINANT_COUNT" -ge 2 ]; then
+            case "$DOMINANT_FAMILY" in
+              provider_runtime)
+                ACTION="route_provider_recovery"
+                ;;
+              verifier_contract)
+                ACTION="recover_verdict_from_stdout_and_dedupe_management"
+                ;;
+              state_transition)
+                ACTION="repair_pr_state_and_verify_queue"
+                ;;
+              *)
+                ACTION="tighten_management_review"
+                ;;
+            esac
+          fi
+
+          echo "dominant_family=$DOMINANT_FAMILY" >> "$GITHUB_OUTPUT"
+          echo "dominant_count=$DOMINANT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "self_heal_action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "Pattern self-heal assessment: family=$DOMINANT_FAMILY count=$DOMINANT_COUNT action=$ACTION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Resolve verifier strategy
         if: steps.find.outputs.pr_found == 'true' && steps.verify-retries.outputs.halt != 'true'
         id: strategy
@@ -519,6 +575,7 @@ jobs:
         run: |
           REQUESTED="${{ inputs.agent_provider || 'auto' }}"
           ENABLE_FALLBACK_INPUT="${{ inputs.enable_fallback }}"
+          SELF_HEAL_ACTION="${{ steps.pattern-heal.outputs.self_heal_action || 'none' }}"
           ALLOW_FALLBACK=true
           if [ "$ENABLE_FALLBACK_INPUT" = "false" ] || [ "$ENABLE_FALLBACK_INPUT" = "0" ]; then
             ALLOW_FALLBACK=false
@@ -582,6 +639,12 @@ jobs:
               PRIMARY="codex"
               [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
             fi
+          fi
+
+          if [ "$SELF_HEAL_ACTION" = "route_provider_recovery" ] && [ "$HAS_CODEX" = "true" ] && [ "$REQUESTED" = "auto" ]; then
+            PRIMARY="codex"
+            [ "$ALLOW_FALLBACK" = "true" ] && [ "$HAS_CLAUDE" = "true" ] && FALLBACK="claude"
+            echo "Pattern self-heal override: forcing codex primary for provider_runtime recovery."
           fi
 
           echo "primary=$PRIMARY" >> "$GITHUB_OUTPUT"
@@ -867,6 +930,25 @@ jobs:
           NUM=${{ steps.find.outputs.issue_number }}
           RUN_ID="${{ github.run_id }}"
 
+          parse_verdict_from_log() {
+            local file="$1"
+            [ -s "$file" ] || return 1
+            awk '
+              {
+                u=toupper($0)
+                if (match(u, /VERDICT:[[:space:]]*(PASS|FAIL)/, m)) v=m[1]
+                if (match($0, /Rating:[[:space:]]*(Excellent|Good|Acceptable|Poor|Broken|UNKNOWN)/, q)) quality=q[1]
+              }
+              END {
+                if (v != "") {
+                  print v "|" (quality == "" ? "UNKNOWN" : quality)
+                  exit 0
+                }
+                exit 1
+              }
+            ' "$file"
+          }
+
           RAW=$(gh issue view "$NUM" -R "$REPO" --json comments --jq \
             '.comments | reverse | map(.body) | map(select(test("agent_evidence\\s*=\\s*\\{"))) | .[]' | \
             head -n 20 || true)
@@ -879,10 +961,31 @@ jobs:
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
             echo "quality=$QUALITY" >> "$GITHUB_OUTPUT"
+            echo "source=issue_comment" >> "$GITHUB_OUTPUT"
           else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
-            echo "quality=UNKNOWN" >> "$GITHUB_OUTPUT"
+            RECOVERED=""
+            for LOG_FILE in .verify-codex-primary.log .verify-codex-fallback.log .verify-claude-primary.log .verify-claude-fallback.log; do
+              CANDIDATE=$(parse_verdict_from_log "$LOG_FILE" 2>/dev/null || true)
+              if [ -n "$CANDIDATE" ]; then
+                RECOVERED="$CANDIDATE"
+              fi
+            done
+
+            if [ -n "$RECOVERED" ]; then
+              VERDICT=$(echo "$RECOVERED" | cut -d'|' -f1 | tr '[:lower:]' '[:upper:]')
+              QUALITY=$(echo "$RECOVERED" | cut -d'|' -f2)
+              [ -z "$QUALITY" ] && QUALITY="UNKNOWN"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+              echo "quality=$QUALITY" >> "$GITHUB_OUTPUT"
+              echo "source=verifier_stdout" >> "$GITHUB_OUTPUT"
+              echo "Recovered verifier metadata from stdout logs: verdict=$VERDICT quality=$QUALITY"
+            else
+              echo "found=false" >> "$GITHUB_OUTPUT"
+              echo "verdict=UNKNOWN" >> "$GITHUB_OUTPUT"
+              echo "quality=UNKNOWN" >> "$GITHUB_OUTPUT"
+              echo "source=none" >> "$GITHUB_OUTPUT"
+            fi
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -928,8 +1031,10 @@ jobs:
           VERDICT="${{ steps.verify-meta.outputs.verdict || 'UNKNOWN' }}"
           QUALITY="${{ steps.verify-meta.outputs.quality || 'UNKNOWN' }}"
           META_FOUND="${{ steps.verify-meta.outputs.found || 'false' }}"
+          META_SOURCE="${{ steps.verify-meta.outputs.source || 'none' }}"
 
           echo "Metadata found: $META_FOUND"
+          echo "Metadata source: $META_SOURCE"
           echo "Verdict: $VERDICT"
           echo "Quality: $QUALITY"
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
@@ -938,6 +1043,22 @@ jobs:
             echo "::warning::Verifier did not provide structured metadata for this run."
             post_unknown "missing_metadata" "UNKNOWN"
             exit 0
+          fi
+
+          if [ "$META_SOURCE" = "verifier_stdout" ]; then
+            {
+              echo "**Verifier metadata recovered from agent stdout**"
+              echo ""
+              echo "- Provider: \`$PROVIDER_USED\`"
+              echo "- Verdict: \`$VERDICT\`"
+              echo "- Quality: \`$QUALITY\`"
+              echo "- Recovery: workflow parsed verifier stdout because no structured issue metadata was posted."
+              echo "- Pattern self-heal action: \`${{ steps.pattern-heal.outputs.self_heal_action || 'none' }}\`"
+              echo ""
+              echo "<!-- agent_evidence = {\"v\":3,\"issue\":$NUM,\"role\":\"verifier\",\"run\":\"${{ github.run_id }}\",\"provider\":\"$PROVIDER_USED\",\"verdict\":\"$VERDICT\",\"quality\":\"$QUALITY\",\"pr\":$PR,\"status\":\"metadata_recovered_from_stdout\"} -->"
+            } > .verify-recovered-metadata.md
+            gh issue comment "$NUM" -R "$REPO" --body-file .verify-recovered-metadata.md
+            rm -f .verify-recovered-metadata.md
           fi
 
           if [ "$VERDICT" = "PASS" ]; then
@@ -1107,6 +1228,26 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
+          reason_family() {
+            local reason="$1"
+            case "$reason" in
+              provider_*|*provider*|*infra*)
+                echo "provider_runtime"
+                ;;
+              verify_pending_without_pr|pr_not_mergeable_state|merge_not_completed)
+                echo "state_transition"
+                ;;
+              missing_metadata|unclear_verdict|pass_with_low_quality)
+                echo "verifier_contract"
+                ;;
+              post_verify_live_provider_*)
+                echo "provider_runtime"
+                ;;
+              *)
+                echo "generic_verify_failure"
+                ;;
+            esac
+          }
           HALTED="${{ steps.verify-retries.outputs.halt || 'false' }}"
           HALT_REASON="${{ steps.verify-retries.outputs.halt_reason || '' }}"
           if [ "$HALTED" = "true" ] && [ -n "$HALT_REASON" ]; then
@@ -1114,6 +1255,8 @@ jobs:
           elif [ "${{ steps.find.outputs.pr_found }}" != "true" ]; then
             REASON="verify_pending_without_pr"
           fi
+          REASON_FAMILY=$(reason_family "$REASON")
+          SELF_HEAL_ACTION="${{ steps.pattern-heal.outputs.self_heal_action || 'none' }}"
 
           EXISTING=$(gh issue list -R "$REPO" --state open \
             --label "agent:management-ticket" \
@@ -1137,6 +1280,8 @@ jobs:
           Source issue: #$NUM
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           Escalation reason: $REASON
+          Escalation family: $REASON_FAMILY
+          Self-heal action: $SELF_HEAL_ACTION
           Milestone: $MILESTONE
 
           ### Required actions
@@ -1146,7 +1291,14 @@ jobs:
           EOF
 
           if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
+            EXISTING_REASON=$(gh issue view "$EXISTING" -R "$REPO" --json body \
+              --jq '(.body // "" | capture("Escalation reason:\\s*(?<r>[^\\n]+)").r) // ""' 2>/dev/null || true)
+            EXISTING_FAMILY=$(reason_family "$EXISTING_REASON")
+            if [ "$EXISTING_FAMILY" = "$REASON_FAMILY" ] && [ "$HALTED" != "true" ]; then
+              echo "Existing management ticket #$EXISTING already tracks family=$REASON_FAMILY; skipping duplicate comment."
+            else
+              gh issue comment "$EXISTING" -R "$REPO" --body-file .verify-management.md
+            fi
           else
             gh issue create -R "$REPO" \
               --title "meta: verify issue #$NUM — $TITLE_CLEAN" \
