@@ -518,6 +518,17 @@ jobs:
                 | select((.status // "") == "provider_or_infra_failure")
               ] | length
             ')
+          CONTRACT_UNKNOWN_COUNT=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+                | select((.status // "") == "missing_metadata" or (.status // "") == "unclear_verdict" or (.status // "") == "pass_with_low_quality")
+              ] | length
+            ')
           LAST_UNKNOWN_STATUS=$(gh issue view "$NUM" -R "$REPO" --json comments \
             --jq '
               [.comments[].body
@@ -528,6 +539,37 @@ jobs:
                 | select((.status // "") != "adaptive_retry")
               ] | last | .status // ""
             ')
+          LAST_UNKNOWN_RUN_ID=$(gh issue view "$NUM" -R "$REPO" --json comments \
+            --jq '
+              [.comments[].body
+                | (try capture("agent_evidence\\s*=\\s*(?<json>\\{.*\\})").json catch empty)
+                | (try fromjson catch empty)
+                | select(.role == "verifier")
+                | select((.verdict // "" | ascii_upcase) == "UNKNOWN")
+                | select((.status // "") != "adaptive_retry")
+              ] | last | (.run // "")
+            ')
+          MANUAL_RETRY_OVERRIDE=false
+          if [ -n "${{ inputs.issue_number }}" ]; then
+            MANUAL_RETRY_OVERRIDE=true
+          fi
+          CONTRACT_RECOVERY_AVAILABLE=false
+          if [ -n "$LAST_UNKNOWN_RUN_ID" ]; then
+            LAST_UNKNOWN_HEAD=$(gh run view "$LAST_UNKNOWN_RUN_ID" -R "$REPO" --json headSha --jq '.headSha // ""' 2>/dev/null || true)
+            if [ -n "$LAST_UNKNOWN_HEAD" ] && [ "$LAST_UNKNOWN_HEAD" != "${GITHUB_SHA}" ]; then
+              CONTRACT_RECOVERY_AVAILABLE=true
+            fi
+          fi
+          if ! [[ "$CONTRACT_UNKNOWN_COUNT" =~ ^[0-9]+$ ]]; then CONTRACT_UNKNOWN_COUNT=0; fi
+          if ! [[ "$UNKNOWN_COUNT" =~ ^[0-9]+$ ]]; then UNKNOWN_COUNT=0; fi
+          if [ "$CONTRACT_RECOVERY_AVAILABLE" = "true" ] || [ "$MANUAL_RETRY_OVERRIDE" = "true" ]; then
+            if [ "$CONTRACT_UNKNOWN_COUNT" -gt 0 ]; then
+              ORIGINAL_UNKNOWN_COUNT="$UNKNOWN_COUNT"
+              UNKNOWN_COUNT=$((UNKNOWN_COUNT - CONTRACT_UNKNOWN_COUNT))
+              if [ "$UNKNOWN_COUNT" -lt 0 ]; then UNKNOWN_COUNT=0; fi
+              echo "Ignoring $CONTRACT_UNKNOWN_COUNT stale verifier-contract UNKNOWN result(s) for retry gating (original=$ORIGINAL_UNKNOWN_COUNT current_head=${GITHUB_SHA})."
+            fi
+          fi
           ATTEMPTS=$((UNKNOWN_COUNT + 1))
           echo "attempts=$ATTEMPTS" >> "$GITHUB_OUTPUT"
           echo "unknown_count=$UNKNOWN_COUNT" >> "$GITHUB_OUTPUT"
@@ -570,9 +612,13 @@ jobs:
           if ! [[ "$RECENT_FAMILY_COUNT" =~ ^[0-9]+$ ]]; then RECENT_FAMILY_COUNT=0; fi
 
           if [ "$RECENT_FAMILY" = "verifier_contract" ] && [ "$UNKNOWN_COUNT" -ge 1 ]; then
-            HALT_REASON="recurring_verifier_contract_failure"
-            enter_recovery_mode "$HALT_REASON" "fast-pattern-anomaly (contract failure is immediate-halt)"
-            exit 0
+            if [ "$CONTRACT_RECOVERY_AVAILABLE" = "true" ] || [ "$MANUAL_RETRY_OVERRIDE" = "true" ]; then
+              echo "Bypassing stale verifier-contract halt for issue #$NUM (manual_retry=$MANUAL_RETRY_OVERRIDE workflow_head_changed=$CONTRACT_RECOVERY_AVAILABLE)."
+            else
+              HALT_REASON="recurring_verifier_contract_failure"
+              enter_recovery_mode "$HALT_REASON" "fast-pattern-anomaly (contract failure is immediate-halt)"
+              exit 0
+            fi
           fi
 
           if [ "$RECENT_FAMILY" = "provider_runtime" ] && [ "$RECENT_FAMILY_COUNT" -ge 2 ] && [ "$UNKNOWN_COUNT" -ge 1 ]; then
