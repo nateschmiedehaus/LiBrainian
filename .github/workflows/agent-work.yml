@@ -249,6 +249,7 @@ jobs:
           }
 
           ensure_label "agent:needs-decomposition" "D73A4A" "Issue repeatedly failed automation and needs scope split"
+          ensure_label "agent:needs-recovery" "FBCA04" "Issue requires recovery path; automation continues via management and dependency resolution"
           ensure_label "agent:infra-blocked" "A29BFE" "Automation blocked by provider/auth/infra failures"
           ensure_label "agent:provider-auth-failure" "B60205" "Recent provider auth/runtime failure signal; prefer alternate provider when available"
           ensure_label "agent:management-needed" "1D76DB" "Automation escalated this issue into management queue"
@@ -256,6 +257,22 @@ jobs:
           ensure_label "agent:management-malformed" "C2E0C6" "Management ticket is missing required source issue metadata"
           ensure_label "agent:manual-review-needed" "B60205" "Strategic management review required before retry (handled by agent workflow)"
           ensure_label "agent:credential-incident" "7A2B8F" "Repository-level provider credential incident tracked by workflow"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Migrate legacy blocked label to needs-recovery
+        if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
+        run: |
+          LEGACY=$(gh issue list -R "$REPO" --state open --label "agent:blocked" --limit 200 --json number --jq '.[].number')
+          if [ -z "$LEGACY" ]; then
+            echo "No legacy agent:blocked labels to migrate."
+            exit 0
+          fi
+          for NUM in $LEGACY; do
+            gh issue edit "$NUM" -R "$REPO" \
+              --remove-label "agent:blocked" \
+              --add-label "agent:needs-recovery" || true
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -410,9 +427,9 @@ jobs:
                 fi
                 continue
               fi
-              if has_label "$LABELS" "agent:blocked"; then
+              if has_label "$LABELS" "agent:needs-recovery"; then
                 gh issue edit "$NUM" -R "$REPO" \
-                  --remove-label "agent:blocked" \
+                  --remove-label "agent:needs-recovery" \
                   --remove-label "triage/missing-essentials" \
                   --add-label "triage/ready" || true
                 RELABELED=$((RELABELED + 1))
@@ -465,7 +482,7 @@ jobs:
               REASON="retry_exhausted"
             elif has_label "$LABELS" "verify:manual-needed"; then
               REASON="verify_retry_exhausted"
-            elif has_label "$LABELS" "agent:blocked"; then
+            elif has_label "$LABELS" "agent:needs-recovery"; then
               REASON="readiness_gap"
             fi
 
@@ -866,7 +883,7 @@ jobs:
             ALLOW_INFRA_RETRY=false
             if has_label "$SLABELS" "agent:needs-decomposition"; then HAS_NEEDS_DECOMP=true; fi
             if has_label "$SLABELS" "agent:infra-blocked"; then HAS_INFRA_BLOCKED=true; fi
-            if has_label "$SLABELS" "agent:blocked"; then HAS_AGENT_BLOCKED=true; fi
+            if has_label "$SLABELS" "agent:needs-recovery"; then HAS_AGENT_BLOCKED=true; fi
             if has_label "$SLABELS" "agent:manual-review-needed"; then HAS_MANUAL_REVIEW=true; fi
             if has_label "$SLABELS" "agent:management-needed"; then HAS_MGMT_NEEDED=true; fi
             if has_label "$SLABELS" "agent:provider-auth-failure"; then HAS_PROVIDER_AUTH_FAIL=true; fi
@@ -916,7 +933,7 @@ jobs:
                 --remove-label "verify:manual-needed" \
                 --remove-label "agent:manual-review-needed" \
                 --remove-label "agent:management-needed" \
-                --remove-label "agent:blocked" \
+                --remove-label "agent:needs-recovery" \
                 --add-label "verify:pending" || true
               {
                 echo "**Embedded management pass** re-queued autonomous verification."
@@ -934,7 +951,7 @@ jobs:
                   --remove-label "agent:manual-review-needed" \
                   --remove-label "agent:management-needed" \
                   --remove-label "agent:needs-decomposition" \
-                  --remove-label "agent:blocked" \
+                  --remove-label "agent:needs-recovery" \
                   --remove-label "agent:infra-blocked" \
                   --remove-label "triage/missing-essentials" \
                   --add-label "agent:actionable" \
@@ -969,7 +986,7 @@ jobs:
           CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
 
       # ── Pre-flight: unblock resolved dependencies ───────────────────
-      # Before selecting work, check if any agent:blocked issues have had
+      # Before selecting work, check if any agent:needs-recovery issues have had
       # all their dependencies resolved (e.g., by async merges since last run).
       - name: Auto-unblock resolved dependencies
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
@@ -977,7 +994,7 @@ jobs:
           echo "=== Pre-flight: checking for issues to unblock ==="
 
           BLOCKED_NUMS=$(gh issue list -R "$REPO" --state open \
-            --label "agent:blocked" \
+            --label "agent:needs-recovery" \
             --limit 50 \
             --json number --jq '.[].number')
 
@@ -1030,7 +1047,7 @@ jobs:
             if [ -z "$DEPS" ]; then
               echo "Unblocking #$BNUM — stale blocked label (no hard 'Blocked by:' dependencies)."
               gh issue edit "$BNUM" -R "$REPO" \
-                --remove-label "agent:blocked" \
+                --remove-label "agent:needs-recovery" \
                 --add-label "agent:actionable" || true
               continue
             fi
@@ -1057,7 +1074,7 @@ jobs:
             if [ "$ALL_RESOLVED" = "true" ]; then
               echo "Unblocking #$BNUM — all dependencies resolved"
               gh issue edit "$BNUM" -R "$REPO" \
-                --remove-label "agent:blocked" \
+                --remove-label "agent:needs-recovery" \
                 --add-label "agent:actionable"
               {
                 echo "**Auto-unblocked** — all blocking dependencies are now resolved."
@@ -1135,7 +1152,7 @@ jobs:
                 select(.labels | map(.name) |
                   (contains(["agent:claimed"]) | not) and
                   (contains(["lifecycle/frozen"]) | not) and
-                  (contains(["agent:blocked"]) | not) and
+                  (contains(["agent:needs-recovery"]) | not) and
                   (contains(["verify:pending"]) | not) and
                   (
                     (contains(["agent:infra-blocked"]) | not) or
@@ -1283,7 +1300,7 @@ jobs:
             gh issue edit "$NUM" -R "$REPO" \
               --remove-label "agent:actionable" \
               --add-label "triage/missing-essentials" \
-              --add-label "agent:blocked"
+              --add-label "agent:needs-recovery"
             {
               echo "**Agent Work Loop** — paused due to low implementation readiness (score: $SCORE/3)."
               echo ""
@@ -1339,10 +1356,10 @@ jobs:
           DEPS=$(echo "$BODY" | grep -ioP 'blocked by:\s*#\K\d+' || true)
 
           if [ -z "$DEPS" ]; then
-            if echo "$LABELS" | grep -Fxq "agent:blocked" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
+            if echo "$LABELS" | grep -Fxq "agent:needs-recovery" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
               echo "Clearing stale blocked label on #$NUM (no hard blockers)."
               gh issue edit "$NUM" -R "$REPO" \
-                --remove-label "agent:blocked" \
+                --remove-label "agent:needs-recovery" \
                 --add-label "agent:actionable" || true
             fi
             echo "blocked=false" >> "$GITHUB_OUTPUT"
@@ -1359,16 +1376,16 @@ jobs:
               fi
               echo "::warning::Issue #$NUM is blocked by open dependency #$DEP"
               # Label it blocked and find next issue
-              gh issue edit "$NUM" -R "$REPO" --add-label "agent:blocked"
+              gh issue edit "$NUM" -R "$REPO" --add-label "agent:needs-recovery"
               echo "blocked=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           done
 
-          if echo "$LABELS" | grep -Fxq "agent:blocked" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
-            echo "All hard blockers resolved for #$NUM; removing agent:blocked."
+          if echo "$LABELS" | grep -Fxq "agent:needs-recovery" && ! echo "$LABELS" | grep -Fxq "triage/missing-essentials"; then
+            echo "All hard blockers resolved for #$NUM; removing agent:needs-recovery."
             gh issue edit "$NUM" -R "$REPO" \
-              --remove-label "agent:blocked" \
+              --remove-label "agent:needs-recovery" \
               --add-label "agent:actionable" || true
           fi
           echo "blocked=false" >> "$GITHUB_OUTPUT"
@@ -1799,7 +1816,7 @@ jobs:
           2. Diagnose why the source issue is blocked/non-convergent.
           3. Use `gh` commands to update the source issue with a concrete unblock plan:
              - tighten acceptance criteria and file-level scope
-             - correct labels (`agent:actionable`, `agent:blocked`, `agent:management-needed`, `verify:pending`) based on current state
+             - correct labels (`agent:actionable`, `agent:needs-recovery`, `agent:management-needed`, `verify:pending`) based on current state
              - add a concise management comment with next autonomous action
           4. Update this management ticket with what you changed and why.
           5. Do not modify repository code, do not create commits, and do not create a PR.
@@ -2588,7 +2605,7 @@ jobs:
               --remove-label "agent:claimed" \
               --remove-label "verify:pending" \
               --remove-label "agent:actionable" \
-              --add-label "agent:blocked" \
+              --add-label "agent:needs-recovery" \
               --add-label "agent:management-needed" \
               --add-label "agent:manual-review-needed" \
               --add-label "triage/missing-essentials"
@@ -2798,7 +2815,7 @@ jobs:
                   gh issue edit "$NUM" -R "$REPO" \
                     --remove-label "agent:claimed" \
                     --remove-label "verify:pending" \
-                    --remove-label "agent:blocked" \
+                    --remove-label "agent:needs-recovery" \
                     --remove-label "triage/missing-essentials" \
                     --add-label "agent:actionable" \
                     --add-label "triage/ready" \
@@ -2810,7 +2827,7 @@ jobs:
                   gh issue edit "$NUM" -R "$REPO" \
                     --remove-label "agent:claimed" \
                     --remove-label "verify:pending" \
-                    --remove-label "agent:blocked" \
+                    --remove-label "agent:needs-recovery" \
                     --remove-label "triage/missing-essentials" \
                     --remove-label "agent:actionable" \
                     --add-label "triage/ready" \
@@ -2823,7 +2840,7 @@ jobs:
                 gh issue edit "$NUM" -R "$REPO" \
                   --remove-label "agent:claimed" \
                   --remove-label "verify:pending" \
-                  --remove-label "agent:blocked" \
+                  --remove-label "agent:needs-recovery" \
                   --remove-label "triage/missing-essentials" \
                   --remove-label "agent:provider-auth-failure" \
                   --add-label "agent:actionable" \
