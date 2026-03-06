@@ -148,10 +148,16 @@ import { globalEventBus, createIndexChangeEvent } from '../events.js';
 /** Maximum time to wait while trying to recover/reacquire a stale lock */
 const LOCK_ACQUIRE_TIMEOUT_MS = 5_000;
 const LOCK_RETRY_INTERVAL_MS = 200;
+const LOCK_DIAGNOSTIC_REMEDIATION = 'Run `librarian doctor --heal` to diagnose and clear stale locks.';
 const EMBEDDING_INVALID_NORM_TOLERANCE = 1e-10;
 const EVIDENCE_FUZZY_MAX_DISTANCE_RATIO = 0.05;
 const EVIDENCE_MIN_FUZZY_LINES = 3;
 const PROCESS_STARTED_AT_ISO = new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString();
+const pendingLockDiagnosticWarnings = new Map<string, {
+  message: string;
+  context?: Record<string, unknown>;
+  suppressedCount: number;
+}>();
 
 interface StoredEvidenceRow {
   claim_id: string;
@@ -274,6 +280,66 @@ function isPidAlive(pid: number): boolean {
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+function normalizeLockDiagnosticValue(value: unknown): unknown {
+  if (value instanceof Error) {
+    return { name: value.name, message: value.message };
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeLockDiagnosticValue(entry));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, normalizeLockDiagnosticValue(entry)])
+    );
+  }
+  return value;
+}
+
+function buildLockDiagnosticSignature(message: string, context?: Record<string, unknown>): string {
+  return JSON.stringify({
+    message,
+    context: normalizeLockDiagnosticValue(context ?? {}),
+  });
+}
+
+function logDedupedLockDiagnostic(message: string, context?: Record<string, unknown>): void {
+  const signature = buildLockDiagnosticSignature(message, context);
+  const existing = pendingLockDiagnosticWarnings.get(signature);
+  if (!existing) {
+    pendingLockDiagnosticWarnings.set(signature, {
+      message,
+      context,
+      suppressedCount: 0,
+    });
+    logWarning(message, context);
+    return;
+  }
+
+  existing.suppressedCount += 1;
+  pendingLockDiagnosticWarnings.set(signature, existing);
+}
+
+function flushDedupedLockDiagnostics(): void {
+  for (const [signature, warning] of pendingLockDiagnosticWarnings.entries()) {
+    if (warning.suppressedCount > 0) {
+      logWarning('Repeated SQLite lock diagnostic suppressed', {
+        ...warning.context,
+        originalMessage: warning.message,
+        suppressedDuplicates: warning.suppressedCount,
+        remediation: LOCK_DIAGNOSTIC_REMEDIATION,
+      });
+    }
+    pendingLockDiagnosticWarnings.delete(signature);
+  }
+}
+
+export const __sqliteStorageTestUtils = {
+  flushDedupedLockDiagnostics,
+  logDedupedLockDiagnostic,
+};
 
 function inspectEmbeddingVectorValues(embedding: Float32Array): { normSq: number; hasNonFinite: boolean } {
   let normSq = 0;
@@ -570,7 +636,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         errors: [String(recoveryError)],
       }));
       if (recovery.recovered) {
-        logWarning('Recovered stale storage lock state; retrying lock acquisition', {
+        logDedupedLockDiagnostic('Recovered stale storage lock state; retrying lock acquisition', {
           path: this.lockPath,
           actions: recovery.actions,
         });
@@ -599,14 +665,14 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         try {
           const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
           if (proactiveRecovery.recovered) {
-            logWarning('Recovered stale lock state before acquisition', {
+            logDedupedLockDiagnostic('Recovered stale lock state before acquisition', {
               path: this.lockPath,
               actions: proactiveRecovery.actions,
             });
           }
         } catch (checkError) {
           // Recovery check failed; direct acquisition path still handles stale locks.
-          logWarning('Proactive lock recovery check failed, proceeding with acquisition', {
+          logDedupedLockDiagnostic('Proactive lock recovery check failed, proceeding with acquisition', {
             path: this.lockPath,
             error: checkError instanceof Error ? checkError.message : String(checkError),
           });
@@ -624,7 +690,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             const message = error instanceof Error ? error.message : String(error);
             throw new Error(`unverified_by_trace:storage_locked:${message}`);
           }
-          logWarning('Recovered storage lock state; retrying lock acquisition', {
+          logDedupedLockDiagnostic('Recovered storage lock state; retrying lock acquisition', {
             path: this.lockPath,
             actions: recovery.actions,
           });
@@ -667,6 +733,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.ensureAdvancedLibraryFeaturesTables();
         this.rebindWorkspacePathsIfNeeded();
 
+        flushDedupedLockDiagnostics();
         this.initialized = true;
         return;
       } catch (error) {
@@ -693,10 +760,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
               path: this.dbPath,
               actions: recovery.actions,
             });
+            flushDedupedLockDiagnostics();
             continue;
           }
         }
 
+        flushDedupedLockDiagnostics();
         throw error;
       }
     }

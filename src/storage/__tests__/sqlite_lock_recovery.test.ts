@@ -1,16 +1,57 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createSqliteStorage } from '../sqlite_storage.js';
+import { __sqliteStorageTestUtils, createSqliteStorage } from '../sqlite_storage.js';
 
 describe('sqlite lock recovery on initialize', () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
+    __sqliteStorageTestUtils.flushDedupedLockDiagnostics();
     await Promise.all(tempDirs.map((dir) => fs.rm(dir, { recursive: true, force: true })));
     tempDirs.length = 0;
+  });
+
+  it('deduplicates repeated identical lock diagnostics and emits one remediation summary', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const previousLevel = process.env.LIBRARIAN_LOG_LEVEL;
+    process.env.LIBRARIAN_LOG_LEVEL = 'warn';
+
+    try {
+      __sqliteStorageTestUtils.logDedupedLockDiagnostic('Recovered stale storage lock state; retrying lock acquisition', {
+        path: '/tmp/librarian.sqlite.lock',
+        actions: ['removed_lock'],
+      });
+      __sqliteStorageTestUtils.logDedupedLockDiagnostic('Recovered stale storage lock state; retrying lock acquisition', {
+        path: '/tmp/librarian.sqlite.lock',
+        actions: ['removed_lock'],
+      });
+      __sqliteStorageTestUtils.logDedupedLockDiagnostic('Recovered stale storage lock state; retrying lock acquisition', {
+        path: '/tmp/librarian.sqlite.lock',
+        actions: ['removed_lock'],
+      });
+      __sqliteStorageTestUtils.flushDedupedLockDiagnostics();
+
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls[0]?.[0]).toBe('Recovered stale storage lock state; retrying lock acquisition');
+      expect(warnSpy.mock.calls[1]?.[0]).toBe('Repeated SQLite lock diagnostic suppressed');
+      expect(warnSpy.mock.calls[1]?.[1]).toMatchObject({
+        path: '/tmp/librarian.sqlite.lock',
+        originalMessage: 'Recovered stale storage lock state; retrying lock acquisition',
+        suppressedDuplicates: 2,
+      });
+      expect(String((warnSpy.mock.calls[1]?.[1] as { remediation?: string } | undefined)?.remediation ?? '')).toContain('librarian doctor --heal');
+    } finally {
+      warnSpy.mockRestore();
+      if (previousLevel === undefined) {
+        delete process.env.LIBRARIAN_LOG_LEVEL;
+      } else {
+        process.env.LIBRARIAN_LOG_LEVEL = previousLevel;
+      }
+    }
   });
 
   it('recovers stale lock directories before re-trying lock acquisition', async () => {
