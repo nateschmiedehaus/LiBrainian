@@ -10,42 +10,42 @@ name: Agent Work Loop
 
 on:
   schedule:
-    - cron: '5,35 * * * *'  # Every 30 minutes
+    - cron: "5,35 * * * *" # Every 30 minutes
   workflow_dispatch:
     inputs:
       issue_number:
-        description: 'Specific issue number to work on (blank = auto-select)'
+        description: "Specific issue number to work on (blank = auto-select)"
         required: false
-        default: ''
+        default: ""
         type: string
       agent_provider:
-        description: 'Agent provider (auto = Claude first, then Codex fallback)'
+        description: "Agent provider (auto = Claude first, then Codex fallback)"
         required: false
-        default: 'auto'
+        default: "auto"
         type: choice
         options:
           - auto
           - claude
           - codex
       enable_fallback:
-        description: 'Allow automatic provider fallback when primary fails'
+        description: "Allow automatic provider fallback when primary fails"
         required: false
         default: true
         type: boolean
       dry_run:
-        description: 'Dry run — find issue but do not dispatch agent'
+        description: "Dry run — find issue but do not dispatch agent"
         required: false
         default: false
         type: boolean
       max_turns:
-        description: 'Max agent turns (default 35)'
+        description: "Max agent turns (default 35)"
         required: false
-        default: '35'
+        default: "35"
         type: string
       batch_remaining:
-        description: 'Autonomous sequential run budget (1 = single run, 15 = run 15 issues sequentially)'
+        description: "Autonomous sequential run budget (1 = single run, 15 = run 15 issues sequentially)"
         required: false
-        default: '1'
+        default: "1"
         type: string
 
 permissions:
@@ -1692,12 +1692,20 @@ jobs:
           TEST_PROFILE="foundation"
           MILESTONE_BONUS=0
           META_CHECK_INTERVAL=12
+          TRIAGE_TURN_BUDGET=6
+          EXPLORATION_COMMAND_BUDGET=2
+          DIRECT_TEST_PRIORITY="preferred"
+          DEBUG_BOOTSTRAP_POLICY="avoid"
 
           case "$MILESTONE" in
             "M0: Dogfood-Ready")
               COMPLEXITY="high-foundation"
               TEST_PROFILE="foundation"
               MILESTONE_BONUS=14
+              TRIAGE_TURN_BUDGET=5
+              EXPLORATION_COMMAND_BUDGET=1
+              DIRECT_TEST_PRIORITY="required"
+              DEBUG_BOOTSTRAP_POLICY="forbid-unless-existing-path-missing"
               ;;
             "M1: Construction MVP")
               COMPLEXITY="medium-high"
@@ -1729,18 +1737,31 @@ jobs:
           if [ "$ATTEMPTS" -ge 1 ]; then
             BONUS=12
             FOCUS="rework"
+            TRIAGE_TURN_BUDGET=4
+            EXPLORATION_COMMAND_BUDGET=1
+            DIRECT_TEST_PRIORITY="required"
+            DEBUG_BOOTSTRAP_POLICY="forbid-unless-existing-path-missing"
           fi
           if [ "$ATTEMPTS" -ge 2 ]; then
             BONUS=20
             FOCUS="decomposition-first"
+            TRIAGE_TURN_BUDGET=3
+            DIRECT_TEST_PRIORITY="mandatory"
+            DEBUG_BOOTSTRAP_POLICY="forbid-unless-no-repro-path"
           fi
           if [ "$ATTEMPTS" -ge 3 ]; then
             BONUS=30
             FOCUS="narrow-scope-only"
+            TRIAGE_TURN_BUDGET=3
+            DIRECT_TEST_PRIORITY="mandatory"
+            DEBUG_BOOTSTRAP_POLICY="forbid-unless-no-repro-path"
           fi
           if [ "$ATTEMPTS" -ge 4 ]; then
             BONUS=38
             FOCUS="stabilize-and-escalate"
+            TRIAGE_TURN_BUDGET=2
+            DIRECT_TEST_PRIORITY="mandatory"
+            DEBUG_BOOTSTRAP_POLICY="forbid"
           fi
 
           EFFECTIVE=$((BASE_TURNS + BONUS + MILESTONE_BONUS))
@@ -1759,7 +1780,11 @@ jobs:
           echo "test_profile=$TEST_PROFILE" >> "$GITHUB_OUTPUT"
           echo "long_run=$LONG_RUN" >> "$GITHUB_OUTPUT"
           echo "meta_check_interval=$META_CHECK_INTERVAL" >> "$GITHUB_OUTPUT"
-          echo "Adaptive strategy: milestone=$MILESTONE complexity=$COMPLEXITY attempts=$ATTEMPTS base=$BASE_TURNS effective=$EFFECTIVE focus=$FOCUS test_profile=$TEST_PROFILE long_run=$LONG_RUN meta_check_interval=$META_CHECK_INTERVAL"
+          echo "triage_turn_budget=$TRIAGE_TURN_BUDGET" >> "$GITHUB_OUTPUT"
+          echo "exploration_command_budget=$EXPLORATION_COMMAND_BUDGET" >> "$GITHUB_OUTPUT"
+          echo "direct_test_priority=$DIRECT_TEST_PRIORITY" >> "$GITHUB_OUTPUT"
+          echo "debug_bootstrap_policy=$DEBUG_BOOTSTRAP_POLICY" >> "$GITHUB_OUTPUT"
+          echo "Adaptive strategy: milestone=$MILESTONE complexity=$COMPLEXITY attempts=$ATTEMPTS base=$BASE_TURNS effective=$EFFECTIVE focus=$FOCUS test_profile=$TEST_PROFILE long_run=$LONG_RUN meta_check_interval=$META_CHECK_INTERVAL triage_turn_budget=$TRIAGE_TURN_BUDGET exploration_command_budget=$EXPLORATION_COMMAND_BUDGET direct_test_priority=$DIRECT_TEST_PRIORITY debug_bootstrap_policy=$DEBUG_BOOTSTRAP_POLICY"
 
       - name: Resolve provider plan
         if: >-
@@ -1913,8 +1938,8 @@ jobs:
           inputs.dry_run != true && inputs.dry_run != 'true' &&
           steps.breaker.outputs.open != 'true'
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install and build
         id: install-build
@@ -2059,6 +2084,173 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read issue comments for retry context
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        run: |
+          if ! gh issue view ${{ steps.find.outputs.issue_number }} -R "$REPO" --json comments > .claude-issue-comments.json; then
+            printf '{"comments":[]}\n' > .claude-issue-comments.json
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build execution brief
+        if: >-
+          steps.find.outputs.issue_number &&
+          steps.deps.outputs.blocked != 'true' &&
+          steps.retries.outputs.shelved != 'true' &&
+          steps.readiness.outputs.ready != 'false' &&
+          inputs.dry_run != true && inputs.dry_run != 'true' &&
+          steps.breaker.outputs.open != 'true'
+        id: execution-brief
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          function readJson(path, fallback) {
+            try {
+              return JSON.parse(fs.readFileSync(path, 'utf8'));
+            } catch {
+              return fallback;
+            }
+          }
+
+          function pushUnique(list, seen, value) {
+            if (!value || seen.has(value)) return;
+            seen.add(value);
+            list.push(value);
+          }
+
+          const issue = readJson('.claude-issue-context.json', {});
+          const issueComments = readJson('.claude-issue-comments.json', { comments: [] });
+          const comments = Array.isArray(issueComments.comments) ? issueComments.comments.slice(-10) : [];
+          const labels = Array.isArray(issue.labels)
+            ? issue.labels.map((label) => (typeof label === 'string' ? label : label?.name)).filter(Boolean)
+            : [];
+
+          const textEntries = [
+            { source: 'issue', text: `${issue.title || ''}\n${issue.body || ''}` },
+            ...comments.map((comment, index) => ({
+              source: `comment-${index + 1}`,
+              text: comment?.body || '',
+            })),
+          ];
+
+          const pathPattern = /\b((?:src|scripts|docs|state|\.github)\/[A-Za-z0-9_./-]+\.(?:ts|tsx|js|mjs|cjs|json|md|yml|yaml))\b/g;
+          const commandPattern = /`((?:npm|npx|node|pnpm|yarn|vitest|\.\/ask)[^`\n]+)`/g;
+          const signalPattern = /(fail|failing|failed|error|expected|timeout|timed out|enoent|regression|broken|missing|unknown)/i;
+
+          const files = [];
+          const fileSeen = new Set();
+          const tests = [];
+          const testSeen = new Set();
+          const commands = [];
+          const commandSeen = new Set();
+          const signals = [];
+          const signalSeen = new Set();
+
+          for (const entry of textEntries) {
+            const text = entry.text || '';
+
+            for (const match of text.matchAll(pathPattern)) {
+              const filePath = match[1];
+              pushUnique(files, fileSeen, filePath);
+              if (/(__tests__|\.test\.|\.spec\.)/.test(filePath)) {
+                pushUnique(tests, testSeen, filePath);
+              }
+            }
+
+            for (const match of text.matchAll(commandPattern)) {
+              pushUnique(commands, commandSeen, match[1].trim());
+            }
+
+            for (const rawLine of text.split('\n')) {
+              const line = rawLine.trim().replace(/\s+/g, ' ');
+              if (!line || !signalPattern.test(line)) continue;
+              const normalized = line.slice(0, 220);
+              if (signalSeen.has(normalized)) continue;
+              signalSeen.add(normalized);
+              signals.push(normalized);
+            }
+          }
+
+          const brief = [];
+          brief.push(`# Execution Brief for issue #${process.env.ISSUE_NUMBER}`);
+          brief.push('');
+          brief.push('## Opening path');
+          if (tests.length > 0) {
+            brief.push('- Start with one of the explicit test targets below before broad repo exploration or ad hoc debug harnesses.');
+          } else if (commands.length > 0) {
+            brief.push('- Start with one of the explicit commands below before inventing a new reproduction path.');
+          } else if (files.length > 0) {
+            brief.push('- No explicit failing suite was extracted; start from the cited files below and derive the smallest reproduction path there.');
+          } else {
+            brief.push('- No explicit retry targets were extracted; derive the smallest failing path from the issue body before broad search.');
+          }
+          if (labels.includes('verify:fail')) {
+            brief.push('- This issue currently carries `verify:fail`; prefer the most recent failure signals below over generic repo inspection.');
+          }
+          brief.push('');
+
+          brief.push('## Explicit test targets');
+          if (tests.length > 0) {
+            for (const test of tests.slice(0, 12)) {
+              brief.push(`- \`${test}\``);
+            }
+          } else {
+            brief.push('- None extracted');
+          }
+          brief.push('');
+
+          brief.push('## Explicit file targets');
+          if (files.length > 0) {
+            for (const filePath of files.slice(0, 16)) {
+              brief.push(`- \`${filePath}\``);
+            }
+          } else {
+            brief.push('- None extracted');
+          }
+          brief.push('');
+
+          brief.push('## Explicit commands');
+          if (commands.length > 0) {
+            for (const command of commands.slice(0, 10)) {
+              brief.push(`- \`${command}\``);
+            }
+          } else {
+            brief.push('- None extracted');
+          }
+          brief.push('');
+
+          brief.push('## Recent failure signals');
+          if (signals.length > 0) {
+            for (const signal of signals.slice(0, 12)) {
+              brief.push(`- ${signal}`);
+            }
+          } else {
+            brief.push('- None extracted');
+          }
+          brief.push('');
+
+          fs.writeFileSync('.agent-execution-brief.md', `${brief.join('\n')}\n`);
+
+          const githubOutput = process.env.GITHUB_OUTPUT;
+          if (githubOutput) {
+            fs.appendFileSync(githubOutput, `test_target_count=${tests.length}\n`);
+            fs.appendFileSync(githubOutput, `file_target_count=${files.length}\n`);
+            fs.appendFileSync(githubOutput, `command_target_count=${commands.length}\n`);
+            fs.appendFileSync(githubOutput, `signal_count=${signals.length}\n`);
+            fs.appendFileSync(githubOutput, `has_retry_targets=${tests.length > 0 || commands.length > 0 || files.length > 0 ? 'true' : 'false'}\n`);
+          }
+          NODE
+        env:
+          ISSUE_NUMBER: ${{ steps.find.outputs.issue_number }}
+
       - name: Snapshot baseline worktree context
         if: >-
           steps.find.outputs.issue_number &&
@@ -2124,13 +2316,20 @@ jobs:
           - Meta checkpoint interval (turns): ${{ steps.strategy.outputs.meta_check_interval }}
           - Focus mode: ${{ steps.strategy.outputs.focus }}
           - Test profile: ${{ steps.strategy.outputs.test_profile }}
+          - Triage turn budget: ${{ steps.strategy.outputs.triage_turn_budget }}
+          - Broad exploration command budget: ${{ steps.strategy.outputs.exploration_command_budget }}
+          - Direct test priority: ${{ steps.strategy.outputs.direct_test_priority }}
+          - Debug/bootstrap policy: ${{ steps.strategy.outputs.debug_bootstrap_policy }}
+          - Execution brief targets: tests=${{ steps.execution-brief.outputs.test_target_count || '0' }}, files=${{ steps.execution-brief.outputs.file_target_count || '0' }}, commands=${{ steps.execution-brief.outputs.command_target_count || '0' }}, signals=${{ steps.execution-brief.outputs.signal_count || '0' }}
           - Run id: ${{ github.run_id }}
           - Provider plan: primary=${{ steps.provider.outputs.primary }}, fallback=${{ steps.provider.outputs.fallback || 'none' }}
 
           ## Issue Context
           Read `.claude-issue-context.json` first.
+          Then read `.agent-execution-brief.md`.
           Then read `.agent-worktree-before.json`.
           If this issue has prior failed attempts, prioritize narrowing scope and shipping one concrete, verifiable increment.
+          If `.agent-execution-brief.md` contains explicit failing suites or commands, treat them as the default first reproduction path.
 
           ## Worktree Context
           - Baseline dirty files before your work: ${{ steps.worktree-before.outputs.dirty_count || '0' }}
@@ -2139,6 +2338,14 @@ jobs:
           Treat baseline dirty state as foreign state unless the issue explicitly requires touching it.
           Do not modify, stage, or commit those files implicitly.
           If the issue genuinely requires one of those files, make that decision explicit in your evidence comment and create an intentional commit yourself.
+
+          ## Opening sequence
+          1. Read `.claude-issue-context.json`, `.agent-execution-brief.md`, and `.agent-worktree-before.json`.
+          2. Within `${{ steps.strategy.outputs.triage_turn_budget }}` turns, do one of:
+             - reproduce with an explicit failing suite/command from `.agent-execution-brief.md`
+             - or add targeted instrumentation in one cited file to expose the failing shape
+          3. Use at most `${{ steps.strategy.outputs.exploration_command_budget }}` broad exploration/debug commands before switching to the cited suites/files.
+          4. Do not create a bespoke bootstrap/debug harness unless `${{ steps.strategy.outputs.debug_bootstrap_policy }}` allows it and you explain in the issue comment why the cited paths were insufficient.
 
           ## Hard Requirements
           1. Make code changes (non-empty diff) and commit them.
@@ -2158,6 +2365,8 @@ jobs:
           - Focused minimal edits. No unrelated refactors.
           - Do not modify CLAUDE.md, AGENTS.md, or workflow files.
           - Start writing code within first 5 turns.
+          - Existing failing suites from the issue body or recent comments outrank ad hoc reproduction paths.
+          - If extracted retry targets exist, run or instrument them before broad repo scans or standalone debug scripts.
           - If blocked, still commit concrete progress (failing test, guardrail, or instrumentation).
           - Avoid shell pipes; redirect output to files and inspect with `tail`.
 
