@@ -32,6 +32,18 @@ const cleanupTasks: Array<() => void> = [];
 const envSnapshot = { ...process.env };
 const execaMock = vi.mocked(execa);
 const TEST_MAX_CLI_BINARY_BYTES = 50 * 1024 * 1024;
+const NESTED_MARKER_KEYS = [
+  'CLAUDE_CODE',
+  'CLAUDECODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SESSION',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_SESSION',
+  'SESSION_ID',
+  'ANTHROPIC_CLAUDE_CODE',
+  'ANTHROPIC_CLAUDE_CODE_SESSION',
+] as const;
 
 function buildExecaResult(options: { exitCode: number; stdout?: string; stderr?: string }) {
   return {
@@ -88,6 +100,9 @@ beforeEach(() => {
   manifestState.hashes.codex.length = 0;
   execaMock.mockReset();
   restoreEnv(envSnapshot);
+  for (const key of NESTED_MARKER_KEYS) {
+    delete process.env[key];
+  }
 });
 
 afterEach(() => {
@@ -102,6 +117,9 @@ afterEach(() => {
   }
   savedProbes.clear();
   restoreEnv(envSnapshot);
+  for (const key of NESTED_MARKER_KEYS) {
+    delete process.env[key];
+  }
 });
 
 describe('llm provider discovery', () => {
@@ -179,22 +197,9 @@ describe('llm provider discovery', () => {
     expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers claude during nested Claude Code sessions (env stripping makes CLI work)', async () => {
+  it('skips claude CLI probing during nested Claude Code sessions and selects codex', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
 
-    const claudeProbe: LlmProviderProbe = {
-      descriptor: {
-        id: 'claude',
-        name: 'Claude',
-        authMethod: 'cli_login',
-        defaultModel: 'claude-model',
-        priority: 10,
-        supportsEmbeddings: false,
-        supportsChat: true,
-      },
-      envVars: [],
-      probe: async () => ({ available: true, authenticated: true }),
-    };
     const codexProbe: LlmProviderProbe = {
       descriptor: {
         id: 'codex',
@@ -209,32 +214,17 @@ describe('llm provider discovery', () => {
       probe: async () => ({ available: true, authenticated: true }),
     };
 
-    llmProviderRegistry.register(claudeProbe);
+    llmProviderRegistry.register(claudeCliProbe);
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
-    // Nested sessions no longer force codex fallback — Claude CLI works via env stripping
-    expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.provider).toBe('codex');
+    expect(discovered?.modelId).toBe('codex-model');
   });
 
-  it('prefers claude during nested Claude Code sessions when ANTHROPIC_API_KEY is configured', async () => {
+  it('keeps claude available during nested sessions when ANTHROPIC_API_KEY is configured', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
-
-    const claudeProbe: LlmProviderProbe = {
-      descriptor: {
-        id: 'claude',
-        name: 'Claude',
-        authMethod: 'cli_login',
-        defaultModel: 'claude-model',
-        priority: 10,
-        supportsEmbeddings: false,
-        supportsChat: true,
-      },
-      envVars: [],
-      probe: async () => ({ available: true, authenticated: true }),
-    };
     const codexProbe: LlmProviderProbe = {
       descriptor: {
         id: 'codex',
@@ -249,31 +239,17 @@ describe('llm provider discovery', () => {
       probe: async () => ({ available: true, authenticated: true }),
     };
 
-    llmProviderRegistry.register(claudeProbe);
+    llmProviderRegistry.register(claudeCliProbe);
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
     expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.modelId).toBe(claudeCliProbe.descriptor.defaultModel);
   });
 
-  it('prefers claude during nested Claude Code sessions when Claude broker is configured', async () => {
+  it('keeps claude available during nested sessions when Claude broker is configured', async () => {
     process.env.CLAUDE_CODE_ENTRYPOINT = '1';
     process.env.LIBRARIAN_CLAUDE_BROKER_URL = 'http://127.0.0.1:8787';
-
-    const claudeProbe: LlmProviderProbe = {
-      descriptor: {
-        id: 'claude',
-        name: 'Claude',
-        authMethod: 'cli_login',
-        defaultModel: 'claude-model',
-        priority: 10,
-        supportsEmbeddings: false,
-        supportsChat: true,
-      },
-      envVars: [],
-      probe: async () => ({ available: true, authenticated: true }),
-    };
     const codexProbe: LlmProviderProbe = {
       descriptor: {
         id: 'codex',
@@ -288,12 +264,12 @@ describe('llm provider discovery', () => {
       probe: async () => ({ available: true, authenticated: true }),
     };
 
-    llmProviderRegistry.register(claudeProbe);
+    llmProviderRegistry.register(claudeCliProbe);
     llmProviderRegistry.register(codexProbe);
 
     const discovered = await discoverLlmProvider({ forceRefresh: true });
     expect(discovered?.provider).toBe('claude');
-    expect(discovered?.modelId).toBe('claude-model');
+    expect(discovered?.modelId).toBe(claudeCliProbe.descriptor.defaultModel);
   });
 
   it('returns null when no providers are available', async () => {

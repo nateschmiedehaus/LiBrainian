@@ -5,6 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { CLI_BINARY_HASHES } from './cli_hash_manifest.js';
+import { detectNestedClaudeSession } from './nested_session.js';
+import {
+  hasEnvValue,
+  shouldUseAnthropicApiTransport,
+  shouldUseClaudeBrokerTransport,
+} from './llm_transport_env.js';
 
 export type LlmAuthMethod = 'cli_login' | 'local' | 'oauth' | 'none' | 'api_key';
 export type LibrarianLlmProvider = 'claude' | 'codex';
@@ -41,25 +47,16 @@ export interface DiscoveredProvider {
   status: LlmProviderProbeResult;
 }
 
-function hasTruthyEnvValue(value: string | undefined): boolean {
-  if (!value) return false;
-  const normalized = value.trim().toLowerCase();
-  return normalized.length > 0 && normalized !== '0' && normalized !== 'false' && normalized !== 'off' && normalized !== 'no';
-}
-
 function resolveHostPreferredProvider(env: NodeJS.ProcessEnv = process.env): LibrarianLlmProvider | null {
   const explicit = env.LIBRARIAN_LLM_PROVIDER;
   if (explicit === 'claude' || explicit === 'codex') {
     return explicit;
   }
 
-  // Nested Claude Code sessions are now supported — the CLI adapter strips
-  // session env vars before spawning, so we no longer force a codex fallback.
-
   const codexHostHints =
-    hasTruthyEnvValue(env.CODEX_HOME)
-    || hasTruthyEnvValue(env.CODEX_PROFILE)
-    || hasTruthyEnvValue(env.CODEX_MODEL);
+    hasEnvValue(env.CODEX_HOME)
+    || hasEnvValue(env.CODEX_PROFILE)
+    || hasEnvValue(env.CODEX_MODEL);
   if (codexHostHints) {
     return 'codex';
   }
@@ -772,6 +769,30 @@ function resolveCodexHome(): string | null {
 
 async function checkClaudeCli(): Promise<LlmProviderProbeResult> {
   try {
+    const nested = detectNestedClaudeSession();
+    if (shouldUseAnthropicApiTransport()) {
+      return {
+        available: true,
+        authenticated: true,
+        metadata: { transport: 'api' },
+      };
+    }
+    if (shouldUseClaudeBrokerTransport()) {
+      return {
+        available: true,
+        authenticated: true,
+        metadata: { transport: 'broker' },
+      };
+    }
+    if (nested.isNested) {
+      const markers = nested.markers.length > 0 ? nested.markers.join(', ') : 'unknown markers';
+      return {
+        available: false,
+        authenticated: false,
+        error: `Nested Claude Code session detected (${markers})`,
+      };
+    }
+
     const version = await runCliCheck('claude', ['--version']);
     if (!version.ok) {
       return {

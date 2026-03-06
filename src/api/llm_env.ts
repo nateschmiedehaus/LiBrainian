@@ -4,40 +4,73 @@ import {
   llmProviderRegistry,
   type LibrarianLlmProvider,
 } from './llm_provider_discovery.js';
+import { detectNestedClaudeSession } from './nested_session.js';
+import {
+  hasCodexFallbackSignal,
+  shouldUseAnthropicApiTransport,
+  shouldUseClaudeBrokerTransport,
+} from './llm_transport_env.js';
 
 export type { LibrarianLlmProvider };
 export { llmProviderRegistry };
 
-export function resolveLibrarianProvider(): LibrarianLlmProvider | undefined {
+export interface SynthesisAvailability {
+  synthesisMode: 'llm' | 'structural-only';
+  synthesisUnavailableReason?: string;
+}
+
+export function resolveLibrarianProvider(env: NodeJS.ProcessEnv = process.env): LibrarianLlmProvider | undefined {
   const raw =
-    process.env.LIBRARIAN_LLM_PROVIDER ??
-    process.env.WAVE0_LLM_PROVIDER ??
-    process.env.LLM_PROVIDER;
+    env.LIBRARIAN_LLM_PROVIDER ??
+    env.WAVE0_LLM_PROVIDER ??
+    env.LLM_PROVIDER;
   return raw === 'claude' || raw === 'codex' ? raw : undefined;
 }
 
 export const resolveLiBrainianProvider = resolveLibrarianProvider;
 
-export function resolveLibrarianModelId(provider?: LibrarianLlmProvider): string | undefined {
-  if (process.env.LIBRARIAN_LLM_MODEL) return process.env.LIBRARIAN_LLM_MODEL;
+export function resolveLibrarianModelId(
+  provider?: LibrarianLlmProvider,
+  env: NodeJS.ProcessEnv = process.env
+): string | undefined {
+  if (env.LIBRARIAN_LLM_MODEL) return env.LIBRARIAN_LLM_MODEL;
   if (provider === 'claude') {
-    return process.env.CLAUDE_MODEL ?? process.env.WAVE0_LLM_MODEL;
+    return env.CLAUDE_MODEL ?? env.WAVE0_LLM_MODEL;
   }
   if (provider === 'codex') {
-    return process.env.CODEX_MODEL ?? process.env.WAVE0_LLM_MODEL;
+    return env.CODEX_MODEL ?? env.WAVE0_LLM_MODEL;
   }
-  return process.env.CLAUDE_MODEL ?? process.env.CODEX_MODEL ?? process.env.WAVE0_LLM_MODEL;
+  return env.CLAUDE_MODEL ?? env.CODEX_MODEL ?? env.WAVE0_LLM_MODEL;
 }
 
 export const resolveLiBrainianModelId = resolveLibrarianModelId;
 
-export function resolveLibrarianModelConfig(): { provider?: LibrarianLlmProvider; modelId?: string } {
-  const provider = resolveLibrarianProvider();
-  const modelId = resolveLibrarianModelId(provider);
+export function resolveLibrarianModelConfig(
+  env: NodeJS.ProcessEnv = process.env
+): { provider?: LibrarianLlmProvider; modelId?: string } {
+  const provider = resolveLibrarianProvider(env);
+  const modelId = resolveLibrarianModelId(provider, env);
   return { provider, modelId };
 }
 
 export const resolveLiBrainianModelConfig = resolveLibrarianModelConfig;
+
+export function resolveSynthesisAvailability(env: NodeJS.ProcessEnv = process.env): SynthesisAvailability {
+  const nested = detectNestedClaudeSession(env);
+  if (!nested.isNested) {
+    return { synthesisMode: 'llm' };
+  }
+  if (shouldUseAnthropicApiTransport(env) || shouldUseClaudeBrokerTransport(env) || hasCodexFallbackSignal(env)) {
+    return { synthesisMode: 'llm' };
+  }
+  const markers = nested.markers.length > 0 ? nested.markers.join(', ') : 'unknown markers';
+  return {
+    synthesisMode: 'structural-only',
+    synthesisUnavailableReason: `Nested Claude Code session detected (${markers}). Claude CLI is disabled and no alternative LLM transport is configured.`,
+  };
+}
+
+export const resolveLiBrainianSynthesisAvailability = resolveSynthesisAvailability;
 
 export async function resolveLibrarianModelConfigWithDiscovery(): Promise<{
   provider: LibrarianLlmProvider;

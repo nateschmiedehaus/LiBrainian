@@ -382,6 +382,45 @@ describe('statusCommand', () => {
     }
   });
 
+  it('reports structural-only synthesis mode when nested Claude session markers are present without an alternate route', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.LIBRARIAN_CLAUDE_BROKER_URL;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.LIBRARIAN_LLM_PROVIDER;
+    delete process.env.CODEX_HOME;
+    delete process.env.CODEX_MODEL;
+    delete process.env.CODEX_PROFILE;
+    process.env.CLAUDE_CODE_SESSION = '1';
+
+    try {
+      await statusCommand({ workspace, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        runtime?: {
+          synthesisMode?: string;
+          synthesisUnavailableReason?: string;
+          unavailableFeatures?: string[];
+        };
+        bootstrap?: {
+          currentRun?: {
+            synthesis?: {
+              synthesisMode?: string;
+              synthesisUnavailableReason?: string;
+            };
+          } | null;
+        };
+      };
+      expect(parsed.runtime?.synthesisMode).toBe('structural-only');
+      expect(parsed.runtime?.synthesisUnavailableReason).toMatch(/nested claude code session/i);
+      expect(parsed.runtime?.unavailableFeatures).toContain('synthesis');
+      expect(parsed.bootstrap?.currentRun).toBeNull();
+    } finally {
+      delete process.env.CLAUDE_CODE_SESSION;
+    }
+  });
+
   it('includes freshness counts in JSON output when git data is available', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     mockStorage.getMetadata.mockResolvedValue({
