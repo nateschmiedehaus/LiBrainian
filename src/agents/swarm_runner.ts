@@ -202,7 +202,8 @@ export class SwarmRunner {
     const { pending, contentHashes } = await filterPendingFiles(
       ordered,
       checkpoint,
-      this.forceReindex
+      this.forceReindex,
+      this.storage,
     );
 
     const graphAccumulator = createGraphAccumulator();
@@ -485,7 +486,8 @@ async function computeFileHash(filePath: string): Promise<string> {
 async function filterPendingFiles(
   files: string[],
   checkpoint: CheckpointV2,
-  forceReindex: boolean
+  forceReindex: boolean,
+  storage: LibrarianStorage,
 ): Promise<{ pending: string[]; contentHashes: Map<string, string> }> {
   if (forceReindex) {
     // Compute all hashes upfront for forceReindex
@@ -524,6 +526,19 @@ async function filterPendingFiles(
           return { file, needsProcessing: true, reason: 'content_changed' };
         }
 
+        const storedState = await readStoredFileIndexState(storage, file);
+        if (!storedState.checksum) {
+          return { file, needsProcessing: true, reason: 'storage_missing' };
+        }
+
+        if (storedState.checksum !== currentHash) {
+          return { file, needsProcessing: true, reason: 'storage_stale' };
+        }
+
+        if (storedState.hasArtifacts === false) {
+          return { file, needsProcessing: true, reason: 'artifacts_missing' };
+        }
+
         // File is up-to-date
         return { file, needsProcessing: false, reason: 'unchanged' };
       })
@@ -537,6 +552,40 @@ async function filterPendingFiles(
   }
 
   return { pending, contentHashes };
+}
+
+async function readStoredFileIndexState(
+  storage: LibrarianStorage,
+  filePath: string,
+): Promise<{ checksum: string | null; hasArtifacts: boolean | null }> {
+  let checksum: string | null = null;
+  try {
+    checksum = await storage.getFileChecksum(filePath);
+  } catch {
+    checksum = null;
+  }
+
+  const statsStore = storage as LibrarianStorage & {
+    getFileIndexStats?: (path: string) => Promise<{
+      functions: number;
+      modules: number;
+      embeddings: number;
+      moduleEmbeddings: number;
+      contextPacks: number;
+    }>;
+  };
+
+  if (typeof statsStore.getFileIndexStats !== 'function') {
+    return { checksum, hasArtifacts: null };
+  }
+
+  try {
+    const stats = await statsStore.getFileIndexStats(filePath);
+    const artifactCount = stats.functions + stats.modules + stats.embeddings + stats.moduleEmbeddings + stats.contextPacks;
+    return { checksum, hasArtifacts: artifactCount > 0 };
+  } catch {
+    return { checksum, hasArtifacts: null };
+  }
 }
 
 // Legacy V1 functions (kept for reference, but no longer used)

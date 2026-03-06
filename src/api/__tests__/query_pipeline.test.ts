@@ -610,6 +610,43 @@ describe('query pipeline definition', () => {
     expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
   });
 
+  it('prefers quick synthesis when retrieval is degraded even for non-summary intents', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const createQuickAnswerFn = vi.fn().mockReturnValue({
+      answer: 'degraded-quick',
+      confidence: 0.65,
+      citations: ['pack-1'],
+      keyInsights: ['insight'],
+      uncertainties: [],
+    });
+    const synthesizeQueryAnswerFn = vi.fn();
+
+    const explanationParts: string[] = [];
+    const result = await __testing.runSynthesisStage({
+      query: { intent: 'How are errors handled across the codebase?', depth: 'L1' },
+      storage: {} as LibrarianStorage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts,
+      synthesisEnabled: true,
+      preferQuickSynthesis: true,
+      workspaceRoot: process.cwd(),
+      canAnswerFromSummariesFn: () => false,
+      createQuickAnswerFn,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesis?.answer).toBe('degraded-quick');
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
+    expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
+    expect(explanationParts.join(' ')).toContain('degraded retrieval state');
+  });
+
   it('uses full synthesis when summaries are insufficient', async () => {
     const stageTracker = __testing.createStageTracker();
     const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {

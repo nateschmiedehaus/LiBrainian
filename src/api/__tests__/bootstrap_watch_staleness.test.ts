@@ -176,6 +176,9 @@ describe('isBootstrapRequired watch freshness checks', () => {
 
     try {
       await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(path.join(librarianDir, 'librarian.sqlite'), '', 'utf8');
+      await fs.writeFile(path.join(librarianDir, 'knowledge.db'), '', 'utf8');
+      await fs.writeFile(path.join(librarianDir, 'evidence_ledger.db'), '', 'utf8');
       await fs.writeFile(
         path.join(librarianDir, 'bootstrap_consistency.json'),
         JSON.stringify({
@@ -249,6 +252,51 @@ describe('isBootstrapRequired watch freshness checks', () => {
       expect(result.required).toBe(true);
       expect(result.reason).toContain('Bootstrap artifacts missing');
       expect(result.reason).toContain('knowledge.db');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('requires bootstrap when consistency snapshot shows an effectively empty librarian.sqlite', async () => {
+    const { isBootstrapRequired } = await import('../bootstrap.js');
+    const { getWatchState } = await import('../../state/watch_state.js');
+    const { getCurrentGitSha } = await import('../../utils/git.js');
+
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-consistency-skew-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const nowIso = new Date().toISOString();
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(path.join(librarianDir, 'librarian.sqlite'), '', 'utf8');
+      await fs.writeFile(path.join(librarianDir, 'knowledge.db'), '', 'utf8');
+      await fs.writeFile(path.join(librarianDir, 'evidence_ledger.db'), '', 'utf8');
+      await fs.writeFile(
+        path.join(librarianDir, 'bootstrap_consistency.json'),
+        JSON.stringify({
+          kind: 'BootstrapConsistencyState.v1',
+          schema_version: 1,
+          workspace,
+          generation_id: 'gen-test',
+          status: 'complete',
+          started_at: nowIso,
+          updated_at: nowIso,
+          completed_at: nowIso,
+          artifacts: {
+            librarian: { path: path.join(librarianDir, 'librarian.sqlite'), exists: true, size_bytes: 4096 },
+            knowledge: { path: path.join(librarianDir, 'knowledge.db'), exists: true, size_bytes: 64000 },
+            evidence: { path: path.join(librarianDir, 'evidence_ledger.db'), exists: true, size_bytes: 64000 },
+          },
+        }),
+        'utf8',
+      );
+
+      vi.mocked(getWatchState).mockResolvedValue(null as never);
+      vi.mocked(getCurrentGitSha).mockReturnValue(undefined);
+
+      const result = await isBootstrapRequired(workspace, createStorageStub());
+      expect(result.required).toBe(true);
+      expect(result.reason).toContain('effectively empty');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

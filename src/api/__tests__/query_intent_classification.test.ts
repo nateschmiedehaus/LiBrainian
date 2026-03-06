@@ -82,6 +82,14 @@ describe('classifyQueryIntent', () => {
       expect(result.isCodeQuery).toBe(true);
       expect(result.isMetaQuery).toBe(false);
     });
+
+    it('classifies mixed location + structure questions as implementation-first queries', () => {
+      const result = classifyQueryIntent('Where is the query pipeline implemented and what are its stages?');
+      expect(result.isCodeQuery).toBe(true);
+      expect(result.isMetaQuery).toBe(false);
+      expect(result.isFeatureLocationQuery).toBe(true);
+      expect(result.featureTarget).toBe('query pipeline');
+    });
   });
 
   describe('hybrid query detection', () => {

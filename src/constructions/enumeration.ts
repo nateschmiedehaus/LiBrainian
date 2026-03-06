@@ -629,21 +629,26 @@ async function enumerateTestFiles(
   workspace: string,
   _storage?: LibrarianStorage
 ): Promise<EnumeratedEntity[]> {
-  const patterns = ['**/*.test.ts', '**/*.spec.ts', '**/*.test.tsx', '**/*.spec.tsx'];
+  const pattern = '**/*.{test,spec}.{ts,tsx}';
+  const ignore = [
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/.git/**',
+    '**/.librarian/**',
+    '**/state/**',
+    '**/coverage/**',
+    '**/tmp/**',
+    '**/.tmp/**',
+  ];
 
   try {
-    const files: string[] = [];
-    for (const pattern of patterns) {
-      const matches = await glob(pattern, {
-        cwd: workspace,
-        absolute: true,
-        ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'],
-      });
-      files.push(...matches);
-    }
-
-    // Dedupe
-    const uniqueFiles = [...new Set(files)];
+    const uniqueFiles = await glob(pattern, {
+      cwd: workspace,
+      absolute: true,
+      ignore,
+      nodir: true,
+    });
 
     const entities: EnumeratedEntity[] = uniqueFiles.map((filePath) => {
       const relativePath = path.relative(workspace, filePath);

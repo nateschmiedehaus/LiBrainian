@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { ContextPack, RetrievalStatus } from '../types.js';
 
 export type QueryDepth = 'L0' | 'L1' | 'L2' | 'L3';
@@ -38,6 +39,7 @@ const STOP_WORDS = new Set([
   'modules', 'depend', 'depends', 'module', 'public', 'function', 'functions',
 ]);
 const FILE_EXTENSION_STOP_WORDS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'rb', 'php', 'cs', 'swift']);
+const NON_EXPANDABLE_INTENT_HINTS = /\b(architecture|pipeline|stages|workflow|overview|codebase|project structure|system design)\b/i;
 
 export function computeRetrievalEntropy(packs: Array<Pick<ContextPack, 'confidence'>>): number {
   if (packs.length === 0) return Number(Math.log2(EMPTY_RESULT_ENTROPY_BASE).toFixed(4));
@@ -116,6 +118,7 @@ export function decideRetrievalEscalation(input: RetrievalEscalationInput): Retr
 export function expandEscalationIntent(intent: string, packs: ContextPack[]): string {
   const base = intent.trim();
   if (!base) return intent;
+  if (shouldSkipEscalationExpansion(base)) return intent;
   const existing = new Set(base.toLowerCase().split(/[^a-z0-9_]+/).filter(Boolean));
   const tokens: string[] = [];
 
@@ -154,6 +157,15 @@ export function expandEscalationIntent(intent: string, packs: ContextPack[]): st
   return `${base} ${tokens.join(' ')}`.trim();
 }
 
+function shouldSkipEscalationExpansion(intent: string): boolean {
+  const normalized = intent.trim().toLowerCase();
+  if (!normalized) return true;
+  if (/^where\s+(?:is|are)\b/.test(normalized)) return true;
+  if (/^what\s+is\b/.test(normalized) && NON_EXPANDABLE_INTENT_HINTS.test(normalized)) return true;
+  if (/^how\s+(?:is|are)\b/.test(normalized) && NON_EXPANDABLE_INTENT_HINTS.test(normalized)) return true;
+  return false;
+}
+
 export function buildClarifyingQuestions(intent: string): string[] {
   const trimmed = intent.trim() || 'this issue';
   return [
@@ -173,13 +185,16 @@ function extractIdentifierTokens(signal: string | undefined): string[] {
   const value = String(signal ?? '').trim();
   if (!value) return [];
 
-  const normalized = value
-    .replace(/\\/g, '/')
-    .replace(/[():]/g, ' ')
-    .replace(/\.[A-Za-z0-9]+/g, (match) => {
-      const ext = match.slice(1).toLowerCase();
-      return FILE_EXTENSION_STOP_WORDS.has(ext) ? ' ' : ` ${ext} `;
-    });
+  const normalizedPath = value.replace(/\\/g, '/');
+  const pathSignals = extractPathSignals(normalizedPath);
+  const normalized = pathSignals.length > 0
+    ? pathSignals.join(' ')
+    : normalizedPath
+        .replace(/[():]/g, ' ')
+        .replace(/\.[A-Za-z0-9]+/g, (match) => {
+          const ext = match.slice(1).toLowerCase();
+          return FILE_EXTENSION_STOP_WORDS.has(ext) ? ' ' : ` ${ext} `;
+        });
 
   const parts = normalized
     .split(/[^A-Za-z0-9_]+/)
@@ -195,6 +210,30 @@ function extractIdentifierTokens(signal: string | undefined): string[] {
     }
   }
   return Array.from(output);
+}
+
+function extractPathSignals(value: string): string[] {
+  if (!value.includes('/')) return [];
+
+  const signals: string[] = [];
+  const [pathPart, ...suffixParts] = value.split(':');
+  const trimmedPath = pathPart.trim();
+  if (!trimmedPath) return [];
+
+  const baseName = path.posix.basename(trimmedPath).replace(/\.[A-Za-z0-9]+$/g, '');
+  if (baseName) {
+    signals.push(baseName);
+  }
+
+  const suffix = suffixParts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && !/^\d+$/.test(part))
+    .join(' ');
+  if (suffix) {
+    signals.push(suffix);
+  }
+
+  return signals;
 }
 
 function splitIdentifier(value: string): string[] {

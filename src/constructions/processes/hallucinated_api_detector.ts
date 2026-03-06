@@ -403,12 +403,26 @@ function buildAgentSummary(calls: HallucinatedCall[]): string {
   return `Validated ${calls.length} package callsite(s): ${verified} verified, ${hallucinated} blocking, ${unverifiable} unverifiable.${removedHint}`;
 }
 
+function cloneDetectorOutput(output: APIDetectorOutput): APIDetectorOutput {
+  return {
+    ...output,
+    calls: output.calls.map((call) => ({
+      ...call,
+      location: { ...call.location },
+    })),
+  };
+}
+
 export function createHallucinatedApiDetectorConstruction(): Construction<
   APIDetectorInput,
   APIDetectorOutput,
   ConstructionError,
   unknown
 > {
+  const validationCacheByProject = new Map<string, Map<string, ValidateImportReferenceResult>>();
+  const versionCacheByProject = new Map<string, Map<string, string>>();
+  const outputCache = new Map<string, APIDetectorOutput>();
+
   return {
     id: 'hallucinated-api-detector',
     name: 'Hallucinated API Detector',
@@ -431,6 +445,12 @@ export function createHallucinatedApiDetectorConstruction(): Construction<
 
       const resolvedProjectRoot = path.resolve(projectRoot);
       const packageFilter = normalizePackagesFilter(input.packagesToCheck);
+      const packageFilterKey = Array.from(packageFilter).sort((left, right) => left.localeCompare(right)).join(',');
+      const outputCacheKey = `${resolvedProjectRoot}\u0000${generatedCode}\u0000${packageFilterKey}`;
+      const cachedOutput = outputCache.get(outputCacheKey);
+      if (cachedOutput) {
+        return ok<APIDetectorOutput, ConstructionError>(cloneDetectorOutput(cachedOutput));
+      }
       const virtualFile = path.join(
         resolvedProjectRoot,
         '.librarian',
@@ -487,8 +507,10 @@ export function createHallucinatedApiDetectorConstruction(): Construction<
         .filter((diagnostic) => SIGNATURE_DIAGNOSTIC_CODES.has(diagnostic.code));
       const imports = collectImportBindings(sourceFile, packageFilter);
       const candidates = collectMethodCalls(sourceFile, checker, imports, packageFilter, diagnostics);
-      const validationCache = new Map<string, ValidateImportReferenceResult>();
-      const versionCache = new Map<string, string>();
+      const validationCache = validationCacheByProject.get(resolvedProjectRoot) ?? new Map<string, ValidateImportReferenceResult>();
+      validationCacheByProject.set(resolvedProjectRoot, validationCache);
+      const versionCache = versionCacheByProject.get(resolvedProjectRoot) ?? new Map<string, string>();
+      versionCacheByProject.set(resolvedProjectRoot, versionCache);
       const calls: HallucinatedCall[] = [];
 
       for (const candidate of candidates) {
@@ -559,14 +581,16 @@ export function createHallucinatedApiDetectorConstruction(): Construction<
         entry.status === 'wrong_signature').length;
       const unverifiableCount = calls.filter((entry) => entry.status === 'unverifiable').length;
       const hasBlockingIssues = hallucinatedCount > 0;
-
-      return ok<APIDetectorOutput, ConstructionError>({
+      const output: APIDetectorOutput = {
         calls,
         hallucinatedCount,
         unverifiableCount,
         agentSummary: buildAgentSummary(calls),
         hasBlockingIssues,
-      });
+      };
+      outputCache.set(outputCacheKey, cloneDetectorOutput(output));
+
+      return ok<APIDetectorOutput, ConstructionError>(output);
     },
   };
 }

@@ -44,6 +44,7 @@ vi.mock('../../../storage/sqlite_storage.js', () => ({
     getState: vi.fn().mockResolvedValue(null),
     getStats: vi.fn().mockResolvedValue({
       totalFunctions: 100,
+      totalModules: 10,
       totalEmbeddings: 100,
     }),
     close: vi.fn().mockResolvedValue(undefined),
@@ -84,11 +85,38 @@ describe('queryCommand LLM resolution', () => {
   const prevEnv = { ...process.env };
   let logSpy: ReturnType<typeof vi.spyOn> | null = null;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.LIBRARIAN_LLM_MODEL;
+
+    const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+
+    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
+    vi.mocked(createSqliteStorage).mockReturnValue({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({
+        totalFunctions: 100,
+        totalModules: 10,
+        totalEmbeddings: 100,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any);
+    vi.mocked(queryLibrarian).mockResolvedValue({
+      intent: 'test',
+      depth: 'L1',
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      packs: [],
+    } as any);
+    vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
+    vi.mocked(bootstrapProject).mockResolvedValue({ success: true } as any);
   });
 
   afterEach(() => {
@@ -112,7 +140,7 @@ describe('queryCommand LLM resolution', () => {
     expect(process.env.LIBRARIAN_LLM_PROVIDER).toBeUndefined();
   });
 
-  it('auto-bootstraps when required', async () => {
+  it('continues with the existing index snapshot when bootstrap is required but the index is usable', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject, createBootstrapConfig } = await import('../../../api/bootstrap.js');
 
@@ -124,18 +152,44 @@ describe('queryCommand LLM resolution', () => {
       rawArgs: ['query', 'hello world', '--json'],
     });
 
-    expect(bootstrapProject).toHaveBeenCalled();
-    const overrides = vi.mocked(createBootstrapConfig).mock.calls[0]?.[1];
-    expect(overrides?.bootstrapMode).toBe('fast');
-    expect(overrides?.skipLlm).toBe(true);
-    expect(overrides?.timeoutMs).toBe(120000);
+    expect(bootstrapProject).not.toHaveBeenCalled();
+    expect(vi.mocked(createBootstrapConfig).mock.calls).toHaveLength(0);
+  });
+
+  it('skips auto-bootstrap and uses semantic fallback when no usable index exists', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(createSqliteStorage).mockReturnValueOnce({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({
+        totalFunctions: 0,
+        totalModules: 0,
+        totalEmbeddings: 0,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'hello world', '--json'],
+    });
+
+    expect(bootstrapProject).not.toHaveBeenCalled();
   });
 
   it('maps governor wall-time bootstrap timeout to QUERY_TIMEOUT', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
 
-    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    });
     vi.mocked(bootstrapProject).mockRejectedValueOnce(
       new Error('unverified_by_trace(budget_exhausted): Exceeded wall_time budget (health: -0.72)')
     );
@@ -158,18 +212,21 @@ describe('queryCommand LLM resolution', () => {
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
     await fs.writeFile(dbPath, 'corrupt', 'utf8');
     vi.mocked(resolveDbPath).mockResolvedValueOnce(dbPath);
-    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    });
 
     const firstStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     const secondStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(createSqliteStorage)
@@ -201,6 +258,7 @@ describe('queryCommand LLM resolution', () => {
       required: true,
       reason: 'Watch state indicates catch-up is required before queries can be trusted',
     });
+    vi.mocked(bootstrapProject).mockResolvedValueOnce({ success: true } as any);
 
     // deferred reasons (watch_catchup etc.) no longer throw NOT_BOOTSTRAPPED;
     // they log a warning and fall through to auto-bootstrap so the query can recover.
@@ -424,6 +482,67 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
+  it('uses the preserved bootstrap snapshot while an active bootstrap lock is held', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { resolveDbPath } = await import('../../db_path.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-query-bootstrap-snapshot-'));
+    const librarianDir = path.join(workspace, '.librarian');
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const backupPath = `${sqlitePath}.bak.test`;
+    const bootstrapLockPath = path.join(librarianDir, 'bootstrap.lock');
+    const backupStatePath = path.join(librarianDir, 'bootstrap_artifact_backup.json');
+    const lockHolder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
+      stdio: 'ignore',
+      detached: false,
+    });
+
+    try {
+      await fs.mkdir(librarianDir, { recursive: true });
+      await fs.writeFile(sqlitePath, 'primary', 'utf8');
+      await fs.writeFile(backupPath, 'backup', 'utf8');
+      await fs.writeFile(
+        bootstrapLockPath,
+        JSON.stringify({
+          pid: lockHolder.pid,
+          startedAt: '2026-03-06T19:29:38.878Z',
+        }),
+        'utf8',
+      );
+      await fs.writeFile(
+        backupStatePath,
+        JSON.stringify({
+          kind: 'BootstrapArtifactBackupState.v1',
+          schema_version: 1,
+          workspace,
+          generation_id: 'snapshot-test',
+          created_at: '2026-03-06T19:29:47.161Z',
+          files: [
+            {
+              original_path: sqlitePath,
+              backup_path: backupPath,
+            },
+          ],
+        }),
+        'utf8',
+      );
+      vi.mocked(resolveDbPath).mockResolvedValueOnce(sqlitePath);
+
+      await queryCommand({
+        workspace,
+        args: [],
+        rawArgs: ['query', 'hello world', '--json'],
+      });
+
+      const storageCall = vi.mocked(createSqliteStorage).mock.calls[0];
+      expect(storageCall?.[0]).toBe(backupPath);
+      expect(storageCall?.[2]).toMatchObject({ useProcessLock: false });
+    } finally {
+      lockHolder.kill('SIGKILL');
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('auto-recovers stale legacy lock artifacts before query execution', async () => {
     const { queryCommand } = await import('../query.js');
     const { resolveDbPath } = await import('../../db_path.js');
@@ -449,8 +568,8 @@ describe('queryCommand LLM resolution', () => {
       });
 
       await expect(fs.access(legacyLockPath)).rejects.toBeDefined();
-      await expect(fs.access(legacyWalPath)).rejects.toBeDefined();
-      await expect(fs.access(legacyShmPath)).rejects.toBeDefined();
+      await expect(fs.access(legacyWalPath)).resolves.toBeUndefined();
+      await expect(fs.access(legacyShmPath)).resolves.toBeUndefined();
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -471,13 +590,13 @@ describe('queryCommand LLM resolution', () => {
     const firstStorage = {
       initialize: vi.fn().mockRejectedValueOnce(new Error('database disk image is malformed')),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     const secondStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(createSqliteStorage)
@@ -513,13 +632,13 @@ describe('queryCommand LLM resolution', () => {
     const firstStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     const secondStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(createSqliteStorage)
@@ -560,6 +679,7 @@ describe('queryCommand LLM resolution', () => {
       getState: vi.fn().mockResolvedValue(null),
       getStats: vi.fn().mockResolvedValue({
         totalFunctions: 100,
+        totalModules: 10,
         totalEmbeddings: 20,
       }),
       close: vi.fn().mockResolvedValue(undefined),
@@ -642,6 +762,56 @@ describe('queryCommand LLM resolution', () => {
     expect(jsonOutput).toBeDefined();
     const parsed = JSON.parse(jsonOutput ?? '{}');
     expect(parsed.answer).toBe('calculateSecurityDebt computes the risk score.');
+  });
+
+  it('prefers the primary source file in derived location answers', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'Where is the query pipeline implemented?', depth: 'L1' },
+      totalConfidence: 0.9,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: undefined,
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'module_context',
+          targetId: '/tmp/workspace/src/api/query.ts',
+          summary: 'query pipeline module',
+          keyFacts: [],
+          relatedFiles: ['src/storage/types.js', 'src/types.js'],
+          codeSnippets: [
+            {
+              filePath: '/tmp/workspace/src/api/query.ts',
+              startLine: 1,
+              endLine: 5,
+              content: 'export function queryLibrarian() {}',
+              language: 'typescript',
+            },
+          ],
+          confidence: 0.95,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'Where is the query pipeline implemented?', '--json'],
+    });
+
+    const jsonOutput = logSpy?.mock.calls.map((call) => String(call[0])).find((line) => line.startsWith('{'));
+    expect(jsonOutput).toBeDefined();
+    const parsed = JSON.parse(jsonOutput ?? '{}');
+    expect(parsed.answer).toContain('src/api/query.ts');
+    expect(parsed.answer).not.toContain('src/storage/types.js');
   });
 
   it('writes JSON output to --out path', async () => {
@@ -964,7 +1134,10 @@ describe('queryCommand LLM resolution', () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
 
-    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({ required: true, reason: 'missing' });
+    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
+      required: true,
+      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+    });
     vi.mocked(bootstrapProject).mockImplementationOnce(
       () => new Promise<never>(() => {})
     );

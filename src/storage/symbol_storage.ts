@@ -19,6 +19,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import type { SymbolEntry, SymbolKind } from '../constructions/symbol_table.js';
 import { SymbolTable } from '../constructions/symbol_table.js';
+import { attemptStorageRecovery, isRecoverableStorageError } from './storage_recovery.js';
 
 // ============================================================================
 // TYPES
@@ -75,13 +76,19 @@ export class SymbolStorage {
     if (this.initialized) return;
 
     await fs.mkdir(path.dirname(this.dbPath), { recursive: true });
+    try {
+      this.openDatabase();
+      this.initialized = true;
+    } catch (error) {
+      this.resetDbHandle();
+      if (!isRecoverableStorageError(error)) {
+        throw error;
+      }
 
-    this.db = new Database(this.dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
-
-    this.ensureSymbolTable();
-    this.initialized = true;
+      await attemptStorageRecovery(this.dbPath, { error, mode: 'quarantine_corrupt' });
+      this.openDatabase();
+      this.initialized = true;
+    }
   }
 
   /**
@@ -107,6 +114,23 @@ export class SymbolStorage {
       throw new Error('SymbolStorage not initialized. Call initialize() first.');
     }
     return this.db;
+  }
+
+  private openDatabase(): void {
+    this.db = new Database(this.dbPath);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = NORMAL');
+    this.ensureSymbolTable();
+  }
+
+  private resetDbHandle(): void {
+    if (!this.db) return;
+    try {
+      this.db.close();
+    } catch {
+      // Best-effort cleanup before recovery.
+    }
+    this.db = null;
   }
 
   private ensureSymbolTable(): void {

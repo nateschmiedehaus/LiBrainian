@@ -367,6 +367,14 @@ describe('parseSymbolQuery', () => {
     expect(result!.isDefinitionQuery).toBe(true);
   });
 
+  it('should parse natural-language signature queries', () => {
+    const result = parseSymbolQuery('What is the signature of createSession?');
+    expect(result).not.toBeNull();
+    expect(result!.symbolName).toBe('createSession');
+    expect(result!.expectedKind).toBe('function');
+    expect(result!.isDefinitionQuery).toBe(true);
+  });
+
   it('should parse bare symbol name', () => {
     const result = parseSymbolQuery('SqliteLibrarianStorage');
     expect(result).not.toBeNull();
@@ -471,6 +479,13 @@ describe('detectSymbolQuery', () => {
     expect(result!.symbolName).toBe('bootstrapProject');
   });
 
+  it('should detect symbol query for natural-language signature lookup', () => {
+    const result = detectSymbolQuery('What is the signature of createSession?');
+    expect(result).not.toBeNull();
+    expect(result!.symbolName).toBe('createSession');
+    expect(result!.expectedKind).toBe('function');
+  });
+
   it('should not detect complex queries as symbol queries', () => {
     // Complex semantic queries should not be treated as symbol lookups
     // Note: very short words like "work" might still be matched by the bare symbol pattern
@@ -505,6 +520,7 @@ describe('symbolToContextPack', () => {
     expect(pack.summary).toContain('SqliteLibrarianStorage');
     expect(pack.keyFacts).toContain('Kind: class');
     expect(pack.keyFacts).toContain('Line: 225');
+    expect(pack.keyFacts).toContain('Signature: class SqliteLibrarianStorage implements LibrarianStorage');
   });
 
   it('should include exported status in key facts', () => {

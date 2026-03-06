@@ -67,6 +67,7 @@ describe('query_intent_patterns', () => {
     expect(hasMatch(CODE_QUALITY_PATTERNS, 'code quality report')).toBe(true);
     expect(hasMatch(CODE_REVIEW_QUERY_PATTERNS, 'review this file before merge')).toBe(true);
     expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where is authentication implemented')).toBe(true);
+    expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where is the query pipeline implemented')).toBe(true);
     expect(hasMatch(REFACTORING_OPPORTUNITIES_PATTERNS, 'what should I refactor')).toBe(true);
   });
 

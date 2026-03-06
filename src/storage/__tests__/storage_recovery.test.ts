@@ -6,9 +6,11 @@ import * as os from 'node:os';
 import {
   attemptStorageRecovery,
   cleanupWorkspaceLocks,
+  recoverPrimaryFromViableSnapshot,
   inspectWorkspaceLocks,
   isRecoverableStorageError,
 } from '../storage_recovery.js';
+import { createSqliteStorage } from '../sqlite_storage.js';
 
 async function createTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'librarian-storage-recovery-'));
@@ -22,7 +24,7 @@ describe('attemptStorageRecovery', () => {
     tempDirs.length = 0;
   });
 
-  it('removes stale lock and WAL/SHM files when pid is not alive', async () => {
+  it('removes stale lock without deleting WAL/SHM files when pid is not alive', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
     const dbPath = path.join(dir, 'librarian.sqlite');
@@ -35,8 +37,8 @@ describe('attemptStorageRecovery', () => {
 
     expect(result.recovered).toBe(true);
     expect(existsSync(dbPath + '.lock')).toBe(false);
-    expect(existsSync(dbPath + '-wal')).toBe(false);
-    expect(existsSync(dbPath + '-shm')).toBe(false);
+    expect(existsSync(dbPath + '-wal')).toBe(true);
+    expect(existsSync(dbPath + '-shm')).toBe(true);
   });
 
   it('does not remove active lock files', async () => {
@@ -70,8 +72,8 @@ describe('attemptStorageRecovery', () => {
 
     expect(result.recovered).toBe(true);
     expect(existsSync(lockPath)).toBe(false);
-    expect(existsSync(dbPath + '-wal')).toBe(false);
-    expect(existsSync(dbPath + '-shm')).toBe(false);
+    expect(existsSync(dbPath + '-wal')).toBe(true);
+    expect(existsSync(dbPath + '-shm')).toBe(true);
   });
 
   it('removes empty lock directories after the short empty-dir timeout', async () => {
@@ -90,8 +92,8 @@ describe('attemptStorageRecovery', () => {
 
     expect(result.recovered).toBe(true);
     expect(existsSync(lockPath)).toBe(false);
-    expect(existsSync(dbPath + '-wal')).toBe(false);
-    expect(existsSync(dbPath + '-shm')).toBe(false);
+    expect(existsSync(dbPath + '-wal')).toBe(true);
+    expect(existsSync(dbPath + '-shm')).toBe(true);
   });
 
   it('does not claim recovery when lock directory is still fresh', async () => {
@@ -128,8 +130,8 @@ describe('attemptStorageRecovery', () => {
 
     expect(result.recovered).toBe(true);
     expect(existsSync(lockPath)).toBe(false);
-    expect(existsSync(dbPath + '-wal')).toBe(false);
-    expect(existsSync(dbPath + '-shm')).toBe(false);
+    expect(existsSync(dbPath + '-wal')).toBe(true);
+    expect(existsSync(dbPath + '-shm')).toBe(true);
   });
 
   it('treats malformed database errors as recoverable', () => {
@@ -137,7 +139,7 @@ describe('attemptStorageRecovery', () => {
     expect(isRecoverableStorageError(new Error('SQLITE_CORRUPT: file is not a database'))).toBe(true);
   });
 
-  it('quarantines corrupt db file during recovery', async () => {
+  it('quarantines corrupt db file and sidecars during recovery', async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
     const dbPath = path.join(dir, 'librarian.sqlite');
@@ -151,12 +153,72 @@ describe('attemptStorageRecovery', () => {
 
     expect(result.recovered).toBe(true);
     expect(result.actions).toContain('quarantined_corrupt_db');
+    expect(result.actions).toContain('quarantined_corrupt_wal');
+    expect(result.actions).toContain('quarantined_corrupt_shm');
     expect(existsSync(dbPath)).toBe(false);
     expect(existsSync(dbPath + '-wal')).toBe(false);
     expect(existsSync(dbPath + '-shm')).toBe(false);
 
     const entries = await fs.readdir(dir);
     expect(entries.some((entry) => entry.startsWith('librarian.sqlite.corrupt.'))).toBe(true);
+    expect(entries.some((entry) => entry.startsWith('librarian.sqlite-wal.corrupt.'))).toBe(true);
+    expect(entries.some((entry) => entry.startsWith('librarian.sqlite-shm.corrupt.'))).toBe(true);
+  });
+
+  it('restores an empty primary store from the most viable snapshot backup', async () => {
+    const dir = await createTempDir();
+    tempDirs.push(dir);
+    const primaryDbPath = path.join(dir, 'librarian.sqlite');
+    const backupDbPath = `${primaryDbPath}.bak.good`;
+
+    const primaryStorage = createSqliteStorage(primaryDbPath, dir);
+    await primaryStorage.initialize();
+    await primaryStorage.close();
+
+    const backupStorage = createSqliteStorage(backupDbPath, dir);
+    await backupStorage.initialize();
+    await backupStorage.upsertFunction({
+      id: 'fn:1',
+      filePath: path.join(dir, 'src', 'query.ts'),
+      name: 'queryPipeline',
+      signature: 'queryPipeline(): void',
+      purpose: 'Implements the query pipeline',
+      startLine: 1,
+      endLine: 3,
+      confidence: 0.9,
+      accessCount: 0,
+      lastAccessed: null,
+      validationCount: 0,
+      outcomeHistory: { successes: 0, failures: 0 },
+    });
+    await backupStorage.upsertModule({
+      id: 'mod:1',
+      path: path.join(dir, 'src', 'query.ts'),
+      purpose: 'Query pipeline module',
+      exports: ['queryPipeline'],
+      dependencies: [],
+      confidence: 0.9,
+    });
+    await backupStorage.close();
+
+    const result = await recoverPrimaryFromViableSnapshot(primaryDbPath);
+
+    expect(result.recovered).toBe(true);
+    expect(result.actions).toContain('archived_empty_primary');
+    expect(result.actions).toContain('restored_primary_from_snapshot');
+
+    const restoredStorage = createSqliteStorage(primaryDbPath, dir);
+    await restoredStorage.initialize();
+    try {
+      const stats = await restoredStorage.getStats();
+      expect(stats.totalFunctions).toBe(1);
+      expect(stats.totalModules).toBe(1);
+    } finally {
+      await restoredStorage.close();
+    }
+
+    const entries = await fs.readdir(dir);
+    expect(entries.some((entry) => entry.startsWith('librarian.sqlite.empty.'))).toBe(true);
   });
 
   it('deduplicates repeated no-action recovery warnings for the same lock state', async () => {

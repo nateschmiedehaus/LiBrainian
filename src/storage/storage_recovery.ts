@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
@@ -11,6 +12,11 @@ export interface StorageRecoveryResult {
 
 export interface StorageRecoveryOptions {
   error?: unknown;
+  mode?: 'stale_lock' | 'quarantine_corrupt';
+}
+
+export interface SnapshotRecoveryOptions {
+  additionalCandidates?: string[];
 }
 
 const LOCK_STALE_TIMEOUT_MS = 15 * 60_000;
@@ -150,6 +156,8 @@ export async function attemptStorageRecovery(
   const lockPath = `${dbPath}.lock`;
   const walPath = `${dbPath}-wal`;
   const shmPath = `${dbPath}-shm`;
+  const mode = options.mode
+    ?? (isCorruptionStorageError(options.error) ? 'quarantine_corrupt' : 'stale_lock');
 
   let lockBlocked = false;
 
@@ -189,33 +197,27 @@ export async function attemptStorageRecovery(
     }
   }
 
-  if (!lockBlocked) {
-    if (existsSync(walPath)) {
-      await fs.unlink(walPath).catch((error) => {
-        errors.push(`wal_unlink_failed:${String(error)}`);
-      });
-      actions.push('removed_wal');
-    }
-    if (existsSync(shmPath)) {
-      await fs.unlink(shmPath).catch((error) => {
-        errors.push(`shm_unlink_failed:${String(error)}`);
-      });
-      actions.push('removed_shm');
-    }
-
-    if (isCorruptionStorageError(options.error) && existsSync(dbPath)) {
-      const quarantinePath = `${dbPath}.corrupt.${Date.now()}`;
+  if (!lockBlocked && mode === 'quarantine_corrupt') {
+    const timestamp = Date.now();
+    const quarantinePaths: Array<{ sourcePath: string; kind: 'db' | 'wal' | 'shm' }> = [
+      { sourcePath: dbPath, kind: 'db' },
+      { sourcePath: walPath, kind: 'wal' },
+      { sourcePath: shmPath, kind: 'shm' },
+    ];
+    for (const entry of quarantinePaths) {
+      if (!existsSync(entry.sourcePath)) continue;
+      const quarantinePath = `${entry.sourcePath}.corrupt.${timestamp}`;
       try {
-        await fs.rename(dbPath, quarantinePath);
-        actions.push('quarantined_corrupt_db');
+        await fs.rename(entry.sourcePath, quarantinePath);
+        actions.push(
+          entry.kind === 'db'
+            ? 'quarantined_corrupt_db'
+            : entry.kind === 'wal'
+              ? 'quarantined_corrupt_wal'
+              : 'quarantined_corrupt_shm'
+        );
       } catch (renameError) {
-        errors.push(`db_quarantine_failed:${String(renameError)}`);
-        await fs.unlink(dbPath).catch((unlinkError) => {
-          errors.push(`db_unlink_failed:${String(unlinkError)}`);
-        });
-        if (!existsSync(dbPath)) {
-          actions.push('removed_corrupt_db');
-        }
+        errors.push(`${entry.kind}_quarantine_failed:${String(renameError)}`);
       }
     }
   }
@@ -241,6 +243,169 @@ export async function attemptStorageRecovery(
   }
 
   return { recovered: actions.length > 0 && !lockBlocked, actions, errors };
+}
+
+interface StorageSnapshotStats {
+  path: string;
+  totalCoreRows: number;
+  mtimeMs: number;
+}
+
+function readTableCount(db: Database.Database, tableName: string): number {
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName) as { 1?: number } | undefined;
+  if (!row) return 0;
+  const countRow = db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get() as { count?: number } | undefined;
+  return typeof countRow?.count === 'number' && Number.isFinite(countRow.count) ? countRow.count : 0;
+}
+
+async function inspectSnapshot(dbPath: string): Promise<StorageSnapshotStats | null> {
+  if (!existsSync(dbPath)) return null;
+  let db: Database.Database | null = null;
+  try {
+    const stat = await fs.stat(dbPath);
+    db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    const totalCoreRows =
+      readTableCount(db, 'librarian_functions')
+      + readTableCount(db, 'librarian_modules')
+      + readTableCount(db, 'librarian_context_packs')
+      + readTableCount(db, 'librarian_files')
+      + readTableCount(db, 'librarian_embeddings')
+      + readTableCount(db, 'librarian_ingested_items')
+      + readTableCount(db, 'librarian_directories');
+    return {
+      path: dbPath,
+      totalCoreRows,
+      mtimeMs: stat.mtimeMs,
+    };
+  } catch {
+    return null;
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      // Ignore best-effort cleanup failures.
+    }
+  }
+}
+
+async function discoverSnapshotCandidates(
+  primaryDbPath: string,
+  options: SnapshotRecoveryOptions
+): Promise<string[]> {
+  const candidates = new Set<string>();
+  for (const candidate of options.additionalCandidates ?? []) {
+    if (candidate && candidate !== primaryDbPath) {
+      candidates.add(candidate);
+    }
+  }
+
+  const directory = path.dirname(primaryDbPath);
+  const primaryFileName = path.basename(primaryDbPath);
+  try {
+    const entries = await fs.readdir(directory);
+    for (const entry of entries) {
+      if (!entry.startsWith(`${primaryFileName}.bak.`)) continue;
+      if (entry.includes('-wal.bak.') || entry.includes('-shm.bak.')) continue;
+      candidates.add(path.join(directory, entry));
+    }
+  } catch {
+    // Ignore unreadable directories and return only explicit candidates.
+  }
+
+  return Array.from(candidates);
+}
+
+async function archivePrimaryArtifacts(primaryDbPath: string, archiveSuffix: string): Promise<string[]> {
+  const archived: string[] = [];
+  const suffixes = ['', '-wal', '-shm'];
+  for (const suffix of suffixes) {
+    const sourcePath = `${primaryDbPath}${suffix}`;
+    if (!existsSync(sourcePath)) continue;
+    const archivedPath = `${sourcePath}.empty.${archiveSuffix}`;
+    await fs.rename(sourcePath, archivedPath);
+    archived.push(archivedPath);
+  }
+  return archived;
+}
+
+async function removePrimarySidecars(primaryDbPath: string): Promise<void> {
+  await Promise.all(
+    ['-wal', '-shm'].map(async (suffix) => {
+      try {
+        await fs.unlink(`${primaryDbPath}${suffix}`);
+      } catch {
+        // Ignore missing sidecars.
+      }
+    })
+  );
+}
+
+async function installSnapshotArtifacts(primaryDbPath: string, snapshotPath: string): Promise<void> {
+  await removePrimarySidecars(primaryDbPath);
+  await fs.copyFile(snapshotPath, primaryDbPath);
+  for (const suffix of ['-wal', '-shm']) {
+    const sourcePath = `${snapshotPath}${suffix}`;
+    const targetPath = `${primaryDbPath}${suffix}`;
+    if (!existsSync(sourcePath)) continue;
+    await fs.copyFile(sourcePath, targetPath);
+  }
+}
+
+export async function recoverPrimaryFromViableSnapshot(
+  primaryDbPath: string,
+  options: SnapshotRecoveryOptions = {}
+): Promise<StorageRecoveryResult> {
+  const actions: string[] = [];
+  const errors: string[] = [];
+  if (!primaryDbPath || primaryDbPath === ':memory:') {
+    return { recovered: false, actions, errors: ['memory_storage'] };
+  }
+
+  const primaryStats = await inspectSnapshot(primaryDbPath);
+  if (primaryStats && primaryStats.totalCoreRows > 0) {
+    return { recovered: false, actions, errors };
+  }
+
+  const candidatePaths = await discoverSnapshotCandidates(primaryDbPath, options);
+  const candidateStats = (
+    await Promise.all(candidatePaths.map((candidatePath) => inspectSnapshot(candidatePath)))
+  ).filter((stats): stats is StorageSnapshotStats => stats !== null && stats.totalCoreRows > 0);
+
+  if (candidateStats.length === 0) {
+    return { recovered: false, actions, errors: ['no_viable_snapshot'] };
+  }
+
+  candidateStats.sort((left, right) =>
+    right.totalCoreRows - left.totalCoreRows || right.mtimeMs - left.mtimeMs
+  );
+  const bestSnapshot = candidateStats[0];
+  const archiveSuffix = String(Date.now());
+
+  try {
+    const archived = await archivePrimaryArtifacts(primaryDbPath, archiveSuffix);
+    if (archived.length > 0) {
+      actions.push('archived_empty_primary');
+    }
+    await installSnapshotArtifacts(primaryDbPath, bestSnapshot.path);
+    actions.push('restored_primary_from_snapshot');
+    logInfo('[storage-recovery] restored empty primary storage from viable snapshot', {
+      primaryDbPath,
+      snapshotPath: bestSnapshot.path,
+      snapshotCoreRows: bestSnapshot.totalCoreRows,
+      previousPrimaryCoreRows: primaryStats?.totalCoreRows ?? 0,
+    });
+    return { recovered: true, actions, errors };
+  } catch (error) {
+    errors.push(`snapshot_restore_failed:${String(error)}`);
+    logWarning('[storage-recovery] failed to restore empty primary storage from viable snapshot', {
+      primaryDbPath,
+      snapshotPath: bestSnapshot.path,
+      error: String(error),
+    });
+    return { recovered: false, actions, errors };
+  }
 }
 
 async function inspectSingleWorkspaceLock(lockPath: string): Promise<{

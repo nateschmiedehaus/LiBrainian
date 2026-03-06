@@ -21,6 +21,11 @@ export interface LibrarianSchemaMigrationReportV1 {
   applied: AppliedMigration[];
 }
 
+export interface ApplyMigrationsOptions {
+  workspaceRoot?: string;
+  dbPath?: string;
+}
+
 const INLINE_MIGRATIONS: Record<string, string> = {
   '002_ingestion': [
     'CREATE TABLE IF NOT EXISTS librarian_ingested_items (id TEXT PRIMARY KEY, source_type TEXT NOT NULL, source_version TEXT NOT NULL, ingested_at TEXT NOT NULL, payload TEXT NOT NULL, metadata TEXT NOT NULL DEFAULT \"{}\");',
@@ -94,6 +99,10 @@ const MAX_MIGRATION_BACKUPS = 1;
 const resolveBackupDir = (workspaceRoot: string, fromVersion: number): string =>
   path.join(workspaceRoot, `${BACKUP_DIR_PREFIX}${fromVersion}.${Date.now()}.${randomUUID()}`);
 const hasMetadataTable = (db: Database.Database): boolean => Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='librarian_metadata'").get());
+const hasColumn = (db: Database.Database, tableName: string, columnName: string): boolean => {
+  const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name?: string }>;
+  return rows.some((row) => row.name === columnName);
+};
 const hashSql = (sql: string): string => createHash('sha256').update(sql).digest('hex');
 type CopyDirectoryFn = typeof fs.cp;
 const defaultCopyDirectory: CopyDirectoryFn = (src, dest, options) => fs.cp(src, dest, options);
@@ -101,6 +110,10 @@ let backupCopyDirectory: CopyDirectoryFn = defaultCopyDirectory;
 
 export function __setMigrationBackupCopyForTests(copyFn: CopyDirectoryFn | null): void {
   backupCopyDirectory = copyFn ?? defaultCopyDirectory;
+}
+
+function isMigrationPreapplied(db: Database.Database, migration: MigrationDefinition): boolean {
+  return migration.version === 11 && hasColumn(db, 'librarian_indexing_history', 'files_skipped');
 }
 
 const loadMigrationSql = async (file: string): Promise<string> => {
@@ -210,7 +223,25 @@ async function backupLibrarianState(workspaceRoot: string, fromVersion: number):
   return backupDir;
 }
 
-export async function applyMigrations(db: Database.Database, workspaceRoot?: string): Promise<LibrarianSchemaMigrationReportV1 | null> {
+function resolveMigrationWorkspaceRoot(options: ApplyMigrationsOptions = {}): string | null {
+  if (!options.workspaceRoot) return null;
+  if (!options.dbPath) return options.workspaceRoot;
+
+  const workspaceRoot = path.resolve(options.workspaceRoot);
+  const librarianDir = path.join(workspaceRoot, '.librarian');
+  const dbPath = path.resolve(options.dbPath);
+  const relative = path.relative(librarianDir, dbPath);
+  if (!relative || relative === '') return workspaceRoot;
+  if (relative.startsWith(`..${path.sep}`) || relative === '..') {
+    return null;
+  }
+  return workspaceRoot;
+}
+
+export async function applyMigrations(
+  db: Database.Database,
+  options: ApplyMigrationsOptions = {}
+): Promise<LibrarianSchemaMigrationReportV1 | null> {
   const fromVersion = readSchemaVersion(db);
   if (fromVersion > SCHEMA_VERSION) {
     throw new Error(
@@ -219,13 +250,27 @@ export async function applyMigrations(db: Database.Database, workspaceRoot?: str
   }
   const pending = MIGRATIONS.filter((migration) => migration.version > fromVersion);
   if (!pending.length) return noResult();
-  let backupPath: string | null = null;
-  if (workspaceRoot) {
-    backupPath = await backupLibrarianState(workspaceRoot, fromVersion);
-  }
   const applied: AppliedMigration[] = [];
+  const executablePending: MigrationDefinition[] = [];
+  for (const migration of pending) {
+    const sql = await loadMigrationSql(migration.file);
+    if (isMigrationPreapplied(db, migration)) {
+      writeSchemaVersion(db, migration.version);
+      applied.push({ version: migration.version, name: migration.name, checksum: hashSql(sql) });
+      continue;
+    }
+    executablePending.push(migration);
+  }
+  if (!executablePending.length) {
+    return noResult();
+  }
+  const migrationWorkspaceRoot = resolveMigrationWorkspaceRoot(options);
+  let backupPath: string | null = null;
+  if (migrationWorkspaceRoot) {
+    backupPath = await backupLibrarianState(migrationWorkspaceRoot, fromVersion);
+  }
   try {
-    for (const migration of pending) {
+    for (const migration of executablePending) {
       const sql = await loadMigrationSql(migration.file);
       db.exec(sql);
       writeSchemaVersion(db, migration.version);
@@ -238,18 +283,18 @@ export async function applyMigrations(db: Database.Database, workspaceRoot?: str
       : 'No backup was available; run `librarian bootstrap --force` to rebuild.';
     throw new Error(`Schema migration failed: ${baseMessage}. ${backupHint}`);
   }
-  if (!workspaceRoot) return noResult();
+  if (!migrationWorkspaceRoot) return noResult();
   const report: LibrarianSchemaMigrationReportV1 = {
     kind: 'LibrarianSchemaMigrationReport.v1',
     schema_version: 1,
     created_at: new Date().toISOString(),
-    canon: await computeCanonRef(workspaceRoot),
+    canon: await computeCanonRef(migrationWorkspaceRoot),
     environment: computeEnvironmentRef(),
-    workspace: workspaceRoot,
+    workspace: migrationWorkspaceRoot,
     from_version: fromVersion,
-    to_version: pending[pending.length - 1].version,
+    to_version: applied[applied.length - 1].version,
     applied,
   };
-  await writeMigrationReport(workspaceRoot, report);
+  await writeMigrationReport(migrationWorkspaceRoot, report);
   return report;
 }

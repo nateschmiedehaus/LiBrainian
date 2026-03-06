@@ -391,6 +391,7 @@ export {
 } from './result_quality_judge.js';
 
 export {
+  __testing as unitPatrolTesting,
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
   createAdversarialFixtureUnitPatrolConstruction,

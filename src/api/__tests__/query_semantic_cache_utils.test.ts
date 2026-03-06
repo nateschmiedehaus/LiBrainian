@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LibrarianQuery, LibrarianVersion, LlmRequirement } from '../../types.js';
 import {
   buildQueryCacheKey,
+  buildQueryCacheVersionPrefix,
   buildSemanticCacheScopeSignature,
   classifySemanticCacheCategory,
   computeSemanticIntentSimilarity,
@@ -51,6 +52,10 @@ describe('query_semantic_cache_utils', () => {
     const keyA = buildQueryCacheKey(queryA, VERSION, LLM_REQUIREMENT, true);
     const keyB = buildQueryCacheKey(queryB, VERSION, LLM_REQUIREMENT, true);
     expect(keyA).toBe(keyB);
+  });
+
+  it('includes the cache schema version in the reusable prefix', () => {
+    expect(buildQueryCacheVersionPrefix(VERSION)).toMatch(/^qv4:route2:synth2:2\.0\.0:/);
   });
 
   it('classifies diagnostic, conceptual, and lookup intents', () => {

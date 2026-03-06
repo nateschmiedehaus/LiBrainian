@@ -362,6 +362,13 @@ async function collectBootstrapArtifacts(workspace: string): Promise<BootstrapCo
   return { librarian, knowledge, evidence };
 }
 
+function hasSuspiciousArtifactSkew(artifacts: BootstrapConsistencyState['artifacts']): boolean {
+  const librarianSize = artifacts.librarian.size_bytes ?? 0;
+  const knowledgeSize = artifacts.knowledge.size_bytes ?? 0;
+  const evidenceSize = artifacts.evidence.size_bytes ?? 0;
+  return librarianSize <= 4096 && (knowledgeSize > 4096 || evidenceSize > 4096);
+}
+
 function resolveBootstrapBackupMaxBytes(): number {
   const raw =
     process.env.LIBRARIAN_BOOTSTRAP_BACKUP_MAX_BYTES
@@ -2088,6 +2095,12 @@ export async function isBootstrapRequired(
         reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librarian bootstrap --force\` to restore consistent state.`,
       };
     }
+    if (hasSuspiciousArtifactSkew(consistency.artifacts)) {
+      return {
+        required: true,
+        reason: 'Bootstrap artifact snapshot is inconsistent (librarian.sqlite is effectively empty while auxiliary stores contain data); run `librarian bootstrap --force` to restore consistent state.',
+      };
+    }
   }
   const existingVersion = await detectLibrarianVersion(storage);
   const targetQualityTier = options?.targetQualityTier ?? 'full';
@@ -2737,12 +2750,14 @@ export async function bootstrapProject(
     const totalDurationMs = report.completedAt!.getTime() - report.startedAt.getTime();
     void globalEventBus.emit(createBootstrapCompleteEvent(workspace, true, totalDurationMs));
     if (report.completedAt) {
+      const semanticPhase = report.phases.find((phase) => phase.phase.name === 'semantic_indexing');
+      const indexedFileTotal = semanticPhase?.metrics?.totalFiles ?? report.totalFilesProcessed;
       await writeIndexState(
         {
           phase: 'ready',
           lastFullIndex: report.completedAt.toISOString(),
-          progress: report.totalFilesProcessed > 0
-            ? { total: report.totalFilesProcessed, completed: report.totalFilesProcessed }
+          progress: indexedFileTotal > 0
+            ? { total: indexedFileTotal, completed: indexedFileTotal }
             : undefined,
         },
         { force: true }
@@ -2857,16 +2872,17 @@ export async function bootstrapProject(
       // Keep original error as the primary failure signal.
     }
     try {
+      const restoredArtifacts = await collectBootstrapArtifacts(workspace);
       await writeBootstrapConsistencyState(workspace, {
         kind: 'BootstrapConsistencyState.v1',
         schema_version: 1,
         workspace,
         generation_id: consistencyGenerationId,
-        status: restoredFromBackup ? 'complete' : 'failed',
+        status: 'failed',
         started_at: recoveryStartedAt,
         updated_at: new Date().toISOString(),
         completed_at: report.completedAt.toISOString(),
-        artifacts: await collectBootstrapArtifacts(workspace),
+        artifacts: restoredArtifacts,
         last_error: restoredFromBackup
           ? `bootstrap_failed_restored_previous_state: ${report.error}`
           : report.error,
@@ -2902,13 +2918,18 @@ async function upsertMetadataForSuccessfulBootstrap(
       storage.getStats(),
       storage.getFiles({}),
     ]);
+    const semanticPhase = report.phases.find((phase) => phase.phase.name === 'semantic_indexing');
+    const indexedFileTotal = semanticPhase?.metrics?.totalFiles
+      ?? report.totalFilesProcessed
+      ?? existingMetadata?.totalFiles
+      ?? files.length;
 
 	const nextMetadata: LibrarianMetadata = {
 	  version: report.version,
 	  workspace,
 	  lastBootstrap: completedAt,
 	  lastIndexing: completedAt,
-	  totalFiles: existingMetadata?.totalFiles ?? files.length,
+	  totalFiles: indexedFileTotal,
 	  totalFunctions: stats.totalFunctions,
 	  totalContextPacks: stats.totalContextPacks,
 	  qualityTier: report.version.qualityTier,

@@ -39,6 +39,13 @@ export interface QueryCommandOptions {
   rawArgs: string[];
 }
 
+interface QueryReadTarget {
+  dbPath: string;
+  ignoreBootstrapLock: boolean;
+  suppressWrites: boolean;
+  notice?: string;
+}
+
 type QueryStrategyFlag = 'auto' | 'semantic' | 'heuristic';
 type RetrievalStrategy = 'hybrid' | 'semantic' | 'heuristic' | 'degraded';
 type QuerySessionMode = 'start' | 'follow_up' | 'drill_down';
@@ -218,20 +225,25 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
   }
 
   // Initialize storage
-  const dbPath = await resolveDbPath(workspace);
+  const primaryDbPath = await resolveDbPath(workspace);
+  const queryReadTarget = await resolveQueryReadTarget(workspace, primaryDbPath);
+  const dbPath = queryReadTarget.dbPath;
   await runQueryStorageLockPreflight(workspace, dbPath, {
     timeoutMs: lockTimeoutMs,
     retryIntervalMs: STORAGE_LOCK_RETRY_INTERVAL_MS,
     maxRecoveryActions: DEFAULT_QUERY_PREFLIGHT_MAX_RECOVERY_ACTIONS,
     allowConcurrentReads: true,
+    ignoreBootstrapLock: queryReadTarget.ignoreBootstrapLock,
   });
-  let storage = createQueryStorage(dbPath, workspace);
+  let storage = createQueryStorage(dbPath, workspace, {
+    suppressWrites: queryReadTarget.suppressWrites,
+  });
   storage = await withQueryCommandTimeout(
     'initialize',
     effectiveQueryTimeoutMs,
     () => initializeQueryStorageWithRecovery(storage, dbPath, workspace)
   );
-  let bootstrapFallbackNotice: string | undefined;
+  const queryNotices = queryReadTarget.notice ? [queryReadTarget.notice] : [];
   const executeQueryWithRecovery = async (queryPayload: LibrarianQuery): Promise<LibrarianResponse> => {
     try {
       return await withQueryCommandTimeout(
@@ -256,6 +268,12 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
       );
     }
   };
+  const enumerationIntent = sessionRequested
+    ? { isEnumeration: false, confidence: 0, category: undefined }
+    : detectEnumerationIntent(intent);
+  const useEnumeration = explicitEnumerate || (enumerationIntent.isEnumeration && enumerationIntent.confidence >= 0.7);
+  const autoDetectExhaustive = sessionRequested ? false : shouldUseExhaustiveMode(intent);
+  const useExhaustive = explicitExhaustive || autoDetectExhaustive;
   try {
     // Check if bootstrapped - detect current tier and use that as target
     // This allows operation on existing data without requiring upgrade
@@ -270,58 +288,67 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason)
         );
       }
+      const requirementFallback = deferredReason
+        ? { allowContinue: false as const }
+        : await evaluateBootstrapRequirementFallback(storage, {
+          reason: bootstrapCheck.reason,
+          allowSemanticFallback: !useEnumeration && !useExhaustive,
+        });
+      if (requirementFallback.allowContinue) {
+        if (requirementFallback.notice) {
+          queryNotices.push(requirementFallback.notice);
+        }
+        console.error(`[query] ${requirementFallback.notice}`);
+      } else {
       if (deferredReason) {
         const remediation = buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason);
         if (typeof process.stderr?.write === 'function') {
           process.stderr.write(`[query] deferred bootstrap reason: ${deferredReason} — falling through to auto-bootstrap\n`);
         }
       }
-      const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
-      try {
-        let skipEmbeddings = false;
-        const providerCheckSkipped =
-          (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1';
-        if (providerCheckSkipped) {
-          skipEmbeddings = true;
-        } else {
-          try {
-            const providerStatus = await checkAllProviders({ workspaceRoot: workspace });
-            skipEmbeddings = !providerStatus.embedding.available;
-          } catch {
+        const bootstrapSpinner = createSpinner('Bootstrap required; initializing (fast mode)...');
+        try {
+          let skipEmbeddings = false;
+          const providerCheckSkipped =
+            (process.env.LIBRAINIAN_SKIP_PROVIDER_CHECK ?? process.env.LIBRARIAN_SKIP_PROVIDER_CHECK) === '1';
+          if (providerCheckSkipped) {
             skipEmbeddings = true;
+          } else {
+            try {
+              const providerStatus = await checkAllProviders({ workspaceRoot: workspace });
+              skipEmbeddings = !providerStatus.embedding.available;
+            } catch {
+              skipEmbeddings = true;
+            }
           }
+          const config = createBootstrapConfig(workspace, {
+            bootstrapMode: 'fast',
+            skipLlm: true,
+            skipEmbeddings,
+            timeoutMs: effectiveQueryTimeoutMs,
+          });
+          storage = await executeQueryBootstrapWithRecovery({
+            workspace,
+            dbPath,
+            storage,
+            config,
+            timeoutMs: effectiveQueryTimeoutMs,
+          });
+          bootstrapSpinner.succeed('Bootstrap complete');
+        } catch (error) {
+          const fallback = await evaluateBootstrapFailureFallback(storage, error);
+          if (!fallback.allowContinue) {
+            bootstrapSpinner.fail('Bootstrap failed');
+            throw error;
+          }
+          if (fallback.notice) {
+            queryNotices.push(fallback.notice);
+          }
+          bootstrapSpinner.succeed('Bootstrap validation failed; continuing with existing index');
+          console.error(`[query] ${fallback.notice}`);
         }
-        const config = createBootstrapConfig(workspace, {
-          bootstrapMode: 'fast',
-          skipLlm: true,
-          skipEmbeddings,
-          timeoutMs: effectiveQueryTimeoutMs,
-        });
-        storage = await executeQueryBootstrapWithRecovery({
-          workspace,
-          dbPath,
-          storage,
-          config,
-          timeoutMs: effectiveQueryTimeoutMs,
-        });
-        bootstrapSpinner.succeed('Bootstrap complete');
-      } catch (error) {
-        const fallback = await evaluateBootstrapFailureFallback(storage, error);
-        if (!fallback.allowContinue) {
-          bootstrapSpinner.fail('Bootstrap failed');
-          throw error;
-        }
-        bootstrapFallbackNotice = fallback.notice;
-        bootstrapSpinner.succeed('Bootstrap validation failed; continuing with existing index');
-        console.error(`[query] ${fallback.notice}`);
       }
     }
-
-    // Check if this is an enumeration query (explicit flag or auto-detected)
-    const enumerationIntent = sessionRequested
-      ? { isEnumeration: false, confidence: 0, category: undefined }
-      : detectEnumerationIntent(intent);
-    const useEnumeration = explicitEnumerate || (enumerationIntent.isEnumeration && enumerationIntent.confidence >= 0.7);
 
     if (useEnumeration && enumerationIntent.category) {
       // Run enumeration query - returns COMPLETE lists instead of top-k
@@ -370,10 +397,6 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
         throw error;
       }
     }
-
-    // Check if this is an exhaustive query (explicit flag or auto-detected)
-    const autoDetectExhaustive = sessionRequested ? false : shouldUseExhaustiveMode(intent);
-    const useExhaustive = explicitExhaustive || autoDetectExhaustive;
 
     if (useExhaustive) {
       // Run exhaustive dependency query instead of semantic query
@@ -702,10 +725,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     try {
       const startTime = Date.now();
       const rawResponse = await executeQueryWithRecovery(query);
-      const responseWithBootstrapNotice = bootstrapFallbackNotice
+      const responseWithBootstrapNotice = queryNotices.length > 0
         ? {
             ...rawResponse,
-            coverageGaps: [...(rawResponse.coverageGaps ?? []), bootstrapFallbackNotice],
+            coverageGaps: [...(rawResponse.coverageGaps ?? []), ...queryNotices],
           }
         : rawResponse;
       const { response, droppedCount } = applyPackLimit(responseWithBootstrapNotice, limit);
@@ -898,6 +921,7 @@ interface QueryStorageLockPreflightOptions {
   retryIntervalMs: number;
   maxRecoveryActions: number;
   allowConcurrentReads?: boolean;
+  ignoreBootstrapLock?: boolean;
 }
 
 async function runQueryStorageLockPreflight(
@@ -911,6 +935,7 @@ async function runQueryStorageLockPreflight(
   const retryIntervalMs = Math.max(50, options.retryIntervalMs);
   const maxRecoveryActions = Math.max(1, options.maxRecoveryActions);
   const allowConcurrentReads = options.allowConcurrentReads === true;
+  const ignoreBootstrapLock = options.ignoreBootstrapLock === true;
   const deadline = Date.now() + timeoutMs;
   let nextRecoveryAt = 0;
   let recoveryActionCount = 0;
@@ -929,7 +954,7 @@ async function runQueryStorageLockPreflight(
 
       for (const candidateDbPath of candidateDbPaths) {
         try {
-          const recovery = await attemptStorageRecovery(candidateDbPath);
+          const recovery = await attemptStorageRecovery(candidateDbPath, { mode: 'stale_lock' });
           if (recovery.recovered && recovery.actions.length > 0) {
             recoveryActionCount += recovery.actions.length;
             console.error(
@@ -954,7 +979,9 @@ async function runQueryStorageLockPreflight(
 
     const activeStorageLock = await findActiveStorageLock(lockPaths);
     const activeBootstrapBlockingLock =
-      activeBootstrapLock && activeBootstrapLock.holder.pid !== process.pid
+      !ignoreBootstrapLock
+      && activeBootstrapLock
+      && activeBootstrapLock.holder.pid !== process.pid
         ? activeBootstrapLock
         : null;
     const activeStorageBlockingLock =
@@ -1210,16 +1237,11 @@ function deriveQueryAnswer(response: LibrarianResponse, intent?: string): string
   if (synthesized) return synthesized;
 
   if (isLocationIntent(intent)) {
-    const allFiles = response.packs.flatMap((pack) => pack.relatedFiles ?? []);
-    const nonTestFiles = allFiles.filter((file) => {
-      const normalized = file.toLowerCase();
-      return !normalized.includes('/__tests__/') && !normalized.includes('.test.') && !normalized.includes('.spec.');
-    });
-    const files = Array.from(new Set((nonTestFiles.length > 0 ? nonTestFiles : allFiles).filter(Boolean))).slice(0, 3);
+    const files = collectPreferredAnswerFiles(response.packs).slice(0, 1);
     const subjectMatch = intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
     const subject = subjectMatch?.[1]?.trim() || 'the requested logic';
     if (files.length > 0) {
-      return `${subject} is primarily implemented in ${files.join(', ')}.`;
+      return `${subject} is primarily implemented in ${files[0]}.`;
     }
   }
 
@@ -1233,6 +1255,58 @@ function deriveQueryAnswer(response: LibrarianResponse, intent?: string): string
   const explanation = response.explanation?.trim();
   if (explanation) return explanation;
   return undefined;
+}
+
+function collectPreferredAnswerFiles(packs: LibrarianResponse['packs']): string[] {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  const sorted = packs.slice().sort((left, right) => right.confidence - left.confidence);
+  const add = (candidate: string | undefined) => {
+    if (!candidate) return;
+    const display = extractDisplayAnswerFile(candidate);
+    if (!display || seen.has(display)) return;
+    seen.add(display);
+    files.push(display);
+  };
+
+  for (const pack of sorted) {
+    for (const snippet of pack.codeSnippets ?? []) {
+      add(snippet.filePath);
+    }
+    add(pack.targetId);
+    for (const file of pack.relatedFiles ?? []) {
+      add(file);
+    }
+  }
+
+  return files;
+}
+
+function extractDisplayAnswerFile(candidate: string): string | null {
+  const trimmed = candidate.trim().replace(/\\/g, '/');
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('/__tests__/') || lower.includes('.test.') || lower.includes('.spec.')) {
+    return null;
+  }
+
+  const targetMatch = trimmed.match(/(.+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|md))(?:[:#].*)?$/i);
+  const pathLike = targetMatch?.[1] ?? trimmed;
+  const anchors = ['/src/', '/docs/', '/scripts/', '/tests/', '/test/'];
+  const normalized = pathLike.toLowerCase();
+  for (const anchor of anchors) {
+    const index = normalized.lastIndexOf(anchor);
+    if (index >= 0) {
+      return pathLike.slice(index + 1);
+    }
+  }
+  if (/^(src|docs|scripts|tests|test)\//i.test(pathLike)) {
+    return pathLike;
+  }
+  if (/\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|md)$/i.test(pathLike)) {
+    return pathLike;
+  }
+  return null;
 }
 
 async function withQueryCommandTimeout<T>(
@@ -1301,9 +1375,132 @@ async function initializeQueryStorageWithRecovery(
 
 function createQueryStorage(
   dbPath: string,
-  workspace: string
+  workspace: string,
+  options: { suppressWrites?: boolean } = {},
 ): ReturnType<typeof createSqliteStorage> {
-  return createSqliteStorage(dbPath, workspace, QUERY_READ_STORAGE_OPTIONS);
+  const storage = createSqliteStorage(dbPath, workspace, QUERY_READ_STORAGE_OPTIONS);
+  if (options.suppressWrites !== true) {
+    return storage;
+  }
+  return createReadMostlyQueryStorage(storage);
+}
+
+function createReadMostlyQueryStorage(
+  storage: ReturnType<typeof createSqliteStorage>
+): ReturnType<typeof createSqliteStorage> {
+  const noOpAsync = async (): Promise<void> => undefined;
+  const noOpAsyncZero = async (): Promise<number> => 0;
+  const suppressedMethods = new Map<PropertyKey, unknown>([
+    ['setState', noOpAsync],
+    ['recordContextPackAccess', noOpAsync],
+    ['recordQueryAccessLogs', noOpAsync],
+    ['upsertQueryCacheEntry', noOpAsync],
+    ['recordQueryCacheAccess', noOpAsync],
+    ['pruneQueryCache', noOpAsyncZero],
+  ]);
+
+  return new Proxy(storage, {
+    get(target, property) {
+      if (suppressedMethods.has(property)) {
+        return suppressedMethods.get(property);
+      }
+      const value = Reflect.get(target, property, target);
+      if (typeof value === 'function') {
+        return value.bind(target);
+      }
+      return value;
+    },
+  }) as ReturnType<typeof createSqliteStorage>;
+}
+
+interface BootstrapArtifactBackupEntry {
+  original_path: string;
+  backup_path: string;
+}
+
+interface BootstrapArtifactBackupState {
+  kind: 'BootstrapArtifactBackupState.v1';
+  schema_version: 1;
+  workspace: string;
+  generation_id: string;
+  created_at: string;
+  files: BootstrapArtifactBackupEntry[];
+}
+
+async function resolveQueryReadTarget(
+  workspace: string,
+  primaryDbPath: string
+): Promise<QueryReadTarget> {
+  const primaryPath = path.resolve(primaryDbPath);
+  const bootstrapLockState = await reconcileBootstrapWorkspaceLock(workspace);
+  const activeBootstrapHolder = bootstrapLockState.activeHolder;
+  if (!activeBootstrapHolder || activeBootstrapHolder.pid === process.pid) {
+    return {
+      dbPath: primaryPath,
+      ignoreBootstrapLock: false,
+      suppressWrites: false,
+    };
+  }
+
+  const snapshotPath = await readBootstrapSnapshotPath(workspace, primaryPath);
+  if (!snapshotPath) {
+    return {
+      dbPath: primaryPath,
+      ignoreBootstrapLock: false,
+      suppressWrites: false,
+    };
+  }
+
+  return {
+    dbPath: snapshotPath,
+    ignoreBootstrapLock: true,
+    suppressWrites: true,
+    notice:
+      `Bootstrap is active (pid=${activeBootstrapHolder.pid}, startedAt=${activeBootstrapHolder.startedAt}). `
+      + 'Query is using the preserved pre-bootstrap snapshot until the active bootstrap completes.',
+  };
+}
+
+async function readBootstrapSnapshotPath(
+  workspace: string,
+  primaryDbPath: string
+): Promise<string | null> {
+  const statePath = path.join(workspace, '.librarian', 'bootstrap_artifact_backup.json');
+  let raw = '';
+  try {
+    raw = await fs.readFile(statePath, 'utf8');
+  } catch {
+    return null;
+  }
+  const parsed = safeJsonParse<BootstrapArtifactBackupState>(raw);
+  if (!parsed.ok) {
+    return null;
+  }
+  const value = parsed.value;
+  if (
+    value.kind !== 'BootstrapArtifactBackupState.v1'
+    || value.schema_version !== 1
+    || value.workspace !== workspace
+    || !Array.isArray(value.files)
+  ) {
+    return null;
+  }
+  const primaryPath = path.resolve(primaryDbPath);
+  const match = value.files.find((entry) =>
+    entry
+    && typeof entry.original_path === 'string'
+    && typeof entry.backup_path === 'string'
+    && path.resolve(entry.original_path) === primaryPath
+  );
+  if (!match) {
+    return null;
+  }
+  try {
+    await fs.access(match.backup_path);
+    return path.resolve(match.backup_path);
+  } catch {
+    return null;
+  }
 }
 
 interface QueryStorageRecoveryParams {
@@ -1322,22 +1519,32 @@ async function recoverQueryStorageAfterFailure(
     return null;
   }
 
-  const recovery = await attemptStorageRecovery(dbPath, { error }).catch((recoveryError) => ({
+  const recovery = await attemptStorageRecovery(dbPath, {
+    error,
+    mode: 'stale_lock',
+  }).catch((recoveryError) => ({
     recovered: false,
     actions: [] as string[],
     errors: [String(recoveryError)],
   }));
-  if (!recovery.recovered) {
-    return null;
-  }
-
   await storage.close().catch(() => undefined);
-
   const phaseLabel = phase === 'initialize'
     ? 'storage init'
     : phase === 'bootstrap'
       ? 'query bootstrap'
       : 'query execution';
+
+  if (!recovery.recovered) {
+    if (!isLikelyCorruptionError(error)) {
+      return null;
+    }
+    const recoveredStorage = await createEphemeralQueryStorage(workspace);
+    console.error(
+      `[librarian] recovered ${phaseLabel} using ephemeral query storage after corruption in ${path.basename(dbPath)}`
+    );
+    return recoveredStorage;
+  }
+
   if (recovery.actions.length > 0) {
     console.error(
       `[librarian] recovered ${phaseLabel} storage state for ${path.basename(dbPath)}: ${recovery.actions.join(', ')}`
@@ -1351,6 +1558,27 @@ async function recoverQueryStorageAfterFailure(
   const recoveredStorage = createQueryStorage(dbPath, workspace);
   await recoveredStorage.initialize();
   return recoveredStorage;
+}
+
+function isLikelyCorruptionError(error: unknown): boolean {
+  const message = String(error ?? '').toLowerCase();
+  return message.includes('sqlite_corrupt')
+    || message.includes('database disk image is malformed')
+    || message.includes('database malformed')
+    || message.includes('malformed database')
+    || message.includes('file is not a database')
+    || message.includes('database schema is corrupt');
+}
+
+async function createEphemeralQueryStorage(
+  workspace: string
+): Promise<ReturnType<typeof createSqliteStorage>> {
+  const tempDir = path.join(workspace, '.librarian', 'tmp');
+  await fs.mkdir(tempDir, { recursive: true });
+  const tempDbPath = path.join(tempDir, `query-recovery-${process.pid}-${Date.now()}.sqlite`);
+  const storage = createQueryStorage(tempDbPath, workspace);
+  await storage.initialize();
+  return storage;
 }
 
 interface QueryBootstrapRecoveryParams {
@@ -1429,6 +1657,39 @@ async function hasUsableIndexedData(
   } catch {
     return false;
   }
+}
+
+async function evaluateBootstrapRequirementFallback(
+  storage: ReturnType<typeof createSqliteStorage>,
+  options: {
+    reason: string;
+    allowSemanticFallback: boolean;
+  }
+): Promise<{ allowContinue: boolean; notice?: string }> {
+  if (!options.allowSemanticFallback) {
+    return { allowContinue: false };
+  }
+
+  const usableIndex = await hasUsableIndexedData(storage);
+  if (usableIndex) {
+    return {
+      allowContinue: true,
+      notice:
+        `Bootstrap repair is still required (${options.reason}). `
+        + 'Continuing with the last successful index snapshot; run `librarian bootstrap --force --mode fast` to repair durable state.',
+    };
+  }
+
+  if (!options.allowSemanticFallback) {
+    return { allowContinue: false };
+  }
+
+  return {
+    allowContinue: true,
+    notice:
+      `Bootstrap required but no usable persistent index is available (${options.reason}). `
+      + 'Continuing with direct filesystem retrieval; run `librarian bootstrap --force --mode fast` to restore durable index state.',
+  };
 }
 
 async function evaluateBootstrapFailureFallback(
@@ -1643,6 +1904,7 @@ async function saveQuerySession(workspace: string, session: ContextSession): Pro
 
 export const __testing = {
   isBootstrapValidationFailure,
+  evaluateBootstrapRequirementFallback,
   evaluateBootstrapFailureFallback,
   hasUsableIndexedData,
 };

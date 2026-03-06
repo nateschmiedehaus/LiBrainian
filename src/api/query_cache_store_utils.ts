@@ -23,6 +23,7 @@ export type QueryCacheStore = LibrarianStorage & {
 
 const QUERY_CACHE_L1_LIMIT = 100;
 const QUERY_CACHE_L2_LIMIT = 1000;
+const MIN_CACHEABLE_CONFIDENCE = 0.45;
 const queryCacheByStorage = new WeakMap<LibrarianStorage, HierarchicalMemory<CachedResponse>>();
 
 export function getQueryCache(storage: LibrarianStorage): HierarchicalMemory<CachedResponse> {
@@ -54,8 +55,27 @@ export async function setCachedQuery(
   storage: LibrarianStorage,
   query: LibrarianQuery
 ): Promise<void> {
+  if (!isCacheableQueryResponse(response)) {
+    return;
+  }
   const cache = getQueryCache(storage);
   await cache.set(key, response, resolveQueryCacheTier(query));
+}
+
+export function isCacheableQueryResponse(response: CachedResponse): boolean {
+  if (!Array.isArray(response.packs) || response.packs.length === 0) {
+    return false;
+  }
+  if (response.retrievalInsufficient === true) {
+    return false;
+  }
+  if (response.retrievalStatus === 'insufficient') {
+    return false;
+  }
+  if (typeof response.totalConfidence === 'number' && response.totalConfidence < MIN_CACHEABLE_CONFIDENCE) {
+    return false;
+  }
+  return true;
 }
 
 async function readPersistentCache(storage: LibrarianStorage, key: string): Promise<CachedResponse | null> {
@@ -73,6 +93,7 @@ async function readPersistentCache(storage: LibrarianStorage, key: string): Prom
   }
   const parsed = deserializeCachedResponse(entry.response);
   if (!parsed) return noResult();
+  if (!isCacheableQueryResponse(parsed)) return noResult();
   return parsed;
 }
 

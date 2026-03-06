@@ -168,6 +168,12 @@ const SYMBOL_QUERY_PATTERNS: Array<{
   nameGroup: number;
   isBare?: boolean;
 }> = [
+  // "What is the signature of X?" / "signature of X"
+  {
+    pattern: /^(?:what\s+is\s+)?(?:the\s+)?signature\s+(?:of|for)\s+(\w+)\??$/i,
+    kindExtractor: () => 'function',
+    nameGroup: 1,
+  },
   // "X class/function/interface/type/const/enum"
   {
     pattern: /^(\w+)\s+(class|function|interface|type|const|enum|constant)$/i,
@@ -310,7 +316,7 @@ export function parseSymbolQuery(query: string): SymbolQueryPattern | null {
 
   // Check for definition-related keywords
   const isDefinitionQuery =
-    /\bdefinitions?\b|\bdefined\b|\bdeclared\b|\bwhere\s+is\b/i.test(trimmed);
+    /\bdefinitions?\b|\bdefined\b|\bdeclared\b|\bwhere\s+is\b|\bsignature\b/i.test(trimmed);
 
   for (const { pattern, kindExtractor, nameGroup, isBare } of SYMBOL_QUERY_PATTERNS) {
     const match = trimmed.match(pattern);
@@ -811,6 +817,9 @@ export function symbolToContextPack(
     `File: ${symbol.file}`,
     `Line: ${symbol.line}`,
   ];
+  if (symbol.signature) {
+    keyFacts.push(`Signature: ${symbol.signature}`);
+  }
   if (symbol.exported) {
     keyFacts.push('Exported: yes');
   }
