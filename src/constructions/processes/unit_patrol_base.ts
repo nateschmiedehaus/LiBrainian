@@ -901,6 +901,9 @@ function collectTopFiles(
   const files: string[] = [];
   const packs = Array.isArray(response.packs) ? response.packs : [];
   for (const pack of packs.slice(0, topK)) {
+    if (typeof pack.targetId === 'string' && pack.targetId.length > 0) {
+      files.push(toWorkspaceRelativePath(pack.targetId, workspace));
+    }
     for (const relatedFile of pack.relatedFiles ?? []) {
       files.push(toWorkspaceRelativePath(relatedFile, workspace));
     }
@@ -986,6 +989,11 @@ export function createAdversarialFixtureUnitPatrolConstruction(
     },
   );
 }
+
+export const __testing = {
+  collectTopFiles,
+  toWorkspaceRelativePath,
+};
 
 export const UNIT_PATROL_DEFAULT_SCENARIO = DEFAULT_SCENARIO;
 

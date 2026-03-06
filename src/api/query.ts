@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { glob } from 'glob';
 import type {
   LibrarianStorage,
   SimilarityResult,
@@ -56,6 +57,7 @@ import type { QueryRunner, SimilarMatch } from './query_interface.js';
 import type { EvidenceRef } from './evidence.js';
 import { emptyArray, noResult } from './empty_values.js';
 import { safeJsonParse } from '../utils/safe_json.js';
+import { getLanguageFromPath } from '../utils/language.js';
 import { checkProviderSnapshot, ProviderUnavailableError } from './provider_check.js';
 import { checkExtractionSnapshot } from './extraction_gate.js';
 import { ensureDailyModelSelection } from '../adapters/model_policy.js';
@@ -240,6 +242,7 @@ import {
 } from './query_pack_postprocessing.js';
 import {
   buildQueryCacheKey,
+  buildQueryCacheVersionPrefix,
   buildSemanticCacheScopeSignature,
   classifySemanticCacheCategory,
   computeSemanticIntentSimilarity,
@@ -501,6 +504,25 @@ const HINT_LOW_CONFIDENCE_THRESHOLD = q(
   [0, 1],
   'Hint threshold for low-confidence results.'
 );
+const FILESYSTEM_FALLBACK_LIMIT = 6;
+const FILESYSTEM_FALLBACK_GLOB = 'src/**/*.{ts,tsx,js,jsx,mjs,cjs}';
+const FILESYSTEM_FALLBACK_STOP_WORDS = new Set([
+  'the', 'how', 'does', 'what', 'where', 'when', 'why', 'work', 'works', 'working',
+  'implemented', 'implementation', 'defined', 'located', 'handled', 'handling', 'across',
+  'codebase', 'project', 'file', 'files', 'stage', 'stages', 'into', 'from', 'with',
+  'that', 'this', 'those', 'these', 'its', 'their', 'there', 'about',
+]);
+const FILESYSTEM_FALLBACK_DEPRIORITIZED_TERMS = new Set([
+  'dead',
+  'legacy',
+  'deprecated',
+  'archive',
+  'archived',
+  'obsolete',
+  'old',
+]);
+const FILESYSTEM_FALLBACK_DEPRIORITIZED_PATH_SEGMENTS = /(^|\/)(dead|legacy|deprecated|archive|archived|obsolete|old)(\/|$)/u;
+const FILESYSTEM_FALLBACK_PREFERRED_PATH_SEGMENTS = /(^|\/)(live|active|current|canonical|primary)(\/|$)/u;
 
 // ============================================================================
 // META-QUERY DETECTION FOR DOCUMENTATION ROUTING
@@ -642,6 +664,10 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const featureLocationMatches = FEATURE_LOCATION_PATTERNS.filter(p => p.test(intent)).length;
   const isFeatureLocationQuery = featureLocationMatches > 0 && !isTestQuery;
   const featureTarget = isFeatureLocationQuery ? extractFeatureTarget(intent) : undefined;
+  const hasStrongImplementationLocationSignal =
+    implementationSeekingMatches > 0
+    || isFeatureLocationQuery
+    || /\bwhere\s+is\b.*\b(implemented|defined|located)\b/i.test(intent);
 
   // Check for code review queries - asking for code review or issue detection
   const codeReviewMatches = CODE_REVIEW_QUERY_PATTERNS.filter(p => p.test(intent)).length;
@@ -672,8 +698,19 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const isProjectUnderstanding = projectUnderstandingMatches > 0 && !isTestQuery && !isWhyQuery && !isArchitectureOverviewQuery;
 
   // Test queries take priority and exclude other query types
-  const isMetaQuery = (metaMatches > 0 && metaMatches >= codeMatches && !isTestQuery && !isWhyQuery) || isProjectUnderstanding;
-  const isCodeQuery = codeMatches > 0 && codeMatches > metaMatches && !isTestQuery && !isProjectUnderstanding && !isWhyQuery;
+  const isMetaQuery = (
+    metaMatches > 0
+    && metaMatches >= codeMatches
+    && !hasStrongImplementationLocationSignal
+    && !isTestQuery
+    && !isWhyQuery
+  ) || isProjectUnderstanding;
+  const isCodeQuery =
+    codeMatches > 0
+    && (codeMatches > metaMatches || hasStrongImplementationLocationSignal)
+    && !isTestQuery
+    && !isProjectUnderstanding
+    && !isWhyQuery;
   const isDefinitionQuery = definitionMatches > 0 && !isTestQuery;
   const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery && !isArchitectureOverviewQuery;
 
@@ -1159,13 +1196,15 @@ export async function queryLibrarian(
       });
     }
 
-    // FAIL-FAST: Verify storage has indexed data before running queries
-    // If bootstrap ran but indexed nothing, queries will return empty/useless results
     const stats = await storage.getStats();
     if (stats.totalFunctions === 0 && stats.totalModules === 0) {
-      throw new Error(
-        'unverified_by_trace(empty_storage): Cannot query librarian - no functions or modules indexed. ' +
-        'Bootstrap may have failed silently or was not run. Run bootstrapProject() first with valid LLM/embedding providers configured.'
+      recordCoverageGap(
+        'semantic_retrieval',
+        'Persistent index is empty; falling back to direct filesystem retrieval.',
+        'significant'
+      );
+      disclosures.push(
+        'unverified_by_trace(empty_storage): Persistent index is empty; using direct filesystem retrieval until bootstrap is repaired.'
       );
     }
 
@@ -2055,7 +2094,7 @@ export async function queryLibrarian(
     ? Math.exp(finalPacks.reduce((sum, p) => sum + Math.log(Math.max(0.01, p.confidence)), 0) / finalPacks.length)
     : 0;
   const indexAssessment = assessIndexState(indexState);
-  if (indexAssessment.confidenceCap !== null) {
+  if (!packStageResult.usedFilesystemFallback && indexAssessment.confidenceCap !== null) {
     totalConfidence = Math.min(totalConfidence, indexAssessment.confidenceCap);
   }
 
@@ -2271,6 +2310,9 @@ export async function queryLibrarian(
     recordCoverageGap,
     explanationParts,
     synthesisEnabled,
+    preferQuickSynthesis: coverageGaps.some((gap) =>
+      /persistent index is empty|vector_index_empty|index not initialized/i.test(gap)
+    ),
     workspaceRoot,
   });
   let synthesis = synthesisStageResult.synthesis;
@@ -3414,7 +3456,7 @@ async function runCandidatePackStage(options: {
   recordCoverageGap: RecordCoverageGap;
   explanationParts: string[];
   version: LibrarianVersion;
-}): Promise<{ allPacks: ContextPack[] }> {
+}): Promise<{ allPacks: ContextPack[]; usedFilesystemFallback: boolean }> {
   const {
     storage,
     query,
@@ -3428,30 +3470,39 @@ async function runCandidatePackStage(options: {
     version,
   } = options;
   const candidatePacks = await collectCandidatePacks(storage, candidates, query.depth);
+  let usedFilesystemFallback = false;
   if (candidatePacks.length && candidates.length) {
     explanationParts.push(`Added ${candidatePacks.length} packs from semantic + graph candidates.`);
   }
   const allPacks = dedupePacks([...directPacks, ...candidatePacks]);
   if (!allPacks.length) {
     const fallbackStage = stageTracker.start('fallback', 1);
-    const fallbackMinConfidence = version.qualityTier === 'mvp'
-      ? FALLBACK_MIN_CONFIDENCE_MVP
-      : FALLBACK_MIN_CONFIDENCE_FULL;
-    let fallbackCandidates = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: FALLBACK_CANDIDATE_LIMIT });
-    if (!fallbackCandidates.length) fallbackCandidates = await storage.getContextPacks({ limit: FALLBACK_CANDIDATE_LIMIT });
-    const fallback = rankHeuristicFallbackPacks(fallbackCandidates, query.intent ?? '').slice(0, FALLBACK_RESULT_LIMIT);
-    if (fallback.length) {
-      allPacks.push(...fallback);
-      explanationParts.push('Applied heuristic fallback ranking (lexical + outcome-weighted) because semantic match was unavailable.');
-      stageTracker.finish(fallbackStage, { outputCount: fallback.length, filteredCount: 0 });
+    const filesystemFallback = await collectFilesystemFallbackPacks(workspaceRoot, query.intent ?? '', version);
+    if (filesystemFallback.length) {
+      allPacks.push(...filesystemFallback);
+      usedFilesystemFallback = true;
+      explanationParts.push('Applied filesystem lexical fallback because indexed packs were unavailable.');
+      stageTracker.finish(fallbackStage, { outputCount: filesystemFallback.length, filteredCount: 0 });
     } else {
-      recordCoverageGap(
-        'fallback',
-        'No context packs available from storage.',
-        'significant',
-        'Run bootstrap or lower the minimum confidence threshold.'
-      );
-      stageTracker.finish(fallbackStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
+      const fallbackMinConfidence = version.qualityTier === 'mvp'
+        ? FALLBACK_MIN_CONFIDENCE_MVP
+        : FALLBACK_MIN_CONFIDENCE_FULL;
+      let fallbackCandidates = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: FALLBACK_CANDIDATE_LIMIT });
+      if (!fallbackCandidates.length) fallbackCandidates = await storage.getContextPacks({ limit: FALLBACK_CANDIDATE_LIMIT });
+      const fallback = rankHeuristicFallbackPacks(fallbackCandidates, query.intent ?? '').slice(0, FALLBACK_RESULT_LIMIT);
+      if (fallback.length) {
+        allPacks.push(...fallback);
+        explanationParts.push('Applied heuristic fallback ranking (lexical + outcome-weighted) because semantic match was unavailable.');
+        stageTracker.finish(fallbackStage, { outputCount: fallback.length, filteredCount: 0 });
+      } else {
+        recordCoverageGap(
+          'fallback',
+          'No context packs available from storage.',
+          'significant',
+          'Run bootstrap or lower the minimum confidence threshold.'
+        );
+        stageTracker.finish(fallbackStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
+      }
     }
   }
   if (directPacks.length) {
@@ -3470,7 +3521,7 @@ async function runCandidatePackStage(options: {
     );
     explanationParts.push(`Filtered ${workspaceScoped.dropped} out-of-workspace packs.`);
   }
-  return { allPacks: workspaceScoped.packs };
+  return { allPacks: workspaceScoped.packs, usedFilesystemFallback };
 }
 
 function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): ContextPack[] {
@@ -3549,6 +3600,153 @@ function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): 
       || right.pack.accessCount - left.pack.accessCount
     )
     .map((entry) => entry.pack);
+}
+
+async function collectFilesystemFallbackPacks(
+  workspaceRoot: string,
+  intent: string,
+  version: LibrarianVersion,
+): Promise<ContextPack[]> {
+  const terms = tokenize(intent)
+    .filter((term) => term.length >= 3 && !FILESYSTEM_FALLBACK_STOP_WORDS.has(term));
+  if (terms.length === 0) return [];
+  const seeksDeprioritizedPaths = terms.some((term) => FILESYSTEM_FALLBACK_DEPRIORITIZED_TERMS.has(term));
+
+  const files = await glob(FILESYSTEM_FALLBACK_GLOB, {
+    cwd: workspaceRoot,
+    absolute: true,
+    nodir: true,
+    follow: false,
+    ignore: ['**/__tests__/**', '**/*.test.*', '**/*.system.*', '**/*.d.ts'],
+  }).catch(() => []);
+  if (files.length === 0) return [];
+
+  const scored = await Promise.all(files.map(async (absolutePath) => {
+    const relativePath = path.relative(workspaceRoot, absolutePath).replace(/\\/g, '/');
+    const basename = path.basename(relativePath, path.extname(relativePath)).toLowerCase();
+    const pathLower = relativePath.toLowerCase();
+    let content = '';
+    try {
+      content = await fs.readFile(absolutePath, 'utf8');
+    } catch {
+      return null;
+    }
+
+    const exports = extractExportNames(content);
+    const exportTerms = new Set(exports.flatMap((name) => tokenize(name)));
+    const contentLower = content.toLowerCase();
+    let score = pathLower.startsWith('src/api/') ? 2 : 0;
+    if (FILESYSTEM_FALLBACK_PREFERRED_PATH_SEGMENTS.test(pathLower)) {
+      score += 2;
+    }
+    if (!seeksDeprioritizedPaths && FILESYSTEM_FALLBACK_DEPRIORITIZED_PATH_SEGMENTS.test(pathLower)) {
+      score -= 18;
+    }
+    if (!seeksDeprioritizedPaths && /\b(dead code|legacy|deprecated|archived|obsolete)\b/u.test(contentLower)) {
+      score -= 8;
+    }
+    const matchedTerms = new Set<string>();
+    for (const term of terms) {
+      let termScore = 0;
+      if (exportTerms.has(term)) termScore = Math.max(termScore, 10);
+      if (basename === term) termScore = Math.max(termScore, 12);
+      if (basename.startsWith(term)) termScore = Math.max(termScore, 8);
+      if (basename.includes(term)) termScore = Math.max(termScore, 5);
+      if (pathLower.includes(`/${term}/`) || pathLower.includes(`_${term}`) || pathLower.includes(`${term}_`)) {
+        termScore = Math.max(termScore, 4);
+      }
+      if (contentLower.includes(term)) {
+        termScore = Math.max(termScore, 3);
+      }
+      if (termScore > 0) {
+        score += termScore;
+        matchedTerms.add(term);
+      }
+    }
+
+    if (matchedTerms.size >= 2) {
+      score += matchedTerms.size * 3;
+    }
+    if (score <= 0) return null;
+
+    const snippet = buildFilesystemFallbackSnippet(relativePath, content, terms);
+    return {
+      relativePath,
+      score,
+      matchedTerms: Array.from(matchedTerms.values()),
+      exports,
+      snippet,
+    };
+  }));
+
+  const ranked = scored
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((left, right) =>
+      right.score - left.score
+      || right.matchedTerms.length - left.matchedTerms.length
+      || left.relativePath.localeCompare(right.relativePath)
+    )
+    .slice(0, FILESYSTEM_FALLBACK_LIMIT);
+  const highestScore = ranked[0]?.score ?? 0;
+  const lowestScore = ranked.at(-1)?.score ?? highestScore;
+  const scoreSpread = Math.max(1, highestScore - lowestScore);
+
+  return ranked
+    .map((entry) => {
+      const relativeScore = ranked.length === 1
+        ? 0.75
+        : (entry.score - lowestScore) / scoreSpread;
+      const confidence = 0.45 + (relativeScore * 0.35);
+      return {
+      packId: `filesystem:${entry.relativePath}`,
+      packType: 'module_context' as ContextPackType,
+      targetId: `filesystem:${entry.relativePath}`,
+      summary: `${entry.relativePath} matches ${entry.matchedTerms.join(', ')}`,
+      keyFacts: [
+        `File: ${entry.relativePath}`,
+        `Matched terms: ${entry.matchedTerms.join(', ')}`,
+        ...(entry.exports.length > 0 ? [`Exports: ${entry.exports.join(', ')}`] : []),
+      ],
+      codeSnippets: entry.snippet ? [entry.snippet] : [],
+      relatedFiles: [entry.relativePath],
+      confidence,
+      createdAt: new Date(),
+      accessCount: 0,
+      lastOutcome: 'unknown',
+      successCount: 0,
+      failureCount: 0,
+      version,
+      invalidationTriggers: [entry.relativePath],
+      };
+    });
+}
+
+function buildFilesystemFallbackSnippet(
+  relativePath: string,
+  content: string,
+  terms: string[],
+): ContextPack['codeSnippets'][number] | null {
+  const lines = content.split(/\r?\n/);
+  if (lines.length === 0) return null;
+  const lowerTerms = terms.map((term) => term.toLowerCase());
+  let matchIndex = lines.findIndex((line) => lowerTerms.some((term) => line.toLowerCase().includes(term)));
+  if (matchIndex < 0) {
+    matchIndex = 0;
+  }
+  const startLine = Math.max(1, matchIndex - 2 + 1);
+  const endLine = Math.min(lines.length, matchIndex + 3 + 1);
+  return {
+    filePath: relativePath,
+    startLine,
+    endLine,
+    content: lines.slice(startLine - 1, endLine).join('\n'),
+    language: getLanguageFromPath(relativePath, 'plaintext'),
+  };
+}
+
+function extractExportNames(content: string): string[] {
+  const matches = Array.from(content.matchAll(/export\s+(?:async\s+)?(?:function|class|const|let|type|interface)\s+([A-Za-z0-9_]+)/g));
+  return matches.slice(0, 6).map((match) => match[1]);
 }
 
 // ============================================================================
@@ -5498,6 +5696,7 @@ async function runSynthesisStage(options: {
   recordCoverageGap: RecordCoverageGap;
   explanationParts: string[];
   synthesisEnabled: boolean;
+  preferQuickSynthesis?: boolean;
   synthesisTimeoutMs?: number;
   workspaceRoot?: string;
   resolveWorkspaceRootFn?: typeof resolveWorkspaceRoot;
@@ -5513,6 +5712,7 @@ async function runSynthesisStage(options: {
     recordCoverageGap,
     explanationParts,
     synthesisEnabled,
+    preferQuickSynthesis,
     synthesisTimeoutMs,
     workspaceRoot,
     resolveWorkspaceRootFn,
@@ -5539,8 +5739,9 @@ async function runSynthesisStage(options: {
     }
     try {
       const forceSummarySynthesis = query.forceSummarySynthesis === true;
+      const shouldPreferQuickSynthesis = preferQuickSynthesis === true;
       // Use quick synthesis for simple queries when possible
-      if (forceSummarySynthesis || shouldQuickAnswer(query, finalPacks)) {
+      if (forceSummarySynthesis || shouldPreferQuickSynthesis || shouldQuickAnswer(query, finalPacks)) {
         try {
           const quickAnswer = buildQuickAnswer(query, finalPacks);
           synthesis = {
@@ -5551,9 +5752,13 @@ async function runSynthesisStage(options: {
             uncertainties: quickAnswer.uncertainties,
           };
           synthesisMode = 'heuristic';
-          explanationParts.push('Quick synthesis from pack summaries.');
+          explanationParts.push(
+            shouldPreferQuickSynthesis && !forceSummarySynthesis
+              ? 'Quick synthesis from pack summaries due to degraded retrieval state.'
+              : 'Quick synthesis from pack summaries.'
+          );
         } catch (quickError) {
-          if (!forceSummarySynthesis) {
+          if (!(forceSummarySynthesis || shouldPreferQuickSynthesis)) {
             throw quickError;
           }
           const topPack = finalPacks
@@ -5761,7 +5966,7 @@ async function trySemanticCacheLookup(options: {
   const threshold = SEMANTIC_CACHE_THRESHOLDS[category];
   const targetIntent = normalizeIntentForCache(intent);
   const targetScope = buildSemanticCacheScopeSignature(options.query);
-  const versionPrefix = `${options.version.string}:${options.version.indexedAt?.getTime?.() ?? 0}|`;
+  const versionPrefix = `${buildQueryCacheVersionPrefix(options.version)}|`;
   const candidates = await cacheStore.getRecentQueryCacheEntries(SEMANTIC_CACHE_CANDIDATE_LIMIT);
 
   let best: { key: string; similarity: number } | null = null;
@@ -6536,9 +6741,16 @@ async function injectFilenameCandidates(
   existingCandidates: Candidate[],
   storage: LibrarianStorage,
 ): Promise<{ candidates: Candidate[]; added: number }> {
-  const stopWords = new Set(['the', 'how', 'does', 'what', 'work', 'and', 'this', 'that', 'with', 'for', 'from', 'into', 'are', 'is']);
-  const terms = intent.toLowerCase().split(/\s+/)
-    .filter(t => t.length >= 3 && !stopWords.has(t));
+  const stopWords = new Set([
+    'the', 'how', 'does', 'what', 'work', 'and', 'this', 'that', 'with', 'for', 'from', 'into',
+    'are', 'is', 'where', 'implemented', 'defined', 'located', 'handled', 'across', 'codebase',
+    'stage', 'stages', 'feature', 'files', 'file', 'its',
+  ]);
+  const terms = Array.from(new Set(
+    intent.toLowerCase().split(/\s+/)
+      .filter(t => t.length >= 3 && !stopWords.has(t))
+      .flatMap((term) => term.endsWith('s') && term.length > 4 ? [term, term.slice(0, -1)] : [term])
+  ));
   if (terms.length === 0) return { candidates: existingCandidates, added: 0 };
 
   const existingIds = new Set(existingCandidates.map(c => c.entityId));
@@ -6609,6 +6821,21 @@ async function injectFilenameCandidates(
 
     // Get functions from matching files and inject as candidates
     for (const filePath of matchingPaths) {
+      const moduleRecord = await storage.getModuleByPath(filePath).catch(() => null);
+      if (moduleRecord && !existingIds.has(moduleRecord.id)) {
+        injected.push({
+          entityId: moduleRecord.id,
+          entityType: 'module',
+          path: moduleRecord.path,
+          semanticSimilarity: 0.52,
+          confidence: moduleRecord.confidence ?? 0.6,
+          recency: 0.5,
+          pagerank: 0,
+          centrality: 0,
+          communityId: null,
+        });
+        existingIds.add(moduleRecord.id);
+      }
       const fns = await storage.getFunctionsByPath(filePath);
       // Prefer functions whose names match query terms (most relevant to the question),
       // then fall back to the longest function (likely the main export)
@@ -7024,6 +7251,10 @@ async function collectCandidatePacks(storage: LibrarianStorage, candidates: Cand
       const jitPack = await synthesizeFunctionPack(storage, candidate);
       if (jitPack) packs.push(jitPack);
     }
+    if (!foundPack && candidate.entityType === 'module') {
+      const jitPack = await synthesizeModulePack(storage, candidate);
+      if (jitPack) packs.push(jitPack);
+    }
   }
   return dedupePacks(packs);
 }
@@ -7064,6 +7295,80 @@ async function synthesizeFunctionPack(storage: LibrarianStorage, candidate: Cand
   } catch {
     return null;
   }
+}
+
+async function synthesizeModulePack(storage: LibrarianStorage, candidate: Candidate): Promise<ContextPack | null> {
+  try {
+    const mod = await storage.getModule(candidate.entityId);
+    if (!mod) return null;
+    const filePath = mod.path || candidate.path || '';
+    const functions = filePath ? await storage.getFunctionsByPath(filePath).catch(() => []) : [];
+    const topFunctions = functions
+      .slice()
+      .sort((left, right) => (right.endLine - right.startLine) - (left.endLine - left.startLine))
+      .slice(0, 5)
+      .map((fn) => fn.name);
+    const snippet = await readModuleSnippet(storage, filePath);
+    const keyFacts: string[] = [];
+    if (mod.purpose) keyFacts.push(`Purpose: ${mod.purpose}`);
+    if (topFunctions.length > 0) keyFacts.push(`Top-level routines: ${topFunctions.join(', ')}`);
+    if (mod.exports.length > 0) keyFacts.push(`Exports: ${mod.exports.slice(0, 6).join(', ')}`);
+    if (mod.dependencies.length > 0) keyFacts.push(`Dependencies: ${mod.dependencies.slice(0, 6).join(', ')}`);
+
+    return {
+      packId: `jit_mod_${candidate.entityId.slice(0, 12)}`,
+      packType: 'module_context' as ContextPackType,
+      targetId: candidate.entityId,
+      summary: mod.purpose || `Module ${filePath || candidate.entityId}`,
+      keyFacts,
+      codeSnippets: snippet ? [snippet] : [],
+      relatedFiles: filePath ? [filePath] : [],
+      confidence: Math.max(mod.confidence ?? 0.5, candidate.confidence ?? 0.5),
+      createdAt: new Date(),
+      accessCount: 0,
+      lastOutcome: 'unknown',
+      successCount: 0,
+      failureCount: 0,
+      version: await storage.getVersion() || getCurrentVersion(),
+      invalidationTriggers: filePath ? [filePath] : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readModuleSnippet(
+  storage: LibrarianStorage,
+  filePath: string,
+): Promise<ContextPack['codeSnippets'][number] | null> {
+  if (!filePath) return null;
+
+  try {
+    const metadata = await storage.getMetadata().catch(() => null);
+    const workspaceRoot = metadata?.workspace ?? process.cwd();
+    const absolutePath = path.isAbsolute(filePath) ? filePath : path.resolve(workspaceRoot, filePath);
+    const content = await fs.readFile(absolutePath, 'utf-8');
+    const lines = content.split(/\r?\n/).slice(0, 40);
+    if (lines.length === 0) return null;
+    return {
+      filePath,
+      startLine: 1,
+      endLine: lines.length,
+      content: lines.join('\n'),
+      language: getLanguageFromFilePath(filePath),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getLanguageFromFilePath(filePath: string): string {
+  if (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) return 'typescript';
+  if (filePath.endsWith('.js') || filePath.endsWith('.jsx') || filePath.endsWith('.mjs') || filePath.endsWith('.cjs')) return 'javascript';
+  if (filePath.endsWith('.py')) return 'python';
+  if (filePath.endsWith('.rs')) return 'rust';
+  if (filePath.endsWith('.go')) return 'go';
+  return 'text';
 }
 
 /**
@@ -7447,6 +7752,7 @@ export const __testing = {
   computeSemanticIntentSimilarity,
   buildSemanticCacheScopeSignature,
   collectDirectPacks,
+  collectCandidatePacks,
   buildHydePrompt,
   normalizeHydeExpansion,
   buildIdentifierExpansionVariants,
@@ -7457,6 +7763,7 @@ export const __testing = {
   isCallerProbeIntent,
   resolveCandidateMaterializationLimit,
   capCandidatesForMaterialization,
+  injectFilenameCandidates,
 };
 
 /**

@@ -7,6 +7,7 @@ import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import {
   attemptStorageRecovery,
   cleanupWorkspaceLocks,
+  recoverPrimaryFromViableSnapshot,
   isRecoverableStorageError,
 } from '../storage/storage_recovery.js';
 import { checkAllProviders } from './provider_check.js';
@@ -31,6 +32,9 @@ async function resolveDbPathForWorkspace(workspaceRoot: string): Promise<string>
 
   try {
     await fs.access(sqlitePath);
+    await recoverPrimaryFromViableSnapshot(sqlitePath, {
+      additionalCandidates: [legacyPath],
+    });
     return sqlitePath;
   } catch {
     // Continue to legacy checks.

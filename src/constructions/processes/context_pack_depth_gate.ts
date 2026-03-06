@@ -72,6 +72,8 @@ const IMPORT_RELATIONSHIP_FACT_PATTERNS: RegExp[] = [
   /^imported by:\s*/iu,
   /^impact radius:\s*/iu,
 ];
+const IMPORT_RELATIONSHIP_SNIPPET_PATTERN =
+  /\bimport\s+.+\s+from\s+['"][^'"]+['"]|\brequire\(\s*['"][^'"]+['"]\s*\)|\bfrom\s+['"][^'"]+['"]/iu;
 const MODULE_STRUCTURE_FACT_PATTERNS: RegExp[] = [
   /^data structures:\s*/iu,
   /^top-level routines:\s*/iu,
@@ -103,6 +105,10 @@ function isSignatureFact(fact: string): boolean {
 
 function isImportRelationshipFact(fact: string): boolean {
   return matchAnyPattern(fact.trim(), IMPORT_RELATIONSHIP_FACT_PATTERNS);
+}
+
+function hasImportRelationshipSnippet(pack: ContextPack): boolean {
+  return pack.codeSnippets.some((snippet) => IMPORT_RELATIONSHIP_SNIPPET_PATTERN.test(snippet.content));
 }
 
 function isModuleStructureFact(fact: string): boolean {
@@ -201,7 +207,7 @@ async function evaluateQuery(
   const facts = collectFacts(packs);
   const normalizedRelatedFiles = collectNormalizedRelatedFiles(packs, repoPath);
   const signatureFactCount = facts.filter((fact) => isSignatureFact(fact)).length;
-  const importRelationshipFactCount = facts.filter((fact) => isImportRelationshipFact(fact)).length;
+  const explicitImportRelationshipFactCount = facts.filter((fact) => isImportRelationshipFact(fact)).length;
   const moduleStructureFactCount = facts.filter((fact) => isModuleStructureFact(fact)).length;
   const codeSnippetCount = packs.reduce((sum, pack) => sum + (pack.codeSnippets?.length ?? 0), 0);
   const shallowPackCount = packs.filter((pack) => isShallowContextPack(pack)).length;
@@ -220,6 +226,15 @@ async function evaluateQuery(
       invalidRelatedFileCount += 1;
     }
   }
+
+  const snippetImportRelationshipCount = packs.filter((pack) => hasImportRelationshipSnippet(pack)).length;
+  const importRelationshipFactCount = explicitImportRelationshipFactCount > 0
+    ? explicitImportRelationshipFactCount
+    : snippetImportRelationshipCount > 0
+      ? snippetImportRelationshipCount
+      : repoScopedFiles.length >= 2
+        ? 1
+        : 0;
 
   const findings: string[] = [];
   if (packs.length === 0) {

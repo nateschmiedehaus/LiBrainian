@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   UnitPatrolConstruction,
   createFixtureSmokeUnitPatrolConstruction,
+  unitPatrolTesting,
   type UnitPatrolInput,
 } from '../index.js';
 
@@ -130,4 +131,39 @@ describe('UnitPatrol', () => {
     expect(failureRate).toBeGreaterThanOrEqual(0);
     expect(failureRate).toBeLessThanOrEqual(1);
   }, 220_000);
+
+  it('extracts top files from pack target ids as well as related files and snippets', () => {
+    const files = unitPatrolTesting.collectTopFiles({
+      packs: [
+        {
+          packId: 'pack-1',
+          packType: 'module_context',
+          targetId: `${FIXTURE_REPO}/src/primary.ts`,
+          summary: 'primary implementation',
+          keyFacts: [],
+          relatedFiles: ['src/related.ts'],
+          codeSnippets: [{ filePath: 'src/snippet.ts', startLine: 1, endLine: 1, content: 'x', language: 'ts' }],
+          confidence: 0.9,
+          createdAt: new Date('2026-03-06T00:00:00.000Z'),
+          accessCount: 0,
+          lastOutcome: 'unknown',
+          successCount: 0,
+          failureCount: 0,
+          version: {
+            major: 2,
+            minor: 0,
+            patch: 0,
+            string: '2.0.0',
+            qualityTier: 'full',
+            indexedAt: new Date('2026-03-06T00:00:00.000Z'),
+            indexerVersion: '2.0.0',
+            features: [],
+          },
+          invalidationTriggers: [],
+        },
+      ],
+    } as never, FIXTURE_REPO, 5);
+
+    expect(files).toEqual(['src/primary.ts', 'src/related.ts', 'src/snippet.ts']);
+  });
 });

@@ -546,18 +546,39 @@ export function canAnswerFromSummaries(
     intent.startsWith('what does') ||
     intent.startsWith('what is') ||
     intent.includes('purpose of');
+  const isBroadCodebaseQuery =
+    /^(how|what)\s+(is|are)\b/.test(intent)
+    && /\b(codebase|project)\b/.test(intent);
   const isLocationQuery =
     intent.startsWith('where is') ||
     intent.startsWith('where are') ||
     /\b(where|defined|located)\b/.test(intent);
   const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
 
-  if (!isSimplePurposeQuery && !isLocationQuery && !isCallerQuery) return false;
+  if (!isSimplePurposeQuery && !isBroadCodebaseQuery && !isLocationQuery && !isCallerQuery) return false;
+  const informativePacks = packs.filter((pack) =>
+    (typeof pack.summary === 'string' && pack.summary.trim().length >= 12)
+    || (Array.isArray(pack.keyFacts) && pack.keyFacts.some((fact) => fact.trim().length >= 12))
+  );
+  if (informativePacks.length === 0) return false;
+
+  if (isBroadCodebaseQuery) {
+    const strongPack = informativePacks.some((pack) => pack.confidence >= 0.7);
+    if (strongPack) {
+      return true;
+    }
+    const broadFiles = new Set(
+      informativePacks
+        .flatMap((pack) => pack.relatedFiles ?? [])
+        .map((file) => file.trim())
+        .filter((file) => file.length > 0)
+    );
+    const moderatePacks = informativePacks.filter((pack) => pack.confidence >= 0.3);
+    return broadFiles.size >= 2 && moderatePacks.length >= 2;
+  }
 
   const minConfidence = (isLocationQuery || isCallerQuery) ? 0.6 : 0.7;
   const minSummaryLength = (isLocationQuery || isCallerQuery) ? 10 : 20;
-
-  // Check if we have high-confidence packs with clear summaries
   const goodPacks = packs.filter(
     (p) => p.confidence >= minConfidence && p.summary && p.summary.length >= minSummaryLength
   );
@@ -576,6 +597,9 @@ export function createQuickAnswer(
   const intent = query.intent?.toLowerCase() || '';
   const isLocationQuery = intent.startsWith('where is') || intent.startsWith('where are');
   const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
+  const broadCodebaseMatch = query.intent?.match(
+    /^(how|what)\s+(is|are)\s+(.+?)\s+(handled|implemented|organized|structured)\s+across\s+the\s+(?:codebase|project)\??$/i
+  );
   const topPack = packs
     .filter((p) => p.summary && p.summary.length > 10)
     .sort((a, b) => b.confidence - a.confidence)[0];
@@ -584,21 +608,30 @@ export function createQuickAnswer(
     throw new Error('No suitable pack for quick answer');
   }
 
-  const files = Array.from(new Set(
-    packs
-      .flatMap((pack) => pack.relatedFiles ?? [])
-      .map((file) => file.trim())
-      .filter((file) => file.length > 0)
-  )).slice(0, 3);
+  const files = collectPreferredDisplayFiles(packs).slice(0, 3);
   const locationSubjectMatch = query.intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
   const locationSubject = locationSubjectMatch?.[1]?.trim();
+  const topFacts = Array.from(new Set(
+    packs
+      .flatMap((pack) => pack.keyFacts ?? [])
+      .map((fact) => fact.trim())
+      .filter((fact) => fact.length > 0)
+  )).slice(0, 3);
 
   let quickAnswerText = topPack.summary;
   if (isLocationQuery && files.length > 0) {
     const subject = locationSubject && locationSubject.length > 0 ? locationSubject : 'the requested logic';
-    quickAnswerText = `${subject} is primarily implemented in ${files.join(', ')}.`;
+    const primaryFile = selectPrimaryLocationFile(query.intent ?? '', packs) ?? files[0];
+    quickAnswerText = `${subject} is primarily implemented in ${primaryFile}.`;
   } else if (isCallerQuery && files.length > 0) {
     quickAnswerText = `Caller relationships are primarily represented in ${files.join(', ')}.`;
+  } else if (broadCodebaseMatch && files.length > 0 && topFacts.length > 0) {
+    const [, , auxiliary, subject, verb] = broadCodebaseMatch;
+    quickAnswerText = `${subject} ${auxiliary} ${verb} across ${files.join(', ')}. Key signals: ${topFacts.join('; ')}.`;
+  } else if (files.length > 0 && topFacts.length > 0) {
+    quickAnswerText = `Relevant implementation is concentrated in ${files.join(', ')}. Key signals: ${topFacts.join('; ')}.`;
+  } else if (files.length > 0) {
+    quickAnswerText = `Relevant implementation is concentrated in ${files.join(', ')}.`;
   }
 
   const queryId = generateQueryId(query);
@@ -619,4 +652,100 @@ export function createQuickAnswer(
     keyInsights: topPack.keyFacts.slice(0, 3),
     uncertainties: ['Answer derived from pack summary without full LLM synthesis'],
   };
+}
+
+function collectPreferredDisplayFiles(packs: ContextPack[]): string[] {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  const add = (candidate: string | undefined) => {
+    if (!candidate) return;
+    const display = extractDisplayFilePath(candidate);
+    if (!display || seen.has(display)) return;
+    seen.add(display);
+    files.push(display);
+  };
+
+  const sorted = packs.slice().sort((left, right) => right.confidence - left.confidence);
+  for (const pack of sorted) {
+    for (const snippet of pack.codeSnippets ?? []) {
+      add(snippet.filePath);
+    }
+    add(pack.targetId);
+    for (const file of pack.relatedFiles ?? []) {
+      add(file);
+    }
+  }
+
+  return files;
+}
+
+function selectPrimaryLocationFile(intent: string, packs: ContextPack[]): string | null {
+  const ranked = packs
+    .map((pack) => ({
+      pack,
+      score: scorePackForLocationIntent(intent, pack),
+    }))
+    .sort((left, right) => right.score - left.score);
+  for (const entry of ranked) {
+    const candidate = collectPreferredDisplayFiles([entry.pack])[0];
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
+function scorePackForLocationIntent(intent: string, pack: ContextPack): number {
+  const text = [
+    pack.targetId,
+    pack.summary,
+    ...(pack.keyFacts ?? []),
+    ...(pack.relatedFiles ?? []),
+    ...(pack.codeSnippets ?? []).map((snippet) => snippet.filePath),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  let score = pack.confidence;
+  for (const token of extractLocationIntentTokens(intent)) {
+    if (text.includes(token)) {
+      score += token.length >= 6 ? 0.2 : 0.1;
+    }
+  }
+  return score;
+}
+
+function extractLocationIntentTokens(intent: string): string[] {
+  const stopWords = new Set([
+    'where', 'what', 'how', 'is', 'are', 'the', 'its', 'their', 'implemented',
+    'implementation', 'defined', 'located', 'stages', 'stage',
+  ]);
+  return Array.from(new Set(
+    (intent.toLowerCase().match(/[a-z0-9_]+/g) ?? [])
+      .filter((token) => token.length >= 3 && !stopWords.has(token))
+  ));
+}
+
+function extractDisplayFilePath(candidate: string): string | null {
+  const trimmed = candidate.trim().replace(/\\/g, '/');
+  if (!trimmed) return null;
+
+  const targetMatch = trimmed.match(/(.+\.(?:ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|md))(?:[:#].*)?$/i);
+  const pathLike = targetMatch?.[1] ?? trimmed;
+  const anchors = ['/src/', '/docs/', '/scripts/', '/tests/', '/test/'];
+  const lower = pathLike.toLowerCase();
+  for (const anchor of anchors) {
+    const index = lower.lastIndexOf(anchor);
+    if (index >= 0) {
+      return pathLike.slice(index + 1);
+    }
+  }
+
+  if (/^(src|docs|scripts|tests|test)\//i.test(pathLike)) {
+    return pathLike;
+  }
+  if (/\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|md)$/i.test(pathLike)) {
+    return pathLike;
+  }
+
+  return null;
 }

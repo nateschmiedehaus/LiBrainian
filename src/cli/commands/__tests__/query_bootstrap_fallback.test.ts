@@ -41,5 +41,63 @@ describe('query bootstrap fallback helpers', () => {
 
     expect(decision.allowContinue).toBe(false);
   });
-});
 
+  it('continues with semantic fallback when bootstrap is required but the index is empty', async () => {
+    const storage = {
+      getStats: async () => ({
+        totalFunctions: 0,
+        totalModules: 0,
+      }),
+    } as { getStats: () => Promise<{ totalFunctions: number; totalModules: number }> };
+
+    const decision = await __testing.evaluateBootstrapRequirementFallback(
+      storage as never,
+      {
+        reason: 'Previous bootstrap incomplete',
+        allowSemanticFallback: true,
+      }
+    );
+
+    expect(decision.allowContinue).toBe(true);
+    expect(decision.notice).toContain('direct filesystem retrieval');
+  });
+
+  it('continues with the last successful index snapshot when bootstrap repair is pending but the index is usable', async () => {
+    const storage = {
+      getStats: async () => ({
+        totalFunctions: 120,
+        totalModules: 18,
+      }),
+    } as { getStats: () => Promise<{ totalFunctions: number; totalModules: number }> };
+
+    const decision = await __testing.evaluateBootstrapRequirementFallback(
+      storage as never,
+      {
+        reason: 'Previous bootstrap incomplete',
+        allowSemanticFallback: true,
+      }
+    );
+
+    expect(decision.allowContinue).toBe(true);
+    expect(decision.notice).toContain('last successful index snapshot');
+  });
+
+  it('does not continue with semantic fallback for exhaustive/enumeration queries', async () => {
+    const storage = {
+      getStats: async () => ({
+        totalFunctions: 0,
+        totalModules: 0,
+      }),
+    } as { getStats: () => Promise<{ totalFunctions: number; totalModules: number }> };
+
+    const decision = await __testing.evaluateBootstrapRequirementFallback(
+      storage as never,
+      {
+        reason: 'Previous bootstrap incomplete',
+        allowSemanticFallback: false,
+      }
+    );
+
+    expect(decision.allowContinue).toBe(false);
+  });
+});

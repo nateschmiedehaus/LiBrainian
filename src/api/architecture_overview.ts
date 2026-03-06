@@ -6,6 +6,9 @@
  * and module dependencies when explicit architecture documentation is not available.
  */
 
+import { promises as fs } from 'node:fs';
+import type { Dirent } from 'node:fs';
+import path from 'node:path';
 import type { ContextPack, LibrarianVersion, ContextPackType, DirectoryKnowledge, GraphEdge } from '../types.js';
 import type { LibrarianStorage } from '../storage/types.js';
 
@@ -129,6 +132,9 @@ export async function inferArchitectureLayers(
 ): Promise<ArchitectureLayer[]> {
   // Get top-level directories (depth 1 = direct children of src/)
   const directories = await storage.getDirectories({ maxDepth: 2, minDepth: 1 });
+  if (directories.length === 0) {
+    return discoverArchitectureLayersFromFilesystem(storage, workspaceRoot);
+  }
 
   // Get import edges to understand dependencies
   const importEdges = await storage.getGraphEdges({ edgeTypes: ['imports'] });
@@ -175,6 +181,9 @@ export async function inferArchitectureLayers(
       layers.set(dir.name, layer);
     }
   }
+  if (layers.size === 0) {
+    return discoverArchitectureLayersFromFilesystem(storage, workspaceRoot);
+  }
 
   // Infer dependencies from import edges
   const layerDependencies = inferLayerDependencies(importEdges, layers);
@@ -197,6 +206,75 @@ export async function inferArchitectureLayers(
     'analysis': 5,
     'utility': 6,
     'other': 7,
+  };
+
+  return Array.from(layers.values()).sort((a, b) => typeOrder[a.type] - typeOrder[b.type]);
+}
+
+async function discoverArchitectureLayersFromFilesystem(
+  storage: LibrarianStorage,
+  workspaceRoot: string
+): Promise<ArchitectureLayer[]> {
+  const srcRoot = path.join(workspaceRoot, 'src');
+  let entries: Dirent[] = [];
+  try {
+    entries = await fs.readdir(srcRoot, { withFileTypes: true, encoding: 'utf8' });
+  } catch {
+    return [];
+  }
+
+  const ignored = new Set(['__tests__', 'test', 'tests', 'node_modules', 'dist', 'build', 'coverage']);
+  const layers = new Map<string, ArchitectureLayer>();
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || ignored.has(entry.name)) {
+      continue;
+    }
+
+    const dirName = entry.name.toLowerCase();
+    const relativePath = path.posix.join('src', entry.name);
+    const absolutePath = path.join(srcRoot, entry.name);
+    const mapping = LAYER_TYPE_MAPPINGS[dirName];
+    let moduleFiles: string[] = [];
+
+    try {
+      const childEntries = await fs.readdir(absolutePath, { withFileTypes: true, encoding: 'utf8' });
+      moduleFiles = childEntries
+        .filter((child) => child.isFile() && /\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(child.name))
+        .map((child) => path.posix.join(relativePath, child.name))
+        .slice(0, 5);
+    } catch {
+      moduleFiles = [];
+    }
+
+    layers.set(entry.name, {
+      name: entry.name,
+      type: mapping?.type ?? 'other',
+      directories: [relativePath],
+      modules: moduleFiles,
+      purpose: mapping?.purpose ?? `${entry.name} module`,
+      dependsOn: [],
+    });
+  }
+
+  const importEdges = await storage.getGraphEdges({ edgeTypes: ['imports'] }).catch(() => []);
+  const layerDependencies = inferLayerDependencies(importEdges, layers);
+  for (const [layerName, deps] of Array.from(layerDependencies.entries())) {
+    const layer = layers.get(layerName);
+    if (layer) {
+      layer.dependsOn = deps;
+    }
+  }
+
+  const typeOrder: Record<ArchitectureLayer['type'], number> = {
+    interface: 0,
+    application: 1,
+    domain: 2,
+    data: 3,
+    infrastructure: 4,
+    analysis: 5,
+    utility: 6,
+    other: 7,
   };
 
   return Array.from(layers.values()).sort((a, b) => typeOrder[a.type] - typeOrder[b.type]);

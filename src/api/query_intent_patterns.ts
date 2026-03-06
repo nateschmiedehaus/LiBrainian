@@ -256,11 +256,11 @@ export const CODE_REVIEW_QUERY_PATTERNS: RegExp[] = [
  * Examples: "where is authentication implemented", "find the login feature"
  */
 export const FEATURE_LOCATION_PATTERNS: RegExp[] = [
-  /where\s+is\s+(?:the\s+)?(?:\w+)\s+(?:implemented|defined|located)/i,
-  /find\s+(?:the\s+)?(?:\w+)\s+feature/i,
-  /locate\s+(?:the\s+)?(?:implementation|code)\s+(?:for|of)/i,
-  /which\s+files?\s+(?:implement|contain|handle)\s+(?:the\s+)?(?:\w+)/i,
-  /where\s+(?:does|is)\s+(?:the\s+)?(?:\w+)\s+(?:happen|occur|get\s+handled)/i,
+  /where\s+is\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\s+(?:implemented|defined|located)\b/i,
+  /find\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\s+feature\b/i,
+  /locate\s+(?:the\s+)?(?:implementation|code)\s+(?:for|of)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\b/i,
+  /which\s+files?\s+(?:implement|contain|handle)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\b/i,
+  /where\s+(?:does|is)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\s+(?:happen|occur|get\s+handled)\b/i,
   /feature\s+location/i,
 ];
 

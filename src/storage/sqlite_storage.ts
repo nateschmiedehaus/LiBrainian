@@ -630,7 +630,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         throw new Error(`indexing in progress (pid=${observed.pid}, startedAt=${observed.startedAt})`);
       }
 
-      const recovery = await attemptStorageRecovery(this.dbPath).catch((recoveryError) => ({
+      const recovery = await attemptStorageRecovery(this.dbPath, { mode: 'stale_lock' }).catch((recoveryError) => ({
         recovered: false,
         actions: [] as string[],
         errors: [String(recoveryError)],
@@ -663,7 +663,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
         // Proactively clear stale lock artifacts from prior interrupted runs.
         try {
-          const proactiveRecovery = await attemptStorageRecovery(this.dbPath);
+          const proactiveRecovery = await attemptStorageRecovery(this.dbPath, { mode: 'stale_lock' });
           if (proactiveRecovery.recovered) {
             logDedupedLockDiagnostic('Recovered stale lock state before acquisition', {
               path: this.lockPath,
@@ -681,7 +681,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         try {
           await this.acquireProcessLock();
         } catch (error) {
-          const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+          const recovery = await attemptStorageRecovery(this.dbPath, {
+            error,
+            mode: 'stale_lock',
+          }).catch((recoveryError) => ({
             recovered: false,
             actions: [] as string[],
             errors: [String(recoveryError)],
@@ -710,7 +713,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
         this.db.pragma('foreign_keys = ON');
         this.db.pragma('busy_timeout = 5000');
 
-        await applyMigrations(this.db, this.workspaceRoot);
+        await applyMigrations(this.db, {
+          workspaceRoot: this.workspaceRoot,
+          dbPath: this.dbPath,
+        });
         this.ensureEmbeddingColumns();
         this.ensureGraphTables();
         this.ensureTemporalTables();
@@ -750,7 +756,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
         if (!attemptedCorruptionRecovery && this.dbPath !== ':memory:' && isRecoverableStorageError(error)) {
           attemptedCorruptionRecovery = true;
-          const recovery = await attemptStorageRecovery(this.dbPath, { error }).catch((recoveryError) => ({
+          const recovery = await attemptStorageRecovery(this.dbPath, {
+            error,
+            mode: 'quarantine_corrupt',
+          }).catch((recoveryError) => ({
             recovered: false,
             actions: [] as string[],
             errors: [String(recoveryError)],

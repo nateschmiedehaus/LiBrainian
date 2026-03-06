@@ -164,21 +164,144 @@ describe('quick synthesis heuristics', () => {
     expect(result).toBe(true);
   });
 
+  it('allows summary-only answers for broad codebase queries when packs are confident', () => {
+    const result = canAnswerFromSummaries(
+      { intent: 'How are errors handled across the codebase?', depth: 'L1' },
+      [samplePack]
+    );
+    expect(result).toBe(true);
+  });
+
+  it('allows summary-only answers for broad codebase queries with distributed moderate-confidence packs', () => {
+    const result = canAnswerFromSummaries(
+      { intent: 'How are errors handled across the codebase?', depth: 'L1' },
+      [
+        {
+          ...samplePack,
+          packId: 'pack-a',
+          relatedFiles: ['src/cli/errors.ts'],
+          confidence: 0.34,
+          summary: 'CLI commands normalize operational failures into structured user-facing errors.',
+          keyFacts: ['CLI errors are rendered through a structured envelope.'],
+        },
+        {
+          ...samplePack,
+          packId: 'pack-b',
+          relatedFiles: ['src/core/errors.ts'],
+          confidence: 0.31,
+          summary: 'Core services define the shared typed error hierarchy used across modules.',
+          keyFacts: ['Core errors define typed domain failures.'],
+        },
+      ]
+    );
+
+    expect(result).toBe(true);
+  });
+
   it('emits a location-focused quick answer for where-is intents', () => {
     const answer = createQuickAnswer(
       { intent: 'Where is query synthesis executed?', depth: 'L1' },
       [
+        {
+          ...samplePack,
+          packId: 'pack-distractor',
+          targetId: 'src/api/query_cache_response_utils.ts',
+          relatedFiles: ['src/api/query_cache_response_utils.ts'],
+          summary: 'Cache response helpers for query output serialization.',
+          confidence: 0.97,
+        },
         samplePack,
         {
           ...samplePack,
           packId: 'pack-2',
+          targetId: 'src/api/query.ts',
           relatedFiles: ['src/api/query.ts'],
-          confidence: 0.79,
+          confidence: 0.95,
+          summary: 'Query synthesis execution and stage orchestration live in query.ts.',
+          keyFacts: ['query.ts runs the synthesis stage for query responses.'],
         },
       ]
     );
     expect(answer.answer.toLowerCase()).toContain('query synthesis executed');
     expect(answer.answer).toContain('src/api/query.ts');
     expect(answer.synthesized).toBe(true);
+  });
+
+  it('prefers snippet and target source files over transitive related files in location answers', () => {
+    const answer = createQuickAnswer(
+      { intent: 'Where is the query pipeline implemented?', depth: 'L1' },
+      [
+        {
+          ...samplePack,
+          targetId: '/tmp/workspace/src/api/query.ts',
+          relatedFiles: [
+            'src/storage/types.js',
+            'src/types.js',
+          ],
+          codeSnippets: [
+            {
+              filePath: '/tmp/workspace/src/api/query.ts',
+              startLine: 1,
+              endLine: 5,
+              content: 'export function queryLibrarian() {}',
+              language: 'typescript',
+            },
+          ],
+        },
+      ]
+    );
+
+    expect(answer.answer).toContain('src/api/query.ts');
+    expect(answer.answer).not.toContain('src/storage/types.js');
+  });
+
+  it('emits a multi-file summary for generic quick answers', () => {
+    const answer = createQuickAnswer(
+      { intent: 'How are errors handled across the codebase?', depth: 'L1' },
+      [
+        {
+          ...samplePack,
+          relatedFiles: ['src/cli/errors.ts'],
+          keyFacts: ['Structured error envelope for agents'],
+        },
+        {
+          ...samplePack,
+          packId: 'pack-2',
+          relatedFiles: ['src/core/errors.ts'],
+          keyFacts: ['Typed error hierarchy'],
+          confidence: 0.79,
+        },
+      ]
+    );
+
+    expect(answer.answer).toContain('src/cli/errors.ts');
+    expect(answer.answer).toContain('Structured error envelope for agents');
+    expect(answer.synthesized).toBe(true);
+  });
+
+  it('emits a distributed cross-cutting summary for broad codebase queries', () => {
+    const answer = createQuickAnswer(
+      { intent: 'How are errors handled across the codebase?', depth: 'L1' },
+      [
+        {
+          ...samplePack,
+          packId: 'pack-a',
+          relatedFiles: ['src/cli/errors.ts'],
+          confidence: 0.34,
+          keyFacts: ['CLI errors are rendered through a structured envelope.'],
+        },
+        {
+          ...samplePack,
+          packId: 'pack-b',
+          relatedFiles: ['src/core/errors.ts'],
+          confidence: 0.31,
+          keyFacts: ['Core errors define typed domain failures.'],
+        },
+      ]
+    );
+
+    expect(answer.answer).toContain('errors are handled across');
+    expect(answer.answer).toContain('src/cli/errors.ts');
+    expect(answer.answer).toContain('CLI errors are rendered through a structured envelope.');
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ContextPack, LibrarianQuery, LibrarianVersion, QueryCacheEntry } from '../../types.js';
 import {
   getQueryCache,
+  isCacheableQueryResponse,
   setCachedQuery,
   type QueryCacheStore,
 } from '../query_cache_store_utils.js';
@@ -121,5 +122,45 @@ describe('query_cache_store_utils', () => {
       maxEntries: 1000,
       maxAgeMs: 30 * 60 * 1000,
     });
+  });
+
+  it('does not persist low-confidence or insufficient responses', async () => {
+    const response = {
+      ...makeResponse('L3'),
+      totalConfidence: 0.1,
+      retrievalStatus: 'insufficient' as const,
+      retrievalInsufficient: true,
+    };
+    const upsertQueryCacheEntry = vi.fn(async (_entry: QueryCacheEntry) => undefined);
+    const storage = { upsertQueryCacheEntry } as QueryCacheStore;
+
+    expect(isCacheableQueryResponse(response)).toBe(false);
+    await setCachedQuery('key-skip', response, storage, makeQuery('L3'));
+
+    expect(upsertQueryCacheEntry).not.toHaveBeenCalled();
+  });
+
+  it('ignores persisted low-confidence cache entries during hydration', async () => {
+    const response = {
+      ...makeResponse('L3'),
+      totalConfidence: 0.2,
+      retrievalStatus: 'insufficient' as const,
+      retrievalInsufficient: true,
+    };
+    const entry: QueryCacheEntry = {
+      queryHash: 'key-bad',
+      queryParams: JSON.stringify(response.query),
+      response: serializeCachedResponse(response),
+      createdAt: new Date().toISOString(),
+      lastAccessed: new Date().toISOString(),
+      accessCount: 1,
+    };
+    const getQueryCacheEntry = vi.fn(async (_key: string) => entry);
+    const storage = { getQueryCacheEntry } as QueryCacheStore;
+
+    const cache = getQueryCache(storage);
+    const hydrated = await cache.get('key-bad');
+
+    expect(hydrated).toBeNull();
   });
 });

@@ -7,6 +7,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logInfo } from '../telemetry/logger.js';
+import { recoverPrimaryFromViableSnapshot } from '../storage/storage_recovery.js';
 
 const SQLITE_FILENAME = 'librarian.sqlite';
 const LEGACY_DB_FILENAME = 'librarian.db';
@@ -28,6 +29,9 @@ export async function resolveDbPath(workspace: string): Promise<string> {
   // Check if .sqlite exists
   try {
     await fs.access(sqlitePath);
+    await recoverPrimaryFromViableSnapshot(sqlitePath, {
+      additionalCandidates: [legacyPath],
+    });
     return sqlitePath;
   } catch {
     // .sqlite doesn't exist

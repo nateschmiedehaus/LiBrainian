@@ -15,6 +15,9 @@ export interface IntentBehaviorCoherenceInput {
   divergenceThreshold?: number;
   prioritizeByCriticality?: boolean;
   workspaceRoot?: string;
+  workspace?: string;
+  repoPath?: string;
+  cwd?: string;
 }
 
 export type DivergenceType =
@@ -581,7 +584,13 @@ function buildSuggestedDocstring(parsed: ParsedFunction): string {
 async function summarizeIntentBehaviorCoherence(
   input: IntentBehaviorCoherenceInput,
 ): Promise<IntentBehaviorCoherenceOutput> {
-  const workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd());
+  const workspaceRoot = path.resolve(
+    input.workspaceRoot
+      ?? input.workspace
+      ?? input.repoPath
+      ?? input.cwd
+      ?? process.cwd()
+  );
   const files = await collectSourceFiles(workspaceRoot);
   const parsedFunctions: ParsedFunction[] = [];
   for (const filePath of files) {

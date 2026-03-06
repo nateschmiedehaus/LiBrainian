@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import Database from 'better-sqlite3';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -184,6 +185,39 @@ describe('Librarian Storage', () => {
     await storage.close();
   });
 
+  it('treats migration 11 as already applied when files_skipped already exists', async () => {
+    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+
+    const initialStorage = createSqliteStorage(dbPath, workspace);
+    await initialStorage.initialize();
+    await initialStorage.close();
+
+    const db = new Database(dbPath);
+    try {
+      db.prepare('UPDATE librarian_metadata SET value = ? WHERE key = ?').run('10', 'schema_version');
+    } finally {
+      db.close();
+    }
+
+    const reopenedStorage = createSqliteStorage(dbPath, workspace);
+    await reopenedStorage.initialize();
+    await reopenedStorage.close();
+
+    const rootEntries = await fs.readdir(workspace);
+    expect(rootEntries.some((entry) => entry.startsWith('.librarian.backup.v10.'))).toBe(false);
+
+    const migratedDb = new Database(dbPath, { readonly: true });
+    try {
+      const schemaVersion = migratedDb
+        .prepare('SELECT value FROM librarian_metadata WHERE key = ?')
+        .get('schema_version') as { value?: string } | undefined;
+      expect(schemaVersion?.value).toBe('11');
+    } finally {
+      migratedDb.close();
+    }
+  });
+
   it('creates a pre-migration backup of .librarian state', async () => {
     const librarianDir = path.join(workspace, '.librarian');
     const dbPath = path.join(librarianDir, 'librarian.sqlite');
@@ -200,6 +234,25 @@ describe('Librarian Storage', () => {
     const backupFile = path.join(workspace, backupDir ?? '', 'preexisting.txt');
     const backupContent = await fs.readFile(backupFile, 'utf8');
     expect(backupContent.trim()).toBe('seed');
+  });
+
+  it('does not back up workspace .librarian when migrations run against a detached db path', async () => {
+    const librarianDir = path.join(workspace, '.librarian');
+    await fs.mkdir(librarianDir, { recursive: true });
+    await fs.writeFile(path.join(librarianDir, 'preexisting.txt'), 'seed\n', 'utf8');
+
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-detached-db-'));
+    const dbPath = path.join(externalDir, 'librarian.sqlite');
+    const storage = createSqliteStorage(dbPath, workspace);
+    try {
+      await storage.initialize();
+      await storage.close();
+    } finally {
+      await fs.rm(externalDir, { recursive: true, force: true });
+    }
+
+    const rootEntries = await fs.readdir(workspace);
+    expect(rootEntries.some((entry) => entry.startsWith('.librarian.backup.v0.'))).toBe(false);
   });
 
   it('recovers from transient sqlite sidecar ENOENT while creating migration backup', async () => {

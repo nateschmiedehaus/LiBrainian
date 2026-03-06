@@ -30,6 +30,7 @@ describe('query intent target extractors', () => {
   it('extracts feature targets', () => {
     expect(extractFeatureTarget('where is authentication implemented')).toBe('authentication');
     expect(extractFeatureTarget('find the login feature')).toBe('login');
+    expect(extractFeatureTarget('where is the query pipeline implemented')).toBe('query pipeline');
     expect(extractFeatureTarget('show me architecture overview')).toBeUndefined();
   });
 

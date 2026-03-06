@@ -84,9 +84,8 @@ export async function coverageCommand(options: CoverageCommandOptions): Promise<
 
   const workspaceRoot = path.resolve(workspace);
   const outputPath = path.resolve(workspaceRoot, values.output as string || DEFAULT_OUTPUT);
-
-  const ucIds = await readUcIds(path.join(workspaceRoot, 'docs', 'archive', 'USE_CASE_MATRIX.md'));
-  const scenarioIds = await readScenarioIds(path.join(workspaceRoot, 'docs', 'archive', 'scenarios.md'));
+  const ucIds = await readUcIds(await resolveCoverageDocPath(workspaceRoot, 'USE_CASE_MATRIX.md'));
+  const scenarioIds = await readScenarioIds(await resolveCoverageDocPath(workspaceRoot, 'scenarios.md'));
 
   if (ucIds.length === 0) {
     throw createError('VALIDATION_FAILED', 'No UC IDs found in USE_CASE_MATRIX.md');
@@ -363,4 +362,20 @@ async function readScenarioIds(filePath: string): Promise<string[]> {
     if (match?.[1]) ids.add(match[1]);
   }
   return Array.from(ids).sort();
+}
+
+async function resolveCoverageDocPath(workspaceRoot: string, fileName: 'USE_CASE_MATRIX.md' | 'scenarios.md'): Promise<string> {
+  const candidates = [
+    path.join(workspaceRoot, 'docs', 'archive', fileName),
+    path.join(workspaceRoot, 'docs', 'librarian', fileName),
+  ];
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // Try the next location.
+    }
+  }
+  throw new Error(`Coverage documentation file not found: ${fileName}`);
 }

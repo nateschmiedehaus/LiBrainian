@@ -175,4 +175,38 @@ describe('retrieval escalation policy', () => {
     expect(questions).toHaveLength(3);
     expect(expanded).toContain('session');
   });
+
+  it('does not inject absolute workspace path tokens when expanding escalation intent', () => {
+    const intent = 'Where is the query pipeline implemented and what are its stages?';
+    const expanded = expandEscalationIntent(intent, [
+      pack({
+        targetId: '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/constructions/processes/hallucinated_api_detector.ts:detectHallucinatedApiUsage',
+        relatedFiles: [
+          '/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/src/constructions/processes/hallucinated_api_detector.ts',
+        ],
+        summary: 'Detects hallucinated API usage in generated changes',
+        keyFacts: ['Used in construction verification flows'],
+      }),
+    ]);
+
+    expect(expanded).toBe(intent);
+    expect(expanded).not.toContain('volumes');
+    expect(expanded).not.toContain('bigssd4');
+    expect(expanded).not.toContain('documents');
+    expect(expanded).not.toContain('software');
+    expect(expanded).not.toContain('librarian');
+  });
+
+  it('keeps architecture and location queries stable during escalation', () => {
+    const intent = 'Where is the query pipeline implemented and what are its stages?';
+    const expanded = expandEscalationIntent(intent, [
+      pack({
+        targetId: 'src/constructions/processes/hallucinated_api_detector.ts:detectHallucinatedApiUsage',
+        summary: 'Module hallucinated_api_detector exporting createHallucinatedApiDetectorConstruction',
+        keyFacts: ['Top-level routines: normalizePathSeparators, parseSemver'],
+      }),
+    ]);
+
+    expect(expanded).toBe(intent);
+  });
 });

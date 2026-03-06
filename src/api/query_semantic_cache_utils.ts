@@ -5,6 +5,9 @@ import type {
 } from '../types.js';
 
 export type SemanticCacheCategory = 'lookup' | 'conceptual' | 'diagnostic';
+const QUERY_CACHE_SCHEMA_VERSION = 'qv4';
+const QUERY_CACHE_ROUTING_BEHAVIOR_VERSION = 'route2';
+const QUERY_CACHE_SYNTHESIS_BEHAVIOR_VERSION = 'synth2';
 
 const QUERY_CACHE_STOP_WORDS = new Set([
   'a',
@@ -89,12 +92,22 @@ export function buildQueryCacheKey(
     ].join('|')
     : '';
   const workingFile = query.workingFile ?? '';
-  const versionKey = `${version.string}:${version.indexedAt?.getTime?.() ?? 0}`;
+  const versionKey = buildQueryCacheVersionPrefix(version);
   const embeddingRequirement = query.embeddingRequirement ?? '';
   const methodGuidanceFlag = query.disableMethodGuidance === true ? 1 : 0;
   const forceSummarySynthesisFlag = query.forceSummarySynthesis === true ? 1 : 0;
   const hydeExpansionFlag = query.hydeExpansion === true ? 1 : 0;
   return `${versionKey}|llm:${llmRequirement}|embed:${embeddingRequirement}|syn:${synthesisEnabled ? 1 : 0}|mg:${methodGuidanceFlag}|fs:${forceSummarySynthesisFlag}|hyde:${hydeExpansionFlag}|${query.depth}|${query.taskType ?? ''}|${query.minConfidence ?? ''}|${normalizedIntent}|${files}|wf:${workingFile}|flt:${filterKey}`;
+}
+
+export function buildQueryCacheVersionPrefix(version: LibrarianVersion): string {
+  return [
+    QUERY_CACHE_SCHEMA_VERSION,
+    QUERY_CACHE_ROUTING_BEHAVIOR_VERSION,
+    QUERY_CACHE_SYNTHESIS_BEHAVIOR_VERSION,
+    version.string,
+    version.indexedAt?.getTime?.() ?? 0,
+  ].join(':');
 }
 
 export function classifySemanticCacheCategory(intent: string): SemanticCacheCategory {
