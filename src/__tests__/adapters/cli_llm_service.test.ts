@@ -121,23 +121,16 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock.mock.calls[0]?.[0]).toBe('codex');
   });
 
-  it('reports claude available in nested sessions via env stripping (no ANTHROPIC_API_KEY needed)', async () => {
+  it('reports claude unavailable in nested sessions when no API/broker escape hatch exists', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
-
-    execaMock.mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: '2.1.62 (Claude Code)',
-      stderr: '',
-    } as never);
 
     const service = new CliLlmService();
     const health = await service.checkClaudeHealth();
 
-    // Nested sessions no longer block — env vars are stripped before spawning
-    expect(health.available).toBe(true);
-    expect(execaMock).toHaveBeenCalled();
-    expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
+    expect(health.available).toBe(false);
+    expect(health.error).toContain('Nested Claude Code session detected');
+    expect(execaMock).not.toHaveBeenCalled();
   });
 
   it('reports claude available via API transport in nested sessions when ANTHROPIC_API_KEY is set', async () => {
@@ -439,12 +432,12 @@ describe('CliLlmService provider routing', () => {
     expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
   });
 
-  it('uses Claude CLI in nested sessions via env stripping (no codex fallback)', async () => {
+  it('rejects Claude CLI entirely in nested sessions without API/broker fallbacks', async () => {
     delete process.env.ANTHROPIC_API_KEY;
     process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = '8192';
     execaMock.mockResolvedValue({
       exitCode: 0,
-      stdout: 'claude-answer',
+      stdout: 'codex-fallback',
       stderr: '',
     } as never);
 
@@ -454,11 +447,10 @@ describe('CliLlmService provider routing', () => {
       messages: [{ role: 'user', content: 'hello' }],
     });
 
-    // Nested sessions no longer block Claude CLI — env vars are stripped
-    expect(result.provider).toBe('claude');
-    expect(result.content).toContain('claude-answer');
-    expect(execaMock).toHaveBeenCalledTimes(1);
-    expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
+    expect(result.provider).toBe('codex');
+    expect(result.content).toContain('codex-fallback');
+    const claudeCall = execaMock.mock.calls.find((call) => call[0] === 'claude');
+    expect(claudeCall).toBeUndefined();
   });
 
   it('falls back to codex when claude fails', async () => {

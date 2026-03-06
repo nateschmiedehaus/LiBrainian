@@ -14,6 +14,13 @@ import {
 } from '../utils/provider_failures.js';
 import { isPrivacyModeStrict } from '../utils/runtime_controls.js';
 import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
+import { CLAUDE_NESTED_SESSION_ENV_VARS, detectNestedClaudeSession } from '../api/nested_session.js';
+import {
+  hasEnvValue,
+  shouldUseAnthropicApiTransport,
+  shouldUseClaudeBrokerTransport,
+  shouldUseOpenAiApiTransport,
+} from '../api/llm_transport_env.js';
 import {
   ProviderChaosMiddleware,
   createProviderChaosConfigFromEnv,
@@ -26,8 +33,6 @@ type GovernorContextLike = { checkBudget: () => void; recordTokens: (tokens: num
 type ChatResult = { content: string; provider: string };
 
 type CliProvider = 'claude' | 'codex';
-type ProviderTransport = 'auto' | 'cli' | 'api' | 'broker';
-
 type HealthState = {
   claude: LlmProviderHealth;
   codex: LlmProviderHealth;
@@ -113,17 +118,6 @@ function estimateTokenCount(text: string): number {
   return trimmed ? Math.max(1, Math.ceil(trimmed.length / 4)) : 1;
 }
 
-/** Env vars that Claude Code sets to detect nested sessions. */
-const NESTED_SESSION_VARS = [
-  'CLAUDECODE',
-  'CLAUDE_CODE',
-  'CLAUDE_CODE_ENTRYPOINT',
-  'CLAUDE_CODE_SESSION_ID',
-  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
-  'CLAUDE_SESSION',
-  'SESSION_ID',
-];
-
 function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const home = process.env.HOME || '';
   const prefix = home ? path.join(home, '.local', 'bin') : '';
@@ -141,7 +135,7 @@ function withCliPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
  */
 function sanitizedCliEnv(overrides?: Record<string, string>): NodeJS.ProcessEnv {
   const env = withCliPath({ ...process.env, ...(overrides ?? {}) });
-  for (const key of NESTED_SESSION_VARS) {
+  for (const key of CLAUDE_NESTED_SESSION_ENV_VARS) {
     delete env[key];
   }
   return env;
@@ -152,32 +146,6 @@ function coerceGovernorContext(value: unknown): GovernorContextLike | null {
   return candidate && typeof candidate.checkBudget === 'function' && typeof candidate.recordTokens === 'function'
     ? candidate
     : null;
-}
-
-function hasEnvValue(value: string | undefined): boolean {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function isNestedClaudeCodeSession(): boolean {
-  return hasEnvValue(process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
-    || hasEnvValue(process.env.CLAUDE_CODE_SESSION_ID)
-    || hasEnvValue(process.env.CLAUDECODE);
-}
-
-function parseTransport(value: string | undefined): ProviderTransport {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === 'cli' || normalized === 'api' || normalized === 'auto' || normalized === 'broker') {
-    return normalized;
-  }
-  return 'auto';
-}
-
-function resolveClaudeTransportMode(): ProviderTransport {
-  return parseTransport(process.env.LIBRARIAN_CLAUDE_TRANSPORT ?? process.env.LIBRARIAN_LLM_CLAUDE_TRANSPORT);
-}
-
-function resolveCodexTransportMode(): ProviderTransport {
-  return parseTransport(process.env.LIBRARIAN_CODEX_TRANSPORT ?? process.env.LIBRARIAN_LLM_CODEX_TRANSPORT);
 }
 
 function resolveClaudeBrokerBaseUrl(): string | null {
@@ -222,34 +190,16 @@ function resolveClaudeBrokerHealthUrl(): string | null {
   return url.toString();
 }
 
-function shouldUseAnthropicApiTransport(): boolean {
-  const mode = resolveClaudeTransportMode();
-  if (mode === 'broker') return false;
-  if (mode === 'api') return true;
-  if (mode === 'cli') return false;
-  if (!hasEnvValue(process.env.ANTHROPIC_API_KEY)) return false;
-  return true;
-}
-
-function shouldUseClaudeBrokerTransport(): boolean {
-  const mode = resolveClaudeTransportMode();
-  const brokerConfigured = Boolean(resolveClaudeBrokerBaseUrl());
-  if (!brokerConfigured) return false;
-  if (mode === 'broker') return true;
-  if (mode === 'api' || mode === 'cli') return false;
-  return true;
-}
-
-function shouldUseOpenAiApiTransport(): boolean {
-  if (!hasEnvValue(process.env.OPENAI_API_KEY)) return false;
-  const mode = resolveCodexTransportMode();
-  if (mode === 'api') return true;
-  if (mode === 'cli') return false;
-  return true;
-}
-
 function buildNestedClaudeUnavailableMessage(): string {
   return 'Claude CLI cannot run inside nested Claude Code sessions; set ANTHROPIC_API_KEY for API transport, set LIBRARIAN_CLAUDE_BROKER_URL for broker transport, or switch provider.';
+}
+
+function resolveNestedClaudeBlockReason(): string | undefined {
+  const detection = detectNestedClaudeSession();
+  if (!detection.isNested) return undefined;
+  if (shouldUseAnthropicApiTransport() || shouldUseClaudeBrokerTransport()) return undefined;
+  const markers = detection.markers.length > 0 ? detection.markers.join(', ') : 'unknown markers';
+  return `Nested Claude Code session detected (${markers}). ${buildNestedClaudeUnavailableMessage()}`;
 }
 
 function normalizeAnthropicModelId(modelId: string | undefined): string {
@@ -583,6 +533,18 @@ export class CliLlmService {
     const cached = this.health.claude;
     if (!forceCheck && cached.lastCheck && now - cached.lastCheck < this.healthCheckIntervalMs) {
       return cached;
+    }
+
+    const nestedBlockReason = resolveNestedClaudeBlockReason();
+    if (nestedBlockReason) {
+      this.health.claude = {
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: now,
+        error: nestedBlockReason,
+      };
+      return this.health.claude;
     }
 
     if (shouldUseAnthropicApiTransport()) {
@@ -1127,6 +1089,11 @@ export class CliLlmService {
       const args = ['--print'];
       if (systemPrompt) {
         args.push('--system-prompt', systemPrompt);
+      }
+      const nestedBlockReason = resolveNestedClaudeBlockReason();
+      if (nestedBlockReason) {
+        await this.recordFailure('claude', nestedBlockReason, nestedBlockReason);
+        throw new Error(`unverified_by_trace(provider_unavailable): ${nestedBlockReason}`);
       }
       const env = sanitizedCliEnv(options.modelId ? { CLAUDE_MODEL: options.modelId } : undefined);
       logInfo('CLI LLM: claude call', { promptLength: fullPrompt.length });

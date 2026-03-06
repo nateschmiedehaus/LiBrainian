@@ -64,7 +64,11 @@ import { storeSCCAnalysis } from '../analysis/deterministic_analysis.js';
 import { buildModuleGraphs } from '../knowledge/module_graph.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { detectLibrarianVersion, upgradeRequired, runUpgrade } from './versioning.js';
-import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
+import {
+  resolveLibrarianModelConfigWithDiscovery,
+  resolveSynthesisAvailability,
+  type SynthesisAvailability,
+} from './llm_env.js';
 import { EmbeddingService } from './embeddings.js';
 import { preloadEmbeddingModel } from './embedding_providers/real_embeddings.js';
 import { generateContextPacks } from './packs.js';
@@ -142,6 +146,7 @@ export interface BootstrapState {
   startedAt: Date | null;
   completedAt: Date | null;
   error?: string;
+  synthesis?: SynthesisAvailability;
 }
 
 interface WorkspaceFingerprint {
@@ -2209,6 +2214,7 @@ export function getBootstrapStatus(workspace: string): BootstrapState {
       progress: 0,
       startedAt: null,
       completedAt: null,
+      synthesis: resolveSynthesisAvailability(),
     }
   );
 }
@@ -2306,6 +2312,7 @@ export async function bootstrapProject(
     maxWallTimeMs,
   };
   const governorRunState = createGovernorRunState();
+  const synthesisAvailability = resolveSynthesisAvailability();
 
   // Initialize state
   const state: BootstrapState = {
@@ -2314,6 +2321,7 @@ export async function bootstrapProject(
     progress: 0,
     startedAt: new Date(),
     completedAt: null,
+    synthesis: synthesisAvailability,
   };
   bootstrapStates.set(workspace, state);
 
@@ -2330,6 +2338,7 @@ export async function bootstrapProject(
     totalContextPacksCreated: 0,
     version: getTargetVersion(config.bootstrapMode === 'full' ? 'full' : 'mvp'),
     success: false,
+    synthesis: synthesisAvailability,
   };
   if (workspaceConfigWarnings.length > 0) {
     report.warnings = report.warnings ?? [];
