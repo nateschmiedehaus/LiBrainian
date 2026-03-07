@@ -212,6 +212,43 @@ describe('doctorCommand', () => {
     expect(dbCheck.status).toBe('OK');
   });
 
+  it('elevates overall status when cross-db consistency is critical', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-cross-db-'));
+    const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
+    const legacyDbPath = path.join(tempRoot, '.librarian', 'knowledge.db');
+
+    try {
+      fs.mkdirSync(path.dirname(activeDbPath), { recursive: true });
+      fs.writeFileSync(activeDbPath, '');
+      fs.writeFileSync(legacyDbPath, '');
+      const now = new Date();
+      const older = new Date(now.getTime() - 10_000);
+      fs.utimesSync(activeDbPath, older, older);
+      fs.utimesSync(legacyDbPath, now, now);
+
+      vi.mocked(resolveDbPath).mockResolvedValue(activeDbPath);
+      vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+        original: tempRoot,
+        workspace: tempRoot,
+        changed: false,
+        sourceFileCount: 0,
+        reason: 'no_candidate',
+      });
+
+      await doctorCommand({ workspace: tempRoot, json: true });
+
+      const report = parseJsonReport(consoleLogSpy);
+      expect(report.overallStatus).toBe('ERROR');
+      expect(report.checks).toContainEqual(expect.objectContaining({
+        name: 'Cross-DB Consistency',
+        status: 'ERROR',
+        message: 'Legacy DB files are newer than active store (1 files)',
+      }));
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it('releases storage handles when DB-backed checks throw after initialize', async () => {
     const storages: Array<{
       initialize: Mock;

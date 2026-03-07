@@ -95,7 +95,7 @@ describe('statusCommand', () => {
         totalFunctions: 1,
         totalModules: 1,
         totalContextPacks: 1,
-        totalEmbeddings: 0,
+        totalEmbeddings: 1,
         storageSizeBytes: 10,
         averageConfidence: 0.5,
         cacheHitRate: 0.1,
@@ -214,6 +214,15 @@ describe('statusCommand', () => {
 
   it('emits JSON when format is json', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getStats.mockResolvedValue({
+      totalFunctions: 1,
+      totalModules: 1,
+      totalContextPacks: 1,
+      totalEmbeddings: 0,
+      storageSizeBytes: 10,
+      averageConfidence: 0.5,
+      cacheHitRate: 0.1,
+    });
     mockStorage.getFunctions.mockResolvedValue([
       { filePath: `${workspace}/src/main.ts` },
       { filePath: `${workspace}/src/helpers.ts` },
@@ -250,7 +259,7 @@ describe('statusCommand', () => {
     expect(parsed.provenance?.status).toBeDefined();
     expect(parsed.server?.status).toBeDefined();
     expect(parsed.config?.status).toBeDefined();
-    expect(exitCode).toBe(0);
+    expect(exitCode).toBe(1);
   });
 
   it('marks storage as degraded when active lock pids are present', async () => {
@@ -563,5 +572,85 @@ describe('statusCommand', () => {
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
     expect(exitCode).toBe(2);
+  });
+
+  it('surfaces doctor critical failures in status output and exit code', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(checkAllProviders).mockResolvedValue({
+      llm: { available: true, provider: 'claude', model: 'test-model', latencyMs: 120 },
+      embedding: {
+        available: false,
+        provider: 'xenova',
+        model: 'test-embed',
+        latencyMs: 50,
+        error: 'missing model',
+      },
+    });
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      healthSummary?: {
+        status?: string;
+        summary?: { errors?: number };
+        checks?: Array<{ name?: string; status?: string; message?: string }>;
+      };
+    };
+    expect(parsed.healthSummary?.status).toBe('ERROR');
+    expect(parsed.healthSummary?.summary?.errors).toBe(1);
+    expect(parsed.healthSummary?.checks).toContainEqual(expect.objectContaining({
+      name: 'Embedding Provider',
+      status: 'ERROR',
+      message: 'Embedding provider unavailable: missing model',
+    }));
+    expect(exitCode).toBe(1);
+  });
+
+  it('surfaces cross-db consistency failures in status output and exit code', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'status-cross-db-'));
+    const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
+    const legacyDbPath = path.join(tempRoot, '.librarian', 'knowledge.db');
+
+    try {
+      await fs.mkdir(path.dirname(activeDbPath), { recursive: true });
+      await fs.writeFile(activeDbPath, '', 'utf8');
+      await fs.writeFile(legacyDbPath, '', 'utf8');
+      const now = new Date();
+      const older = new Date(now.getTime() - 10_000);
+      await fs.utimes(activeDbPath, older, older);
+      await fs.utimes(legacyDbPath, now, now);
+
+      vi.mocked(resolveDbPath).mockResolvedValue(activeDbPath);
+      vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+        original: tempRoot,
+        workspace: tempRoot,
+        changed: false,
+        sourceFileCount: 0,
+        reason: 'no_candidate',
+      });
+
+      const exitCode = await statusCommand({ workspace: tempRoot, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        healthSummary?: {
+          status?: string;
+          summary?: { errors?: number };
+          checks?: Array<{ name?: string; status?: string; message?: string }>;
+        };
+      };
+      expect(parsed.healthSummary?.status).toBe('ERROR');
+      expect(parsed.healthSummary?.summary?.errors).toBe(1);
+      expect(parsed.healthSummary?.checks).toContainEqual(expect.objectContaining({
+        name: 'Cross-DB Consistency',
+        status: 'ERROR',
+        message: 'Legacy DB files are newer than active store (1 files)',
+      }));
+      expect(exitCode).toBe(1);
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

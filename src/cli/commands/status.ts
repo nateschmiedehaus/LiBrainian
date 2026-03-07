@@ -30,6 +30,8 @@ import {
   readWorkspaceSetState,
   type WorkspaceSetPackageStatus,
 } from '../workspace_set.js';
+import { CROSS_DB_CONSISTENCY_CHECK_NAME, evaluateCrossDbConsistency } from './cross_db_consistency.js';
+import { summarizeSharedHealthChecks, type HealthCheck, type HealthCheckStatus, type SharedHealthSummary } from './health_summary.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -139,6 +141,7 @@ type StatusReport = {
     status: AllProviderStatus | null;
     error?: string;
   };
+  healthSummary?: SharedHealthSummary | null;
   freshness?: {
     totalIndexedFiles: number;
     freshFiles: number;
@@ -624,6 +627,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         error: error instanceof Error ? error.message : 'Unable to check providers',
       };
     }
+    report.healthSummary = await buildStatusHealthSummary(report, workspaceRoot, resolvedDbPath);
 
     if (costArgs.includeCosts) {
       try {
@@ -721,6 +725,27 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
       printKeyValue([{ key: 'Status', value: 'Unable to check providers' }]);
     }
     console.log();
+
+    if (report.healthSummary) {
+      console.log('System Health:');
+      printKeyValue([
+        { key: 'Overall Status', value: report.healthSummary.status },
+        { key: 'Generated At', value: report.healthSummary.generatedAt },
+        { key: 'Total Checks', value: report.healthSummary.summary.total },
+        { key: 'Errors', value: report.healthSummary.summary.errors },
+        { key: 'Warnings', value: report.healthSummary.summary.warnings },
+      ]);
+      if (report.healthSummary.checks.length > 0) {
+        console.log('\nTop Doctor Findings:');
+        for (const check of report.healthSummary.checks) {
+          console.log(`  - ${check.name}: ${check.status} - ${check.message}`);
+          if (check.suggestion) {
+            console.log(`    Suggestion: ${check.suggestion}`);
+          }
+        }
+      }
+      console.log();
+    }
 
     if (costArgs.includeCosts) {
       console.log('Cost Telemetry:');
@@ -881,10 +906,365 @@ async function statusWorkspaceSet(options: {
 
 function deriveStatusExitCode(report: StatusReport): number {
   if (report.storage.status === 'not_initialized') return 2;
-  if (report.storage.status === 'degraded') return 1;
-  if (report.bootstrap?.required.full) return 1;
-  if (report.watch?.health?.suspectedDead) return 1;
+  if (report.healthSummary?.status === 'ERROR') return 1;
   return 0;
+}
+
+async function buildStatusHealthSummary(
+  report: StatusReport,
+  workspaceRoot: string,
+  resolvedDbPath: string | null,
+): Promise<SharedHealthSummary> {
+  return summarizeSharedHealthChecks(
+    await collectStatusHealthChecks(report, workspaceRoot, resolvedDbPath),
+    { includePassingChecks: false },
+  );
+}
+
+async function collectStatusHealthChecks(
+  report: StatusReport,
+  workspaceRoot: string,
+  resolvedDbPath: string | null,
+): Promise<HealthCheck[]> {
+  const checks: HealthCheck[] = [];
+
+  checks.push(createStorageHealthCheck(report));
+  if (report.bootstrap) {
+    checks.push({
+      name: 'Bootstrap Status',
+      status: report.bootstrap.required.mvp ? 'WARNING' : 'OK',
+      message: report.bootstrap.required.mvp
+        ? `Bootstrap outdated: ${report.bootstrap.reasons.mvp}`
+        : 'Bootstrap complete and up-to-date',
+      suggestion: report.bootstrap.required.mvp ? 'Run `librarian bootstrap` to refresh' : undefined,
+    });
+  }
+  checks.push(createIndexFreshnessHealthCheck(report));
+  checks.push(createWatchHealthCheck(report));
+  checks.push(createLockHealthCheck(report));
+  if (resolvedDbPath && report.storage.status === 'ready') {
+    checks.push(await createCrossDbConsistencyHealthCheck(workspaceRoot, resolvedDbPath));
+  }
+  if (report.stats) {
+    checks.push(createEmbeddingCoverageHealthCheck(report));
+    checks.push(createModulesHealthCheck(report));
+    checks.push(createContextPackHealthCheck(report));
+    checks.push(createConfidenceHealthCheck(report));
+  }
+  checks.push(createEmbeddingProviderHealthCheck(report));
+  checks.push(createLlmProviderHealthCheck(report));
+
+  return checks;
+}
+
+async function createCrossDbConsistencyHealthCheck(
+  workspaceRoot: string,
+  dbPath: string,
+): Promise<HealthCheck> {
+  try {
+    const result = await evaluateCrossDbConsistency(workspaceRoot, dbPath);
+    return {
+      name: CROSS_DB_CONSISTENCY_CHECK_NAME,
+      status: result.status,
+      message: result.message,
+      suggestion: result.suggestion,
+    };
+  } catch (error) {
+    return {
+      name: CROSS_DB_CONSISTENCY_CHECK_NAME,
+      status: 'ERROR',
+      message: `Failed to inspect cross-DB consistency: ${error instanceof Error ? error.message : String(error)}`,
+      suggestion: 'Run `librarian bootstrap --force` to rebuild a single active database',
+    };
+  }
+}
+
+function createStorageHealthCheck(report: StatusReport): HealthCheck {
+  if (report.storage.status === 'ready') {
+    return {
+      name: 'Database Access',
+      status: 'OK',
+      message: 'Database accessible',
+    };
+  }
+  if (report.storage.status === 'degraded') {
+    return {
+      name: 'Database Access',
+      status: 'ERROR',
+      message: `Database degraded: ${report.storage.reason ?? 'storage health degraded'}`,
+      suggestion: 'Run `librarian doctor --heal` or wait for active locks to clear.',
+    };
+  }
+  return {
+    name: 'Database Access',
+    status: 'ERROR',
+    message: `Database unavailable: ${report.storage.reason ?? 'not initialized'}`,
+    suggestion: 'Run `librarian bootstrap --force` to initialize the active store.',
+  };
+}
+
+function createIndexFreshnessHealthCheck(report: StatusReport): HealthCheck {
+  const lastFullIndex = report.index?.lastFullIndex ?? report.metadata?.lastIndexing ?? null;
+  if (!lastFullIndex) {
+    return {
+      name: 'Index Freshness',
+      status: 'WARNING',
+      message: 'Missing last-index timestamp',
+      suggestion: 'Run `librarian bootstrap --force` to create a fresh index baseline',
+    };
+  }
+  return {
+    name: 'Index Freshness',
+    status: 'OK',
+    message: 'Index freshness baseline present',
+  };
+}
+
+function createWatchHealthCheck(report: StatusReport): HealthCheck {
+  const health = report.watch?.health;
+  const watchState = report.watch?.state as { needs_catchup?: boolean; last_error?: string } | null | undefined;
+  if (!health && !watchState) {
+    return {
+      name: 'Watch Freshness',
+      status: 'WARNING',
+      message: 'No watch state recorded',
+      suggestion: 'Run `librarian watch` to keep the index up-to-date.',
+    };
+  }
+  if (watchState?.last_error) {
+    return {
+      name: 'Watch Freshness',
+      status: 'WARNING',
+      message: `Watch degraded: last error ${watchState.last_error}`,
+      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+    };
+  }
+  if (health?.suspectedDead) {
+    return {
+      name: 'Watch Freshness',
+      status: 'WARNING',
+      message: 'Watch degraded: suspected dead',
+      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+    };
+  }
+  if (watchState?.needs_catchup) {
+    return {
+      name: 'Watch Freshness',
+      status: 'WARNING',
+      message: 'Watch degraded: needs catch-up',
+      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+    };
+  }
+  return {
+    name: 'Watch Freshness',
+    status: 'OK',
+    message: 'Watch freshness healthy',
+  };
+}
+
+function createLockHealthCheck(report: StatusReport): HealthCheck {
+  const locks = report.locks;
+  if (!locks) {
+    return {
+      name: 'Lock File Staleness',
+      status: 'OK',
+      message: 'No lock metadata recorded',
+    };
+  }
+  if ((locks.staleFiles ?? 0) > 0) {
+    return {
+      name: 'Lock File Staleness',
+      status: 'WARNING',
+      message: `Detected ${locks.staleFiles} stale lock file(s)`,
+      suggestion: 'Run `librarian doctor --heal` to safely remove stale lock files',
+    };
+  }
+  if ((locks.unknownFreshFiles ?? 0) > 0) {
+    return {
+      name: 'Lock File Staleness',
+      status: 'WARNING',
+      message: `Found ${locks.unknownFreshFiles} lock file(s) with unknown PID`,
+      suggestion: 'If indexing appears stuck, run `librarian doctor --heal`',
+    };
+  }
+  return {
+    name: 'Lock File Staleness',
+    status: 'OK',
+    message: 'No stale lock files detected',
+  };
+}
+
+function createEmbeddingCoverageHealthCheck(report: StatusReport): HealthCheck {
+  const totalFunctions = report.stats?.totalFunctions ?? 0;
+  const totalEmbeddings = report.stats?.totalEmbeddings ?? 0;
+  if (totalFunctions === 0) {
+    return {
+      name: 'Functions/Embeddings Correlation',
+      status: 'WARNING',
+      message: 'No functions indexed',
+      suggestion: 'Run `librarian bootstrap` to index codebase',
+    };
+  }
+  if (totalEmbeddings === 0) {
+    return {
+      name: 'Functions/Embeddings Correlation',
+      status: 'ERROR',
+      message: `${totalFunctions} functions but 0 embeddings`,
+      suggestion: 'Embedding model may have failed. Run `librarian bootstrap --force`',
+    };
+  }
+  const coverage = (totalEmbeddings / totalFunctions) * 100;
+  if (coverage < 20) {
+    return {
+      name: 'Functions/Embeddings Correlation',
+      status: 'ERROR',
+      message: `Critical embedding coverage: ${coverage.toFixed(1)}% (${totalEmbeddings}/${totalFunctions})`,
+      suggestion: 'Embedding generation likely failed. Run `librarian bootstrap --force` and verify provider health.',
+    };
+  }
+  if (coverage < 80) {
+    return {
+      name: 'Functions/Embeddings Correlation',
+      status: 'WARNING',
+      message: `Partial embedding coverage: ${coverage.toFixed(1)}% (${totalEmbeddings}/${totalFunctions})`,
+      suggestion: 'Some functions may be missing embeddings. Consider rebootstrapping.',
+    };
+  }
+  return {
+    name: 'Functions/Embeddings Correlation',
+    status: 'OK',
+    message: `${totalFunctions} functions, ${totalEmbeddings} embeddings (${coverage.toFixed(1)}% coverage)`,
+  };
+}
+
+function createModulesHealthCheck(report: StatusReport): HealthCheck {
+  const totalModules = report.stats?.totalModules ?? 0;
+  const totalFunctions = report.stats?.totalFunctions ?? 0;
+  if (totalModules === 0 && totalFunctions > 0) {
+    return {
+      name: 'Modules Indexed',
+      status: 'WARNING',
+      message: 'No modules indexed but functions exist',
+      suggestion: 'Module extraction may have failed',
+    };
+  }
+  if (totalModules === 0) {
+    return {
+      name: 'Modules Indexed',
+      status: 'WARNING',
+      message: 'No modules indexed',
+      suggestion: 'Run `librarian bootstrap` to index codebase',
+    };
+  }
+  return {
+    name: 'Modules Indexed',
+    status: 'OK',
+    message: `${totalModules} modules indexed`,
+  };
+}
+
+function createContextPackHealthCheck(report: StatusReport): HealthCheck {
+  const totalContextPacks = report.stats?.totalContextPacks ?? 0;
+  if (totalContextPacks === 0) {
+    return {
+      name: 'Context Packs Health',
+      status: 'WARNING',
+      message: 'No context packs generated',
+      suggestion: 'Run `librarian bootstrap` to generate context packs',
+    };
+  }
+  return {
+    name: 'Context Packs Health',
+    status: 'OK',
+    message: `${totalContextPacks} context packs available`,
+  };
+}
+
+function createConfidenceHealthCheck(report: StatusReport): HealthCheck {
+  const avgConfidence = report.stats?.averageConfidence ?? 0;
+  const totalFunctions = report.stats?.totalFunctions ?? 0;
+  const totalModules = report.stats?.totalModules ?? 0;
+  if (totalFunctions === 0) {
+    return {
+      name: 'Knowledge Confidence',
+      status: totalModules > 0 ? 'WARNING' : 'OK',
+      message: totalModules > 0
+        ? 'No functions indexed; confidence metrics are incomplete'
+        : 'No code entities indexed; confidence metrics unavailable',
+      suggestion: totalModules > 0 ? 'Index code with functions for richer confidence signals' : undefined,
+    };
+  }
+  if (avgConfidence < 0.3) {
+    return {
+      name: 'Knowledge Confidence',
+      status: 'ERROR',
+      message: `Very low average confidence: ${(avgConfidence * 100).toFixed(1)}%`,
+      suggestion: 'Knowledge quality is poor. Consider rebootstrapping.',
+    };
+  }
+  if (avgConfidence < 0.5) {
+    return {
+      name: 'Knowledge Confidence',
+      status: 'WARNING',
+      message: `Low average confidence: ${(avgConfidence * 100).toFixed(1)}%`,
+      suggestion: 'Some knowledge may be unreliable',
+    };
+  }
+  return {
+    name: 'Knowledge Confidence',
+    status: 'OK',
+    message: `Average confidence healthy at ${(avgConfidence * 100).toFixed(1)}%`,
+  };
+}
+
+function createEmbeddingProviderHealthCheck(report: StatusReport): HealthCheck {
+  const providers = report.providers?.status;
+  if (!providers) {
+    return {
+      name: 'Embedding Provider',
+      status: 'ERROR',
+      message: `Embedding provider unavailable: ${report.providers?.error ?? 'unknown'}`,
+      suggestion: 'Check embedding provider installation or run `librarian check-providers`',
+    };
+  }
+  if (!providers.embedding.available) {
+    return {
+      name: 'Embedding Provider',
+      status: 'ERROR',
+      message: `Embedding provider unavailable: ${providers.embedding.error ?? 'unknown'}`,
+      suggestion: 'Check embedding provider installation or run `librarian check-providers`',
+    };
+  }
+  return {
+    name: 'Embedding Provider',
+    status: 'OK',
+    message: `Embedding provider ready (${providers.embedding.provider})`,
+  };
+}
+
+function createLlmProviderHealthCheck(report: StatusReport): HealthCheck {
+  const providers = report.providers?.status;
+  if (!providers) {
+    return {
+      name: 'LLM Provider',
+      status: 'WARNING',
+      message: `LLM provider unavailable: ${report.providers?.error ?? 'unknown'}`,
+      suggestion: 'Run `claude` or `codex login` to authenticate',
+    };
+  }
+  if (!providers.llm.available) {
+    return {
+      name: 'LLM Provider',
+      status: 'WARNING',
+      message: `LLM provider unavailable: ${providers.llm.error ?? 'unknown'}`,
+      suggestion: 'Run `claude` or `codex login` to authenticate',
+    };
+  }
+  return {
+    name: 'LLM Provider',
+    status: 'OK',
+    message: `LLM provider ready (${providers.llm.provider}: ${providers.llm.model})`,
+  };
 }
 
 function parseWorkspaceSetArg(rawArgs: string[] | undefined): string | undefined {
