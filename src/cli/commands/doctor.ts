@@ -32,6 +32,8 @@ import type { LibrarianStorage } from '../../storage/types.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import { getSessionState } from '../../memory/session_store.js';
+import { CROSS_DB_CONSISTENCY_CHECK_NAME, evaluateCrossDbConsistency } from './cross_db_consistency.js';
+import { summarizeSharedHealthChecks } from './health_summary.js';
 
 // ============================================================================
 // TYPES
@@ -82,6 +84,13 @@ export interface DoctorCommandOptions {
   installGrammars?: boolean;
   riskTolerance?: 'safe' | 'low' | 'medium';
 }
+
+export type DoctorDiagnosticsOptions = Pick<
+  DoctorCommandOptions,
+  'workspace' | 'heal' | 'fix' | 'checkConsistency' | 'installGrammars' | 'riskTolerance' | 'json'
+> & {
+  workspaceOriginal?: string;
+};
 
 interface ActionTemplate {
   command: string;
@@ -1063,56 +1072,17 @@ async function checkCrossDbConsistency(
   dbPath: string
 ): Promise<DiagnosticCheck> {
   const check: DiagnosticCheck = {
-    name: 'Cross-DB Consistency',
+    name: CROSS_DB_CONSISTENCY_CHECK_NAME,
     status: 'OK',
     message: '',
   };
 
   try {
-    const librarianDir = path.join(workspace, '.librarian');
-    const legacyCandidates = [
-      path.join(librarianDir, 'knowledge.db'),
-      path.join(librarianDir, 'evidence_ledger.db'),
-      path.join(librarianDir, 'librarian.db'),
-    ];
-
-    const activeDb = path.resolve(dbPath);
-    const legacyFiles = legacyCandidates.filter((candidate) => {
-      if (!fs.existsSync(candidate)) return false;
-      return path.resolve(candidate) !== activeDb;
-    });
-
-    check.details = {
-      activeDb,
-      legacyFiles,
-      legacyCount: legacyFiles.length,
-    };
-
-    if (legacyFiles.length === 0) {
-      check.message = 'No legacy DB divergence artifacts detected';
-      return check;
-    }
-
-    let newestLegacyMs = 0;
-    for (const legacyFile of legacyFiles) {
-      try {
-        newestLegacyMs = Math.max(newestLegacyMs, fs.statSync(legacyFile).mtimeMs);
-      } catch {
-        // Ignore stat failures; existence already confirmed.
-      }
-    }
-    const activeMtimeMs = fs.existsSync(activeDb) ? fs.statSync(activeDb).mtimeMs : 0;
-
-    if (newestLegacyMs > activeMtimeMs + 1_000) {
-      check.status = 'ERROR';
-      check.message = `Legacy DB files are newer than active store (${legacyFiles.length} files)`;
-      check.suggestion = 'Run `librarian bootstrap --force` to rebuild and converge into .librarian/librarian.sqlite';
-      return check;
-    }
-
-    check.status = 'WARNING';
-    check.message = `Legacy DB artifacts detected (${legacyFiles.length} files)`;
-    check.suggestion = 'Remove stale legacy DB files after verifying current index health';
+    const result = await evaluateCrossDbConsistency(workspace, dbPath);
+    check.status = result.status;
+    check.message = result.message;
+    check.details = result.details;
+    check.suggestion = result.suggestion;
     return check;
   } catch (error) {
     check.status = 'ERROR';
@@ -1974,35 +1944,25 @@ async function runEmbeddingIntegrityFix(
 // MAIN DOCTOR COMMAND
 // ============================================================================
 
-export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
+export async function generateDoctorReport(options: DoctorDiagnosticsOptions): Promise<DoctorReport> {
   const {
     workspace,
-    verbose = false,
-    json = false,
+    workspaceOriginal,
     heal = false,
     fix = false,
     checkConsistency = false,
     installGrammars = false,
     riskTolerance = 'low',
+    json = false,
   } = options;
 
-  let workspaceRoot = path.resolve(workspace);
-  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
-    const resolution = resolveWorkspaceRoot(workspaceRoot);
-    if (resolution.changed) {
-      workspaceRoot = resolution.workspace;
-      if (!json) {
-        const detail = resolution.marker ? `marker ${resolution.marker}` : (resolution.reason ?? 'source discovery');
-        console.log(`Auto-detected project root at ${workspaceRoot} (${detail}). Using it.\n`);
-      }
-    }
-  }
+  const workspaceRoot = path.resolve(workspace);
 
   const report: DoctorReport = {
     timestamp: new Date().toISOString(),
     version: LIBRARIAN_VERSION.string,
     workspace: workspaceRoot,
-    workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
+    workspaceOriginal: workspaceOriginal && workspaceOriginal !== workspaceRoot ? workspaceOriginal : undefined,
     overallStatus: 'OK',
     checks: [],
     actions: [],
@@ -2030,14 +1990,7 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
     report.summary.errors = 1;
     report.actions = buildDoctorActions(report.checks);
     report.overallStatus = 'ERROR';
-
-    if (json) {
-      console.log(JSON.stringify(report, null, 2));
-    } else {
-      outputTextReport(report, verbose);
-    }
-    process.exitCode = 1;
-    return;
+    return report;
   }
 
   const healChecks: DiagnosticCheck[] = [];
@@ -2211,21 +2164,53 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<void
   }
 
   // Determine overall status
-  if (report.summary.errors > 0) {
-    report.overallStatus = 'ERROR';
-  } else if (report.summary.warnings > 0) {
-    report.overallStatus = 'WARNING';
-  }
+  report.overallStatus = summarizeSharedHealthChecks(report.checks, { generatedAt: report.timestamp }).status;
   report.actions = buildDoctorActions(report.checks);
 
-  // Output report
+  return report;
+}
+
+export async function doctorCommand(options: DoctorCommandOptions): Promise<void> {
+  const {
+    workspace,
+    verbose = false,
+    json = false,
+    heal = false,
+    fix = false,
+    checkConsistency = false,
+    installGrammars = false,
+    riskTolerance = 'low',
+  } = options;
+
+  let workspaceRoot = path.resolve(workspace);
+  if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
+    const resolution = resolveWorkspaceRoot(workspaceRoot);
+    if (resolution.changed) {
+      workspaceRoot = resolution.workspace;
+      if (!json) {
+        const detail = resolution.marker ? `marker ${resolution.marker}` : (resolution.reason ?? 'source discovery');
+        console.log(`Auto-detected project root at ${workspaceRoot} (${detail}). Using it.\n`);
+      }
+    }
+  }
+
+  const report = await generateDoctorReport({
+    workspace: workspaceRoot,
+    workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
+    heal,
+    fix,
+    checkConsistency,
+    installGrammars,
+    riskTolerance,
+    json,
+  });
+
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     outputTextReport(report, verbose);
   }
 
-  // Set exit code based on overall status
   if (report.overallStatus === 'ERROR') {
     process.exitCode = 1;
   }
