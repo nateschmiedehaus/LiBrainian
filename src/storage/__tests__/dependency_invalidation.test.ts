@@ -21,7 +21,7 @@ let storage: SqliteLibrarianStorage;
 async function createTestStorage(): Promise<SqliteLibrarianStorage> {
   testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-dep-inv-test-'));
   const dbPath = path.join(testDir, 'test.db');
-  const testStorage = new SqliteLibrarianStorage(dbPath);
+  const testStorage = new SqliteLibrarianStorage(dbPath, testDir);
   await testStorage.initialize();
   return testStorage;
 }
@@ -213,6 +213,32 @@ describe('SqliteLibrarianStorage dependency invalidation', () => {
       const merged = await storage.getGraphEdges({ edgeType: 'calls', edgeTypes: ['imports'] });
       expect(merged).toHaveLength(2);
       expect(new Set(merged.map((edge) => edge.edgeType))).toEqual(new Set(['calls', 'imports']));
+    });
+
+    it('matches stored relative graph edges when callers filter with absolute workspace paths', async () => {
+      const workspaceFile = path.join(testDir, 'src', 'api', 'query.ts');
+      const importedFile = path.join(testDir, 'src', 'types.ts');
+
+      await storage.upsertGraphEdges([
+        {
+          fromId: 'src/api/query.ts',
+          fromType: 'file',
+          toId: 'src/types.ts',
+          toType: 'file',
+          edgeType: 'imports',
+          sourceFile: 'src/api/query.ts',
+          sourceLine: 1,
+          confidence: 1.0,
+          computedAt: new Date(),
+        },
+      ]);
+
+      const absoluteFiltered = await storage.getGraphEdges({ sourceFiles: [workspaceFile] });
+      expect(absoluteFiltered).toHaveLength(1);
+      expect(absoluteFiltered[0]?.sourceFile).toBe('src/api/query.ts');
+
+      const reverseDeps = await storage.getReverseDependencies(importedFile);
+      expect(reverseDeps).toEqual(['src/api/query.ts']);
     });
   });
 

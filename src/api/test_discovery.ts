@@ -193,35 +193,18 @@ export async function findTestsForClass(
   let hasConventionMatches = false;
   let hasReferenceMatches = false;
   const settings = getTestDiscoverySettings();
+  const allTestFiles = await listCandidateTestFiles(workspace, settings);
+  const contentCache = settings.cacheEnabled
+    ? (testFileContentCache.get(workspace) ?? new Map<string, string>())
+    : new Map<string, string>();
+  if (settings.cacheEnabled && !testFileContentCache.has(workspace)) {
+    testFileContentCache.set(workspace, contentCache);
+  }
 
   // Strategy 1: Find test files by naming convention
-  // Look for files like ClassName.test.ts or class_name.test.ts
-  const conventionPatterns = [
-    `**/__tests__/**/*${className}*.test.ts`,
-    `**/__tests__/**/*${className}*.test.tsx`,
-    `**/__tests__/**/*${className}*.spec.ts`,
-    `**/${className}.test.ts`,
-    `**/${className}.spec.ts`,
-    `**/${className.toLowerCase()}.test.ts`,
-    `**/${toSnakeCase(className)}.test.ts`,
-    `**/${toKebabCase(className)}.test.ts`,
-  ];
-
-  for (const pattern of conventionPatterns) {
-    try {
-      const matches = await glob(pattern, {
-        cwd: workspace,
-        ignore: ['node_modules/**', '**/node_modules/**'],
-        nodir: true,
-      });
-
-      for (const match of matches) {
-        results.add(match);
-        hasConventionMatches = true;
-      }
-    } catch {
-      // Continue with other patterns if one fails
-    }
+  for (const match of findConventionMatches(allTestFiles, className)) {
+    results.add(match);
+    hasConventionMatches = true;
   }
 
   // Strategy 2: Search for class references in all test files
@@ -239,46 +222,6 @@ export async function findTestsForClass(
         hasReferenceMatches = true;
       }
     } else {
-    const cacheKey = workspace;
-    const now = Date.now();
-    let allFiles: string[] = [];
-    const cachedList = settings.cacheEnabled ? testFileListCache.get(cacheKey) : undefined;
-    if (cachedList && now - cachedList.at < settings.cacheTtlMs) {
-      allFiles = cachedList.files;
-    } else {
-      const allTestFiles = await glob('**/*.test.ts', {
-        cwd: workspace,
-        ignore: ['node_modules/**', '**/node_modules/**'],
-        nodir: true,
-      });
-
-      // Also include spec files and __tests__ directories
-      const specFiles = await glob('**/*.spec.ts', {
-        cwd: workspace,
-        ignore: ['node_modules/**', '**/node_modules/**'],
-        nodir: true,
-      });
-
-      const testDirFiles = await glob('**/__tests__/**/*.ts', {
-        cwd: workspace,
-        ignore: ['node_modules/**', '**/node_modules/**'],
-        nodir: true,
-      });
-
-      allFiles = Array.from(new Set([...allTestFiles, ...specFiles, ...testDirFiles])).sort();
-      if (settings.cacheEnabled) {
-        testFileListCache.set(cacheKey, { at: now, files: allFiles });
-        testFileContentCache.delete(cacheKey);
-      }
-    }
-
-    const contentCache = settings.cacheEnabled
-      ? (testFileContentCache.get(cacheKey) ?? new Map<string, string>())
-      : new Map<string, string>();
-    if (settings.cacheEnabled && !testFileContentCache.has(cacheKey)) {
-      testFileContentCache.set(cacheKey, contentCache);
-    }
-
     const classPattern = new RegExp(`\\b${escapeRegExp(className)}\\b`);
     const classTokens = new Set([
       className.toLowerCase(),
@@ -286,7 +229,7 @@ export async function findTestsForClass(
       toKebabCase(className),
       ...splitPascalCase(className).map((token) => token.toLowerCase()),
     ].filter((token) => token.length >= 3));
-    const orderedFiles = allFiles
+    const orderedFiles = allTestFiles
       .map((file) => {
         const lower = file.toLowerCase();
         let score = 0;
@@ -347,7 +290,7 @@ export async function findTestsForClass(
   }
 
   // Extract test function names from found test files
-  const testFunctions = await extractTestFunctions(workspace, Array.from(results), className);
+  const testFunctions = await extractTestFunctions(workspace, Array.from(results), className, contentCache, settings);
 
   // Determine discovery method
   let discoveryMethod: TestDiscoveryResult['discoveryMethod'] = 'none';
@@ -384,7 +327,9 @@ export async function findTestsForClass(
 async function extractTestFunctions(
   workspace: string,
   testFiles: string[],
-  className: string
+  className: string,
+  contentCache: Map<string, string>,
+  settings: ReturnType<typeof getTestDiscoverySettings>
 ): Promise<string[]> {
   const testFunctions: string[] = [];
 
@@ -402,8 +347,7 @@ async function extractTestFunctions(
 
   for (const testFile of testFiles) {
     try {
-      const fullPath = path.join(workspace, testFile);
-      const content = await fs.readFile(fullPath, 'utf-8');
+      const content = await readTestFileContent(workspace, testFile, contentCache, settings);
 
       // Check if this file is relevant to the class
       if (!classPattern.test(content)) {
@@ -466,6 +410,145 @@ function splitPascalCase(str: string): string[] {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(/[\s_-]+/)
     .filter(Boolean);
+}
+
+async function listCandidateTestFiles(
+  workspace: string,
+  settings: ReturnType<typeof getTestDiscoverySettings>
+): Promise<string[]> {
+  const cacheKey = workspace;
+  const now = Date.now();
+  const cachedList = settings.cacheEnabled ? testFileListCache.get(cacheKey) : undefined;
+  if (cachedList && now - cachedList.at < settings.cacheTtlMs) {
+    return cachedList.files;
+  }
+
+  const files = await listCandidateTestFilesWithRipgrep(workspace) ?? await listCandidateTestFilesWithGlob(workspace);
+  const deduped = Array.from(new Set(files)).sort();
+  if (settings.cacheEnabled) {
+    testFileListCache.set(cacheKey, { at: now, files: deduped });
+    testFileContentCache.delete(cacheKey);
+  }
+  return deduped;
+}
+
+async function listCandidateTestFilesWithRipgrep(workspace: string): Promise<string[] | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'rg',
+      [
+        '--files',
+        '--glob',
+        '**/*.test.ts',
+        '--glob',
+        '**/*.test.tsx',
+        '--glob',
+        '**/*.spec.ts',
+        '--glob',
+        '**/__tests__/**/*.ts',
+        '--glob',
+        '!**/node_modules/**',
+        '.',
+      ],
+      {
+        cwd: workspace,
+        timeout: DEFAULT_TEST_DISCOVERY_RIPGREP_TIMEOUT_MS,
+        maxBuffer: 8 * 1024 * 1024,
+      }
+    );
+
+    return stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^\.\//, ''));
+  } catch {
+    return null;
+  }
+}
+
+async function listCandidateTestFilesWithGlob(workspace: string): Promise<string[]> {
+  const [testFiles, specFiles, testDirFiles] = await Promise.all([
+    glob('**/*.test.ts', {
+      cwd: workspace,
+      ignore: ['node_modules/**', '**/node_modules/**'],
+      nodir: true,
+    }),
+    glob('**/*.spec.ts', {
+      cwd: workspace,
+      ignore: ['node_modules/**', '**/node_modules/**'],
+      nodir: true,
+    }),
+    glob('**/__tests__/**/*.ts', {
+      cwd: workspace,
+      ignore: ['node_modules/**', '**/node_modules/**'],
+      nodir: true,
+    }),
+  ]);
+
+  return [...testFiles, ...specFiles, ...testDirFiles];
+}
+
+function findConventionMatches(testFiles: string[], className: string): string[] {
+  const exactBasenames = new Set([
+    `${className}.test.ts`,
+    `${className}.test.tsx`,
+    `${className}.spec.ts`,
+    `${className.toLowerCase()}.test.ts`,
+    `${toSnakeCase(className)}.test.ts`,
+    `${toKebabCase(className)}.test.ts`,
+  ]);
+  const tokenMatches = new Set([
+    className,
+    className.toLowerCase(),
+    toSnakeCase(className),
+    toKebabCase(className),
+  ]);
+
+  return testFiles.filter((file) => {
+    const normalized = file.replace(/\\/g, '/');
+    const base = path.posix.basename(normalized);
+
+    if (exactBasenames.has(base)) {
+      return true;
+    }
+
+    const isNestedTestFile = normalized.includes('/__tests__/') || normalized.startsWith('__tests__/');
+    if (!isNestedTestFile) {
+      return false;
+    }
+
+    if (!(base.endsWith('.test.ts') || base.endsWith('.test.tsx') || base.endsWith('.spec.ts'))) {
+      return false;
+    }
+
+    for (const token of tokenMatches) {
+      if (token && base.includes(token)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
+async function readTestFileContent(
+  workspace: string,
+  testFile: string,
+  contentCache: Map<string, string>,
+  settings: ReturnType<typeof getTestDiscoverySettings>
+): Promise<string> {
+  const cached = contentCache.get(testFile);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const fullPath = path.join(workspace, testFile);
+  const content = await fs.readFile(fullPath, 'utf-8');
+  if (settings.cacheEnabled && content.length <= settings.maxCachedFileBytes) {
+    contentCache.set(testFile, content);
+  }
+  return content;
 }
 
 async function findTestFileReferencesWithRipgrep(

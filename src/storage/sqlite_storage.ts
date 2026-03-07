@@ -1790,6 +1790,58 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     return { value: result.text, counts: result.counts };
   }
 
+  private normalizeStoredPath(rawPath: string): string {
+    const trimmed = rawPath.trim();
+    if (!trimmed) return trimmed;
+    return normalizeSqlPath(trimmed);
+  }
+
+  private normalizeWorkspaceRelativePath(rawPath: string): string {
+    const normalized = this.normalizeStoredPath(rawPath);
+    if (!normalized) return normalized;
+    if (!this.workspaceRoot) {
+      return normalized;
+    }
+    const absolute = path.isAbsolute(normalized)
+      ? path.resolve(normalized)
+      : path.resolve(this.workspaceRoot, normalized);
+    const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute));
+    if (relative && relative !== '.' && !relative.startsWith('..')) {
+      return relative;
+    }
+    return normalizeSqlPath(absolute);
+  }
+
+  private sanitizeStoredPath(value: string): { value: string; counts: RedactionCounts } {
+    const normalized = this.normalizeStoredPath(value);
+    return this.sanitizeString(normalized);
+  }
+
+  private getStoredPathCandidates(rawPath: string): string[] {
+    const normalized = this.normalizeStoredPath(rawPath);
+    if (!normalized) return [];
+
+    const candidates = new Set<string>([normalized]);
+    if (!this.workspaceRoot) {
+      return Array.from(candidates);
+    }
+
+    const absolute = path.isAbsolute(normalized)
+      ? path.resolve(normalized)
+      : path.resolve(this.workspaceRoot, normalized);
+    const normalizedAbsolute = normalizeSqlPath(absolute);
+    if (normalizedAbsolute) {
+      candidates.add(normalizedAbsolute);
+    }
+
+    const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute));
+    if (relative && relative !== '.' && !relative.startsWith('..')) {
+      candidates.add(relative);
+    }
+
+    return Array.from(candidates);
+  }
+
   private sanitizeStringArray(values: string[]): { values: string[]; counts: RedactionCounts } {
     let counts = createEmptyRedactionCounts();
     const sanitized = values.map((value) => {
@@ -1801,7 +1853,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private sanitizeSnippet(snippet: CodeSnippet): { snippet: CodeSnippet; counts: RedactionCounts } {
-    const filePathResult = this.sanitizeString(snippet.filePath);
+    const filePathResult = this.sanitizeStoredPath(snippet.filePath);
     const languageResult = this.sanitizeString(snippet.language);
     const contentResult = redactText(snippet.content);
     const minimized = minimizeSnippet(contentResult.text);
@@ -1822,7 +1874,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = createEmptyRedactionCounts();
     const idResult = this.sanitizeString(fn.id);
     counts = mergeRedactionCounts(counts, idResult.counts);
-    const filePathResult = this.sanitizeString(fn.filePath);
+    const filePathResult = this.sanitizeStoredPath(fn.filePath);
     counts = mergeRedactionCounts(counts, filePathResult.counts);
     const nameResult = this.sanitizeString(fn.name);
     counts = mergeRedactionCounts(counts, nameResult.counts);
@@ -1852,7 +1904,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     let counts = createEmptyRedactionCounts();
     const idResult = this.sanitizeString(mod.id);
     counts = mergeRedactionCounts(counts, idResult.counts);
-    const pathResult = this.sanitizeString(mod.path);
+    const pathResult = this.sanitizeStoredPath(mod.path);
     counts = mergeRedactionCounts(counts, pathResult.counts);
     const purposeResult = this.sanitizeString(mod.purpose);
     counts = mergeRedactionCounts(counts, purposeResult.counts);
@@ -1875,20 +1927,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private normalizeContextPackPath(rawPath: string): string {
-    const trimmed = rawPath.trim();
-    if (!trimmed) return trimmed;
-    const normalized = normalizeSqlPath(trimmed);
-    if (!this.workspaceRoot) {
-      return normalized;
-    }
-    const absolute = path.isAbsolute(normalized)
-      ? path.resolve(normalized)
-      : path.resolve(this.workspaceRoot, normalized);
-    const relative = normalizeSqlPath(path.relative(this.workspaceRoot, absolute));
-    if (relative && relative !== '.' && !relative.startsWith('..')) {
-      return relative;
-    }
-    return normalizeSqlPath(absolute);
+    return this.normalizeWorkspaceRelativePath(rawPath);
   }
 
   private normalizeContextPack(pack: ContextPack): ContextPack {
@@ -2112,17 +2151,23 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     name: string
   ): Promise<FunctionKnowledge | null> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return noResult();
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const row = db
-      .prepare('SELECT * FROM librarian_functions WHERE file_path = ? AND name = ?')
-      .get(filePath, name) as FunctionRow | undefined;
+      .prepare(`SELECT * FROM librarian_functions WHERE file_path IN (${placeholders}) AND name = ?`)
+      .get(...pathCandidates, name) as FunctionRow | undefined;
     return row ? rowToFunction(row) : null;
   }
 
   async getFunctionsByPath(filePath: string): Promise<FunctionKnowledge[]> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return [];
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const rows = db
-      .prepare('SELECT * FROM librarian_functions WHERE file_path = ?')
-      .all(filePath) as FunctionRow[];
+      .prepare(`SELECT * FROM librarian_functions WHERE file_path IN (${placeholders})`)
+      .all(...pathCandidates) as FunctionRow[];
     return rows.map(rowToFunction);
   }
 
@@ -2265,15 +2310,18 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFunctionsByPath(filePath: string): Promise<void> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const ids = db
-      .prepare('SELECT id FROM librarian_functions WHERE file_path = ?')
-      .all(filePath) as { id: string }[];
+      .prepare(`SELECT id FROM librarian_functions WHERE file_path IN (${placeholders})`)
+      .all(...pathCandidates) as { id: string }[];
 
-    const deleteFn = db.prepare('DELETE FROM librarian_functions WHERE file_path = ?');
+    const deleteFn = db.prepare(`DELETE FROM librarian_functions WHERE file_path IN (${placeholders})`);
     const deleteEmbed = db.prepare('DELETE FROM librarian_embeddings WHERE entity_id = ?');
 
     db.transaction(() => {
-      deleteFn.run(filePath);
+      deleteFn.run(...pathCandidates);
       for (const { id } of ids) {
         deleteEmbed.run(id);
       }
@@ -2313,9 +2361,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getModuleByPath(modulePath: string): Promise<ModuleKnowledge | null> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(modulePath);
+    if (pathCandidates.length === 0) return noResult();
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const row = db
-      .prepare('SELECT * FROM librarian_modules WHERE path = ?')
-      .get(modulePath) as ModuleRow | undefined;
+      .prepare(`SELECT * FROM librarian_modules WHERE path IN (${placeholders})`)
+      .get(...pathCandidates) as ModuleRow | undefined;
     return row ? rowToModule(row) : null;
   }
 
@@ -2423,9 +2474,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFileByPath(path: string): Promise<FileKnowledge | null> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(path);
+    if (pathCandidates.length === 0) return noResult();
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const row = db
-      .prepare('SELECT * FROM librarian_files WHERE path = ?')
-      .get(path) as FileKnowledgeRow | undefined;
+      .prepare(`SELECT * FROM librarian_files WHERE path IN (${placeholders})`)
+      .get(...pathCandidates) as FileKnowledgeRow | undefined;
     return row ? this.rowToFileKnowledge(row) : null;
   }
 
@@ -3448,55 +3502,64 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async getFileChecksum(filePath: string): Promise<string | null> {
     const db = this.ensureDb();
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return noResult();
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const row = db
-      .prepare('SELECT checksum FROM librarian_file_checksums WHERE file_path = ?')
-      .get(filePath) as { checksum?: string } | undefined;
+      .prepare(`SELECT checksum FROM librarian_file_checksums WHERE file_path IN (${placeholders})`)
+      .get(...pathCandidates) as { checksum?: string } | undefined;
     if (!row?.checksum) return noResult();
     return row.checksum;
   }
 
   async isFileIndexed(filePath: string): Promise<boolean> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
-    if (!fileResult.value) return false;
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return false;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
+    const relatedFilePatterns = pathCandidates.map((candidate) => `%\"${candidate}\"%`);
+    const relatedFileClause = relatedFilePatterns.map(() => 'related_files LIKE ?').join(' OR ');
 
     const functionRow = db
-      .prepare('SELECT 1 FROM librarian_functions WHERE file_path = ? LIMIT 1')
-      .get(fileResult.value) as { 1?: number } | undefined;
+      .prepare(`SELECT 1 FROM librarian_functions WHERE file_path IN (${placeholders}) LIMIT 1`)
+      .get(...pathCandidates) as { 1?: number } | undefined;
     if (functionRow) return true;
 
     const moduleRow = db
-      .prepare('SELECT 1 FROM librarian_modules WHERE path = ? LIMIT 1')
-      .get(fileResult.value) as { 1?: number } | undefined;
+      .prepare(`SELECT 1 FROM librarian_modules WHERE path IN (${placeholders}) LIMIT 1`)
+      .get(...pathCandidates) as { 1?: number } | undefined;
     if (moduleRow) return true;
 
     const packRow = db
-      .prepare('SELECT 1 FROM librarian_context_packs WHERE related_files LIKE ? LIMIT 1')
-      .get(`%\"${fileResult.value}\"%`) as { 1?: number } | undefined;
+      .prepare(`SELECT 1 FROM librarian_context_packs WHERE ${relatedFileClause} LIMIT 1`)
+      .get(...relatedFilePatterns) as { 1?: number } | undefined;
     return Boolean(packRow);
   }
 
   async getFileIndexStats(filePath: string): Promise<{ functions: number; modules: number; embeddings: number; moduleEmbeddings: number; contextPacks: number }> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
-    if (!fileResult.value) {
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) {
       return { functions: 0, modules: 0, embeddings: 0, moduleEmbeddings: 0, contextPacks: 0 };
     }
+    const placeholders = pathCandidates.map(() => '?').join(', ');
+    const relatedFilePatterns = pathCandidates.map((candidate) => `%\"${candidate}\"%`);
+    const relatedFileClause = relatedFilePatterns.map(() => 'related_files LIKE ?').join(' OR ');
     const functionRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_functions WHERE file_path = ?')
-      .get(fileResult.value) as { count?: number } | undefined;
+      .prepare(`SELECT COUNT(*) as count FROM librarian_functions WHERE file_path IN (${placeholders})`)
+      .get(...pathCandidates) as { count?: number } | undefined;
     const moduleRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_modules WHERE path = ?')
-      .get(fileResult.value) as { count?: number } | undefined;
+      .prepare(`SELECT COUNT(*) as count FROM librarian_modules WHERE path IN (${placeholders})`)
+      .get(...pathCandidates) as { count?: number } | undefined;
     const embeddingRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_functions WHERE file_path = ?)')
-      .get(fileResult.value) as { count?: number } | undefined;
+      .prepare(`SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_functions WHERE file_path IN (${placeholders}))`)
+      .get(...pathCandidates) as { count?: number } | undefined;
     const moduleEmbeddingRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_modules WHERE path = ?)')
-      .get(fileResult.value) as { count?: number } | undefined;
+      .prepare(`SELECT COUNT(*) as count FROM librarian_embeddings WHERE entity_id IN (SELECT id FROM librarian_modules WHERE path IN (${placeholders}))`)
+      .get(...pathCandidates) as { count?: number } | undefined;
     const packRow = db
-      .prepare('SELECT COUNT(*) as count FROM librarian_context_packs WHERE related_files LIKE ?')
-      .get(`%\"${fileResult.value}\"%`) as { count?: number } | undefined;
+      .prepare(`SELECT COUNT(*) as count FROM librarian_context_packs WHERE ${relatedFileClause}`)
+      .get(...relatedFilePatterns) as { count?: number } | undefined;
     return {
       functions: functionRow?.count ?? 0,
       modules: moduleRow?.count ?? 0,
@@ -3508,15 +3571,17 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async touchFileAccess(filePath: string, accessedAt: string = new Date().toISOString()): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeStoredPath(filePath);
     const timeResult = this.sanitizeString(accessedAt);
-    if (!fileResult.value) return;
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
     const functionUpdate = db
-      .prepare('UPDATE librarian_functions SET last_accessed = ?, access_count = access_count + 1 WHERE file_path = ?')
-      .run(timeResult.value, fileResult.value);
+      .prepare(`UPDATE librarian_functions SET last_accessed = ?, access_count = access_count + 1 WHERE file_path IN (${placeholders})`)
+      .run(timeResult.value, ...pathCandidates);
     const moduleUpdate = db
-      .prepare('UPDATE librarian_modules SET updated_at = ? WHERE path = ?')
-      .run(timeResult.value, fileResult.value);
+      .prepare(`UPDATE librarian_modules SET updated_at = ? WHERE path IN (${placeholders})`)
+      .run(timeResult.value, ...pathCandidates);
     if (functionUpdate.changes + moduleUpdate.changes === 0) {
       logWarning('librarian.touchFileAccess: no rows updated', { filePath: fileResult.value });
     }
@@ -3529,7 +3594,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     updatedAt: string = new Date().toISOString()
   ): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeStoredPath(filePath);
     const checksumResult = this.sanitizeString(checksum);
     const updatedResult = this.sanitizeString(updatedAt);
     let counts = mergeRedactionCounts(fileResult.counts, checksumResult.counts);
@@ -3546,7 +3611,10 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteFileChecksum(filePath: string): Promise<void> {
     const db = this.ensureDb();
-    db.prepare('DELETE FROM librarian_file_checksums WHERE file_path = ?').run(filePath);
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
+    db.prepare(`DELETE FROM librarian_file_checksums WHERE file_path IN (${placeholders})`).run(...pathCandidates);
   }
 
   // --------------------------------------------------------------------------
@@ -3605,8 +3673,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
 
   async deleteGraphEdgesForSource(sourceFile: string): Promise<void> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(sourceFile);
-    db.prepare('DELETE FROM librarian_graph_edges WHERE source_file = ?').run(fileResult.value);
+    const fileResult = this.sanitizeStoredPath(sourceFile);
+    const pathCandidates = this.getStoredPathCandidates(sourceFile);
+    if (!pathCandidates.length) return;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
+    db.prepare(`DELETE FROM librarian_graph_edges WHERE source_file IN (${placeholders})`).run(...pathCandidates);
     await this.recordRedactions(fileResult.counts);
   }
 
@@ -3620,9 +3691,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     ]));
 
     if (options.sourceFiles?.length) {
-      const placeholders = options.sourceFiles.map(() => '?').join(', ');
+      const normalizedSourceFiles = Array.from(new Set(options.sourceFiles
+        .flatMap((sourceFile) => this.getStoredPathCandidates(sourceFile))));
+      const placeholders = normalizedSourceFiles.map(() => '?').join(', ');
       filters.push(`source_file IN (${placeholders})`);
-      params.push(...options.sourceFiles);
+      params.push(...normalizedSourceFiles);
     }
     if (options.fromIds?.length) {
       const placeholders = options.fromIds.map(() => '?').join(', ');
@@ -3690,21 +3763,27 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async invalidateCache(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeStoredPath(filePath);
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return 0;
+    const queryPatterns = pathCandidates.map((candidate) => `%${candidate}%`);
+    const queryClause = queryPatterns.map(() => 'query_params LIKE ?').join(' OR ');
+    const relatedPatterns = pathCandidates.map((candidate) => `%\"${candidate}\"%`);
+    const relatedClause = relatedPatterns.map(() => 'related_files LIKE ?').join(' OR ');
 
     // Invalidate query cache entries that contain this file path in their params
     // Query params are stored as JSON, so we search for the file path within
     const result = db.prepare(`
       DELETE FROM librarian_query_cache
-      WHERE query_params LIKE ?
-    `).run(`%${fileResult.value}%`);
+      WHERE ${queryClause}
+    `).run(...queryPatterns);
 
     // Also invalidate context packs that have this file in their related files
     const packResult = db.prepare(`
       UPDATE librarian_context_packs
       SET invalidated = 1
-      WHERE related_files LIKE ?
-    `).run(`%${fileResult.value}%`);
+      WHERE ${relatedClause}
+    `).run(...relatedPatterns);
 
     await this.recordRedactions(fileResult.counts);
     return result.changes + packResult.changes;
@@ -3719,17 +3798,20 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async invalidateEmbeddings(filePath: string): Promise<number> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeStoredPath(filePath);
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return 0;
+    const placeholders = pathCandidates.map(() => '?').join(', ');
 
     // Get function IDs for this file
     const functionIds = db.prepare(`
-      SELECT id FROM librarian_functions WHERE file_path = ?
-    `).all(fileResult.value) as { id: string }[];
+      SELECT id FROM librarian_functions WHERE file_path IN (${placeholders})
+    `).all(...pathCandidates) as { id: string }[];
 
     // Get module ID for this file (module path == file path)
     const moduleIds = db.prepare(`
-      SELECT id FROM librarian_modules WHERE path = ?
-    `).all(fileResult.value) as { id: string }[];
+      SELECT id FROM librarian_modules WHERE path IN (${placeholders})
+    `).all(...pathCandidates) as { id: string }[];
 
     // Delete embeddings for these entities
     let deletedCount = 0;
@@ -3762,14 +3844,17 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
    */
   async getReverseDependencies(filePath: string): Promise<string[]> {
     const db = this.ensureDb();
-    const fileResult = this.sanitizeString(filePath);
+    const fileResult = this.sanitizeStoredPath(filePath);
+    const pathCandidates = this.getStoredPathCandidates(filePath);
+    if (pathCandidates.length === 0) return [];
+    const placeholders = pathCandidates.map(() => '?').join(', ');
 
     // Find all files that have an "imports" edge pointing to this file
     const rows = db.prepare(`
       SELECT DISTINCT source_file
       FROM librarian_graph_edges
-      WHERE edge_type = 'imports' AND to_id = ?
-    `).all(fileResult.value) as { source_file: string }[];
+      WHERE edge_type = 'imports' AND to_id IN (${placeholders})
+    `).all(...pathCandidates) as { source_file: string }[];
 
     await this.recordRedactions(fileResult.counts);
     return rows.map((row) => row.source_file);

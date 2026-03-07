@@ -260,6 +260,30 @@ describe('CliLlmService provider routing', () => {
     expect(options?.timeout).toBe(1_500);
   });
 
+  it('runs codex CLI in ephemeral no-history mode', async () => {
+    process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
+    delete process.env.CODEX_TIMEOUT_MS;
+    execaMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: '',
+    } as never);
+
+    const service = new CliLlmService();
+    await service.chat({
+      provider: 'codex',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    const call = execaMock.mock.calls.find((entry) => entry[0] === 'codex');
+    expect(call).toBeDefined();
+    const args = (call?.[1] ?? []) as string[];
+    const options = call?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+    expect(args).toContain('--ephemeral');
+    expect(options?.env?.CODEX_DISABLE_HISTORY).toBe('1');
+    expect(options?.env?.CODEX_HOME).toBeTruthy();
+  });
+
   it('uses a latency-safe timeout budget for claude by default', async () => {
     delete process.env.CLAUDE_TIMEOUT_MS;
     execaMock.mockResolvedValue({
