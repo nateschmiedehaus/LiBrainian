@@ -8,6 +8,8 @@
 
 ---
 
+<!-- EVIDENCE_AUTOGEN_START -->
+
 ## Measured Reality (as of 2026-02-27)
 
 Source: `state/e2e/reality-validation.json` (generated 2026-02-27T12:09:17.312Z)
@@ -72,7 +74,7 @@ Source: `docs/LiBrainian/DIAGNOSIS_AND_PLAN.md` Part 1, `state/e2e/reality-valid
 | # | Issue | Severity |
 |---|-------|----------|
 | 1 | Semantic search broken: 1.6% embedding coverage (194/11,847 functions). No semantic match above 0.35 threshold. Different queries return identical results. Context Precision: 15.6% (target 70%). Hallucination Rate: 40.3% (target 5%). Root cause: #662 (256-token truncation). Issue #662 closed but problem confirmed regressed by patrol 2026-02-27. | CRITICAL |
-| 2 | LLM synthesis unavailable: Claude CLI blocked in Claude Code sessions. Codex fallback active but unverified for synthesis quality. Every query degrades to structural-only. Core value proposition unavailable in primary use environment. | CRITICAL |
+| 2 | LLM synthesis unavailable: Claude CLI blocked in Claude Code sessions. Codex fallback active but not yet verified for synthesis quality. Every query degrades to structural-only. Core value proposition unavailable in primary use environment. | CRITICAL |
 | 3 | Constructions hollow/dangerous: 4/6 tested produce garbage output. `refactoring-safety-checker` returns safe=true with blast radius 0 on modules with 10+ dependents. `code-quality-reporter` returns fabricated metrics. | CRITICAL |
 | 4 | `context` command missing: Documented as core command. Returns "Unknown command" (exit 50). | HIGH |
 | 5 | Status and Doctor contradict: `status` reports up-to-date; `doctor` reports stale. | HIGH |
@@ -123,3 +125,5 @@ Full diagnosis and recovery plan: `docs/LiBrainian/DIAGNOSIS_AND_PLAN.md`
 Active issues: #854–#869 on GitHub (nateschmiedehaus/LiBrainian)
 Priority execution order: #860 → #854 → #855 → #866 → #856 → #857 → #858 → #859 → #861
 Strategy tracker: `docs/librarian/CONVERSATION_INSIGHTS.md`
+
+<!-- EVIDENCE_AUTOGEN_END -->

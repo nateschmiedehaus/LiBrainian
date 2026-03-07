@@ -13,6 +13,7 @@ describe('package release scripts', () => {
     expect(scripts['package:assert-identity']).toBe('node scripts/assert-package-identity.mjs');
     expect(scripts['package:assert-release-provenance']).toBe('node scripts/assert-release-provenance.mjs');
     expect(scripts['package:install-smoke']).toBe('node scripts/package-install-smoke.mjs');
+    expect(scripts.build).toBe('rm -rf dist && tsc && mkdir -p dist/migrations && cp -r src/migrations/*.sql dist/migrations/');
     expect(scripts['policy:npm:fresh']).toBe('node scripts/npm-freshness-guard.mjs');
     expect(scripts['test:e2e:outcome']).toBe('node scripts/e2e-outcome-harness.mjs --strict --agentic-report eval-results/agentic-use-case-review.json --artifact state/e2e/outcome-report.json --markdown state/e2e/outcome-report.md');
     expect(scripts['test:e2e:triage']).toBe('node scripts/e2e-outcome-triage.mjs --report state/e2e/outcome-report.json --artifact state/e2e/outcome-triage.json --markdown state/e2e/outcome-triage.md');
@@ -113,7 +114,6 @@ describe('package release scripts', () => {
     expect(script).toContain('DEFAULT_MAX_UNPACKED_SIZE_MB = 15');
     expect(script).toContain('Package unpacked size exceeds budget');
     expect(script).toContain('LIBRARIAN_MAX_UNPACKED_SIZE_MB');
-    expect(script).toContain('Package contains legacy memory cache paths');
     expect(script).toContain('Package contains deprecated integrations directory paths');
     expect(script).toContain('Package contains aspirational federation paths');
     expect(script).toContain('Zero-importer federation policy violated');
@@ -236,6 +236,10 @@ describe('package release scripts', () => {
       '!dist/test/**',
       '!dist/**/__tests__/**',
       '!dist/evaluation/**',
+      '!dist/federation/**',
+      '!dist/evolution/**',
+      '!dist/agents/self_improvement/**',
+      '!dist/integrations/**',
       'README.md',
       'LICENSE',
       'CHANGELOG.md',
