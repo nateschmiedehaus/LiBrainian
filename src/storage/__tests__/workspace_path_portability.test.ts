@@ -134,4 +134,44 @@ describe('workspace path portability', () => {
 
     await storageB.close();
   });
+
+  it('resolves checksum and function lookups when callers pass absolute workspace paths', async () => {
+    const workspace = await makeTemp('librarian-portability-live-');
+    const dbPath = path.join(workspace, '.librarian', 'librarian.sqlite');
+    await fs.mkdir(path.dirname(dbPath), { recursive: true });
+
+    const storage = createSqliteStorage(dbPath, workspace);
+    await storage.initialize();
+
+    const relativePath = 'src/auth/session.ts';
+    const absolutePath = path.join(workspace, relativePath);
+
+    await storage.setFileChecksum(relativePath, 'checksum-123');
+    await storage.upsertFunction({
+      id: 'fn-session',
+      filePath: relativePath,
+      name: 'getSession',
+      signature: 'function getSession(): Session',
+      purpose: 'Load session state',
+      startLine: 1,
+      endLine: 10,
+      confidence: 0.9,
+      accessCount: 0,
+      lastAccessed: null,
+      validationCount: 0,
+      outcomeHistory: { successes: 0, failures: 0 },
+    });
+
+    await expect(storage.getFileChecksum(absolutePath)).resolves.toBe('checksum-123');
+
+    const fnByAbsolute = await storage.getFunctionByPath(absolutePath, 'getSession');
+    expect(fnByAbsolute).toBeTruthy();
+    expect(fnByAbsolute?.filePath).toBe(relativePath);
+
+    const functionsByAbsolute = await storage.getFunctionsByPath(absolutePath);
+    expect(functionsByAbsolute).toHaveLength(1);
+    expect(functionsByAbsolute[0]?.filePath).toBe(relativePath);
+
+    await storage.close();
+  });
 });

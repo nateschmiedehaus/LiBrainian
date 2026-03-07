@@ -1151,7 +1151,7 @@ export class CliLlmService {
     }
 
     return codexSemaphore.run(async () => {
-      const args = ['exec'];
+      const args = ['exec', '--ephemeral'];
       const timeoutMs = resolveRequestScopedTimeout(this.codexTimeoutMs, options.timeoutMs);
       if (shouldUseOpenAiApiTransport()) {
         try {
@@ -1186,9 +1186,12 @@ export class CliLlmService {
 
       let tempDir: string | null = null;
       let outputPath: string | null = null;
+      let isolatedCodexHome: string | null = null;
       try {
+        tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'librarian-codex-'));
+        isolatedCodexHome = await this.prepareIsolatedCodexHome(path.join(tempDir, 'codex-home'));
+
         if (options.outputSchema) {
-          tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'librarian-codex-'));
           const schemaPath = path.join(tempDir, 'output_schema.json');
           outputPath = path.join(tempDir, 'last_message.txt');
           await fs.promises.writeFile(schemaPath, options.outputSchema, 'utf8');
@@ -1208,7 +1211,10 @@ export class CliLlmService {
         const result = await this.executeWithChaos(async () => {
           const output = await execa('codex', args, {
             input: fullPrompt,
-            env: sanitizedCliEnv(),
+            env: sanitizedCliEnv({
+              CODEX_DISABLE_HISTORY: '1',
+              ...(isolatedCodexHome ? { CODEX_HOME: isolatedCodexHome } : {}),
+            }),
             extendEnv: false,
             timeout: timeoutMs,
             reject: false,
@@ -1262,6 +1268,18 @@ export class CliLlmService {
         }
       }
     });
+  }
+
+  private async prepareIsolatedCodexHome(targetDir: string): Promise<string | null> {
+    const sourceHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+    const sourceAuthPath = path.join(sourceHome, 'auth.json');
+    if (!fs.existsSync(sourceAuthPath)) {
+      return null;
+    }
+
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    await fs.promises.copyFile(sourceAuthPath, path.join(targetDir, 'auth.json'));
+    return targetDir;
   }
 
   private async executeWithChaos(invoke: () => Promise<ProviderExecResult>): Promise<ProviderChaosResult> {

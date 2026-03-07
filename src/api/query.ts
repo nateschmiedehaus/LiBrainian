@@ -1059,8 +1059,14 @@ export async function queryLibrarian(
     const llmRequirement: LlmRequirement =
       (offlineMode || envDisableSynthesis) ? 'disabled' : requestedLlmRequirement;
     const embeddingRequirementExplicit = query.embeddingRequirement !== undefined;
+    const deterministicStructuralRetrieval =
+      deterministicCtx
+      && envDisableSynthesis
+      && !embeddingRequirementExplicit;
     let embeddingRequirement: EmbeddingRequirement =
-      query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required');
+      deterministicStructuralRetrieval
+        ? 'disabled'
+        : (query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required'));
     let llmAvailable = llmRequirement === 'required';
     let llmProviderError: string | undefined;
     query = { ...query, llmRequirement, embeddingRequirement };
@@ -5276,9 +5282,11 @@ async function runRerankStage(options: {
   const rerankInput = rerankInputCount > 0 ? finalPacks.slice(0, rerankInputCount) : [];
   const rerankTail = rerankInputCount < finalPacks.length ? finalPacks.slice(rerankInputCount) : [];
   const mmrEligible = query.diversify === true && finalPacks.length >= 2;
+  const deterministicRerankDisabled = query.deterministic === true;
   const rerankEligible =
     Boolean(query.intent) &&
     rerankInput.length >= 2 &&
+    !deterministicRerankDisabled &&
     (forceRerank || isCrossEncoderEnabled());
   const inferSkipReason = (): string => {
     if (!query.intent) return 'missing_intent';
@@ -5286,6 +5294,7 @@ async function runRerankStage(options: {
       if (rerankWindow <= 0) return 'depth_profile_disabled';
       return 'insufficient_candidates';
     }
+    if (deterministicRerankDisabled) return 'deterministic_mode_disabled';
     if (!(forceRerank || isCrossEncoderEnabled())) return 'cross_encoder_disabled';
     return 'not_applicable';
   };
@@ -5293,6 +5302,7 @@ async function runRerankStage(options: {
     missing_intent: 'query intent is missing',
     depth_profile_disabled: 'depth profile disables cross-encoder rerank',
     insufficient_candidates: 'insufficient candidates for reranking',
+    deterministic_mode_disabled: 'deterministic mode disables cross-encoder rerank',
     cross_encoder_disabled: 'cross-encoder is disabled',
     invalid_output: 'cross-encoder produced invalid output',
     invalid_pack_ids: 'cross-encoder returned invalid pack IDs',
