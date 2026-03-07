@@ -380,6 +380,39 @@ describe('query pipeline definition', () => {
     expect(report?.results.telemetry?.rerankSkipReason).toBe('depth_profile_disabled');
   });
 
+  it('skips cross-encoder reranking in deterministic mode even when depth would allow it', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const rerank = vi.fn();
+
+    const result = await __testing.runRerankStage({
+      query: { intent: 'test rerank', depth: 'L1', deterministic: true },
+      finalPacks: [
+        createPack({ packId: 'pack-a', targetId: 'module-a' }),
+        createPack({ packId: 'pack-b', targetId: 'module-b' }),
+      ],
+      candidateScoreMap: new Map(),
+      stageTracker,
+      explanationParts,
+      recordCoverageGap,
+      forceRerank: false,
+      rerank,
+    });
+
+    expect(result.map((pack) => pack.packId)).toEqual(['pack-a', 'pack-b']);
+    expect(rerank).not.toHaveBeenCalled();
+    expect(explanationParts.join(' ')).toContain('Skipped cross-encoder rerank: deterministic mode disables cross-encoder rerank.');
+    const report = stageTracker.report().find((stage) => stage.stage === 'reranking');
+    expect(report?.status).toBe('skipped');
+    expect(report?.results.telemetry?.rerankWindow).toBe(5);
+    expect(report?.results.telemetry?.rerankInputCount).toBe(2);
+    expect(report?.results.telemetry?.rerankAppliedCount).toBe(0);
+    expect(report?.results.telemetry?.rerankSkipReason).toBe('deterministic_mode_disabled');
+  });
+
   it('applies MMR diversification when query.diversify is enabled', async () => {
     const stageTracker = __testing.createStageTracker();
     const explanationParts: string[] = [];

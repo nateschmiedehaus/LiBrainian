@@ -52,6 +52,7 @@ describe('queryLibrarian embedding requirement', () => {
     storage = null;
     delete process.env.LIBRARIAN_OFFLINE;
     delete process.env.LIBRARIAN_LOCAL_ONLY;
+    delete process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS;
   });
 
   it('throws when embeddings are required but unavailable', async () => {
@@ -85,6 +86,26 @@ describe('queryLibrarian embedding requirement', () => {
     );
 
     expect(response.disclosures.join(' ')).toMatch(/embedding_unavailable/);
+  });
+
+  it('disables embeddings by default for deterministic structural queries when synthesis is disabled', async () => {
+    const { queryLibrarian } = await import('../query.js');
+    storage = createSqliteStorage(getTempDbPath(), process.cwd());
+    await storage.initialize();
+    await seedStorage(storage);
+    process.env.LIBRARIAN_QUERY_DISABLE_SYNTHESIS = '1';
+
+    const response = await queryLibrarian(
+      {
+        intent: 'how does auth work',
+        depth: 'L1',
+        deterministic: true,
+      },
+      storage
+    );
+
+    expect(response.query.embeddingRequirement).toBe('disabled');
+    expect(response.disclosures.join(' ')).toMatch(/embedding_disabled/);
   });
 
   it('degrades gracefully when embeddings are optional and unavailable', async () => {
