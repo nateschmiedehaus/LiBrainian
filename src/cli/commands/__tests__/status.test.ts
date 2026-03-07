@@ -430,6 +430,60 @@ describe('statusCommand', () => {
     }
   });
 
+  it('recomputes synthesis availability after loading stored codex defaults', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.LIBRARIAN_CLAUDE_BROKER_URL;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.LIBRARIAN_LLM_PROVIDER;
+    delete process.env.LIBRARIAN_LLM_MODEL;
+    delete process.env.CODEX_HOME;
+    delete process.env.CODEX_MODEL;
+    delete process.env.CODEX_PROFILE;
+    process.env.CLAUDE_CODE_SESSION = '1';
+    mockStorage.getState.mockImplementation(async (key: string) => {
+      if (key === 'librarian.llm_defaults.v1') {
+        return JSON.stringify({
+          schema_version: 1,
+          kind: 'LibrarianLlmDefaults.v1',
+          provider: 'codex',
+          modelId: 'gpt-5.1-codex-mini',
+        });
+      }
+      return null;
+    });
+    vi.mocked(checkAllProviders).mockResolvedValue({
+      llm: { available: true, provider: 'codex', model: 'gpt-5.1-codex-mini', latencyMs: 120 },
+      embedding: { available: true, provider: 'xenova', model: 'test-embed', latencyMs: 50 },
+    });
+
+    try {
+      await statusCommand({ workspace, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        runtime?: {
+          synthesisMode?: string;
+          synthesisUnavailableReason?: string;
+          unavailableFeatures?: string[];
+        };
+        providers?: {
+          storedDefaults?: { provider?: string | null; model?: string | null };
+          status?: { llm?: { provider?: string; model?: string } } | null;
+        };
+      };
+      expect(parsed.runtime?.synthesisMode).toBe('llm');
+      expect(parsed.runtime?.synthesisUnavailableReason).toBeUndefined();
+      expect(parsed.runtime?.unavailableFeatures).not.toContain('synthesis');
+      expect(parsed.providers?.storedDefaults?.provider).toBe('codex');
+      expect(parsed.providers?.status?.llm?.provider).toBe('codex');
+    } finally {
+      delete process.env.CLAUDE_CODE_SESSION;
+      delete process.env.LIBRARIAN_LLM_PROVIDER;
+      delete process.env.LIBRARIAN_LLM_MODEL;
+    }
+  });
+
   it('includes freshness counts in JSON output when git data is available', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     mockStorage.getMetadata.mockResolvedValue({

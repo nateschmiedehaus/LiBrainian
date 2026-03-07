@@ -12,6 +12,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { glob } from 'glob';
 
 const DEFAULT_TEST_DISCOVERY_MAX_FILES = 2000;
@@ -20,6 +22,8 @@ const DEFAULT_TEST_DISCOVERY_BUDGET_MS = 15000;
 const DEFAULT_TEST_DISCOVERY_BUDGET_MS_TEST = 15000;
 const DEFAULT_TEST_DISCOVERY_CACHE_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_TEST_DISCOVERY_MAX_CACHED_FILE_BYTES = 200 * 1024;
+const DEFAULT_TEST_DISCOVERY_RIPGREP_TIMEOUT_MS = 5000;
+const execFileAsync = promisify(execFile);
 
 function readEnvNumber(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -223,6 +227,18 @@ export async function findTestsForClass(
   // Strategy 2: Search for class references in all test files
   // This catches tests that test the class but aren't named after it
   try {
+    const ripgrepMatches = await findTestFileReferencesWithRipgrep(
+      workspace,
+      className,
+      settings.timeBudgetMs
+    );
+    if (ripgrepMatches) {
+      for (const match of ripgrepMatches) {
+        if (results.has(match)) continue;
+        results.add(match);
+        hasReferenceMatches = true;
+      }
+    } else {
     const cacheKey = workspace;
     const now = Date.now();
     let allFiles: string[] = [];
@@ -324,6 +340,7 @@ export async function findTestsForClass(
       } catch {
         // Skip files that can't be read
       }
+    }
     }
   } catch {
     // Continue even if glob fails
@@ -449,4 +466,72 @@ function splitPascalCase(str: string): string[] {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .split(/[\s_-]+/)
     .filter(Boolean);
+}
+
+async function findTestFileReferencesWithRipgrep(
+  workspace: string,
+  className: string,
+  timeBudgetMs: number
+): Promise<string[] | null> {
+  const timeoutMs = Number.isFinite(timeBudgetMs)
+    ? Math.max(250, Math.min(timeBudgetMs, DEFAULT_TEST_DISCOVERY_RIPGREP_TIMEOUT_MS))
+    : DEFAULT_TEST_DISCOVERY_RIPGREP_TIMEOUT_MS;
+
+  try {
+    const { stdout } = await execFileAsync(
+      'rg',
+      [
+        '-l',
+        '-F',
+        '-w',
+        '--no-messages',
+        '--glob',
+        '**/*.test.ts',
+        '--glob',
+        '**/*.spec.ts',
+        '--glob',
+        '**/__tests__/**/*.ts',
+        '--glob',
+        '!**/node_modules/**',
+        className,
+        '.',
+      ],
+      {
+        cwd: workspace,
+        timeout: timeoutMs,
+        maxBuffer: 8 * 1024 * 1024,
+      }
+    );
+
+    return stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^\.\//, ''))
+      .sort();
+  } catch (error) {
+    const candidate = error as {
+      code?: number | string;
+      message?: string;
+      killed?: boolean;
+      signal?: string | null;
+    };
+
+    // rg exit code 1 means "no matches", which is a valid empty result.
+    if (candidate.code === 1 || candidate.code === '1') {
+      return [];
+    }
+
+    // Fall back to the slower in-process scan when rg is unavailable or times out.
+    if (
+      candidate.code === 'ENOENT'
+      || candidate.killed === true
+      || candidate.signal === 'SIGTERM'
+      || String(candidate.message ?? '').toLowerCase().includes('timed out')
+    ) {
+      return null;
+    }
+
+    return null;
+  }
 }

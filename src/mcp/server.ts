@@ -808,6 +808,7 @@ interface ConformalCalibrationProfile {
 }
 
 const TRACE_MESSAGE_PATTERN = /^unverified_by_trace\(([^)]+)\):?\s*(.*)$/i;
+const TRACE_MESSAGE_COLON_PATTERN = /^unverified_by_trace:([a-z0-9_]+):?\s*(.*)$/i;
 
 interface ParsedEpistemicMessage {
   code?: string;
@@ -817,7 +818,7 @@ interface ParsedEpistemicMessage {
 
 function parseEpistemicMessage(message: string): ParsedEpistemicMessage {
   const rawMessage = String(message ?? '').trim();
-  const match = rawMessage.match(TRACE_MESSAGE_PATTERN);
+  const match = rawMessage.match(TRACE_MESSAGE_PATTERN) ?? rawMessage.match(TRACE_MESSAGE_COLON_PATTERN);
   if (!match) {
     return {
       userMessage: rawMessage,
@@ -893,6 +894,25 @@ function normalizeErrorCode(rawCode: string | undefined, fallback = 'tool_execut
 function inferErrorCode(message: string, parsedCode?: string): string {
   if (parsedCode) return normalizeErrorCode(parsedCode);
   const normalized = message.trim().toLowerCase();
+  if (normalized.includes('timed out') || normalized.includes('timeout')) {
+    return 'tool_timeout';
+  }
+  if (
+    normalized.includes('sqlite_busy')
+    || normalized.includes('database is locked')
+    || normalized.includes('storage locked')
+    || normalized.includes('storage_lock')
+  ) {
+    return 'storage_locked';
+  }
+  if (
+    normalized.includes('storage_corrupt')
+    || normalized.includes('corrupt')
+    || normalized.includes('malformed')
+    || normalized.includes('quarantined')
+  ) {
+    return 'storage_corrupt';
+  }
   if (normalized.includes('stale index') || normalized.includes('index stale')) {
     return 'index_stale';
   }
@@ -904,6 +924,19 @@ function inferErrorCode(message: string, parsedCode?: string): string {
     && (normalized.includes('unavailable') || normalized.includes('not configured') || normalized.includes('provider'))
   ) {
     return 'embedding_unavailable';
+  }
+  if (normalized.includes('provider unavailable')) {
+    return 'provider_unavailable';
+  }
+  if (
+    normalized.includes('exit code 134')
+    || normalized.includes('sigabrt')
+    || normalized.includes('abort trap')
+    || normalized.includes('libc++ mutex')
+    || normalized.includes('onnx model crashed')
+    || normalized.includes('provider crash')
+  ) {
+    return 'provider_crash';
   }
   if (
     normalized.includes('query too vague')
@@ -946,6 +979,104 @@ function getWorkspaceArg(args: unknown): string | undefined {
   if (typeof workspace !== 'string') return undefined;
   const trimmed = workspace.trim();
   return trimmed || undefined;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function isQueryLikeTool(toolName: string): boolean {
+  return [
+    'query',
+    'semantic_search',
+    'get_context_pack',
+    'get_context_pack_bundle',
+    'find_symbol',
+    'find_callers',
+    'find_callees',
+    'find_usages',
+    'trace_imports',
+    'trace_control_flow',
+    'trace_data_flow',
+    'explain_function',
+    'blast_radius',
+    'get_change_impact',
+  ].includes(toolName);
+}
+
+function extractFallbackSearchTerms(args: unknown): string {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return 'TODO';
+  }
+  const record = args as Record<string, unknown>;
+  const candidates = [
+    record.intent,
+    record.query,
+    record.symbolName,
+    record.name,
+    record.topic,
+    record.claim,
+    record.target,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  const source = candidates[0] ?? 'TODO';
+  const normalized = source.replace(/\s+/g, ' ').trim();
+  return normalized.length > 120 ? normalized.slice(0, 120).trim() : normalized;
+}
+
+function buildFallbackMetadata(code: string, toolName: string, args: unknown): {
+  fallback: string;
+  fallback_command: string;
+} {
+  const workspace = getWorkspaceArg(args);
+  const workspaceRoot = workspace ?? '.';
+  const queryFallbackRoot = workspace ? path.join(workspace, 'src') : 'src';
+  if (isQueryLikeTool(toolName)) {
+    const terms = extractFallbackSearchTerms(args);
+    return {
+      fallback: 'Use ripgrep while semantic retrieval is unavailable, then continue with direct file inspection.',
+      fallback_command: `rg -n -S ${shellQuote(terms)} ${shellQuote(queryFallbackRoot)}`,
+    };
+  }
+
+  if (code === 'workspace_not_bootstrapped' || code === 'workspace_not_registered' || code === 'index_stale' || code === 'partial_index') {
+    return {
+      fallback: 'Use the CLI bootstrap/status path to repair index readiness before retrying MCP.',
+      fallback_command: `node dist/cli/index.js status --json --workspace ${shellQuote(workspaceRoot)}`,
+    };
+  }
+
+  return {
+    fallback: 'Use the CLI doctor path to diagnose the workspace directly while MCP is degraded.',
+    fallback_command: `node dist/cli/index.js doctor --json --workspace ${shellQuote(workspaceRoot)}`,
+  };
+}
+
+function inferRetryAfterMs(code: string, basePayload: Record<string, unknown>, message: string): number | undefined {
+  const explicit = typeof basePayload.retryAfterMs === 'number'
+    ? basePayload.retryAfterMs
+    : (typeof basePayload.retry_after_ms === 'number' ? basePayload.retry_after_ms : undefined);
+  if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 0) {
+    return explicit;
+  }
+
+  const timeoutMatch = message.match(/after\s+(\d+)ms/i);
+  if (timeoutMatch) {
+    const parsed = Number.parseInt(timeoutMatch[1] ?? '', 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  switch (code) {
+    case 'server_busy':
+      return 1000;
+    case 'tool_timeout':
+      return 1000;
+    case 'storage_locked':
+      return 500;
+    default:
+      return undefined;
+  }
 }
 
 function buildAgentNextSteps(code: string, toolName: string, workspace: string | undefined): {
@@ -999,11 +1130,34 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
         ],
       };
     case 'embedding_unavailable':
+    case 'provider_unavailable':
       return {
         nextSteps: [
           'Run `librarian check-providers --format json` and confirm embedding provider availability.',
           `Retry ${toolName} after provider configuration is restored.`,
         ],
+      };
+    case 'provider_crash':
+      return {
+        nextSteps: [
+          'Restart the MCP server or provider subprocess to clear the crashed embedding/runtime state.',
+          'Retry once after restart; if the crash repeats, fall back to ripgrep and inspect provider logs.',
+        ],
+      };
+    case 'storage_locked':
+      return {
+        nextSteps: [
+          'Wait for active indexing/query work to finish before retrying.',
+          'Run `node dist/cli/index.js doctor --json --workspace "<workspace>"` if the lock persists.',
+        ],
+      };
+    case 'storage_corrupt':
+      return {
+        nextSteps: [
+          `Run bootstrap({ workspace: "${workspaceArg}" }) or \`librarian bootstrap --force --workspace ${workspaceArg}\` to rebuild corrupted storage.`,
+          `Retry ${toolName} only after doctor/status confirms the workspace is healthy.`,
+        ],
+        recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
       };
     case 'index_stale':
       return {
@@ -1020,6 +1174,13 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
           `Retry ${toolName} after full index coverage is restored.`,
         ],
         recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
+      };
+    case 'tool_timeout':
+      return {
+        nextSteps: [
+          `Retry ${toolName} once with a narrower scope or smaller depth.`,
+          'If the timeout repeats, use the fallback command below and inspect provider/storage health.',
+        ],
       };
     default:
       return {
@@ -1076,9 +1237,38 @@ function classifyCompactError(code: string): {
         ],
       };
     case 'embedding_unavailable':
+    case 'provider_unavailable':
       return {
         errorType: 'EMBEDDING_SERVICE_UNAVAILABLE',
         severity: 'blocking',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'provider_crash':
+      return {
+        errorType: 'EMBEDDING_PROVIDER_CRASH',
+        severity: 'blocking',
+        retrySafe: false,
+        humanReviewNeeded: false,
+      };
+    case 'storage_locked':
+      return {
+        errorType: 'STORAGE_LOCKED',
+        severity: 'recoverable',
+        retrySafe: true,
+        humanReviewNeeded: false,
+      };
+    case 'storage_corrupt':
+      return {
+        errorType: 'STORAGE_CORRUPT',
+        severity: 'blocking',
+        retrySafe: false,
+        humanReviewNeeded: true,
+      };
+    case 'tool_timeout':
+      return {
+        errorType: 'TOOL_TIMEOUT',
+        severity: 'recoverable',
         retrySafe: true,
         humanReviewNeeded: false,
       };
@@ -1170,6 +1360,8 @@ function toAgentErrorPayload(params: {
     }
     : recoverWith;
   const compact = classifyCompactError(code);
+  const retryAfterMs = inferRetryAfterMs(code, base, params.message);
+  const fallbackMetadata = buildFallbackMetadata(code, params.toolName, params.args);
   const suppliedSuggestedNextSteps = Array.isArray(base.suggested_next_steps)
     ? base.suggested_next_steps.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     : [];
@@ -1201,8 +1393,15 @@ function toAgentErrorPayload(params: {
     suggested_rephrasings: Array.isArray(base.suggested_rephrasings)
       ? base.suggested_rephrasings
       : compact.suggestedRephrasings,
+    retryable: typeof base.retryable === 'boolean' ? base.retryable : compact.retrySafe,
+    retryAfterMs: retryAfterMs ?? base.retryAfterMs,
+    retry_after_ms: retryAfterMs ?? base.retry_after_ms,
     partial_results: partialResults,
     recoverWith: normalizedRecoverWith,
+    fallback: typeof base.fallback === 'string' ? base.fallback : fallbackMetadata.fallback,
+    fallback_command: typeof base.fallback_command === 'string'
+      ? base.fallback_command
+      : fallbackMetadata.fallback_command,
     disclosures: userDisclosures.length > 0 ? userDisclosures : base.disclosures,
     traceId: sanitizeTraceId(typeof base.traceId === 'string' ? base.traceId : undefined) ?? base.traceId,
     llmError: typeof base.llmError === 'string' ? parseEpistemicMessage(base.llmError).userMessage : base.llmError,

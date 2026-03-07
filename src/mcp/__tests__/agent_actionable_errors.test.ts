@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createLibrarianMCPServer } from '../server.js';
 
 function parseToolPayload(result: unknown): Record<string, unknown> {
@@ -81,5 +81,63 @@ describe('MCP agent-actionable errors', () => {
     expect(payload.nextSteps).toEqual(expect.arrayContaining([
       expect.stringContaining('required scopes'),
     ]));
+  });
+
+  it('preserves colon-style storage lock trace markers as actionable recovery guidance', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/mcp-storage-locked';
+    vi.spyOn(server as any, 'executeTool').mockResolvedValue({
+      success: false,
+      error: 'unverified_by_trace:storage_locked:database is locked (SQLITE_BUSY)',
+    });
+    const result = await (server as any).callTool('status', {
+      workspace,
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = parseToolPayload(result);
+    expect(payload.error).toBe(true);
+    expect(payload.code).toBe('storage_locked');
+    expect(payload.error_type).toBe('STORAGE_LOCKED');
+    expect(payload.retry_safe).toBe(true);
+    expect(payload.retryable).toBe(true);
+    expect(payload.nextSteps).toEqual(expect.arrayContaining([
+      expect.stringContaining('Wait'),
+      expect.stringContaining('doctor'),
+    ]));
+    expect(typeof payload.fallback_command).toBe('string');
+    expect(String(payload.fallback_command)).toContain('doctor');
+  });
+
+  it('classifies provider crashes with restart guidance and grep fallback for query tools', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read', 'write'], requireConsent: false },
+    });
+
+    const workspace = '/tmp/mcp-provider-crash';
+    vi.spyOn(server as any, 'executeTool').mockResolvedValue({
+      success: false,
+      error: 'unverified_by_trace(provider_crash): ONNX model crashed (exit code 134, libc++ mutex)',
+    });
+    const result = await (server as any).callTool('query', {
+      workspace,
+      intent: 'cross-provider model normalization',
+    });
+
+    expect(result.isError).toBe(true);
+    const payload = parseToolPayload(result);
+    expect(payload.error).toBe(true);
+    expect(payload.code).toBe('provider_crash');
+    expect(payload.error_type).toBe('EMBEDDING_PROVIDER_CRASH');
+    expect(payload.retry_safe).toBe(false);
+    expect(payload.retryable).toBe(false);
+    expect(payload.nextSteps).toEqual(expect.arrayContaining([
+      expect.stringContaining('Restart'),
+    ]));
+    expect(typeof payload.fallback_command).toBe('string');
+    expect(String(payload.fallback_command)).toContain('rg ');
   });
 });

@@ -64,6 +64,13 @@ describe('MCP performance guards', () => {
     expect(result.isError).toBe(true);
     const payload = parseToolPayload(result);
     expect(payload.error).toBe(true);
+    expect(payload.code).toBe('tool_timeout');
+    expect(payload.error_type).toBe('TOOL_TIMEOUT');
+    expect(payload.retry_safe).toBe(true);
+    expect(payload.retryable).toBe(true);
+    expect(typeof payload.retryAfterMs).toBe('number');
+    expect(typeof payload.retry_after_ms).toBe('number');
+    expect(typeof payload.fallback_command).toBe('string');
     expect(String(payload.message ?? '')).toContain('timed out');
   });
 

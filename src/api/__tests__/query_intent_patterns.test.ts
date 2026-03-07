@@ -10,6 +10,7 @@ import {
   ENTRY_POINT_PATH_PATTERNS,
   ENTRY_POINT_QUERY_PATTERNS,
   FEATURE_LOCATION_PATTERNS,
+  IMPLEMENTATION_SEEKING_PATTERNS,
   META_QUERY_PATTERNS,
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
@@ -30,6 +31,15 @@ describe('query_intent_patterns', () => {
   it('matches canonical code-query intents', () => {
     expect(hasMatch(CODE_QUERY_PATTERNS, 'where is queryLibrarian defined')).toBe(true);
     expect(hasMatch(CODE_QUERY_PATTERNS, 'find bug in authentication module')).toBe(true);
+  });
+
+  it('matches recovery/failure implementation intents as implementation-seeking', () => {
+    expect(
+      hasMatch(
+        IMPLEMENTATION_SEEKING_PATTERNS,
+        'How should agents recover when LiBrainian MCP tool calls time out or hit storage/provider failures?'
+      )
+    ).toBe(true);
   });
 
   it('matches canonical definition-query intents', () => {

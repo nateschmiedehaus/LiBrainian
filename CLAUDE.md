@@ -30,6 +30,12 @@ Key MCP tools:
 One `query` call replaces 5 speculative Grep calls. Skip LiBrainian for
 trivial edits or files you already understand.
 
+If LiBrainian returns a structured MCP error:
+- Retry at most once when `retryable`/`retry_safe` is true.
+- Do not retry when `retryable`/`retry_safe` is false; execute `fallback_command` or the suggested `recoverWith` repair path.
+- Treat stale/partial index warnings as untrusted retrieval until `librarian bootstrap` repairs the workspace.
+- If MCP stays degraded, switch to `rg` and direct file inspection instead of looping on the same tool call.
+
 ## Subagent Delegation
 
 When spawning subagents via the Task tool, MCP tools are NOT available

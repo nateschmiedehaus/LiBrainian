@@ -73,7 +73,13 @@ import { resolveMethodGuidance } from '../methods/method_guidance.js';
 import { globalEventBus, createQueryCompleteEvent, createQueryReceivedEvent, createQueryStartEvent, createQueryResultEvent, createQueryErrorEvent } from '../events.js';
 import { scoreCandidatesWithMultiSignals } from '../query/scoring.js';
 import { deserializeMultiVector, queryMultiVectors, QUERY_TYPE_WEIGHTS, type SerializedMultiVector } from './embedding_providers/multi_vector_representations.js';
-import { synthesizeQueryAnswer, canAnswerFromSummaries, createQuickAnswer, type QuerySynthesisResult } from './query_synthesis.js';
+import {
+  synthesizeQueryAnswer,
+  canAnswerFromSummaries,
+  canFallbackToQuickAnswerOnSynthesisFailure,
+  createQuickAnswer,
+  type QuerySynthesisResult,
+} from './query_synthesis.js';
 import { runAdequacyScan, type AdequacyReport } from './difficulty_detectors.js';
 import type { SynthesizedResponse } from '../types.js';
 import { calculateStalenessDecay } from '../knowledge/extractors/evidence_collector.js';
@@ -216,6 +222,7 @@ import {
   extractBugContext,
   extractCodeReviewFilePath,
   extractFeatureTarget,
+  extractIntentAnchorPaths,
   extractReferencedFilePath,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
@@ -414,6 +421,30 @@ const FALLBACK_CANDIDATE_LIMIT = 80;
 const FALLBACK_RESULT_LIMIT = 6;
 const DEFAULT_MIN_CONFIDENCE = q(0.3, [0, 1], 'Default minimum confidence for pack retrieval.');
 const CANDIDATE_SCORE_FLOOR = q(0.85, [0, 1], 'Fallback candidate score floor.');
+const DIRECT_PACK_SCORE_BASE = 1.08;
+const DIRECT_PACK_SCORE_MAX = 1.28;
+const DIRECT_PACK_SCORE_STOP_WORDS = new Set([
+  'where',
+  'when',
+  'what',
+  'which',
+  'with',
+  'into',
+  'from',
+  'that',
+  'this',
+  'these',
+  'those',
+  'should',
+  'does',
+  'how',
+  'are',
+  'the',
+  'and',
+  'for',
+  'guidance',
+  'actionable',
+]);
 const MIN_RESULT_CONFIDENCE_THRESHOLD = q(0.4, [0, 1], 'Minimum confidence threshold for returning results vs "not found".');
 const CONFIDENCE_ADJUSTMENT_FLOOR = q(
   0.1,
@@ -706,8 +737,8 @@ export function classifyQueryIntent(intent: string): QueryClassification {
     && !isWhyQuery
   ) || isProjectUnderstanding;
   const isCodeQuery =
-    codeMatches > 0
-    && (codeMatches > metaMatches || hasStrongImplementationLocationSignal)
+    (codeMatches > 0 || implementationSeekingMatches > 0)
+    && (codeMatches > metaMatches || hasStrongImplementationLocationSignal || implementationSeekingMatches > 0)
     && !isTestQuery
     && !isProjectUnderstanding
     && !isWhyQuery;
@@ -1804,6 +1835,11 @@ export async function queryLibrarian(
         (pack) => pack.packId
       )
     : ranked.packs;
+  const priorityDirectPacks = selectPriorityDirectPacks(directPacks, query.intent ?? '', contextLevel.packLimit);
+  if (priorityDirectPacks.length > 0) {
+    finalPacks = dedupePacks([...priorityDirectPacks, ...finalPacks]).slice(0, contextLevel.packLimit);
+    explanationParts.push(`Preserved ${priorityDirectPacks.length} anchor-priority direct packs in final ranking.`);
+  }
   const prependSpecializedPacks = (stage: {
     shouldPrepend: boolean;
     packs: ContextPack[];
@@ -3261,7 +3297,12 @@ async function runSemanticRetrievalStage(options: {
     // keyword boost can lift them. Without this, semantic search alone
     // may not surface files whose names match the query.
     if (query.intent) {
-      const injected = await injectFilenameCandidates(query.intent, candidates, storage);
+      const injected = await injectFilenameCandidates(
+        query.intent,
+        candidates,
+        storage,
+        [...(query.affectedFiles ?? []), ...extractIntentAnchorPaths(query.intent)]
+      );
       if (injected.added > 0) {
         candidates = injected.candidates;
       }
@@ -3508,7 +3549,10 @@ async function runCandidatePackStage(options: {
   if (directPacks.length) {
     for (const pack of directPacks) {
       const existing = candidateScoreMap.get(pack.targetId) ?? 0;
-        candidateScoreMap.set(pack.targetId, Math.max(existing, CANDIDATE_SCORE_FLOOR));
+      candidateScoreMap.set(
+        pack.targetId,
+        Math.max(existing, scoreAnchoredDirectPack(pack, query.intent ?? ''))
+      );
     }
   }
   const workspaceScoped = filterPacksToWorkspace(allPacks, workspaceRoot);
@@ -5729,6 +5773,26 @@ async function runSynthesisStage(options: {
     ? undefined
     : (finalPacks.length > 0 ? 'heuristic' : undefined);
   let llmError: string | undefined;
+  const applyQuickFallback = (reason: string): boolean => {
+    if (!canFallbackToQuickAnswerOnSynthesisFailure(query, finalPacks)) {
+      return false;
+    }
+    try {
+      const quickAnswer = buildQuickAnswer(query, finalPacks);
+      synthesis = {
+        answer: quickAnswer.answer,
+        confidence: quickAnswer.confidence,
+        citations: quickAnswer.citations,
+        keyInsights: quickAnswer.keyInsights,
+        uncertainties: quickAnswer.uncertainties,
+      };
+      synthesisMode = 'heuristic';
+      explanationParts.push(`Quick synthesis from pack summaries after ${reason}.`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const synthesisStage = stageTracker.start('synthesis', synthesisEnabled && query.intent && finalPacks.length > 0 ? 1 : 0);
   if (synthesisEnabled && query.intent && finalPacks.length > 0) {
     const resolvedWorkspaceRoot = workspaceRoot?.trim() || await resolveWorkspace(storage);
@@ -5825,6 +5889,7 @@ async function runSynthesisStage(options: {
           if (query.showLlmErrors !== false) {
             llmError = stripTracePrefix(reason);
           }
+          applyQuickFallback('LLM synthesis was unavailable');
         }
       }
     } catch (synthesisError) {
@@ -5836,6 +5901,7 @@ async function runSynthesisStage(options: {
       if (query.showLlmErrors !== false) {
         llmError = sanitized;
       }
+      applyQuickFallback('LLM synthesis failed');
     }
   }
   if (!synthesisMode && finalPacks.length > 0 && !synthesis) {
@@ -6006,7 +6072,8 @@ async function collectDirectPacks(
 ): Promise<ContextPack[]> {
   const intent = query.intent ?? '';
   const inferredIntentPath = extractReferencedFilePath(query.intent ?? '');
-  const anchorPaths = query.affectedFiles?.slice(0, 12) ?? [];
+  const inferredAnchorPaths = extractIntentAnchorPaths(intent);
+  const anchorPaths = [...(query.affectedFiles ?? []), ...inferredAnchorPaths].slice(0, 12);
   const identifierAnchors = shouldInferIdentifierAnchors(intent)
     ? extractReferencedIdentifiers(intent)
     : [];
@@ -6434,6 +6501,55 @@ function tokenize(text: string): string[] {
   return Array.from(expanded);
 }
 
+function scoreAnchoredDirectPack(pack: ContextPack, intent: string): number {
+  const terms = tokenize(intent).filter((term) => !DIRECT_PACK_SCORE_STOP_WORDS.has(term));
+  if (terms.length === 0) return DIRECT_PACK_SCORE_BASE;
+
+  const relevance = scoreTextRelevance(terms, {
+    summary: pack.summary,
+    highlights: pack.keyFacts,
+    files: pack.relatedFiles,
+  });
+  const normalizedRelevance = Math.min(1, relevance / Math.max(3, Math.min(terms.length, 8)));
+  let score = DIRECT_PACK_SCORE_BASE + (normalizedRelevance * 0.16);
+
+  if (pack.packType === 'function_context' && relevance > 0) {
+    score += 0.04;
+  }
+  if (pack.packType === 'module_context' && relevance === 0) {
+    score -= 0.02;
+  }
+
+  return Math.max(CANDIDATE_SCORE_FLOOR, Math.min(DIRECT_PACK_SCORE_MAX, score));
+}
+
+function selectPriorityDirectPacks(
+  directPacks: ContextPack[],
+  intent: string,
+  limit: number,
+): ContextPack[] {
+  if (directPacks.length === 0 || !intent.trim()) return [];
+
+  const bestByFile = new Map<string, { pack: ContextPack; score: number }>();
+  for (const pack of directPacks) {
+    const primaryFile = pack.relatedFiles[0] ?? pack.targetId;
+    const score = scoreAnchoredDirectPack(pack, intent);
+    const current = bestByFile.get(primaryFile);
+    if (!current || score > current.score) {
+      bestByFile.set(primaryFile, { pack, score });
+    }
+  }
+
+  return Array.from(bestByFile.values())
+    .sort((left, right) =>
+      right.score - left.score
+      || (right.pack.confidence - left.pack.confidence)
+      || left.pack.packId.localeCompare(right.pack.packId)
+    )
+    .map((entry) => entry.pack)
+    .slice(0, Math.min(3, limit));
+}
+
 function splitCamelCase(value: string): string[] {
   return value
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -6740,6 +6856,7 @@ async function injectFilenameCandidates(
   intent: string,
   existingCandidates: Candidate[],
   storage: LibrarianStorage,
+  explicitPaths: string[] = [],
 ): Promise<{ candidates: Candidate[]; added: number }> {
   const stopWords = new Set([
     'the', 'how', 'does', 'what', 'work', 'and', 'this', 'that', 'with', 'for', 'from', 'into',
@@ -6756,6 +6873,12 @@ async function injectFilenameCandidates(
   const existingIds = new Set(existingCandidates.map(c => c.entityId));
   const existingPaths = new Set(existingCandidates.map(c => c.path).filter(Boolean));
   const injected: Candidate[] = [];
+  const normalizedExplicitPaths = new Set(
+    explicitPaths
+      .map((entry) => entry.replace(/\\/g, '/').trim().toLowerCase())
+      .filter((entry) => entry.length > 0)
+      .flatMap((entry) => entry.endsWith('.ts') ? [entry, entry.replace(/\.ts$/, '.js')] : [entry])
+  );
 
   try {
     // Get all indexed files (lightweight: typically < 3000 entries)
@@ -6774,6 +6897,9 @@ async function injectFilenameCandidates(
       // A file matching 2+ query terms should rank above one matching only 1.
       let totalScore = 0;
       let matchedTerms = 0;
+      if (normalizedExplicitPaths.has(pathLower)) {
+        totalScore = Math.max(totalScore, 80);
+      }
       for (const term of terms) {
         // Check ALL match types and take the best score for this term.
         // The previous if/else chain could miss a high-scoring directory match
@@ -7753,6 +7879,8 @@ export const __testing = {
   buildSemanticCacheScopeSignature,
   collectDirectPacks,
   collectCandidatePacks,
+  scoreAnchoredDirectPack,
+  selectPriorityDirectPacks,
   buildHydePrompt,
   normalizeHydeExpansion,
   buildIdentifierExpansionVariants,
