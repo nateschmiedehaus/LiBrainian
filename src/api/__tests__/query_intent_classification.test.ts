@@ -90,6 +90,15 @@ describe('classifyQueryIntent', () => {
       expect(result.isFeatureLocationQuery).toBe(true);
       expect(result.featureTarget).toBe('query pipeline');
     });
+
+    it('classifies internal recovery/failure questions as implementation queries instead of meta guidance', () => {
+      const result = classifyQueryIntent(
+        'How should agents recover when LiBrainian MCP tool calls time out or hit storage/provider failures?'
+      );
+      expect(result.isCodeQuery).toBe(true);
+      expect(result.isMetaQuery).toBe(false);
+      expect(result.documentBias).toBeLessThan(0.3);
+    });
   });
 
   describe('hybrid query detection', () => {

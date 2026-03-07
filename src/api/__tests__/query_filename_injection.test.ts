@@ -45,6 +45,39 @@ describe('query filename candidate injection', () => {
     )).toBe(true);
   });
 
+  it('injects explicit anchor paths even when lexical filename matching is weak', async () => {
+    const storage = {
+      getFiles: async () => ([
+        { path: 'src/mcp/server.ts' },
+        { path: 'src/cli/commands/mcp.ts' },
+        { path: 'src/adapters/tool_adapter.ts' },
+      ]),
+      getModuleByPath: async (filePath: string) => ({
+        id: `mod:${filePath}`,
+        path: filePath,
+        purpose: `Module ${filePath}`,
+        exports: [],
+        dependencies: [],
+        confidence: 0.8,
+      }),
+      getFunctionsByPath: async () => [],
+    } as unknown as LibrarianStorage;
+
+    const result = await __testing.injectFilenameCandidates(
+      'Where are MCP tool errors normalized into actionable retry/fallback guidance?',
+      [],
+      storage,
+      ['src/mcp/server.ts', 'src/cli/commands/mcp.ts'],
+    );
+
+    expect(result.candidates.some((candidate) =>
+      candidate.entityType === 'module' && candidate.path === 'src/mcp/server.ts'
+    )).toBe(true);
+    expect(result.candidates.some((candidate) =>
+      candidate.entityType === 'module' && candidate.path === 'src/cli/commands/mcp.ts'
+    )).toBe(true);
+  });
+
   it('materializes a JIT module pack when a module candidate has no prebuilt pack', async () => {
     const storage = {
       getContextPackForTarget: async () => null,

@@ -42,6 +42,8 @@ export const IMPLEMENTATION_SEEKING_PATTERNS: RegExp[] = [
   /\bhow\s+does\s+(?:the\s+)?(?:\w+\s+)*(?:bootstrap|ingest|scoring|ranking|embedding|query|storage|indexing|caching|routing|parsing|compilation|bundling|scheduling|dispatching|validation|serialization|authentication|authorization)\b.*\bwork\b/i,
   // "how does the X function/method/class work"
   /\bhow\s+does\s+(?:the\s+)?\w+\s+(?:function|method|class|module|component|service|layer|subsystem)\b.*\bwork\b/i,
+  // "how should agents recover when MCP/tool/provider/storage timeouts or failures happen"
+  /\bhow\s+should\s+(?:\w+\s+)*(?:agent|agents|system|runtime|librarian)\b.*\b(?:recover|handle|respond|retry|fallback|fail(?:\s+fast)?|degrade)\b.*\b(?:mcp|tool|provider|storage|sqlite|timeout|timeouts|failure|failures|error|errors|unavailable|degraded|busy)\b/i,
 ];
 
 /**

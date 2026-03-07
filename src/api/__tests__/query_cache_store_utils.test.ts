@@ -140,6 +140,21 @@ describe('query_cache_store_utils', () => {
     expect(upsertQueryCacheEntry).not.toHaveBeenCalled();
   });
 
+  it('does not persist degraded synthesis responses with llm errors', async () => {
+    const response = {
+      ...makeResponse('L2'),
+      llmError: 'query synthesis timed out after 60000ms',
+      coverageGaps: ['Synthesis failed: query synthesis timed out after 60000ms'],
+    };
+    const upsertQueryCacheEntry = vi.fn(async (_entry: QueryCacheEntry) => undefined);
+    const storage = { upsertQueryCacheEntry } as QueryCacheStore;
+
+    expect(isCacheableQueryResponse(response)).toBe(false);
+    await setCachedQuery('key-degraded', response, storage, makeQuery('L2'));
+
+    expect(upsertQueryCacheEntry).not.toHaveBeenCalled();
+  });
+
   it('ignores persisted low-confidence cache entries during hydration', async () => {
     const response = {
       ...makeResponse('L3'),
@@ -160,6 +175,29 @@ describe('query_cache_store_utils', () => {
 
     const cache = getQueryCache(storage);
     const hydrated = await cache.get('key-bad');
+
+    expect(hydrated).toBeNull();
+  });
+
+  it('ignores persisted degraded synthesis cache entries during hydration', async () => {
+    const response = {
+      ...makeResponse('L2'),
+      llmError: 'query synthesis timed out after 60000ms',
+      coverageGaps: ['Synthesis failed: query synthesis timed out after 60000ms'],
+    };
+    const entry: QueryCacheEntry = {
+      queryHash: 'key-degraded',
+      queryParams: JSON.stringify(response.query),
+      response: serializeCachedResponse(response),
+      createdAt: new Date().toISOString(),
+      lastAccessed: new Date().toISOString(),
+      accessCount: 1,
+    };
+    const getQueryCacheEntry = vi.fn(async (_key: string) => entry);
+    const storage = { getQueryCacheEntry } as QueryCacheStore;
+
+    const cache = getQueryCache(storage);
+    const hydrated = await cache.get('key-degraded');
 
     expect(hydrated).toBeNull();
   });

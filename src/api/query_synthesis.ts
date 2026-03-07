@@ -586,6 +586,28 @@ export function canAnswerFromSummaries(
   return goodPacks.length >= 1;
 }
 
+export function canFallbackToQuickAnswerOnSynthesisFailure(
+  query: LibrarianQuery,
+  packs: ContextPack[]
+): boolean {
+  if (canAnswerFromSummaries(query, packs)) return true;
+  if (!packs.length) return false;
+  if (!isRecoveryGuidanceQuery(query.intent ?? '')) return false;
+
+  const ranked = rankRecoveryGuidancePacks(query.intent ?? '', packs);
+  if (ranked.length === 0) return false;
+
+  const distinctFiles = new Set(
+    ranked
+      .slice(0, 4)
+      .flatMap((pack) => pack.relatedFiles ?? [])
+      .map((file) => file.trim())
+      .filter((file) => file.length > 0)
+  );
+  const strongest = ranked[0];
+  return distinctFiles.size >= 2 || (strongest?.confidence ?? 0) >= 0.6;
+}
+
 /**
  * Create a quick answer from pack summaries without full LLM synthesis.
  * Only use when canAnswerFromSummaries returns true.
@@ -597,6 +619,7 @@ export function createQuickAnswer(
   const intent = query.intent?.toLowerCase() || '';
   const isLocationQuery = intent.startsWith('where is') || intent.startsWith('where are');
   const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
+  const isRecoveryQuery = isRecoveryGuidanceQuery(intent);
   const broadCodebaseMatch = query.intent?.match(
     /^(how|what)\s+(is|are)\s+(.+?)\s+(handled|implemented|organized|structured)\s+across\s+the\s+(?:codebase|project)\??$/i
   );
@@ -612,10 +635,7 @@ export function createQuickAnswer(
   const locationSubjectMatch = query.intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
   const locationSubject = locationSubjectMatch?.[1]?.trim();
   const topFacts = Array.from(new Set(
-    packs
-      .flatMap((pack) => pack.keyFacts ?? [])
-      .map((fact) => fact.trim())
-      .filter((fact) => fact.length > 0)
+    extractHumanKeyFacts(packs, 3)
   )).slice(0, 3);
 
   let quickAnswerText = topPack.summary;
@@ -625,6 +645,18 @@ export function createQuickAnswer(
     quickAnswerText = `${subject} is primarily implemented in ${primaryFile}.`;
   } else if (isCallerQuery && files.length > 0) {
     quickAnswerText = `Caller relationships are primarily represented in ${files.join(', ')}.`;
+  } else if (isRecoveryQuery) {
+    const recoveryPacks = rankRecoveryGuidancePacks(query.intent ?? '', packs).slice(0, 4);
+    const recoveryFiles = collectPreferredDisplayFilesInPackOrder(recoveryPacks).slice(0, 3);
+    const recoveryFacts = Array.from(new Set(
+      extractHumanKeyFacts(recoveryPacks, 3)
+    )).slice(0, 3);
+
+    if (recoveryFiles.length > 0 && recoveryFacts.length > 0) {
+      quickAnswerText = `Agents should follow the structured recovery path in ${recoveryFiles.join(', ')}. Key signals: ${recoveryFacts.join('; ')}.`;
+    } else if (recoveryFiles.length > 0) {
+      quickAnswerText = `Agents should follow the structured recovery path in ${recoveryFiles.join(', ')}.`;
+    }
   } else if (broadCodebaseMatch && files.length > 0 && topFacts.length > 0) {
     const [, , auxiliary, subject, verb] = broadCodebaseMatch;
     quickAnswerText = `${subject} ${auxiliary} ${verb} across ${files.join(', ')}. Key signals: ${topFacts.join('; ')}.`;
@@ -677,6 +709,136 @@ function collectPreferredDisplayFiles(packs: ContextPack[]): string[] {
   }
 
   return files;
+}
+
+function collectPreferredDisplayFilesInPackOrder(packs: ContextPack[]): string[] {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  const add = (candidate: string | undefined) => {
+    if (!candidate) return;
+    const display = extractDisplayFilePath(candidate);
+    if (!display || seen.has(display)) return;
+    seen.add(display);
+    files.push(display);
+  };
+
+  for (const pack of packs) {
+    for (const snippet of pack.codeSnippets ?? []) {
+      add(snippet.filePath);
+    }
+    add(pack.targetId);
+    for (const file of pack.relatedFiles ?? []) {
+      add(file);
+    }
+  }
+
+  return files;
+}
+
+function isRecoveryGuidanceQuery(intent: string): boolean {
+  const normalized = intent.toLowerCase();
+  if (!/\b(recover|recovery|retry|fallback|fail(?:ure|ures)?|timeout|timeouts|error|errors|unavailable|degraded|busy)\b/.test(normalized)) {
+    return false;
+  }
+  return /\b(agent|agents|mcp|tool|tools|provider|providers|storage|sqlite)\b/.test(normalized);
+}
+
+function rankRecoveryGuidancePacks(intent: string, packs: ContextPack[]): ContextPack[] {
+  const scored = packs.map((pack) => ({
+    pack,
+    score: scorePackForRecoveryGuidance(intent, pack),
+    signalCount: countRecoveryGuidanceSignals(intent, pack),
+  }));
+  const constrained = scored.some((entry) => entry.signalCount > 0)
+    ? scored.filter((entry) => entry.signalCount > 0)
+    : scored;
+  return constrained
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.pack);
+}
+
+function scorePackForRecoveryGuidance(intent: string, pack: ContextPack): number {
+  const text = [
+    pack.targetId,
+    pack.summary,
+    ...(pack.keyFacts ?? []),
+    ...(pack.relatedFiles ?? []),
+    ...(pack.codeSnippets ?? []).map((snippet) => snippet.filePath),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  let score = pack.confidence * 0.5;
+  if (pack.packType === 'function_context') score += 0.15;
+  if (pack.packType === 'module_context') score += 0.05;
+
+  for (const token of extractRecoveryIntentTokens(intent)) {
+    if (text.includes(token)) {
+      score += token.length >= 6 ? 0.18 : 0.08;
+    }
+  }
+
+  if (/\bsrc\/mcp\/server\.ts\b/.test(text)) score += 0.25;
+  if (/\bsrc\/cli\/errors\.ts\b/.test(text)) score += 0.2;
+  if (/\b(nextsteps|retryable|retry_after|fallback|recoverwith|sqlite_busy|provider|storage)\b/.test(text)) {
+    score += 0.2;
+  }
+
+  return score;
+}
+
+function countRecoveryGuidanceSignals(intent: string, pack: ContextPack): number {
+  const text = [
+    pack.targetId,
+    pack.summary,
+    ...(pack.keyFacts ?? []),
+    ...(pack.relatedFiles ?? []),
+    ...(pack.codeSnippets ?? []).map((snippet) => snippet.filePath),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  let signals = 0;
+  for (const token of extractRecoveryIntentTokens(intent)) {
+    if (text.includes(token)) signals += 1;
+  }
+  if (/\bsrc\/mcp\/server\.ts\b/.test(text)) signals += 2;
+  if (/\bsrc\/cli\/errors\.ts\b/.test(text)) signals += 2;
+  if (/\b(retryable|retry_after|fallback|recoverwith|sqlite_busy|provider|storage|timeout)\b/.test(text)) {
+    signals += 1;
+  }
+  return signals;
+}
+
+function extractRecoveryIntentTokens(intent: string): string[] {
+  const stopWords = new Set([
+    'how', 'what', 'when', 'should', 'agent', 'agents', 'the', 'from', 'with', 'into',
+    'tool', 'tools', 'mcp', 'provider', 'providers', 'storage', 'errors',
+  ]);
+  return Array.from(new Set(
+    (intent.toLowerCase().match(/[a-z0-9_]+/g) ?? [])
+      .filter((token) => token.length >= 4 && !stopWords.has(token))
+  ));
+}
+
+function extractHumanKeyFacts(packs: ContextPack[], limit: number): string[] {
+  const facts = packs
+    .flatMap((pack) => pack.keyFacts ?? [])
+    .map((fact) => fact.trim())
+    .filter((fact) => fact.length > 0)
+    .filter((fact) => !/^(signature|lines|file|parent context overhead):/i.test(fact));
+
+  if (facts.length >= limit) {
+    return Array.from(new Set(facts)).slice(0, limit);
+  }
+
+  const fallbackFacts = packs
+    .flatMap((pack) => pack.keyFacts ?? [])
+    .map((fact) => fact.trim())
+    .filter((fact) => fact.length > 0);
+  return Array.from(new Set([...facts, ...fallbackFacts])).slice(0, limit);
 }
 
 function selectPrimaryLocationFile(intent: string, packs: ContextPack[]): string | null {

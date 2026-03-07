@@ -75,7 +75,27 @@ export function isCacheableQueryResponse(response: CachedResponse): boolean {
   if (typeof response.totalConfidence === 'number' && response.totalConfidence < MIN_CACHEABLE_CONFIDENCE) {
     return false;
   }
+  if (hasDegradedSynthesisSignals(response)) {
+    return false;
+  }
   return true;
+}
+
+function hasDegradedSynthesisSignals(response: CachedResponse): boolean {
+  if (typeof response.llmError === 'string' && response.llmError.trim().length > 0) {
+    return true;
+  }
+
+  const responseWithWarnings = response as CachedResponse & { criticalWarnings?: string[] };
+  const warningText = [
+    ...(responseWithWarnings.criticalWarnings ?? []),
+    ...(response.coverageGaps ?? []),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  return /synthesis (failed|unavailable)|llm synthesis (error|unavailable)/.test(warningText);
 }
 
 async function readPersistentCache(storage: LibrarianStorage, key: string): Promise<CachedResponse | null> {

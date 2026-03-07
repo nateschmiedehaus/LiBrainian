@@ -3,6 +3,7 @@ import {
   extractBugContext,
   extractCodeReviewFilePath,
   extractFeatureTarget,
+  extractIntentAnchorPaths,
   extractReferencedFilePath,
   extractRefactoringTarget,
   extractSecurityCheckTypes,
@@ -44,6 +45,17 @@ describe('query intent target extractors', () => {
     expect(extractReferencedFilePath('What does reccmp/compare/core.py do?')).toBe('reccmp/compare/core.py');
     expect(extractReferencedFilePath('inspect `src/api/query.ts` and summarize')).toBe('src/api/query.ts');
     expect(extractReferencedFilePath('why use sqlite')).toBeUndefined();
+  });
+
+  it('extracts subsystem anchor paths for MCP runtime recovery queries', () => {
+    expect(
+      extractIntentAnchorPaths('Where are MCP tool errors normalized into actionable retry/fallback guidance?')
+    ).toEqual([
+      'src/mcp/server.ts',
+      'src/cli/commands/mcp.ts',
+      'src/cli/errors.ts',
+    ]);
+    expect(extractIntentAnchorPaths('Where is the query pipeline implemented?')).toEqual([]);
   });
 
   it('extracts why-query topics and comparison targets', () => {

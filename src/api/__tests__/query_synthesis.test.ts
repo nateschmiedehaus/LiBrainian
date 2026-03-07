@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextPack, LibrarianVersion } from '../../types.js';
-import { canAnswerFromSummaries, createQuickAnswer, synthesizeQueryAnswer } from '../query_synthesis.js';
+import {
+  canAnswerFromSummaries,
+  canFallbackToQuickAnswerOnSynthesisFailure,
+  createQuickAnswer,
+  synthesizeQueryAnswer,
+} from '../query_synthesis.js';
 
 const chatMock = vi.hoisted(() => vi.fn());
 
@@ -303,5 +308,76 @@ describe('quick synthesis heuristics', () => {
     expect(answer.answer).toContain('errors are handled across');
     expect(answer.answer).toContain('src/cli/errors.ts');
     expect(answer.answer).toContain('CLI errors are rendered through a structured envelope.');
+  });
+
+  it('emits a recovery-focused quick answer for degraded synthesis queries', () => {
+    const answer = createQuickAnswer(
+      {
+        intent: 'How should agents recover from MCP tool timeouts, provider failures, or storage errors?',
+        depth: 'L1',
+      },
+      [
+        {
+          ...samplePack,
+          packId: 'server-pack',
+          targetId: 'src/mcp/server.ts:buildAgentNextSteps',
+          relatedFiles: ['src/mcp/server.ts'],
+          summary: 'Build agent recovery guidance for MCP tool failures.',
+          keyFacts: ['buildAgentNextSteps emits retry, fallback, and recoverWith guidance.'],
+          confidence: 0.78,
+        },
+        {
+          ...samplePack,
+          packId: 'errors-pack',
+          targetId: 'src/cli/errors.ts:formatErrorWithHints',
+          relatedFiles: ['src/cli/errors.ts'],
+          summary: 'Format actionable retry and fallback hints for operators.',
+          keyFacts: ['formatErrorWithHints renders fallback commands and retry guidance.'],
+          confidence: 0.74,
+        },
+        {
+          ...samplePack,
+          packId: 'provider-pack',
+          targetId: 'src/utils/provider_failures.ts:recordProviderFailure',
+          relatedFiles: ['src/utils/provider_failures.ts'],
+          summary: 'Track provider failures so the runtime can adapt recovery strategy.',
+          keyFacts: ['recordProviderFailure persists provider outage signals.'],
+          confidence: 0.69,
+        },
+      ]
+    );
+
+    expect(answer.answer).toContain('structured recovery path');
+    expect(answer.answer).toContain('src/mcp/server.ts');
+    expect(answer.answer).toContain('retry');
+  });
+
+  it('allows recovery queries to degrade to quick summaries after synthesis failure', () => {
+    const result = canFallbackToQuickAnswerOnSynthesisFailure(
+      {
+        intent: 'How should agents recover from MCP tool timeouts, provider failures, or storage errors?',
+        depth: 'L1',
+      },
+      [
+        {
+          ...samplePack,
+          packId: 'server-pack',
+          relatedFiles: ['src/mcp/server.ts'],
+          summary: 'Build agent recovery guidance for MCP tool failures.',
+          keyFacts: ['retry and fallback guidance'],
+          confidence: 0.62,
+        },
+        {
+          ...samplePack,
+          packId: 'errors-pack',
+          relatedFiles: ['src/cli/errors.ts'],
+          summary: 'Format actionable retry and fallback hints for operators.',
+          keyFacts: ['fallback command rendering'],
+          confidence: 0.58,
+        },
+      ]
+    );
+
+    expect(result).toBe(true);
   });
 });

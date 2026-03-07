@@ -150,6 +150,104 @@ describe('query pipeline definition', () => {
     expect(getContextPacks).not.toHaveBeenCalled();
   });
 
+  it('anchors direct-pack retrieval from MCP runtime recovery intents', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-mcp',
+        relatedFiles: ['src/mcp/server.ts'],
+      }),
+    ]);
+    const storage = { getContextPacks } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      {
+        intent: 'Where are MCP tool errors normalized into actionable retry/fallback guidance?',
+        depth: 'L2',
+      },
+      '/tmp/workspace',
+    );
+
+    expect(packs).toHaveLength(1);
+    const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[]; limit?: number };
+    expect(queryOptions.relatedFilesAny).toContain('src/mcp/server.ts');
+    expect(queryOptions.relatedFilesAny).toContain('src/cli/commands/mcp.ts');
+    expect(queryOptions.limit).toBe(80);
+  });
+
+  it('scores anchored direct packs by lexical relevance so recovery helpers outrank generic server startup helpers', () => {
+    const relevant = createPack({
+      packId: 'pack-relevant',
+      packType: 'function_context',
+      summary: 'Function normalizeToolErrorResult in server.ts',
+      keyFacts: [
+        'Signature: normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null',
+        'File: src/mcp/server.ts',
+      ],
+      relatedFiles: ['src/mcp/server.ts'],
+    });
+    const generic = createPack({
+      packId: 'pack-generic',
+      packType: 'function_context',
+      summary: 'Create and start a LiBrainian MCP server.',
+      keyFacts: [
+        'Signature: createLiBrainianMCPServer(config: Partial<LiBrainianMCPServerConfig> = {}): Promise<LiBrainianMCPServer>',
+        'File: src/mcp/server.ts',
+      ],
+      relatedFiles: ['src/mcp/server.ts'],
+    });
+
+    const relevantScore = __testing.scoreAnchoredDirectPack(
+      relevant,
+      'Where are MCP tool errors normalized into actionable retry/fallback guidance?'
+    );
+    const genericScore = __testing.scoreAnchoredDirectPack(
+      generic,
+      'Where are MCP tool errors normalized into actionable retry/fallback guidance?'
+    );
+
+    expect(relevantScore).toBeGreaterThan(genericScore);
+    expect(relevantScore).toBeGreaterThan(0.9);
+  });
+
+  it('preserves the best anchor-priority direct packs per file', () => {
+    const serverRelevant = createPack({
+      packId: 'server-relevant',
+      packType: 'function_context',
+      summary: 'Function normalizeToolErrorResult in server.ts',
+      keyFacts: [
+        'Signature: normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null',
+        'File: src/mcp/server.ts',
+      ],
+      relatedFiles: ['src/mcp/server.ts'],
+    });
+    const serverGeneric = createPack({
+      packId: 'server-generic',
+      packType: 'function_context',
+      summary: 'Create and start a LiBrainian MCP server.',
+      keyFacts: [
+        'Signature: createLiBrainianMCPServer(config: Partial<LiBrainianMCPServerConfig> = {}): Promise<LiBrainianMCPServer>',
+        'File: src/mcp/server.ts',
+      ],
+      relatedFiles: ['src/mcp/server.ts'],
+    });
+    const mcpCli = createPack({
+      packId: 'mcp-cli',
+      packType: 'module_context',
+      summary: 'Module mcp exporting mcpCommand, McpCommandOptions',
+      keyFacts: ['Top-level routines: buildServerEntry, buildClientBundles, mcpCommand'],
+      relatedFiles: ['src/cli/commands/mcp.ts'],
+    });
+
+    const selected = __testing.selectPriorityDirectPacks(
+      [serverGeneric, serverRelevant, mcpCli],
+      'Where are MCP tool errors normalized into actionable retry/fallback guidance?',
+      10,
+    );
+
+    expect(selected.map((pack) => pack.packId)).toEqual(['server-relevant', 'mcp-cli']);
+  });
+
   it('falls back when rerank output is invalid', async () => {
     const stageTracker = __testing.createStageTracker();
     const coverageGaps: string[] = [];
@@ -711,6 +809,49 @@ describe('query pipeline definition', () => {
     expect(result.synthesis).toBeUndefined();
     expect(result.synthesisMode).toBe('heuristic');
     expect(result.llmError).toMatch(/timed out/i);
+    expect(coverageGaps.join(' ')).toMatch(/timed out/i);
+  });
+
+  it('degrades to a quick recovery answer after synthesis timeout for recovery guidance queries', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const coverageGaps: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      coverageGaps.push(message);
+      stageTracker.issue(stage, { message, severity: severity ?? 'moderate' });
+    };
+    const synthesizeQueryAnswerFn = vi.fn().mockImplementation(
+      () => new Promise<QuerySynthesisResult>(() => {})
+    );
+    const createQuickAnswerFn = vi.fn().mockReturnValue({
+      answer: 'Agents should follow the structured recovery path in src/mcp/server.ts, src/cli/errors.ts.',
+      confidence: 0.66,
+      citations: ['pack-1'],
+      keyInsights: ['retry guidance'],
+      uncertainties: ['Answer derived from pack summary without full LLM synthesis'],
+    });
+
+    const result = await __testing.runSynthesisStage({
+      query: {
+        intent: 'How should agents recover from MCP tool timeouts, provider failures, or storage errors?',
+        depth: 'L1',
+      },
+      storage: {} as LibrarianStorage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+      synthesisTimeoutMs: 25,
+      canAnswerFromSummariesFn: () => false,
+      createQuickAnswerFn,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesis?.answer).toContain('structured recovery path');
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.llmError).toMatch(/timed out/i);
+    expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
     expect(coverageGaps.join(' ')).toMatch(/timed out/i);
   });
 

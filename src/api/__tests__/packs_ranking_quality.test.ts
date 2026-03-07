@@ -103,4 +103,58 @@ describe('context pack ranking quality', () => {
 
     expect(ranked.packs[0]?.packId).toBe('rich');
   });
+
+  it('prefers function context over broad module context for implementation queries when scores are close', () => {
+    const broadModule = createPack({
+      packId: 'module-tool-adapter',
+      packType: 'module_context',
+      targetId: 'module-tool-adapter',
+      summary: 'Module tool_adapter exporting ToolAdapterContext, ToolAdapter, AuditBackedToolAdapter',
+      keyFacts: [
+        'Purpose: Module tool_adapter exporting ToolAdapterContext, ToolAdapter, AuditBackedToolAdapter',
+        'Top-level routines: call, toAuditOutput',
+      ],
+      codeSnippets: [{
+        filePath: 'src/adapters/tool_adapter.ts',
+        startLine: 1,
+        endLine: 20,
+        language: 'typescript',
+        content: 'export interface ToolAdapter { call(): Promise<unknown>; }',
+      }],
+      relatedFiles: ['src/adapters/tool_adapter.ts'],
+      confidence: 0.82,
+    });
+    const implementationFn = createPack({
+      packId: 'function-server',
+      packType: 'function_context',
+      targetId: 'function-server',
+      summary: 'Function normalizeToolErrorResult in server.ts',
+      keyFacts: [
+        'Signature: normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null',
+        'File: src/mcp/server.ts',
+      ],
+      codeSnippets: [{
+        filePath: 'src/mcp/server.ts',
+        startLine: 1412,
+        endLine: 1455,
+        language: 'typescript',
+        content: 'function normalizeToolErrorResult(toolName: string, args: unknown, result: unknown): Record<string, unknown> | null { return null; }',
+      }],
+      relatedFiles: ['src/mcp/server.ts'],
+      confidence: 0.6,
+    });
+
+    const ranked = rankContextPacks({
+      packs: [broadModule, implementationFn],
+      scoreByTarget: new Map([
+        ['module-tool-adapter', 0.93],
+        ['function-server', 1.0],
+      ]),
+      maxPacks: 2,
+      depth: 'L3',
+      taskType: 'implementation',
+    });
+
+    expect(ranked.packs[0]?.packId).toBe('function-server');
+  });
 });

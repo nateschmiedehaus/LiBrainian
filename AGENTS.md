@@ -89,6 +89,12 @@ Subagents spawned via the Task tool cannot access MCP servers (platform
 limitation). When spawning subagents for non-trivial tasks, include CLI
 usage instructions in their prompt.
 
+If LiBrainian returns a structured error:
+- Retry at most once when `retryable`/`retry_safe` is true.
+- Do not retry when `retryable`/`retry_safe` is false; use `fallback_command` or `recoverWith`.
+- If the error reports stale or partial index state, repair with `librarian bootstrap` before trusting retrieval output.
+- If MCP/query paths stay degraded, fall back to `rg` for direct source inspection instead of burning turns on repeated retries.
+
 Quick reference for subagent prompts:
 
 ```bash

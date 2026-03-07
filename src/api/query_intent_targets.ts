@@ -1,5 +1,27 @@
 const FILE_PATH_EXTENSION_PATTERN = '(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|scala|md|json|yaml|yml|toml|ini|sql|sh)';
 
+interface IntentAnchorHint {
+  patterns: RegExp[];
+  files: string[];
+}
+
+const INTENT_ANCHOR_HINTS: IntentAnchorHint[] = [
+  {
+    // Runtime MCP recovery queries should anchor directly to the server-side
+    // error envelope path instead of generic tool/error utilities.
+    patterns: [
+      /\bmcp\b/i,
+      /\btool(?:\s+calls?)?\b/i,
+      /\b(?:error|errors|timeout|timeouts|failure|failures|retry|fallback|recover|recovery|storage|provider|degraded|unavailable|busy)\b/i,
+    ],
+    files: [
+      'src/mcp/server.ts',
+      'src/cli/commands/mcp.ts',
+      'src/cli/errors.ts',
+    ],
+  },
+];
+
 function sanitizeExtractedPath(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = value
@@ -136,6 +158,28 @@ export function extractReferencedFilePath(intent: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Infer subsystem anchor files from intent text when the user names a runtime
+ * surface but not an explicit path. This keeps retrieval grounded in the
+ * operational implementation path instead of generic support modules.
+ */
+export function extractIntentAnchorPaths(intent: string): string[] {
+  if (!intent.trim()) return [];
+
+  const anchors: string[] = [];
+  for (const hint of INTENT_ANCHOR_HINTS) {
+    if (hint.patterns.every((pattern) => pattern.test(intent))) {
+      for (const file of hint.files) {
+        const normalized = sanitizeExtractedPath(file);
+        if (normalized && !anchors.includes(normalized)) {
+          anchors.push(normalized);
+        }
+      }
+    }
+  }
+  return anchors;
 }
 
 /**

@@ -169,6 +169,26 @@ type StatusReport = {
   };
 };
 
+function applySynthesisStatus(
+  runtime: NonNullable<StatusReport['runtime']>,
+  synthesisStatus: SynthesisAvailability
+): void {
+  runtime.synthesisMode = synthesisStatus.synthesisMode;
+  if (synthesisStatus.synthesisUnavailableReason) {
+    runtime.synthesisUnavailableReason = synthesisStatus.synthesisUnavailableReason;
+  } else {
+    delete runtime.synthesisUnavailableReason;
+  }
+
+  runtime.unavailableFeatures = runtime.unavailableFeatures.filter(
+    (feature) => feature !== 'synthesis' && feature !== 'llm_enrichment'
+  );
+  if (synthesisStatus.synthesisMode === 'structural-only' || runtime.offlineMode) {
+    runtime.unavailableFeatures.push('synthesis', 'llm_enrichment');
+  }
+  runtime.unavailableFeatures = Array.from(new Set(runtime.unavailableFeatures));
+}
+
 const LANGUAGE_NAME_OVERRIDES: Record<string, string> = {
   c: 'C',
   cpp: 'C++',
@@ -250,18 +270,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     availableFeatures: ['search', 'graph', 'symbols'],
     unavailableFeatures: [],
   };
-  const synthesisStatus = resolveSynthesisAvailability();
-  runtime.synthesisMode = synthesisStatus.synthesisMode;
-  if (synthesisStatus.synthesisUnavailableReason) {
-    runtime.synthesisUnavailableReason = synthesisStatus.synthesisUnavailableReason;
-  }
-  if (synthesisStatus.synthesisMode === 'structural-only') {
-    runtime.unavailableFeatures.push('synthesis', 'llm_enrichment');
-  }
-  if (runtime.offlineMode) {
-    runtime.unavailableFeatures.push('synthesis', 'llm_enrichment');
-  }
-  runtime.unavailableFeatures = Array.from(new Set(runtime.unavailableFeatures));
+  applySynthesisStatus(runtime, resolveSynthesisAvailability());
 
   const report: StatusReport = {
     workspace: workspaceRoot,
@@ -620,6 +629,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         },
         status: providers,
       };
+      applySynthesisStatus(runtime, resolveSynthesisAvailability());
     } catch (error) {
       report.providers = {
         storedDefaults: { provider: null, model: null },
