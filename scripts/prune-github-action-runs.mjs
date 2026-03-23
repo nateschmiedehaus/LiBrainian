@@ -43,6 +43,7 @@ function parseArgs(argv) {
   let repo = process.env.GITHUB_REPOSITORY ?? '';
   let currentSha = process.env.GITHUB_SHA ?? '';
   let limit = 1000;
+  let maxPasses = 20;
   let dryRun = false;
   let showHelp = false;
 
@@ -64,6 +65,10 @@ function parseArgs(argv) {
       const parsed = Number.parseInt(argv[idx + 1] ?? '', 10);
       if (Number.isFinite(parsed) && parsed > 0) limit = parsed;
       idx += 1;
+    } else if (arg === '--max-passes') {
+      const parsed = Number.parseInt(argv[idx + 1] ?? '', 10);
+      if (Number.isFinite(parsed) && parsed > 0) maxPasses = parsed;
+      idx += 1;
     } else if (arg === '--dry-run') {
       dryRun = true;
     }
@@ -75,14 +80,14 @@ function parseArgs(argv) {
   }
 
   if (showHelp) {
-    return { repo, currentSha, keepWorkflows, limit, dryRun, showHelp };
+    return { repo, currentSha, keepWorkflows, limit, maxPasses, dryRun, showHelp };
   }
 
   if (!repo) {
     throw new Error('missing --repo and GITHUB_REPOSITORY is unset');
   }
 
-  return { repo, currentSha, keepWorkflows, limit, dryRun, showHelp };
+  return { repo, currentSha, keepWorkflows, limit, maxPasses, dryRun, showHelp };
 }
 
 function ghJson(args) {
@@ -99,6 +104,7 @@ Options:
   --current-sha <sha>         Current release/public SHA (defaults to GITHUB_SHA)
   --keep-workflow <name>      Active public workflow name to preserve
   --limit <n>                 Max runs to inspect (default: 1000)
+  --max-passes <n>            Repeat pruning until clean or the pass cap is reached (default: 20)
   --dry-run                   Print candidate deletions without deleting
   --help, -h                  Show this help
 `);
@@ -113,27 +119,52 @@ Options:
   if (activeWorkflowNames.size === 0) {
     throw new Error(`no active workflows discovered for ${options.repo}`);
   }
-  /** @type {WorkflowRunSummary[]} */
-  const runs = ghJson([
-    'run',
-    'list',
-    '-R',
-    options.repo,
-    '--limit',
-    String(options.limit),
-    '--json',
-    'databaseId,workflowName,conclusion,headSha,status',
-  ]);
-  const deletions = selectRunIdsForDeletion(runs, {
-    keepWorkflows: options.keepWorkflows,
-    activeWorkflowNames,
-    currentSha: options.currentSha,
-  });
+  let totalDeleted = 0;
+  let passes = 0;
 
-  if (deletions.length === 0) {
+  while (passes < options.maxPasses) {
+    passes += 1;
+    /** @type {WorkflowRunSummary[]} */
+    const runs = ghJson([
+      'run',
+      'list',
+      '-R',
+      options.repo,
+      '--limit',
+      String(options.limit),
+      '--json',
+      'databaseId,workflowName,conclusion,headSha,status',
+    ]);
+    const deletions = selectRunIdsForDeletion(runs, {
+      keepWorkflows: options.keepWorkflows,
+      activeWorkflowNames,
+      currentSha: options.currentSha,
+    });
+
+    if (deletions.length === 0) {
+      break;
+    }
+
+    for (const runId of deletions) {
+      if (options.dryRun) {
+        console.log(`would_delete:${runId}`);
+        continue;
+      }
+      execFileSync('gh', ['api', '-X', 'DELETE', `repos/${options.repo}/actions/runs/${runId}`], { stdio: 'ignore' });
+      console.log(`deleted:${runId}`);
+    }
+    totalDeleted += deletions.length;
+
+    if (options.dryRun) {
+      break;
+    }
+  }
+
+  if (totalDeleted === 0) {
     console.log(
       JSON.stringify({
         deleted: 0,
+        passes,
         keepWorkflows: [...options.keepWorkflows],
         activeWorkflowNames: [...activeWorkflowNames],
         currentSha: options.currentSha,
@@ -142,18 +173,10 @@ Options:
     return;
   }
 
-  for (const runId of deletions) {
-    if (options.dryRun) {
-      console.log(`would_delete:${runId}`);
-      continue;
-    }
-    execFileSync('gh', ['api', '-X', 'DELETE', `repos/${options.repo}/actions/runs/${runId}`], { stdio: 'ignore' });
-    console.log(`deleted:${runId}`);
-  }
-
   console.log(
     JSON.stringify({
-      deleted: deletions.length,
+      deleted: totalDeleted,
+      passes,
       keepWorkflows: [...options.keepWorkflows],
       activeWorkflowNames: [...activeWorkflowNames],
       currentSha: options.currentSha,
