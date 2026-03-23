@@ -7,43 +7,43 @@ describe('evaluateReleaseProvenance', () => {
   it('passes when tag matches head and npm version is new', () => {
     const result = evaluateReleaseProvenance({
       packageName: 'librainian',
-      packageVersion: '0.2.2',
+      packageVersion: '0.2.3',
       currentHead: HEAD,
-      localTags: ['v0.2.2'],
+      localTags: ['v0.2.3'],
       tagCommit: HEAD,
       publishedVersions: ['0.2.1'],
     });
 
     expect(result.ok).toBe(true);
     expect(result.issues).toEqual([]);
-    expect(result.expectedTag).toBe('v0.2.2');
+    expect(result.expectedTag).toBe('v0.2.3');
   });
 
   it('fails when expected tag is missing', () => {
     const result = evaluateReleaseProvenance({
       packageName: 'librainian',
-      packageVersion: '0.2.2',
+      packageVersion: '0.2.3',
       currentHead: HEAD,
       localTags: ['v0.2.1'],
       publishedVersions: ['0.2.1'],
     });
 
     expect(result.ok).toBe(false);
-    expect(result.issues.join('\n')).toContain('expected git tag "v0.2.2" is missing locally');
+    expect(result.issues.join('\n')).toContain('expected git tag "v0.2.3" is missing locally');
   });
 
   it('fails when tag does not point at HEAD', () => {
     const result = evaluateReleaseProvenance({
       packageName: 'librainian',
-      packageVersion: '0.2.2',
+      packageVersion: '0.2.3',
       currentHead: HEAD,
-      localTags: ['v0.2.2'],
+      localTags: ['v0.2.3'],
       tagCommit: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       publishedVersions: ['0.2.1'],
     });
 
     expect(result.ok).toBe(false);
-    expect(result.issues.join('\n')).toContain('git tag "v0.2.2" points to');
+    expect(result.issues.join('\n')).toContain('git tag "v0.2.3" points to');
   });
 
   it('fails when version is already published', () => {
@@ -63,9 +63,9 @@ describe('evaluateReleaseProvenance', () => {
   it('fails when package version is not greater than latest published version', () => {
     const result = evaluateReleaseProvenance({
       packageName: 'librainian',
-      packageVersion: '0.2.2',
+      packageVersion: '0.2.3',
       currentHead: HEAD,
-      localTags: ['v0.2.2'],
+      localTags: ['v0.2.3'],
       tagCommit: HEAD,
       publishedVersions: ['0.2.3'],
     });

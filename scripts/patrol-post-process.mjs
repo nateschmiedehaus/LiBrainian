@@ -198,7 +198,7 @@ function buildIssueBody(finding, context = {}) {
   lines.push('### Environment');
   lines.push('');
   lines.push('```');
-  lines.push('LiBrainian: v0.2.2');
+  lines.push('LiBrainian: v0.2.3');
   lines.push('Node.js: v22.x');
   lines.push('Platform: macOS (Darwin 24.6.0)');
   lines.push('Agent: Claude Sonnet (via Agent Patrol E2E system)');

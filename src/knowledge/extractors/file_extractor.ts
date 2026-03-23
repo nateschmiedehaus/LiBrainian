@@ -231,7 +231,14 @@ function detectCategory(filePath: string): FileKnowledge['category'] {
 }
 
 function detectRole(absolutePath: string, relativePath: string): string {
+  const configurationPatterns = ROLE_PATTERNS.configuration ?? [];
+  for (const pattern of configurationPatterns) {
+    if (pattern.test(absolutePath) || pattern.test(relativePath)) {
+      return 'configuration';
+    }
+  }
   for (const [role, patterns] of Object.entries(ROLE_PATTERNS)) {
+    if (role === 'configuration') continue;
     for (const pattern of patterns) {
       if (pattern.test(absolutePath) || pattern.test(relativePath)) {
         return role;

@@ -168,7 +168,6 @@ import * as fs from 'fs/promises';
 import { createAuditLogger, type AuditLogger } from './audit.js';
 import { SqliteEvidenceLedger } from '../epistemics/evidence_ledger.js';
 import { AuditBackedToolAdapter, type ToolAdapter } from '../adapters/tool_adapter.js';
-import { MemoryBridgeDaemon } from '../memory_bridge/daemon.js';
 import { addMemoryFact, deleteMemoryFact, searchMemoryFacts, updateMemoryFact } from '../memory/fact_store.js';
 import {
   CONSTRUCTION_REGISTRY,
@@ -533,6 +532,15 @@ const LOOP_SEMANTIC_SIMILARITY_THRESHOLD = 0.93;
 const LOW_CONFIDENCE_THRESHOLD = 0.35;
 const UNCERTAIN_CONFIDENCE_THRESHOLD = 0.6;
 const CONFIDENCE_BEHAVIOR_CONTRACT = 'Confidence tiers: definitive/high -> proceed with reasonable trust; medium -> review before write operations; low/uncertain -> verify manually or call request_human_review.';
+const INTERNAL_ONLY_PUBLISHED_MCP_TOOLS = [
+  'harvest_session_knowledge',
+  'memory_add',
+  'memory_search',
+  'memory_update',
+  'memory_delete',
+] as const;
+type InternalOnlyPublishedMcpToolName = (typeof INTERNAL_ONLY_PUBLISHED_MCP_TOOLS)[number];
+const INTERNAL_ONLY_PUBLISHED_MCP_TOOL_NAME_SET = new Set<string>(INTERNAL_ONLY_PUBLISHED_MCP_TOOLS);
 const BOOTSTRAP_RUN_HISTORY_STATE_KEY = 'librarian.mcp.bootstrap_runs.v1';
 const BOOTSTRAP_RUN_HISTORY_SCHEMA_VERSION = 1;
 const MAX_PERSISTED_BOOTSTRAP_RUNS = 50;
@@ -2626,6 +2634,7 @@ export class LiBrainianMCPServer {
 
     // Filter tools based on authorized scopes and annotate capabilities for clients.
     return tools
+      .filter((tool) => exposeInternalSurface || !this.isInternalOnlyPublishedTool(tool.name))
       .filter((tool) => {
         const auth = TOOL_AUTHORIZATION[tool.name];
         if (!auth) return true;
@@ -2657,6 +2666,22 @@ export class LiBrainianMCPServer {
 
   private canExposeInternalCapabilitySurface(): boolean {
     return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+  }
+
+  private isInternalOnlyPublishedTool(name: string): name is InternalOnlyPublishedMcpToolName {
+    return INTERNAL_ONLY_PUBLISHED_MCP_TOOL_NAME_SET.has(name);
+  }
+
+  private buildInternalOnlyToolUnavailable(name: InternalOnlyPublishedMcpToolName): {
+    success: false;
+    tool: InternalOnlyPublishedMcpToolName;
+    error: string;
+  } {
+    return {
+      success: false,
+      tool: name,
+      error: `${name} is unavailable in the public release surface. Set LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1 in a source checkout to access maintainer-only memory bridge tooling.`,
+    };
   }
 
   private toAdvertisedTool(tool: Tool): Tool {
@@ -4336,14 +4361,29 @@ export class LiBrainianMCPServer {
       case 'query_claims':
         return this.executeQueryClaims(args as QueryClaimsToolInput);
       case 'harvest_session_knowledge':
+        if (!this.canExposeInternalCapabilitySurface()) {
+          return this.buildInternalOnlyToolUnavailable('harvest_session_knowledge');
+        }
         return this.executeHarvestSessionKnowledge(args as HarvestSessionKnowledgeToolInput, context);
       case 'memory_add':
+        if (!this.canExposeInternalCapabilitySurface()) {
+          return this.buildInternalOnlyToolUnavailable('memory_add');
+        }
         return this.executeMemoryAdd(args as Record<string, unknown>);
       case 'memory_search':
+        if (!this.canExposeInternalCapabilitySurface()) {
+          return this.buildInternalOnlyToolUnavailable('memory_search');
+        }
         return this.executeMemorySearch(args as Record<string, unknown>);
       case 'memory_update':
+        if (!this.canExposeInternalCapabilitySurface()) {
+          return this.buildInternalOnlyToolUnavailable('memory_update');
+        }
         return this.executeMemoryUpdate(args as Record<string, unknown>);
       case 'memory_delete':
+        if (!this.canExposeInternalCapabilitySurface()) {
+          return this.buildInternalOnlyToolUnavailable('memory_delete');
+        }
         return this.executeMemoryDelete(args as Record<string, unknown>);
       case 'submit_feedback':
         return this.executeSubmitFeedback(args as SubmitFeedbackToolInput);
@@ -10752,6 +10792,7 @@ export class LiBrainianMCPServer {
       const source = input.source ?? 'harvest';
       try {
         const instrumentationWorkspace = await this.ensureWorkspaceInstrumentation(workspaceRoot);
+        const { MemoryBridgeDaemon } = await import('../memory_bridge/daemon.js');
         const bridge = new MemoryBridgeDaemon({
           workspaceRoot,
           evidenceLedger: instrumentationWorkspace?.evidenceLedger,

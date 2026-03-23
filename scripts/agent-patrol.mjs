@@ -44,7 +44,6 @@ const DEFAULT_ISSUE_REALITY_LIMIT = 200;
 const MAX_ISSUE_CONTEXT_PROMPT_CHARS = 32_000;
 const REQUIRED_PATROL_TARBALL_ENTRIES = [
   'package/dist/cli/index.js',
-  'package/dist/cli/commands/calibration.js',
   'package/dist/utils/evaluation_loader.js',
 ];
 

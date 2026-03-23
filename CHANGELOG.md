@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-03-23
+
+### Fixed
+- Removed unproven OpenClaw and memory-bridge paths from the published npm contract while keeping source-checkout maintainer access available behind explicit internal opt-in.
+- Tightened the MCP server public surface so maintainer-only memory tooling is hidden by default and no longer leaks into the shipped package boundary.
+- Fixed GitHub workflow presentation by moving patrol, cadence, dogfood, and other maintainer-only automation off the public `main` commit path.
+- Corrected CI-facing failures in corpus validation, Codex CLI health handling, Dockerfile role detection, and the published action/bootstrap contract.
+
 ### Added
 - Package identity hardening scripts:
   - `npm run package:assert-identity`

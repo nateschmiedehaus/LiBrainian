@@ -8,11 +8,6 @@ name: Post-Merge Reality Check
 # When embedding infrastructure improves, add semantic queries.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'package.json'
   workflow_dispatch:
 
 permissions:

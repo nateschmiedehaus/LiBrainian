@@ -463,7 +463,7 @@ describe('MCP Server', () => {
       expect(findCalleesTool?.description?.toLowerCase()).toContain('callee');
     });
 
-    it('includes append_claim, query_claims, and harvest_session_knowledge tools', () => {
+    it('keeps claim persistence tools public while hiding memory-bridge harvest tooling by default', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
         description?: string;
@@ -476,12 +476,10 @@ describe('MCP Server', () => {
       expect(appendClaimTool?.description?.toLowerCase()).toContain('claim');
       expect(queryClaimsTool).toBeDefined();
       expect(queryClaimsTool?.description?.toLowerCase()).toContain('claims');
-      expect(harvestTool).toBeDefined();
-      expect(harvestTool?.description?.toLowerCase()).toContain('claims');
-      expect(harvestTool?.description?.toLowerCase()).toContain('memory');
+      expect(harvestTool).toBeUndefined();
     });
 
-    it('includes persistent memory CRUD/search tools', () => {
+    it('hides persistent memory CRUD/search tools from the public MCP surface by default', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
         description?: string;
@@ -491,11 +489,45 @@ describe('MCP Server', () => {
       const memoryUpdate = tools.find((tool) => tool.name === 'memory_update');
       const memoryDelete = tools.find((tool) => tool.name === 'memory_delete');
 
-      expect(memoryAdd).toBeDefined();
-      expect(memorySearch).toBeDefined();
-      expect(memoryUpdate).toBeDefined();
-      expect(memoryDelete).toBeDefined();
-      expect(memorySearch?.description?.toLowerCase()).toContain('memory');
+      expect(memoryAdd).toBeUndefined();
+      expect(memorySearch).toBeUndefined();
+      expect(memoryUpdate).toBeUndefined();
+      expect(memoryDelete).toBeUndefined();
+    });
+
+    it('re-exposes memory-bridge tooling for source-checkout maintainers only', async () => {
+      const previous = process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+      process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
+      try {
+        const internalServer = await createLibrarianMCPServer({
+          authorization: {
+            enabledScopes: ['read', 'write'],
+            requireConsent: false,
+          },
+        });
+        const tools = (internalServer as any).getAvailableTools() as Array<{
+          name: string;
+          description?: string;
+        }>;
+        const harvestTool = tools.find((tool) => tool.name === 'harvest_session_knowledge');
+        const memoryAdd = tools.find((tool) => tool.name === 'memory_add');
+        const memorySearch = tools.find((tool) => tool.name === 'memory_search');
+        const memoryUpdate = tools.find((tool) => tool.name === 'memory_update');
+        const memoryDelete = tools.find((tool) => tool.name === 'memory_delete');
+
+        expect(harvestTool).toBeDefined();
+        expect(harvestTool?.description?.toLowerCase()).toContain('memory');
+        expect(memoryAdd).toBeDefined();
+        expect(memorySearch?.description?.toLowerCase()).toContain('memory');
+        expect(memoryUpdate).toBeDefined();
+        expect(memoryDelete).toBeDefined();
+      } finally {
+        if (previous === undefined) {
+          delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+        } else {
+          process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = previous;
+        }
+      }
     });
 
     it('documents query tool usage guidance', () => {

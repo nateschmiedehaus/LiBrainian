@@ -135,7 +135,8 @@ describe('github readiness docs', () => {
     expect(action).toContain('stage=${stage} heartbeat');
     expect(action).toContain('[ "${saw_output}" -eq 0 ] && [ "${idle}" -ge "${stall_timeout_seconds}" ]');
     expect(action).toContain('stall_detected: stage=${stage} produced no output for ${idle}s before first child output');
-    expect(action).toContain('bootstrap --scope librainian --mode fast --no-claude-md --force-resume');
-    expect(action).toContain('bootstrap --scope librainian --mode fast --no-claude-md --force');
+    expect(action).toContain('bootstrap --scope librainian --mode fast --force-resume');
+    expect(action).toContain('bootstrap --scope librainian --mode fast --force');
+    expect(action).not.toContain('--no-claude-md');
   });
 });

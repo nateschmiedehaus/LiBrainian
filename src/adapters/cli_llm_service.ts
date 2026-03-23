@@ -755,6 +755,12 @@ export class CliLlmService {
 
     const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
     if (!fs.existsSync(codexHome)) {
+      const preserved = !forceCheck
+        ? this.preserveCachedHealthyProvider('codex', now, 'Codex CLI not authenticated - run "codex login"')
+        : null;
+      if (preserved) {
+        return preserved;
+      }
       this.health.codex = {
         provider: 'codex',
         available: true,
@@ -1347,12 +1353,10 @@ export class CliLlmService {
   private async prepareIsolatedCodexHome(targetDir: string): Promise<string | null> {
     const sourceHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
     const sourceAuthPath = path.join(sourceHome, 'auth.json');
-    if (!fs.existsSync(sourceAuthPath)) {
-      return null;
-    }
-
     await fs.promises.mkdir(targetDir, { recursive: true });
-    await fs.promises.copyFile(sourceAuthPath, path.join(targetDir, 'auth.json'));
+    if (fs.existsSync(sourceAuthPath)) {
+      await fs.promises.copyFile(sourceAuthPath, path.join(targetDir, 'auth.json'));
+    }
     return targetDir;
   }
 

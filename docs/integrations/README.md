@@ -11,6 +11,7 @@ Start with the narrowest supported surface that solves your problem:
 - Node-based custom agent loops: use the TypeScript API from the main package
 
 Preview adapters exist in the source tree for controlled integrations, but they are deferred from the first public release and are not the recommended path for new adopters.
+OpenClaw-specific skills, memory bridges, and benchmark adapters remain source-checkout-only and are intentionally excluded from the published npm contract until they have release-grade proof.
 
 ## Integration status
 

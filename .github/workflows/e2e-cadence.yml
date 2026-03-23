@@ -1,13 +1,6 @@
 name: e2e-cadence
 
 on:
-  push:
-    branches:
-      - main
-      - 'codex/**'
-      - 'claude/**'
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
   # Runs nightly at 6 AM UTC. LLM evaluations are expensive and slow; keeping
   # them off the push path reduces API cost and CI latency. Push CI retains
   # the T0.5 smoke test (closure-policy.yml) for fast reality checks.
@@ -33,7 +26,9 @@ jobs:
         run: npm ci
 
       - name: Mainline consolidation guard (authoritative main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: mainline_guard
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: npm run policy:e2e:mainline
 
       - name: External natural-usage E2E gate (primary, quick)
@@ -42,7 +37,7 @@ jobs:
         run: npm run eval:use-cases:agentic:quick
 
       - name: Build prioritized resolution queue (main commit cadence)
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: always() && github.ref == 'refs/heads/main'
         continue-on-error: true
         run: npm run issues:plan
         env:
@@ -75,22 +70,26 @@ jobs:
         run: |
           set -euo pipefail
           failed=0
-          if [ "${{ steps.external_usage_gate.outcome }}" != "success" ]; then
+          if [ "${{ steps.mainline_guard.conclusion || 'success' }}" != "success" ]; then
+            echo "::error::Mainline consolidation guard failed."
+            failed=1
+          fi
+          if [ "${{ steps.external_usage_gate.conclusion }}" != "success" ]; then
             echo "::error::Primary external natural-usage E2E gate failed."
             failed=1
           fi
-          if [ "${{ steps.reality_dev_truth.outcome }}" != "success" ]; then
+          if [ "${{ steps.reality_dev_truth.conclusion }}" != "success" ]; then
             echo "::error::Development-truth tarball reality gate failed."
             failed=1
           fi
-          if [ "${{ steps.outcome_triage.outcome }}" != "success" ]; then
+          if [ "${{ steps.outcome_triage.conclusion }}" != "success" ]; then
             echo "::error::Outcome harness or triage synthesis failed."
             failed=1
           fi
-          if [ "${{ steps.reality_latest.outcome }}" != "success" ]; then
+          if [ "${{ steps.reality_latest.conclusion }}" != "success" ]; then
             echo "::warning::Published-truth npm-latest reality gate failed (development cadence keeps focus on dev-truth lane)."
           fi
-          if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then
+          if [ "${{ steps.acceptance_gate.conclusion }}" != "success" ]; then
             echo "::error::Acceptance gate failed."
             failed=1
           fi
