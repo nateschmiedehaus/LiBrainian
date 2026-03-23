@@ -11,11 +11,11 @@ import { execFileSync } from 'node:child_process';
  */
 
 /**
- * Delete completed runs for explicitly retired workflows, plus stale
- * failed/cancelled runs from the active public workflow set once a newer SHA is green.
+ * Delete completed runs for workflows that no longer exist in the repo's active workflow set,
+ * plus stale failed/cancelled runs from the active public workflow set once a newer SHA is green.
  *
  * @param {WorkflowRunSummary[]} runs
- * @param {{ keepWorkflows: Set<string>; pruneWorkflows: Set<string>; currentSha?: string | undefined }} options
+ * @param {{ keepWorkflows: Set<string>; activeWorkflowNames: Set<string>; currentSha?: string | undefined }} options
  * @returns {number[]}
  */
 export function selectRunIdsForDeletion(runs, options) {
@@ -23,7 +23,7 @@ export function selectRunIdsForDeletion(runs, options) {
   for (const run of runs) {
     if (run.status !== 'completed') continue;
 
-    if (options.pruneWorkflows.has(run.workflowName)) {
+    if (!options.activeWorkflowNames.has(run.workflowName)) {
       deletions.push(run.databaseId);
       continue;
     }
@@ -40,7 +40,6 @@ export function selectRunIdsForDeletion(runs, options) {
 
 function parseArgs(argv) {
   const keepWorkflows = new Set();
-  const pruneWorkflows = new Set();
   let repo = process.env.GITHUB_REPOSITORY ?? '';
   let currentSha = process.env.GITHUB_SHA ?? '';
   let limit = 1000;
@@ -61,10 +60,6 @@ function parseArgs(argv) {
       const value = argv[idx + 1];
       if (typeof value === 'string' && value.length > 0) keepWorkflows.add(value);
       idx += 1;
-    } else if (arg === '--prune-workflow') {
-      const value = argv[idx + 1];
-      if (typeof value === 'string' && value.length > 0) pruneWorkflows.add(value);
-      idx += 1;
     } else if (arg === '--limit') {
       const parsed = Number.parseInt(argv[idx + 1] ?? '', 10);
       if (Number.isFinite(parsed) && parsed > 0) limit = parsed;
@@ -79,22 +74,15 @@ function parseArgs(argv) {
     keepWorkflows.add('npm-publish');
   }
 
-  if (pruneWorkflows.size === 0) {
-    pruneWorkflows.add('Agent Work Loop');
-    pruneWorkflows.add('Agent Verify Loop');
-    pruneWorkflows.add('Agent Patrol');
-    pruneWorkflows.add('e2e-cadence');
-  }
-
   if (showHelp) {
-    return { repo, currentSha, keepWorkflows, pruneWorkflows, limit, dryRun, showHelp };
+    return { repo, currentSha, keepWorkflows, limit, dryRun, showHelp };
   }
 
   if (!repo) {
     throw new Error('missing --repo and GITHUB_REPOSITORY is unset');
   }
 
-  return { repo, currentSha, keepWorkflows, pruneWorkflows, limit, dryRun, showHelp };
+  return { repo, currentSha, keepWorkflows, limit, dryRun, showHelp };
 }
 
 function ghJson(args) {
@@ -110,12 +98,20 @@ Options:
   --repo <owner/name>         GitHub repository (defaults to GITHUB_REPOSITORY)
   --current-sha <sha>         Current release/public SHA (defaults to GITHUB_SHA)
   --keep-workflow <name>      Active public workflow name to preserve
-  --prune-workflow <name>     Explicit retired workflow name eligible for deletion
   --limit <n>                 Max runs to inspect (default: 1000)
   --dry-run                   Print candidate deletions without deleting
   --help, -h                  Show this help
 `);
     return;
+  }
+  const workflowEntries = ghJson(['workflow', 'list', '-R', options.repo, '--json', 'name,state']);
+  const activeWorkflowNames = new Set(
+    workflowEntries
+      .filter((entry) => typeof entry?.name === 'string' && typeof entry?.state === 'string' && entry.state !== 'deleted')
+      .map((entry) => entry.name),
+  );
+  if (activeWorkflowNames.size === 0) {
+    throw new Error(`no active workflows discovered for ${options.repo}`);
   }
   /** @type {WorkflowRunSummary[]} */
   const runs = ghJson([
@@ -128,14 +124,18 @@ Options:
     '--json',
     'databaseId,workflowName,conclusion,headSha,status',
   ]);
-  const deletions = selectRunIdsForDeletion(runs, options);
+  const deletions = selectRunIdsForDeletion(runs, {
+    keepWorkflows: options.keepWorkflows,
+    activeWorkflowNames,
+    currentSha: options.currentSha,
+  });
 
   if (deletions.length === 0) {
     console.log(
       JSON.stringify({
         deleted: 0,
         keepWorkflows: [...options.keepWorkflows],
-        pruneWorkflows: [...options.pruneWorkflows],
+        activeWorkflowNames: [...activeWorkflowNames],
         currentSha: options.currentSha,
       }),
     );
@@ -155,7 +155,7 @@ Options:
     JSON.stringify({
       deleted: deletions.length,
       keepWorkflows: [...options.keepWorkflows],
-      pruneWorkflows: [...options.pruneWorkflows],
+      activeWorkflowNames: [...activeWorkflowNames],
       currentSha: options.currentSha,
     }),
   );

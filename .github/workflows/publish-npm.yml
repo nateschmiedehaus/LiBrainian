@@ -248,11 +248,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --current-sha "$GITHUB_SHA" \
             --keep-workflow ci \
-            --keep-workflow npm-publish \
-            --prune-workflow "Agent Work Loop" \
-            --prune-workflow "Agent Verify Loop" \
-            --prune-workflow "Agent Patrol" \
-            --prune-workflow "e2e-cadence"
+            --keep-workflow npm-publish
 
   publish-manual:
     if: github.event_name == 'workflow_dispatch' && inputs.publish == true
@@ -393,8 +389,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --current-sha "$GITHUB_SHA" \
             --keep-workflow ci \
-            --keep-workflow npm-publish \
-            --prune-workflow "Agent Work Loop" \
-            --prune-workflow "Agent Verify Loop" \
-            --prune-workflow "Agent Patrol" \
-            --prune-workflow "e2e-cadence"
+            --keep-workflow npm-publish
