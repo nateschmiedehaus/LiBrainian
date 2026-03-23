@@ -9,7 +9,7 @@ describe('dogfood ci gate update handling', () => {
   });
 
   it('treats "No files specified" update/index relay output as a no-op success signal', () => {
-    const output = 'Error [EINVALID_ARGUMENT]: No files specified. Usage: librarian index <file...>. Next: Run `librarian help <command>` for usage information';
+    const output = 'Error [EINVALID_ARGUMENT]: No files specified. Usage: librainian index <file...>. Next: Run `librainian help <command>` for usage information';
     expect(isUpdateNoopOutput(output)).toBe(true);
   });
 

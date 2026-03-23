@@ -611,6 +611,77 @@ async function clearBootstrapRecoveryState(workspace: string): Promise<void> {
   }
 }
 
+async function hasUsableBootstrapSnapshot(storage: LibrarianStorage): Promise<boolean> {
+  try {
+    const stats = await storage.getStats();
+    return stats.totalFunctions > 0
+      && stats.totalModules > 0
+      && stats.totalContextPacks > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function hasValidConsistencyArtifacts(consistency: BootstrapConsistencyState): Promise<boolean> {
+  const expectedArtifacts = Object.values(consistency.artifacts).filter((artifact) => artifact.exists);
+  for (const artifact of expectedArtifacts) {
+    try {
+      await fs.stat(artifact.path);
+    } catch {
+      return false;
+    }
+  }
+  return !hasSuspiciousArtifactSkew(consistency.artifacts);
+}
+
+async function reconcileRestoredBootstrapFailureState(
+  workspace: string,
+  storage: LibrarianStorage,
+  recovery: BootstrapRecoveryState | null,
+  consistency: BootstrapConsistencyState | null,
+): Promise<{ recovery: BootstrapRecoveryState | null; consistency: BootstrapConsistencyState | null }> {
+  if (consistency?.status !== 'failed') {
+    return { recovery, consistency };
+  }
+  if (!consistency.last_error?.startsWith('bootstrap_failed_restored_previous_state:')) {
+    return { recovery, consistency };
+  }
+
+  const [usableSnapshot, lastBootstrapSuccess, validArtifacts] = await Promise.all([
+    hasUsableBootstrapSnapshot(storage),
+    storage.getLastBootstrapReport().catch(() => null),
+    hasValidConsistencyArtifacts(consistency),
+  ]);
+  if (!usableSnapshot || !lastBootstrapSuccess?.success || !validArtifacts) {
+    return { recovery, consistency };
+  }
+
+  const completedAtValue = lastBootstrapSuccess.completedAt instanceof Date
+    ? lastBootstrapSuccess.completedAt.toISOString()
+    : typeof lastBootstrapSuccess.completedAt === 'string'
+      ? new Date(lastBootstrapSuccess.completedAt).toISOString()
+      : consistency.completed_at ?? new Date().toISOString();
+  const reconciledConsistency: BootstrapConsistencyState = {
+    ...consistency,
+    status: 'complete',
+    updated_at: new Date().toISOString(),
+    completed_at: completedAtValue,
+  };
+  delete reconciledConsistency.last_error;
+
+  try {
+    await clearBootstrapRecoveryState(workspace);
+    await writeBootstrapConsistencyState(workspace, reconciledConsistency);
+    return {
+      recovery: null,
+      consistency: reconciledConsistency,
+    };
+  } catch (error) {
+    logWarning('[bootstrap] Failed to reconcile restored bootstrap state', { error: getErrorMessage(error) });
+    return { recovery, consistency };
+  }
+}
+
 function isBootstrapRecoveryState(value: unknown): value is BootstrapRecoveryState {
   if (!isRecord(value)) return false;
   if (value.kind !== 'BootstrapRecoveryState.v1' || value.schema_version !== 1) return false;
@@ -2067,21 +2138,23 @@ export async function isBootstrapRequired(
   storage: LibrarianStorage,
   options?: { targetQualityTier?: LibrarianVersion['qualityTier'] }
 ): Promise<{ required: boolean; reason: string }> {
-  const recovery = await readBootstrapRecoveryState(workspace);
+  let recovery = await readBootstrapRecoveryState(workspace);
+  let consistency = await readBootstrapConsistencyState(workspace);
+  ({ recovery, consistency } = await reconcileRestoredBootstrapFailureState(workspace, storage, recovery, consistency));
+
   if (recovery) {
     return {
       required: true,
-      reason: `Previous bootstrap incomplete (last recorded phase: ${recovery.phase_name}). Resume with \`librarian bootstrap\` or restart with \`librarian bootstrap --force\`.`,
+      reason: `Previous bootstrap incomplete (last recorded phase: ${recovery.phase_name}). Resume with \`librainian bootstrap\` or restart durable state with \`librainian bootstrap --force --mode fast\`.`,
     };
   }
-  const consistency = await readBootstrapConsistencyState(workspace);
   if (consistency && consistency.status !== 'complete') {
     const statusReason = consistency.status === 'failed'
       ? `last attempt failed: ${consistency.last_error ?? 'unknown error'}`
       : 'last attempt was interrupted before consistency commit';
     return {
       required: true,
-      reason: `Bootstrap consistency marker is ${consistency.status} (${statusReason}). Run \`librarian bootstrap --force\` to restore cross-database consistency.`,
+      reason: `Bootstrap consistency marker is ${consistency.status} (${statusReason}). Run \`librainian bootstrap --force --mode fast\` to restore cross-database consistency.`,
     };
   }
   if (consistency?.status === 'complete') {
@@ -2097,13 +2170,13 @@ export async function isBootstrapRequired(
     if (missingArtifacts.length > 0) {
       return {
         required: true,
-        reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librarian bootstrap --force\` to restore consistent state.`,
+        reason: `Bootstrap artifacts missing (${missingArtifacts.join(', ')}); run \`librainian bootstrap --force --mode fast\` to restore consistent state.`,
       };
     }
     if (hasSuspiciousArtifactSkew(consistency.artifacts)) {
       return {
         required: true,
-        reason: 'Bootstrap artifact snapshot is inconsistent (librarian.sqlite is effectively empty while auxiliary stores contain data); run `librarian bootstrap --force` to restore consistent state.',
+        reason: 'Bootstrap artifact snapshot is inconsistent (librarian.sqlite is effectively empty while auxiliary stores contain data); run `librainian bootstrap --force --mode fast` to restore consistent state.',
       };
     }
   }
@@ -2153,16 +2226,14 @@ export async function isBootstrapRequired(
     };
   }
 
+  let freshnessAdvisory: string | null = null;
   const watchState = await getWatchState(storage).catch((err) => {
     logWarning('[bootstrap] Failed to read watch state for freshness check', { error: getErrorMessage(err) });
     return null;
   });
 
   if (watchState?.needs_catchup) {
-    return {
-      required: true,
-      reason: 'Watch state indicates catch-up is required before queries can be trusted',
-    };
+    freshnessAdvisory = 'Librarian data is usable but stale; watch catch-up is required before fresh queries can be trusted.';
   }
 
   if (watchState?.cursor?.kind === 'git') {
@@ -2171,15 +2242,15 @@ export async function isBootstrapRequired(
     if (headSha && indexedSha && headSha !== indexedSha) {
       const relation = getGitCommitRelation(workspace, indexedSha, headSha);
       let relationNote = 'git history moved';
-      let remediation = 'Run `librarian bootstrap` to refresh the self-index cursor before trusting query results.';
+      let remediation = 'Run `librainian bootstrap` to refresh the self-index cursor before trusting query results.';
       if (relation === 'indexed_ancestor') {
         relationNote = 'new commits detected on current lineage';
       } else if (relation === 'head_ancestor') {
         relationNote = 'branch/reset moved HEAD behind indexed commit';
-        remediation = 'Run `librarian bootstrap --force` to rebuild index state for the current checkout before trusting query results.';
+        remediation = 'Run `librainian bootstrap --force --mode fast` to rebuild index state for the current checkout before trusting query results.';
       } else if (relation === 'diverged') {
         relationNote = 'history diverged (rebase/rewrite/switch)';
-        remediation = 'Run `librarian bootstrap --force` to rebuild index state for rewritten history before trusting query results.';
+        remediation = 'Run `librainian bootstrap --force --mode fast` to rebuild index state for rewritten history before trusting query results.';
       }
       await updateWatchState(storage, (prev) => ({
         ...(prev ?? watchState),
@@ -2190,16 +2261,15 @@ export async function isBootstrapRequired(
       })).catch((err) => {
         logWarning('[bootstrap] Failed to mark watch state as needing catch-up', { error: getErrorMessage(err) });
       });
-      return {
-        required: true,
-        reason: `Index is stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)}; ${relationNote}). ${remediation}`,
-      };
+      freshnessAdvisory =
+        `Librarian data is usable but stale relative to git HEAD (${indexedSha.slice(0, 12)} -> ${headSha.slice(0, 12)}; ${relationNote}). `
+        + remediation;
     }
   }
 
   return {
     required: false,
-    reason: 'Librarian data is up-to-date',
+    reason: freshnessAdvisory ?? 'Librarian data is up-to-date',
   };
 }
 

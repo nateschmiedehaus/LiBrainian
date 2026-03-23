@@ -12,6 +12,13 @@ import { recoverPrimaryFromViableSnapshot } from '../storage/storage_recovery.js
 const SQLITE_FILENAME = 'librarian.sqlite';
 const LEGACY_DB_FILENAME = 'librarian.db';
 
+function isMissingPathError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code?: unknown }).code === 'ENOENT';
+}
+
 /**
  * Resolve the database path for a workspace, handling migration from .db to .sqlite.
  *
@@ -29,24 +36,35 @@ export async function resolveDbPath(workspace: string): Promise<string> {
   // Check if .sqlite exists
   try {
     await fs.access(sqlitePath);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+  }
+
+  try {
+    await fs.access(sqlitePath);
     await recoverPrimaryFromViableSnapshot(sqlitePath, {
       additionalCandidates: [legacyPath],
     });
     return sqlitePath;
-  } catch {
-    // .sqlite doesn't exist
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
   }
 
   // Check if legacy .db exists and migrate
   try {
     await fs.access(legacyPath);
-    // Migrate by renaming
-    await fs.rename(legacyPath, sqlitePath);
-    logInfo(`[librarian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
     return sqlitePath;
-  } catch {
-    // Neither exists, return path for new .sqlite
   }
 
+  await fs.rename(legacyPath, sqlitePath);
+  logInfo(`[librarian] Migrated database from ${LEGACY_DB_FILENAME} to ${SQLITE_FILENAME}`);
   return sqlitePath;
 }

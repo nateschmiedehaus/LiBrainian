@@ -42,6 +42,10 @@ try {
       cwd: root,
       encoding: 'utf8',
       stdio: 'pipe',
+      env: {
+        ...process.env,
+        LIBRAINIAN_ENABLE_INTERNAL_COMMANDS: '1',
+      },
       timeout: 600000,
       maxBuffer: 8 * 1024 * 1024,
     }

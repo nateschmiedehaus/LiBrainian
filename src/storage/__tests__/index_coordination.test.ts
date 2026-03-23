@@ -120,4 +120,33 @@ describe('index coordination metadata', () => {
     execSpy.mockRestore();
     warnSpy.mockRestore();
   });
+
+  it('fails closed when rollback itself fails during a transaction error', async () => {
+    const transactionalStorage = storage as unknown as {
+      db: {
+        exec: (statement: string) => unknown;
+        inTransaction: boolean;
+      };
+    };
+    const originalExec = transactionalStorage.db.exec;
+    const rollbackError = new Error('disk I/O error during rollback');
+
+    const execSpy = vi.spyOn(transactionalStorage.db, 'exec').mockImplementation((statement: string) => {
+      if (statement === 'ROLLBACK') {
+        throw rollbackError;
+      }
+      return originalExec.call(transactionalStorage.db, statement);
+    });
+
+    await expect(
+      storage.transaction(async () => {
+        throw new Error('indexing conflict');
+      })
+    ).rejects.toThrow(/storage_transaction_rollback_failed/i);
+
+    expect(execSpy).toHaveBeenCalledWith('BEGIN');
+    expect(execSpy).toHaveBeenCalledWith('ROLLBACK');
+
+    execSpy.mockRestore();
+  });
 });

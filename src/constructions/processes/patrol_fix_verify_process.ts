@@ -132,6 +132,17 @@ function ensureFindingList(
   ];
 }
 
+function getSyntheticStepIds(input: PatrolFixVerifyInput): string[] {
+  const steps: Array<[string, PatrolFixVerifyCommandConfig | undefined]> = [
+    ['patrolScan', input.patrolScan],
+    ['issueFiler', input.issueFiler],
+    ['fixGenerator', input.fixGenerator],
+    ['regressionTest', input.regressionTest],
+    ['fixVerifier', input.fixVerifier],
+  ];
+  return steps.filter(([, config]) => isDryRun(config)).map(([id]) => id);
+}
+
 function extractFirstUrl(text: string, pattern: RegExp): string | undefined {
   return text.match(pattern)?.[0];
 }
@@ -148,6 +159,29 @@ function parseGeneratedTests(output: string): string[] {
 
 function isDryRun(config?: PatrolFixVerifyCommandConfig): boolean {
   return config?.dryRun !== false || !config?.command;
+}
+
+function assertSuccessfulDispatch(
+  commandLabel: string,
+  dispatch: {
+    commandLine: string;
+    exitCode: number | null;
+    timedOut: boolean;
+  },
+  constructionId: string,
+): void {
+  if (dispatch.timedOut) {
+    throw new ConstructionError(
+      `${commandLabel} timed out while executing ${dispatch.commandLine}`,
+      constructionId,
+    );
+  }
+  if (dispatch.exitCode !== 0) {
+    throw new ConstructionError(
+      `${commandLabel} failed with exit code ${dispatch.exitCode} while executing ${dispatch.commandLine}`,
+      constructionId,
+    );
+  }
 }
 
 export function createPatrolScanConstruction(): Construction<
@@ -179,6 +213,7 @@ export function createPatrolScanConstruction(): Construction<
           env: config?.env,
           timeoutMs: config?.timeoutMs ?? state.input.timeoutMs,
         }));
+        assertSuccessfulDispatch('Patrol scan command', dispatch, 'patrol-fix-verify:patrol-scan');
         commandLine = dispatch.commandLine;
         exitCode = dispatch.exitCode;
         timedOut = dispatch.timedOut;
@@ -202,6 +237,17 @@ export function createPatrolScanConstruction(): Construction<
           detail: String(entry.detail ?? ''),
         }));
 
+      const findings = parsed.length > 0
+        ? parsed
+        : isDryRun(config)
+        ? ensureFindingList(parsed, knownBugHint)
+        : (() => {
+            throw new ConstructionError(
+              'Patrol scan command completed without parseable findings; refusing to fabricate a defect.',
+              'patrol-fix-verify:patrol-scan',
+            );
+          })();
+
       return {
         ...state,
         patrol: {
@@ -211,7 +257,7 @@ export function createPatrolScanConstruction(): Construction<
           durationMs,
           stdout,
           stderr,
-          findings: ensureFindingList(parsed, knownBugHint),
+          findings,
         },
       };
     },
@@ -257,6 +303,7 @@ export function createIssueFilerConstruction(): Construction<
           },
           timeoutMs: config?.timeoutMs ?? state.input.timeoutMs,
         }));
+        assertSuccessfulDispatch('Issue filer command', dispatch, 'patrol-fix-verify:issue-filer');
         commandLine = dispatch.commandLine;
         exitCode = dispatch.exitCode;
         durationMs = dispatch.durationMs;
@@ -321,6 +368,7 @@ export function createFixGeneratorConstruction(): Construction<
           },
           timeoutMs: config?.timeoutMs ?? state.input.timeoutMs,
         }));
+        assertSuccessfulDispatch('Fix generator command', dispatch, 'patrol-fix-verify:fix-generator');
         commandLine = dispatch.commandLine;
         exitCode = dispatch.exitCode;
         durationMs = dispatch.durationMs;
@@ -493,6 +541,16 @@ export function createPatrolFixVerifyProcessConstruction(): Construction<
     name: 'Patrol Fix Verify Process',
     description: PATROL_FIX_VERIFY_DESCRIPTION,
     async execute(input: PatrolFixVerifyInput) {
+      const syntheticSteps = getSyntheticStepIds(input);
+      if (syntheticSteps.length > 0) {
+        return fail<PatrolFixVerifyOutput, ConstructionError>(
+          new ConstructionError(
+            `Closed-loop patrol pipeline requires real commands for every step; synthetic/dry-run steps present: ${syntheticSteps.join(', ')}`,
+            'patrol-fix-verify-process',
+          ),
+        );
+      }
+
       const trigger = input.trigger ?? 'manual';
       const startedAtMs = Date.now();
       const initialState: PatrolFixVerifyState = {
@@ -545,7 +603,7 @@ export function createPatrolFixVerifyProcessConstruction(): Construction<
       }
 
       const completed = finalState.regression.passed && finalState.verifier.passed;
-      return ok<PatrolFixVerifyOutput, ConstructionError>({
+      const output: PatrolFixVerifyOutput = {
         kind: 'PatrolFixVerifyResult.v1',
         trigger,
         issueUrl: finalState.issue.issueUrl,
@@ -574,7 +632,18 @@ export function createPatrolFixVerifyProcessConstruction(): Construction<
               : 'closed_loop_failed_verification',
           },
         ],
-      });
+      };
+      if (completed) {
+        return ok<PatrolFixVerifyOutput, ConstructionError>(output);
+      }
+      return fail<PatrolFixVerifyOutput, ConstructionError>(
+        new ConstructionError(
+          'Closed-loop patrol pipeline failed regression or verification checks',
+          'patrol-fix-verify-process',
+        ),
+        output,
+        'patrol-fix-verify',
+      );
     },
   };
 }

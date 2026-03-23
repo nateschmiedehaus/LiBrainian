@@ -713,13 +713,13 @@ describe('Edge Cases', () => {
     const mockLibrarian = createMockLibrarian();
     const construction = new ComprehensiveQualityConstruction(mockLibrarian);
     const scope: AssessmentScope = {
-      files: ['src/single.ts'],
+      files: ['src/test.ts'],
       architectureSpec: {
         layers: [{ name: 'src', patterns: ['src/**'], allowedDependencies: [] }],
         boundaries: [],
         rules: [],
       },
-      securityScope: { files: ['src/single.ts'], checkTypes: ['injection'] },
+      securityScope: { files: ['src/test.ts'], checkTypes: ['injection'] },
     };
 
     const result = await construction.assess(scope);

@@ -185,11 +185,22 @@ describe('queryCommand LLM resolution', () => {
   it('maps governor wall-time bootstrap timeout to QUERY_TIMEOUT', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
+    const { createSqliteStorage } = await import('../../../storage/sqlite_storage.js');
 
     vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
       required: true,
-      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+      reason: 'Previous bootstrap incomplete',
     });
+    vi.mocked(createSqliteStorage).mockReturnValueOnce({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getState: vi.fn().mockResolvedValue(null),
+      getStats: vi.fn().mockResolvedValue({
+        totalFunctions: 0,
+        totalModules: 0,
+        totalEmbeddings: 0,
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    } as any);
     vi.mocked(bootstrapProject).mockRejectedValueOnce(
       new Error('unverified_by_trace(budget_exhausted): Exceeded wall_time budget (health: -0.72)')
     );
@@ -197,7 +208,7 @@ describe('queryCommand LLM resolution', () => {
     await expect(queryCommand({
       workspace: '/tmp/workspace',
       args: [],
-      rawArgs: ['query', 'hello world', '--timeout', '5000', '--json'],
+      rawArgs: ['query', 'hello world', '--enumerate', '--timeout', '5000', '--json'],
     })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
   });
 
@@ -214,19 +225,19 @@ describe('queryCommand LLM resolution', () => {
     vi.mocked(resolveDbPath).mockResolvedValueOnce(dbPath);
     vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
       required: true,
-      reason: 'Watch state indicates catch-up is required before queries can be trusted',
+      reason: 'Previous bootstrap incomplete',
     });
 
     const firstStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 0, totalModules: 0, totalEmbeddings: 0 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     const secondStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
       getState: vi.fn().mockResolvedValue(null),
-      getStats: vi.fn().mockResolvedValue({ totalFunctions: 100, totalModules: 10, totalEmbeddings: 100 }),
+      getStats: vi.fn().mockResolvedValue({ totalFunctions: 0, totalModules: 0, totalEmbeddings: 0 }),
       close: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(createSqliteStorage)
@@ -240,7 +251,7 @@ describe('queryCommand LLM resolution', () => {
       await queryCommand({
         workspace,
         args: [],
-        rawArgs: ['query', 'hello world', '--json'],
+        rawArgs: ['query', 'hello world', '--enumerate', '--json'],
       });
       expect(bootstrapProject).toHaveBeenCalledTimes(2);
       expect(firstStorage.close).toHaveBeenCalledTimes(1);
@@ -250,7 +261,7 @@ describe('queryCommand LLM resolution', () => {
     }
   });
 
-  it('falls through to auto-bootstrap when watch catch-up is required (deferred reason)', async () => {
+  it('continues with the usable snapshot when watch catch-up is required', async () => {
     const { queryCommand } = await import('../query.js');
     const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
 
@@ -260,15 +271,13 @@ describe('queryCommand LLM resolution', () => {
     });
     vi.mocked(bootstrapProject).mockResolvedValueOnce({ success: true } as any);
 
-    // deferred reasons (watch_catchup etc.) no longer throw NOT_BOOTSTRAPPED;
-    // they log a warning and fall through to auto-bootstrap so the query can recover.
     await queryCommand({
       workspace: '/tmp/workspace',
       args: [],
       rawArgs: ['query', 'hello world', '--json'],
     });
 
-    expect(bootstrapProject).toHaveBeenCalled();
+    expect(bootstrapProject).not.toHaveBeenCalled();
   });
 
   it('respects --no-bootstrap', async () => {
@@ -895,6 +904,30 @@ describe('queryCommand LLM resolution', () => {
     })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
 
+  it('does not auto-force exhaustive mode for non-structural refactoring-impact wording', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { shouldUseExhaustiveMode, parseStructuralQueryIntent } = await import('../../../api/dependency_query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(shouldUseExhaustiveMode).mockReturnValueOnce(true);
+    vi.mocked(parseStructuralQueryIntent).mockReturnValueOnce({
+      isStructural: false,
+      direction: 'dependents',
+      targetEntity: null,
+      edgeTypes: [],
+      confidence: 0,
+      matchedPattern: null,
+    });
+
+    await expect(queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'What breaks if I change the scoring pipeline?', '--json'],
+    })).resolves.toBeUndefined();
+
+    expect(queryLibrarian).toHaveBeenCalled();
+  });
+
   it('allows --out when --format json is used', async () => {
     const { queryCommand } = await import('../query.js');
     const workspace = '/tmp/workspace';
@@ -1011,7 +1044,7 @@ describe('queryCommand LLM resolution', () => {
         'unverified_by_trace(storage_write_degraded): Session degraded: results were returned but could not be persisted.',
       ],
       drillDownHints: [
-        'Session degraded: results were returned but could not be persisted (storage lock compromised). Run `librarian doctor --heal` to recover.',
+        'Session degraded: results were returned but could not be persisted (storage lock compromised). Run `librainian doctor --heal` to recover.',
       ],
       coverageGaps: [
         'Synthesis failed: Claude CLI error',
@@ -1080,6 +1113,156 @@ describe('queryCommand LLM resolution', () => {
     expect(lines.some((line) => line.includes('Query synthesis is executed in runSynthesisStage in src/api/query.ts.'))).toBe(true);
   });
 
+  it('falls back to the top retrieved file when a location-query synthesis answer contradicts it', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'where is createAuthenticationManager defined?', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: {
+        answer: 'createAuthenticationManager is primarily implemented in src/epistemics/evidence_ledger.ts.',
+        confidence: 0.2,
+        citations: [],
+        keyInsights: [],
+        uncertainties: [],
+      },
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 'src/mcp/authentication.ts:createAuthenticationManager',
+          summary: 'Create an authentication manager with configuration.',
+          keyFacts: [],
+          relatedFiles: ['src/mcp/authentication.ts'],
+          codeSnippets: [],
+          confidence: 0.86,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'where is createAuthenticationManager defined?'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    expect(lines.some((line) => line.includes('createAuthenticationManager defined is primarily implemented in src/mcp/authentication.ts.'))).toBe(true);
+    expect(lines.some((line) => line.includes('src/epistemics/evidence_ledger.ts'))).toBe(false);
+  });
+
+  it('keeps a synthesized location answer when it cites the primary retrieved file', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'where is createAuthenticationManager defined?', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: {
+        answer: 'createAuthenticationManager is defined in src/mcp/authentication.ts.',
+        confidence: 0.4,
+        citations: [],
+        keyInsights: [],
+        uncertainties: [],
+      },
+      packs: [
+        {
+          packId: 'p1',
+          packType: 'function_context',
+          targetId: 'src/mcp/authentication.ts:createAuthenticationManager',
+          summary: 'Create an authentication manager with configuration.',
+          keyFacts: [],
+          relatedFiles: ['src/mcp/authentication.ts'],
+          codeSnippets: [],
+          confidence: 0.86,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'where is createAuthenticationManager defined?'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    expect(lines.some((line) => line.includes('createAuthenticationManager is defined in src/mcp/authentication.ts.'))).toBe(true);
+  });
+
+  it('prefers the primary result pack over higher-confidence later packs for derived location files', async () => {
+    const { queryCommand } = await import('../query.js');
+    const { queryLibrarian } = await import('../../../api/query.js');
+
+    vi.mocked(queryLibrarian).mockResolvedValueOnce({
+      query: { intent: 'where is createAuthenticationManager defined?', depth: 'L1' },
+      totalConfidence: 0.5,
+      cacheHit: false,
+      latencyMs: 10,
+      version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+      disclosures: [],
+      drillDownHints: [],
+      synthesis: {
+        answer: 'createAuthenticationManager defined is primarily implemented in src/mcp/authentication.ts.',
+        confidence: 0.7,
+        citations: [],
+        keyInsights: [],
+        uncertainties: [],
+      },
+      packs: [
+        {
+          packId: 'p-auth',
+          packType: 'function_context',
+          targetId: 'src/mcp/authentication.ts:createAuthenticationManager',
+          summary: 'Create an authentication manager with configuration.',
+          keyFacts: [],
+          relatedFiles: ['src/mcp/authentication.ts'],
+          codeSnippets: [{ filePath: 'src/mcp/authentication.ts', startLine: 1, endLine: 2, content: 'x', language: 'ts' }],
+          confidence: 0.86,
+          isPrimaryResult: true,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+        {
+          packId: 'p-ledger',
+          packType: 'function_context',
+          targetId: 'src/epistemics/evidence_ledger.ts:computeEvidenceHash',
+          summary: 'Compute a deterministic evidence hash.',
+          keyFacts: [],
+          relatedFiles: ['src/epistemics/evidence_ledger.ts'],
+          codeSnippets: [{ filePath: 'src/epistemics/evidence_ledger.ts', startLine: 1, endLine: 2, content: 'y', language: 'ts' }],
+          confidence: 0.95,
+          createdAt: new Date(),
+          version: { major: 0, minor: 2, patch: 1, qualityTier: 'full', indexedAt: new Date() },
+        },
+      ],
+    } as any);
+
+    await queryCommand({
+      workspace: '/tmp/workspace',
+      args: [],
+      rawArgs: ['query', 'where is createAuthenticationManager defined?'],
+    });
+
+    const lines = logSpy?.mock.calls.map((call) => String(call[0])) ?? [];
+    expect(lines.some((line) => line.includes('src/mcp/authentication.ts'))).toBe(true);
+    expect(lines.some((line) => line.includes('src/epistemics/evidence_ledger.ts.'))).toBe(false);
+  });
+
   it('surfaces partial-index and low-confidence quality warnings at top', async () => {
     const { queryCommand } = await import('../query.js');
     const { queryLibrarian } = await import('../../../api/query.js');
@@ -1130,22 +1313,4 @@ describe('queryCommand LLM resolution', () => {
     })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
   });
 
-  it('fails fast with QUERY_TIMEOUT when bootstrap stage makes no progress', async () => {
-    const { queryCommand } = await import('../query.js');
-    const { isBootstrapRequired, bootstrapProject } = await import('../../../api/bootstrap.js');
-
-    vi.mocked(isBootstrapRequired).mockResolvedValueOnce({
-      required: true,
-      reason: 'Watch state indicates catch-up is required before queries can be trusted',
-    });
-    vi.mocked(bootstrapProject).mockImplementationOnce(
-      () => new Promise<never>(() => {})
-    );
-
-    await expect(queryCommand({
-      workspace: '/tmp/workspace',
-      args: [],
-      rawArgs: ['query', 'hello world', '--json', '--timeout', '30'],
-    })).rejects.toMatchObject({ code: 'QUERY_TIMEOUT' });
-  });
 });

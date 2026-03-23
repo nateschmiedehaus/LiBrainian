@@ -317,6 +317,8 @@ function isKnownCliNoiseLine(line: string, provider: CliProvider): boolean {
     || /^(retrieved knowledge|context packs|query results|user intent|coverage gaps|drill-down hints):/i.test(line)
     || /^[A-Z][A-Z0-9 _/-]{6,}:$/.test(line)
     || /^mcp startup:/i.test(line)
+    || /^warning:\s+proceeding,\s+even though we could not update path:/i.test(line)
+    || /^refusing to create helper binaries under temporary dir\b/i.test(line)
   ) {
     return true;
   }
@@ -437,6 +439,14 @@ function combineCliErrorStreams(stderr: string, stdout: string, fallback: string
   return fallback;
 }
 
+function parseCodexLoginStatus(output: string): { positiveMatch: boolean; negativeMatch: boolean } {
+  const normalized = output.toLowerCase();
+  return {
+    positiveMatch: /\blogged\s+in\b|\bauthenticated\b/.test(normalized),
+    negativeMatch: /not\s+logged\s+in|not\s+authenticated|unauthenticated|expired/.test(normalized),
+  };
+}
+
 function buildInitialHealth(provider: CliProvider): LlmProviderHealth {
   return {
     provider,
@@ -452,7 +462,6 @@ export class CliLlmService {
   private claudeHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CLAUDE_HEALTH_CHECK_TIMEOUT_MS, 60000);
   private codexHealthCheckTimeoutMs = coercePositiveTimeout(process.env.CODEX_HEALTH_CHECK_TIMEOUT_MS, 20000);
   private healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60000);
-  private providerWorkspaceRoot = resolveProviderWorkspaceRoot();
   private providerChaos = new ProviderChaosMiddleware(createProviderChaosConfigFromEnv());
 
   private health: HealthState = {
@@ -460,13 +469,38 @@ export class CliLlmService {
     codex: buildInitialHealth('codex'),
   };
 
+  private getProviderWorkspaceRoot(): string {
+    return resolveProviderWorkspaceRoot();
+  }
+
+  private preserveCachedHealthyProvider(
+    provider: CliProvider,
+    now: number,
+    failureMessage: string,
+  ): LlmProviderHealth | null {
+    const cached = this.health[provider];
+    if (!cached.available || !cached.authenticated) {
+      return null;
+    }
+    const preserved: LlmProviderHealth = {
+      ...cached,
+      lastCheck: now,
+    };
+    this.health[provider] = preserved;
+    logWarning('CLI LLM: preserving last known healthy provider after lightweight health check failure', {
+      provider,
+      error: failureMessage,
+    });
+    return preserved;
+  }
+
   private async resolveCandidateOrder(
     primary: CliProvider,
     fallback: CliProvider,
     forcedProvider: CliProvider | null,
   ): Promise<CliProvider[]> {
     try {
-      const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
+      const failures = await getActiveProviderFailures(this.getProviderWorkspaceRoot());
       const primaryFailure = failures[primary];
       const fallbackFailure = failures[fallback];
       const primarySticky = primaryFailure ? isStickyFailureReason(primaryFailure.reason) : false;
@@ -704,6 +738,11 @@ export class CliLlmService {
     const env = sanitizedCliEnv();
     const version = await execa('codex', ['--version'], { env, extendEnv: false, timeout: 5000, reject: false });
     if (version.exitCode !== 0) {
+      const versionFailure = String(version.stderr || version.stdout || 'Codex CLI not available');
+      const preserved = !forceCheck ? this.preserveCachedHealthyProvider('codex', now, versionFailure) : null;
+      if (preserved) {
+        return preserved;
+      }
       this.health.codex = {
         provider: 'codex',
         available: false,
@@ -727,41 +766,74 @@ export class CliLlmService {
     }
 
     const status = await execa('codex', ['login', 'status'], { env, extendEnv: false, timeout: 5000, reject: false });
-    if (status.exitCode !== 0) {
+    const statusOutput = combineCliErrorStreams(
+      String(status.stderr ?? ''),
+      String(status.stdout ?? ''),
+      'Codex CLI not authenticated',
+    );
+    const statusSignals = parseCodexLoginStatus(statusOutput);
+    if (!statusSignals.positiveMatch || statusSignals.negativeMatch) {
+      const statusFailure = sanitizeCliErrorMessage(normalizeCodexErrorMessage(statusOutput), 'codex');
+      const preserved = !forceCheck ? this.preserveCachedHealthyProvider('codex', now, statusFailure) : null;
+      if (preserved) {
+        return preserved;
+      }
       this.health.codex = {
         provider: 'codex',
         available: true,
         authenticated: false,
         lastCheck: now,
-        error: String(status.stderr || status.stdout || 'Codex CLI not authenticated'),
+        error: statusFailure,
       };
       return this.health.codex;
     }
 
     if (forceCheck) {
       const resolution = resolveCodexCliOptions(process.env.CODEX_MODEL);
-      const args = ['exec'];
+      const args = ['exec', '--ephemeral'];
       if (resolution.model) args.push('--model', resolution.model);
       for (const override of resolution.configOverrides) {
         args.push('-c', override);
       }
       args.push('-');
-      const probe = await execa('codex', args, {
-        env,
-        extendEnv: false,
-        input: 'ok',
-        timeout: this.codexHealthCheckTimeoutMs,
-        reject: false,
-      });
-      if (probe.exitCode !== 0) {
-        this.health.codex = {
-          provider: 'codex',
-          available: true,
-          authenticated: false,
-          lastCheck: now,
-          error: String(probe.stderr || probe.stdout || 'Codex CLI probe failed'),
-        };
-        return this.health.codex;
+      let tempDir: string | null = null;
+      let isolatedCodexHome: string | null = null;
+      try {
+        tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'librarian-codex-health-'));
+        isolatedCodexHome = await this.prepareIsolatedCodexHome(path.join(tempDir, 'codex-home'));
+        const probe = await execa('codex', args, {
+          env: sanitizedCliEnv({
+            CODEX_DISABLE_HISTORY: '1',
+            LIBRARIAN_MCP_PREWARM: '0',
+            ...(isolatedCodexHome ? { CODEX_HOME: isolatedCodexHome } : {}),
+          }),
+          cwd: tempDir ?? undefined,
+          extendEnv: false,
+          input: 'ok',
+          timeout: this.codexHealthCheckTimeoutMs,
+          reject: false,
+        });
+        if (probe.exitCode !== 0) {
+          const rawError = combineCliErrorStreams(
+            String(probe.stderr ?? ''),
+            String(probe.stdout ?? ''),
+            'Codex CLI probe failed',
+          );
+          const normalizedRawError = normalizeCodexErrorMessage(rawError);
+          const errorMsg = sanitizeCliErrorMessage(normalizedRawError, 'codex');
+          this.health.codex = {
+            provider: 'codex',
+            available: true,
+            authenticated: false,
+            lastCheck: now,
+            error: errorMsg,
+          };
+          return this.health.codex;
+        }
+      } finally {
+        if (tempDir) {
+          await fs.promises.rm(tempDir, { recursive: true, force: true });
+        }
       }
     }
 
@@ -1213,8 +1285,10 @@ export class CliLlmService {
             input: fullPrompt,
             env: sanitizedCliEnv({
               CODEX_DISABLE_HISTORY: '1',
+              LIBRARIAN_MCP_PREWARM: '0',
               ...(isolatedCodexHome ? { CODEX_HOME: isolatedCodexHome } : {}),
             }),
+            cwd: tempDir ?? undefined,
             extendEnv: false,
             timeout: timeoutMs,
             reject: false,
@@ -1302,7 +1376,7 @@ export class CliLlmService {
   private async recordFailure(provider: CliProvider, message: string, rawMessage?: string): Promise<void> {
     try {
       const classification = classifyProviderFailure(rawMessage ?? message);
-      await recordProviderFailure(this.providerWorkspaceRoot, {
+      await recordProviderFailure(this.getProviderWorkspaceRoot(), {
         provider,
         reason: classification.reason,
         message,
@@ -1316,7 +1390,7 @@ export class CliLlmService {
 
   private async recordSuccess(provider: CliProvider): Promise<void> {
     try {
-      await recordProviderSuccess(this.providerWorkspaceRoot, provider);
+      await recordProviderSuccess(this.getProviderWorkspaceRoot(), provider);
     } catch {
       // Ignore persistence failures.
     }
@@ -1324,7 +1398,7 @@ export class CliLlmService {
 
   private async assertProviderAvailable(provider: CliProvider): Promise<void> {
     try {
-      const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
+      const failures = await getActiveProviderFailures(this.getProviderWorkspaceRoot());
       const failure = failures[provider];
       if (failure) {
         if (!isStickyFailureReason(failure.reason)) {
@@ -1362,7 +1436,7 @@ export class CliLlmService {
     status: 'allowed' | 'blocked';
     note?: string;
   }): Promise<void> {
-    await appendPrivacyAuditEvent(this.providerWorkspaceRoot, {
+    await appendPrivacyAuditEvent(this.getProviderWorkspaceRoot(), {
       ts: new Date().toISOString(),
       op: event.op,
       files: [],
@@ -1386,4 +1460,5 @@ export const __testing = {
   sanitizeCliErrorMessage,
   isKnownCliNoiseLine,
   isCodexStateDbMigrationMismatchOnly,
+  parseCodexLoginStatus,
 };

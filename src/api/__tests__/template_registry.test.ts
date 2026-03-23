@@ -263,6 +263,23 @@ describe('TemplateRegistry', () => {
       expect(executeCalled).toHaveLength(1);
       expect(executeCalled[0].intent).toBe('test intent');
     });
+
+    it('fails closed for stub-backed default templates', async () => {
+      const template = registry.getConstructionTemplate('T1');
+      expect(template).not.toBeNull();
+
+      const result = await template!.execute({
+        intent: 'show me the repo structure',
+        workspace: '/tmp/test',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.packs).toEqual([]);
+      expect(result.disclosures).toContain('template_unavailable(T1): implementation pending');
+      expect(result.evidence).toContainEqual(expect.objectContaining({
+        templateId: 'T1',
+      }));
+    });
   });
 
   describe('evidence emission', () => {

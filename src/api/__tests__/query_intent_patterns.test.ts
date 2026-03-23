@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARCHITECTURE_INTENT_PATTERNS,
   ARCHITECTURE_VERIFICATION_PATTERNS,
   BUG_INVESTIGATION_PATTERNS,
   CODE_QUALITY_PATTERNS,
@@ -12,9 +13,11 @@ import {
   FEATURE_LOCATION_PATTERNS,
   IMPLEMENTATION_SEEKING_PATTERNS,
   META_QUERY_PATTERNS,
+  PATH_LIKE_QUERY_PATTERNS,
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
   SECURITY_AUDIT_PATTERNS,
+  SYMBOL_QUERY_PATTERNS,
   WHY_QUERY_PATTERNS,
 } from '../query_intent_patterns.js';
 
@@ -78,7 +81,22 @@ describe('query_intent_patterns', () => {
     expect(hasMatch(CODE_REVIEW_QUERY_PATTERNS, 'review this file before merge')).toBe(true);
     expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where is authentication implemented')).toBe(true);
     expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where is the query pipeline implemented')).toBe(true);
+    expect(hasMatch(FEATURE_LOCATION_PATTERNS, 'where does auth routing live')).toBe(true);
     expect(hasMatch(REFACTORING_OPPORTUNITIES_PATTERNS, 'what should I refactor')).toBe(true);
+  });
+
+  it('matches path-like intents without over-matching natural language slashes', () => {
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'show me src/auth/token.ts')).toBe(true);
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'inspect packages/core/src/index.ts')).toBe(true);
+    expect(hasMatch(PATH_LIKE_QUERY_PATTERNS, 'and/or logic for auth')).toBe(false);
+  });
+
+  it('distinguishes architecture-intent and symbol-intent signals', () => {
+    expect(hasMatch(ARCHITECTURE_INTENT_PATTERNS, 'how is the auth module structured?')).toBe(true);
+    expect(hasMatch(ARCHITECTURE_INTENT_PATTERNS, 'overview of the storage layout')).toBe(true);
+    expect(hasMatch(SYMBOL_QUERY_PATTERNS, 'where is the login function?')).toBe(true);
+    expect(hasMatch(SYMBOL_QUERY_PATTERNS, 'find class QueryRouter')).toBe(true);
+    expect(hasMatch(SYMBOL_QUERY_PATTERNS, 'how is the auth module structured?')).toBe(false);
   });
 
   it('matches canonical entry-point name and path signals', () => {

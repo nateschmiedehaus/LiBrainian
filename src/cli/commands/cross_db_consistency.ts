@@ -6,10 +6,16 @@ import type { HealthCheckStatus } from './health_summary.js';
 export const CROSS_DB_CONSISTENCY_CHECK_NAME = 'Cross-DB Consistency';
 
 const LEGACY_DB_FILENAMES = [
-  'knowledge.db',
-  'evidence_ledger.db',
   'librarian.db',
 ] as const;
+
+function getLegacyDbSidecarPaths(filePath: string): string[] {
+  return [
+    filePath,
+    `${filePath}-shm`,
+    `${filePath}-wal`,
+  ];
+}
 
 export interface CrossDbConsistencyDetails extends Record<string, unknown> {
   activeDb: string;
@@ -22,6 +28,12 @@ export interface CrossDbConsistencyResult {
   message: string;
   details: CrossDbConsistencyDetails;
   suggestion?: string;
+}
+
+export interface CrossDbConsistencyCleanupResult {
+  archivedFiles: string[];
+  blockedFiles: string[];
+  archiveDir: string | null;
 }
 
 async function statMtimeMs(filePath: string): Promise<number | null> {
@@ -73,7 +85,7 @@ export async function evaluateCrossDbConsistency(
       status: 'ERROR',
       message: `Legacy DB files are newer than active store (${legacyFiles.length} files)`,
       details,
-      suggestion: 'Run `librarian bootstrap --force` to rebuild and converge into .librarian/librarian.sqlite',
+      suggestion: 'Run `librainian bootstrap --force --mode fast` to rebuild and converge into .librarian/librarian.sqlite',
     };
   }
 
@@ -82,5 +94,64 @@ export async function evaluateCrossDbConsistency(
     message: `Legacy DB artifacts detected (${legacyFiles.length} files)`,
     details,
     suggestion: 'Remove stale legacy DB files after verifying current index health',
+  };
+}
+
+export async function archiveStaleLegacyDbArtifacts(
+  workspace: string,
+  dbPath: string,
+): Promise<CrossDbConsistencyCleanupResult> {
+  const librarianDir = path.join(workspace, '.librarian');
+  const activeDb = path.resolve(dbPath);
+  const activeMtimeMs = (await statMtimeMs(activeDb)) ?? 0;
+  const legacyCandidates = LEGACY_DB_FILENAMES.map((filename) => path.join(librarianDir, filename));
+  const archiveDir = path.join(
+    librarianDir,
+    'legacy-db-archive',
+    new Date().toISOString().replaceAll(':', '-'),
+  );
+
+  const archivedFiles: string[] = [];
+  const blockedFiles: string[] = [];
+  let archiveDirCreated = false;
+
+  for (const candidate of legacyCandidates) {
+    const mtimeMs = await statMtimeMs(candidate);
+    if (mtimeMs == null || path.resolve(candidate) === activeDb) continue;
+    if (mtimeMs > activeMtimeMs + 1_000) {
+      blockedFiles.push(candidate);
+      continue;
+    }
+
+    const sidecars = getLegacyDbSidecarPaths(candidate);
+    const existingSidecars = (
+      await Promise.all(sidecars.map(async (entry) => {
+        try {
+          await fs.stat(entry);
+          return entry;
+        } catch {
+          return null;
+        }
+      }))
+    ).filter((entry): entry is string => entry !== null);
+
+    if (existingSidecars.length === 0) continue;
+
+    if (!archiveDirCreated) {
+      await fs.mkdir(archiveDir, { recursive: true });
+      archiveDirCreated = true;
+    }
+
+    for (const entry of existingSidecars) {
+      const destination = path.join(archiveDir, path.basename(entry));
+      await fs.rename(entry, destination);
+      archivedFiles.push(destination);
+    }
+  }
+
+  return {
+    archivedFiles,
+    blockedFiles,
+    archiveDir: archiveDirCreated ? archiveDir : null,
   };
 }

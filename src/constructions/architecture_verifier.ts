@@ -131,10 +131,22 @@ function normalizeArchitectureSpec(spec: ArchitectureSpec): ArchitectureSpec {
 }
 
 export class ArchitectureVerifier {
+  private static readonly STRUCTURAL_QUERY_TIMEOUT_MS = 20_000;
   private librarian: Librarian;
 
   constructor(librarian: Librarian) {
     this.librarian = librarian;
+  }
+
+  private queryStructurally(intent: string, depth: 'L2' | 'L3' = 'L2') {
+    return this.librarian.queryOptional({
+      intent,
+      depth,
+      taskType: 'understand',
+      perspective: 'architecture',
+      llmRequirement: 'disabled',
+      timeoutMs: ArchitectureVerifier.STRUCTURAL_QUERY_TIMEOUT_MS,
+    });
   }
 
   /**
@@ -192,12 +204,9 @@ export class ArchitectureVerifier {
 
     for (const layer of layers) {
       // Query for files in this layer
-      const queryResult = await this.librarian.queryOptional({
-        intent: `Find all imports and dependencies in files matching: ${layer.patterns.join(', ')}`,
-        depth: 'L2',
-        taskType: 'understand',
-        perspective: 'architecture',
-      });
+      const queryResult = await this.queryStructurally(
+        `Find all imports and dependencies in files matching: ${layer.patterns.join(', ')}`,
+      );
 
       if (queryResult.packs) {
         for (const pack of queryResult.packs) {
@@ -311,12 +320,9 @@ export class ArchitectureVerifier {
 
     for (const boundary of boundaries) {
       // Query for cross-boundary references
-      const queryResult = await this.librarian.queryOptional({
-        intent: `Find dependencies between files: [${boundary.inside.join(', ')}] and [${boundary.outside.join(', ')}]`,
-        depth: 'L2',
-        taskType: 'understand',
-        perspective: 'architecture',
-      });
+      const queryResult = await this.queryStructurally(
+        `Find dependencies between files: [${boundary.inside.join(', ')}] and [${boundary.outside.join(', ')}]`,
+      );
 
       if (queryResult.packs) {
         for (const pack of queryResult.packs) {
@@ -422,12 +428,10 @@ export class ArchitectureVerifier {
   ): Promise<ArchitectureViolation[]> {
     const violations: ArchitectureViolation[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
-      intent: 'Find circular import dependencies in the codebase',
-      depth: 'L3',
-      taskType: 'understand',
-      perspective: 'architecture',
-    });
+    const queryResult = await this.queryStructurally(
+      'Find circular import dependencies in the codebase',
+      'L3',
+    );
 
     if (queryResult.packs) {
       // Build dependency graph from packs
@@ -504,12 +508,9 @@ export class ArchitectureVerifier {
   ): Promise<ArchitectureViolation[]> {
     const violations: ArchitectureViolation[] = [];
 
-    const queryResult = await this.librarian.queryOptional({
-      intent: 'Find all exported functions and classes with their names',
-      depth: 'L2',
-      taskType: 'understand',
-      perspective: 'architecture',
-    });
+    const queryResult = await this.queryStructurally(
+      'Find all exported functions and classes with their names',
+    );
 
     if (queryResult.packs) {
       for (const pack of queryResult.packs) {

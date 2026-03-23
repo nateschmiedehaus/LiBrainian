@@ -45,6 +45,31 @@ describe('query filename candidate injection', () => {
     )).toBe(true);
   });
 
+  it('scores the main query pipeline above sibling embedding pipelines for query-pipeline intents', async () => {
+    const queryScore = __testing.scoreFeatureLocationMatch(
+      'query pipeline',
+      'src/api/query.ts',
+      'queryLibrarian',
+      'Main query pipeline that exposes getQueryPipelineStages and queryLibrarian.',
+      'module',
+    );
+    const embeddingPipelineScore = __testing.scoreFeatureLocationMatch(
+      'query pipeline',
+      'src/api/embedding_providers/unified_embedding_pipeline.ts',
+      'unified_embedding_pipeline',
+      'Embedding pipeline for vector generation and provider orchestration.',
+      'module',
+    );
+
+    expect(queryScore.relevance).toBeGreaterThan(embeddingPipelineScore.relevance);
+  });
+
+  it('adds pipeline stage facts for the main query pipeline module', async () => {
+    const keyFacts: string[] = [];
+    __testing.appendPipelineStageFacts(keyFacts, 'src/api/query.ts', ['queryLibrarian', 'getQueryPipelineStages']);
+    expect(keyFacts.some((fact) => fact.startsWith('Pipeline stages: adequacy_scan'))).toBe(true);
+  });
+
   it('injects explicit anchor paths even when lexical filename matching is weak', async () => {
     const storage = {
       getFiles: async () => ([

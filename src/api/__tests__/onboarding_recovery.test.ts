@@ -297,7 +297,7 @@ describe('onboarding recovery', () => {
     expect(result.bootstrap?.success).toBe(true);
   });
 
-  it('forces skipLlm in fast bootstrap mode to avoid accidental LLM work', async () => {
+  it('forces skipLlm in fast bootstrap mode while preserving embeddings when available', async () => {
     const { runOnboardingRecovery } = await import('../onboarding_recovery.js');
     const { createSqliteStorage } = await import('../../storage/sqlite_storage.js');
     const { isBootstrapRequired, bootstrapProject, createBootstrapConfig } = await import('../bootstrap.js');
@@ -327,7 +327,7 @@ describe('onboarding recovery', () => {
 
     expect(createBootstrapConfig).toHaveBeenCalledWith(workspace, expect.objectContaining({
       bootstrapMode: 'fast',
-      skipEmbeddings: true,
+      skipEmbeddings: false,
       skipLlm: true,
     }));
   });
@@ -348,7 +348,7 @@ describe('onboarding recovery', () => {
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: false, provider: 'none', model: 'unknown', latencyMs: 1, error: 'unavailable' },
-      embedding: { available: false, provider: 'xenova', model: 'unknown', latencyMs: 1, error: 'unavailable' },
+      embedding: { available: true, provider: 'xenova', model: 'test', latencyMs: 1 },
     });
     vi.mocked(bootstrapProject).mockResolvedValue({ success: true } as BootstrapReport);
     vi.mocked(diagnoseConfiguration).mockResolvedValue({
@@ -379,7 +379,7 @@ describe('onboarding recovery', () => {
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: true, reason: 'missing index' });
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: false, provider: 'none', model: 'unknown', latencyMs: 1, error: 'unavailable' },
-      embedding: { available: false, provider: 'xenova', model: 'unknown', latencyMs: 1, error: 'unavailable' },
+      embedding: { available: true, provider: 'xenova', model: 'test', latencyMs: 1 },
     });
     vi.mocked(bootstrapProject).mockResolvedValue({ success: true } as BootstrapReport);
     vi.mocked(diagnoseConfiguration).mockResolvedValue({
@@ -412,7 +412,7 @@ describe('onboarding recovery', () => {
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: true, reason: 'missing index' });
     vi.mocked(checkAllProviders).mockResolvedValue({
       llm: { available: false, provider: 'none', model: 'unknown', latencyMs: 1, error: 'unavailable' },
-      embedding: { available: false, provider: 'xenova', model: 'unknown', latencyMs: 1, error: 'unavailable' },
+      embedding: { available: true, provider: 'xenova', model: 'test', latencyMs: 1 },
     });
     vi.mocked(bootstrapProject).mockResolvedValue({ success: true } as BootstrapReport);
     vi.mocked(diagnoseConfiguration).mockResolvedValue({

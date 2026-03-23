@@ -2,16 +2,23 @@
 
 This guide is the entry point for integrating LiBrainian from external runtimes and agent frameworks.
 
+## Recommended paths
+
+Start with the narrowest supported surface that solves your problem:
+
+- First run, local debugging, CI, and shell automation: use the CLI
+- Claude Code, Cursor, Windsurf, VS Code, or Gemini CLI: use MCP
+- Node-based custom agent loops: use the TypeScript API from the main package
+
+Preview adapters exist in the source tree for controlled integrations, but they are deferred from the first public release and are not the recommended path for new adopters.
+
 ## Integration status
 
 | Surface | Status | Primary doc |
 | --- | --- | --- |
-| MCP | Available now | [`docs/integrations/mcp.md`](./mcp.md) |
-| CLI | Available now | [`docs/integrations/cli.md`](./cli.md) |
-| OpenAPI/REST adapter | Adapter contract (preview) | [`docs/integrations/rest-api.md`](./rest-api.md) |
-| UTCP adapter | Adapter contract (preview) | [`docs/integrations/utcp.md`](./utcp.md) |
-| A2A adapter | Adapter contract (preview) | [`docs/integrations/a2a.md`](./a2a.md) |
-| Python SDK | SDK-style bridge (preview) | [`docs/integrations/python-sdk.md`](./python-sdk.md) |
+| CLI | Stable | [`docs/integrations/cli.md`](./cli.md) |
+| MCP | Stable | [`docs/integrations/mcp.md`](./mcp.md) |
+| TypeScript package API | Beta | [`README.md`](../../README.md) |
 
 ## Decision Tree
 
@@ -21,27 +28,11 @@ Which environment are you integrating from?
   - Use [`docs/integrations/mcp.md`](./mcp.md)
 - Shell scripts, CI jobs, or local automation
   - Use [`docs/integrations/cli.md`](./cli.md)
-- Frameworks expecting OpenAPI or direct HTTP tools
-  - Use [`docs/integrations/rest-api.md`](./rest-api.md)
-- Tool routing through UTCP envelopes
-  - Use [`docs/integrations/utcp.md`](./utcp.md)
-- Agent-to-agent orchestration (A2A task envelopes)
-  - Use [`docs/integrations/a2a.md`](./a2a.md)
-- Python scripts or notebooks
-  - Use [`docs/integrations/python-sdk.md`](./python-sdk.md)
-
-## Protocol adapter architecture
-
-LiBrainian keeps one canonical contract and maps protocols to it through adapters.
-
-- Canonical contract: OpenAPI/REST request and response schema
-- Native surfaces now: CLI and MCP
-- Adapter surfaces: UTCP, A2A, Python SDK
-
-Use [`docs/integrations/protocol-adapters.md`](./protocol-adapters.md) for adapter design and compatibility rules.
+- Frameworks expecting OpenAPI, UTCP, A2A, or Python adapter docs
+  - Deferred for the first public release; treat them as source-checkout notes rather than shipped package surfaces
 
 ## Related docs
 
-- OpenClaw integration: [`docs/integrations/openclaw.md`](./openclaw.md)
 - MCP deep setup: [`docs/mcp-setup.md`](../mcp-setup.md)
-- Core agent integration patterns: [`docs/librarian/AGENT_INTEGRATION.md`](../librarian/AGENT_INTEGRATION.md)
+- Core first-run path: [`README.md`](../../README.md)
+- Source-checkout references for maintainers remain on GitHub and are outside the first public release contract

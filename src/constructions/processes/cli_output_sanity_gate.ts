@@ -113,7 +113,7 @@ function hasDoubleOutput(output: string): boolean {
   return false;
 }
 
-function parseJsonOutput(output: string): { ok: boolean; keys: string[] } {
+export function parseJsonOutput(output: string): { ok: boolean; keys: string[] } {
   const trimmed = output.trim();
   if (!trimmed) {
     return { ok: false, keys: [] };
@@ -123,7 +123,7 @@ function parseJsonOutput(output: string): { ok: boolean; keys: string[] } {
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return { ok: true, keys: Object.keys(parsed).sort() };
     }
-    return { ok: true, keys: [] };
+    return { ok: false, keys: [] };
   } catch {
     return { ok: false, keys: [] };
   }
@@ -148,18 +148,32 @@ function extractHelpCommands(helpOutput: string): string[] {
   const lines = normalizeLines(helpOutput);
   const commands: string[] = [];
   let inCommandsBlock = false;
+  const commandSectionHeaders = new Set([
+    'COMMANDS:',
+    'CORE COMMANDS:',
+    'INTEGRATION AND AUTOMATION:',
+  ]);
+  const stopHeaders = new Set([
+    'MAINTAINER-ONLY COMMANDS:',
+    'ADVANCED:',
+    'GLOBAL OPTIONS:',
+    'EXAMPLES:',
+  ]);
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!inCommandsBlock) {
-      if (trimmed === 'COMMANDS:') {
+      if (commandSectionHeaders.has(trimmed)) {
         inCommandsBlock = true;
       }
       continue;
     }
 
-    if (trimmed === 'ADVANCED:' || trimmed === 'GLOBAL OPTIONS:' || trimmed === 'EXAMPLES:') {
+    if (stopHeaders.has(trimmed)) {
       break;
+    }
+    if (commandSectionHeaders.has(trimmed)) {
+      continue;
     }
     if (!trimmed) continue;
 

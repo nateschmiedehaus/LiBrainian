@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { safeJsonParse } from './safe_json.js';
@@ -34,6 +35,7 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const RATE_LIMIT_TTL_MS = 15 * 60 * 1000;
 const QUOTA_TTL_MS = 60 * 60 * 1000;
 const SHORT_TTL_MS = 5 * 60 * 1000;
+const providerWorkspaceStore = new AsyncLocalStorage<string>();
 const VALID_FAILURE_REASONS: ReadonlySet<ProviderFailureReason> = new Set([
   'rate_limit',
   'quota_exceeded',
@@ -57,10 +59,18 @@ function resolveFailurePath(workspaceRoot: string): string {
 }
 
 export function resolveProviderWorkspaceRoot(cwd: string = process.cwd()): string {
+  const scopedWorkspace = providerWorkspaceStore.getStore();
+  if (scopedWorkspace) {
+    return scopedWorkspace;
+  }
   if (process.env.LIBRARIAN_WORKSPACE_ROOT) {
     return path.resolve(process.env.LIBRARIAN_WORKSPACE_ROOT);
   }
   return resolveWorkspaceRoot(cwd).workspace;
+}
+
+export function withProviderWorkspaceRoot<T>(workspaceRoot: string, fn: () => T): T {
+  return providerWorkspaceStore.run(path.resolve(workspaceRoot), fn);
 }
 
 function resolveTtlForReason(reason: ProviderFailureReason): number {

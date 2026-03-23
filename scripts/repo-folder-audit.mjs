@@ -180,7 +180,6 @@ function summarizeScripts(trackedFiles) {
     'build-evidence-manifest.mjs',
     'package-install-smoke.mjs',
     'reconcile_evidence.mjs',
-    'refresh-final-verification.mjs',
     'run-with-tmpdir.mjs',
   ]);
 

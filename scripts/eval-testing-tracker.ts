@@ -40,9 +40,9 @@ async function loadArtifact(filePath: string): Promise<TestingTrackerArtifact<un
 }
 
 function statusEmoji(status: 'fixed' | 'open' | 'unknown'): string {
-  if (status === 'fixed') return '✅';
-  if (status === 'open') return '❌';
-  return '⚪';
+  if (status === 'fixed') return 'OK';
+  if (status === 'open') return 'BLOCKED';
+  return 'UNKNOWN';
 }
 
 function boolLabel(value: boolean): string {
@@ -75,7 +75,7 @@ function buildMarkdown(report: ReturnType<typeof buildTestingTrackerReport>): st
   lines.push('| Status | Flaw | Evidence |');
   lines.push('| --- | --- | --- |');
   for (const flaw of report.flaws) {
-    lines.push(`| ${statusEmoji(flaw.status)} ${flaw.status} | ${flaw.title} | ${flaw.evidence} |`);
+    lines.push(`| ${statusEmoji(flaw.status)} | ${flaw.title} | ${flaw.evidence} |`);
   }
   lines.push('');
   return lines.join('\n');
@@ -85,12 +85,10 @@ const args = parseArgs({
   options: {
     out: { type: 'string', default: 'state/eval/testing-discipline/testing-tracker.json' },
     markdownOut: { type: 'string', default: 'docs/archive/TESTING_TRACKER.md' },
-    abReport: { type: 'string', default: 'eval-results/ab-harness-report.json' },
     useCaseReport: { type: 'string', default: 'eval-results/agentic-use-case-review.json' },
     liveFireReport: { type: 'string', default: 'state/eval/live-fire/hardcore/report.json' },
     smokeReport: { type: 'string', default: 'state/eval/smoke/external/all-repos/report.json' },
     testingDisciplineReport: { type: 'string', default: 'state/eval/testing-discipline/report.json' },
-    publishGateReport: { type: 'string', default: 'state/eval/publish-gate/latest.json' },
     failOnOpen: { type: 'boolean', default: false },
   },
 });
@@ -105,12 +103,10 @@ const markdownOutPath = resolvePath(args.values.markdownOut, 'docs/archive/TESTI
 const input: TestingTrackerInput = {
   generatedAt: new Date().toISOString(),
   artifacts: {
-    ab: await loadArtifact(resolvePath(args.values.abReport, 'eval-results/ab-harness-report.json')),
     useCase: await loadArtifact(resolvePath(args.values.useCaseReport, 'eval-results/agentic-use-case-review.json')),
     liveFire: await loadArtifact(resolvePath(args.values.liveFireReport, 'state/eval/live-fire/hardcore/report.json')),
     smoke: await loadArtifact(resolvePath(args.values.smokeReport, 'state/eval/smoke/external/all-repos/report.json')),
     testingDiscipline: await loadArtifact(resolvePath(args.values.testingDisciplineReport, 'state/eval/testing-discipline/report.json')),
-    publishGate: await loadArtifact(resolvePath(args.values.publishGateReport, 'state/eval/publish-gate/latest.json')),
   },
 };
 
@@ -118,10 +114,10 @@ const report = buildTestingTrackerReport(input);
 const markdown = buildMarkdown(report);
 
 await mkdir(path.dirname(outPath), { recursive: true });
-await writeFile(outPath, JSON.stringify(report, null, 2), 'utf8');
+await writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 
 await mkdir(path.dirname(markdownOutPath), { recursive: true });
-await writeFile(markdownOutPath, markdown, 'utf8');
+await writeFile(markdownOutPath, `${markdown}\n`, 'utf8');
 
 console.log(`Testing tracker report written to: ${outPath}`);
 console.log(`Testing tracker markdown written to: ${markdownOutPath}`);

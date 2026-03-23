@@ -1,13 +1,23 @@
 # Claude Agent Instructions for LiBrainian
 
+> This file is for Claude-style coding agents working inside the repository.
+> If you are evaluating or contributing as a human, start with `README.md`, `docs/START_HERE.md`, and `CONTRIBUTING.md`.
+
 This file is the Claude-specific entrypoint. It adopts all repository rules from `AGENTS.md` and adds a strict launch-quality override.
 
 ## Source of Truth
 
 - Primary operational contract: `AGENTS.md`
 - Canonical testing policy: `docs/TEST.md`
-- Launch state and evidence: `docs/LiBrainian/STATUS.md`, `docs/LiBrainian/GATES.json`
-- Strategy tracker: `docs/LiBrainian/CONVERSATION_INSIGHTS.md`
+- Public product entrypoints: `README.md`, `docs/START_HERE.md`, `docs/mcp-setup.md`
+- Release qualification evidence:
+  - `eval-results/agentic-use-case-review.json`
+  - `state/eval/live-fire/hardcore/latest.json`
+  - `state/eval/smoke/external/all-repos/report.json`
+  - `state/eval/testing-discipline/report.json`
+  - `state/eval/testing-discipline/testing-tracker.json`
+- Historical advisory snapshots only: `docs/librarian/STATUS.md`, `docs/librarian/GATES.json`
+- Strategy tracker: `docs/librarian/CONVERSATION_INSIGHTS.md`
 
 ## MCP Workflow
 
@@ -15,25 +25,27 @@ LiBrainian is registered as a project-scoped MCP server (`.mcp.json`).
 It is auto-discovered on session start.
 
 **Before modifying `src/api/`, `src/mcp/`, `src/storage/`, or `src/query/`:**
-call `query` to understand cross-file impact first.
+call `mcp__librainian__query` to understand cross-file impact first.
 
 Key MCP tools:
 
 | Tool | Use for |
 |------|---------|
-| `query` | Architectural understanding, impact analysis |
-| `get_context_pack` | Task-shaped context before multi-file edits |
-| `find_callers` / `find_usages` | Trace dependencies before changing signatures |
-| `blast_radius` | Pre-edit impact estimation |
-| `semantic_search` | Find files by meaning when filenames unknown |
+| `mcp__librainian__query` | Architectural understanding, cross-module flow, impact reasoning |
+| `mcp__librainian__get_context_pack` | Task-shaped context before multi-file edits |
+| `mcp__librainian__find_symbol` / `mcp__librainian__find_usages` | Exact symbol lookup and dependency tracing |
+| `mcp__librainian__get_change_impact` | Pre-edit impact estimation |
+| `mcp__librainian__get_repo_map` | Fast repo orientation before deeper queries |
+| `mcp__librainian__semantic_search` | Find files by meaning when filenames or symbol names are unknown |
 
-One `query` call replaces 5 speculative Grep calls. Skip LiBrainian for
-trivial edits or files you already understand.
+Reserve Grep for exact literal string matching only. One
+`mcp__librainian__query` call replaces 5 speculative Grep calls. Skip
+LiBrainian for trivial edits or files you already understand.
 
 If LiBrainian returns a structured MCP error:
 - Retry at most once when `retryable`/`retry_safe` is true.
 - Do not retry when `retryable`/`retry_safe` is false; execute `fallback_command` or the suggested `recoverWith` repair path.
-- Treat stale/partial index warnings as untrusted retrieval until `librarian bootstrap` repairs the workspace.
+- Treat stale/partial index warnings as untrusted retrieval until `librainian bootstrap` repairs the workspace.
 - If MCP stays degraded, switch to `rg` and direct file inspection instead of looping on the same tool call.
 
 ## Subagent Delegation
@@ -61,7 +73,7 @@ Do NOT assume subagents can call `mcp__librainian__*` tools.
 4. `AGENTIC QUALIFICATION REQUIRED`
    - Run `npm run test:agentic:strict` for publish-grade qualification.
 5. `CONVERSATION INTELLIGENCE REQUIRED`
-   - Update `docs/LiBrainian/CONVERSATION_INSIGHTS.md` at major planning checkpoints and before release-gate runs.
+   - Update `docs/librarian/CONVERSATION_INSIGHTS.md` at major planning checkpoints and before release-gate runs.
 6. `PROOF_ARTIFACT_GATE_REQUIRED`
    - Never declare a milestone passed without running `node scripts/proof-review-gate.mjs` on the proof artifact and including its full output in the evidence.
    - The gate must exit 0 (zero failures). Warnings are acceptable; failures are not.

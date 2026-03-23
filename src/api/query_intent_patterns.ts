@@ -263,7 +263,40 @@ export const FEATURE_LOCATION_PATTERNS: RegExp[] = [
   /locate\s+(?:the\s+)?(?:implementation|code)\s+(?:for|of)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\b/i,
   /which\s+files?\s+(?:implement|contain|handle)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\b/i,
   /where\s+(?:does|is)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,4})\s+(?:happen|occur|get\s+handled)\b/i,
+  /where\s+(?:do|does)\s+(?:the\s+)?(?:[\w-]+(?:\s+[\w-]+){0,6})\s+live\b/i,
   /feature\s+location/i,
+];
+
+/**
+ * Patterns that indicate an explicit path/file lookup query.
+ * These should route to direct path anchoring instead of broad semantic search.
+ */
+export const PATH_LIKE_QUERY_PATTERNS: RegExp[] = [
+  /\b(?:show|open|inspect|review|find|locate|summarize|explain)\b.*\b(?:[A-Za-z0-9._@-]+\/)+[A-Za-z0-9._@-]+\.(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|json|md|yml|yaml|toml|sql|sh)\b/i,
+  /\b(?:src|lib|app|packages|tests?|docs)\/[A-Za-z0-9._@/-]+\.(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|json|md|yml|yaml|toml|sql|sh)\b/i,
+  /\bpath\s+(?:to|of|for)\s+(?:[A-Za-z0-9._@-]+\/)+[A-Za-z0-9._@-]+\.(?:ts|js|tsx|jsx|mjs|cjs|py|go|rs|java|json|md|yml|yaml|toml|sql|sh)\b/i,
+];
+
+/**
+ * Patterns that indicate an architecture/structure query rather than a symbol lookup.
+ */
+export const ARCHITECTURE_INTENT_PATTERNS: RegExp[] = [
+  /\bhow\s+is\s+(?:the\s+)?(?:[\w-]+\s+){0,4}(?:module|system|service|layer|package|codebase|project)\b.*\b(?:structured|organized|laid\s+out|designed)\b/i,
+  /\b(?:module|system|service|layer|package|codebase|project)\b.*\bhow\s+is\s+it\s+(?:structured|organized|laid\s+out|designed)\b/i,
+  /\boverview\s+of\s+(?:the\s+)?(?:[\w-]+\s+){0,4}(?:architecture|structure|layout)\b/i,
+  /\b(?:module|package|directory|folder)\s+(?:structure|layout|organization)\b/i,
+  /\bdesign\s+of\s+(?:the\s+)?(?:[\w-]+\s+){0,4}(?:module|system|service|layer)\b/i,
+];
+
+/**
+ * Patterns that indicate a concrete symbol lookup rather than architecture exploration.
+ */
+export const SYMBOL_QUERY_PATTERNS: RegExp[] = [
+  /\bwhere\s+is\s+(?:the\s+)?[A-Za-z_][A-Za-z0-9_]*\s+(?:function|class|method|symbol)\b/i,
+  /\bfind\s+(?:the\s+)?(?:function|class|method|symbol)\s+[A-Za-z_][A-Za-z0-9_]*\b/i,
+  /\bdefinition\s+of\s+[A-Za-z_][A-Za-z0-9_]*\b/i,
+  /\busage\s+of\s+[A-Za-z_][A-Za-z0-9_]*\b/i,
+  /\bwho\s+calls?\s+[A-Za-z_][A-Za-z0-9_]*\b/i,
 ];
 
 /**

@@ -49,6 +49,18 @@ function assertNoModuleResolutionCrash(result, commandLabel) {
   }
 }
 
+function assertNotExported(result, specifier) {
+  const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
+  if (result.status === 0) {
+    throw new Error(`Expected ${specifier} to stay off the public npm surface, but import succeeded.`);
+  }
+  if (!/ERR_PACKAGE_PATH_NOT_EXPORTED|Package subpath .* is not defined by "exports"/.test(combined)) {
+    throw new Error(
+      `Expected ${specifier} import to fail as a non-exported public subpath, but saw:\n${combined}`
+    );
+  }
+}
+
 function parsePackOutput(rawOutput) {
   const output = rawOutput.trim();
   if (!output) {
@@ -154,6 +166,12 @@ async function main() {
       ['--input-type=module', '-e', 'import("librainian").then(() => process.exit(0)).catch(() => process.exit(1));'],
       { cwd: sandboxDir }
     );
+    const privateSubpathResult = runAllowFailure(
+      process.execPath,
+      ['--input-type=module', '-e', 'import("librainian/debug").then(() => process.exit(0)).catch((error) => { console.error(error?.code || error?.message || String(error)); process.exit(1); });'],
+      { cwd: sandboxDir },
+    );
+    assertNotExported(privateSubpathResult, 'librainian/debug');
     console.log(`[package:install-smoke] ok (${packedName})`);
   } finally {
     await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});

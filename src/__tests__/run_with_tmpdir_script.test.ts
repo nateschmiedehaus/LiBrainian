@@ -63,4 +63,28 @@ describe('run-with-tmpdir script', () => {
     expect(output).toContain('[run-with-tmpdir] nonzero_without_summary:');
     expect(output).toContain('exit_code=1');
   });
+
+  it('treats native cleanup aborts as success when the command emitted an explicit completion marker', () => {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'run-with-tmpdir.mjs');
+    const result = spawnSync(
+      process.execPath,
+      [
+        scriptPath,
+        '--',
+        process.execPath,
+        '-e',
+        'process.stdout.write("[external-repo-smoke] completed successfully\\n"); process.exit(134);',
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 15_000,
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const output = `${String(result.stdout ?? '')}\n${String(result.stderr ?? '')}`;
+    expect(output).toContain('[external-repo-smoke] completed successfully');
+    expect(output).not.toContain('[run-with-tmpdir] nonzero_without_summary:');
+  });
 });

@@ -14,8 +14,16 @@ type RefreshResult = {
   selectedRepos: string[];
   totalQueries: number;
   unanswerableQueries: number;
+  unanswerableRatio?: number;
+  evaluationMode?: 'lexical_placeholder' | 'real_product_path';
+  releaseQualified?: boolean;
+  releaseQualificationReason?: string;
   metrics: {
     timestamp: string;
+    diagnostic_mode?: 'lexical_placeholder' | 'real_product_path';
+    diagnostic_only?: boolean;
+    release_evidence_eligible?: boolean;
+    release_evidence_block_reason?: string;
     corpus_size: number;
     metrics: {
       retrieval_recall_at_5: Metric;
@@ -40,6 +48,7 @@ const TARGETS = {
   faithfulness: 0.85,
   answer_relevancy: 0.75,
 } as const;
+const MIN_UNANSWERABLE_RATIO = 0.2;
 
 function parseCsv(value?: string): string[] {
   if (!value) return [];
@@ -179,9 +188,21 @@ async function run(): Promise<void> {
     faithfulness: createMetric(weighted((result) => result.metrics.metrics.faithfulness.mean), TARGETS.faithfulness),
     answer_relevancy: createMetric(weighted((result) => result.metrics.metrics.answer_relevancy.mean), TARGETS.answer_relevancy),
   };
+  const totals = {
+    totalQueries: perRepoResults.reduce((sum, result) => sum + result.totalQueries, 0),
+    unanswerableQueries: perRepoResults.reduce((sum, result) => sum + result.unanswerableQueries, 0),
+  };
+  const unanswerableRatio = totals.totalQueries > 0 ? totals.unanswerableQueries / totals.totalQueries : 0;
+  const releaseQualified = false;
+  const releaseQualificationReason =
+    'Fail closed: diagnostic-only placeholder lexical evaluation; batched external-corpus refresh is not release-qualified.';
 
   const metricsReport = {
     timestamp: now,
+    diagnostic_mode: 'lexical_placeholder' as const,
+    diagnostic_only: true,
+    release_evidence_eligible: false as const,
+    release_evidence_block_reason: releaseQualificationReason,
     corpus_size: totalCorpusSize,
     metrics: {
       retrieval_recall_at_5: { ...aggregatedMetrics.retrieval_recall_at_5, ci_95: [aggregatedMetrics.retrieval_recall_at_5.mean, aggregatedMetrics.retrieval_recall_at_5.mean], samples: [aggregatedMetrics.retrieval_recall_at_5.mean] },
@@ -192,14 +213,10 @@ async function run(): Promise<void> {
     },
     targets_met: Object.values(aggregatedMetrics).every((metric) => metric.met),
     summary: [
-      `Batched external-corpus refresh over ${existingNames.length} repos.`,
+      `Diagnostic-only batched external-corpus refresh over ${existingNames.length} repos.`,
       `Total evaluated queries: ${totalCorpusSize}.`,
+      releaseQualificationReason,
     ],
-  };
-
-  const totals = {
-    totalQueries: perRepoResults.reduce((sum, result) => sum + result.totalQueries, 0),
-    unanswerableQueries: perRepoResults.reduce((sum, result) => sum + result.unanswerableQueries, 0),
   };
 
   await mkdir(path.dirname(reportPath), { recursive: true });
@@ -215,7 +232,7 @@ async function run(): Promise<void> {
   const gates = JSON.parse(gatesRaw) as { lastUpdated?: string; tasks?: Record<string, Record<string, unknown>> };
   const tasks = gates.tasks ?? {};
   const day = now.slice(0, 10);
-  const corpusPass = existingNames.length >= minRepos && totals.unanswerableQueries > 0;
+  const corpusPass = releaseQualified && metricsReport.targets_met;
   const upsertTask = (key: string, updates: Record<string, unknown>) => {
     const current = tasks[key] ?? {};
     tasks[key] = { ...current, ...updates };
@@ -224,13 +241,17 @@ async function run(): Promise<void> {
   upsertTask('layer5.evalCorpus', {
     status: corpusPass ? 'pass' : 'fail',
     lastRun: day,
-    note: `Batched refresh across ${existingNames.length} real external repos; includes ${totals.unanswerableQueries} unanswerable queries.`,
+    note: `Diagnostic-only batched refresh across ${existingNames.length} real external repos; includes ${totals.unanswerableQueries} unanswerable queries (${(unanswerableRatio * 100).toFixed(1)}%).`,
     blocking: !corpusPass,
-    currentState: `${existingNames.length} real repos, ${totals.totalQueries} queries, ${totals.unanswerableQueries} unanswerable`,
+    currentState: `${existingNames.length} real repos, ${totals.totalQueries} queries, ${totals.unanswerableQueries} unanswerable (${(unanswerableRatio * 100).toFixed(1)}%), diagnostic-only not release evidence`,
     measured: {
       repos: existingNames.length,
       totalQueries: totals.totalQueries,
       unanswerableQueries: totals.unanswerableQueries,
+      unanswerableRatio,
+      diagnosticOnly: true,
+      releaseEvidenceEligible: false,
+      releaseEvidenceBlockReason: releaseQualificationReason,
       metricsPath: 'eval-results/metrics-report.json',
     },
   });
@@ -271,6 +292,7 @@ async function run(): Promise<void> {
     selectedRepos: existingNames,
     totalQueries: totals.totalQueries,
     unanswerableQueries: totals.unanswerableQueries,
+    unanswerableRatio,
     reportPath,
     evalOutputPath,
     gatesPath,

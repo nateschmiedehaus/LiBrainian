@@ -47,7 +47,7 @@ const M0_BUNDLES = new Map([
   [919, 'm0:bundle-d'],
   [920, 'm0:bundle-d'],
 ]);
-const M0_BUNDLE_ORDER = ['m0:bundle-b', 'm0:bundle-a', 'm0:bundle-c', 'm0:bundle-d'];
+const M0_BUNDLE_ORDER = ['m0:bundle-a', 'm0:bundle-c', 'm0:bundle-d', 'm0:bundle-b'];
 const M0_BUNDLE_METADATA = {
   'm0:bundle-a': {
     color: '0E8A16',
@@ -170,6 +170,14 @@ function milestoneSortOrder(title) {
 
 function hasLabel(labels, target) {
   return labels.includes(target);
+}
+
+function isClaimed(labels) {
+  return hasLabel(labels, 'agent:claimed');
+}
+
+function isShipBlocking(labels) {
+  return hasLabel(labels, 'ship-blocking');
 }
 
 function sha1(value) {
@@ -437,7 +445,6 @@ function classifyIssue(issue) {
   if (hasLabel(labels, 'kind/tracking')) return 'tracking-or-umbrella';
   if (hasLabel(labels, 'lifecycle/frozen')) return 'frozen-roadmap';
   if (hasLabel(labels, 'post-ship')) return 'post-ship';
-  if (hasLabel(labels, 'agent:needs-decomposition')) return 'needs-decomposition';
   if (hasLabel(labels, 'triage/missing-essentials')) return 'needs-essentials';
   return 'execution-ready';
 }
@@ -446,8 +453,8 @@ function isExecutableSource(issueClass) {
   return !['management-meta', 'tracking-or-umbrella', 'frozen-roadmap', 'post-ship'].includes(issueClass);
 }
 
-function isExecutionReady(issueClass) {
-  return issueClass === 'execution-ready';
+function isExecutionReady(issue) {
+  return issue.issueClass === 'execution-ready' && !issue.verifyPending && !issue.claimed;
 }
 
 function normalizeIssue(issue) {
@@ -455,7 +462,6 @@ function normalizeIssue(issue) {
   const milestoneTitle = issue.milestone?.title || null;
   const issueClass = classifyIssue(issue);
   const executableSource = isExecutableSource(issueClass);
-  const executionReady = isExecutionReady(issueClass);
   const contradictions = [];
   if (hasLabel(labels, 'triage/ready') && hasLabel(labels, 'triage/missing-essentials')) {
     contradictions.push('contradictory_readiness');
@@ -479,16 +485,25 @@ function normalizeIssue(issue) {
     closedAt: issue.closedAt || null,
     issueClass,
     executableSource,
-    executionReady,
+    executionReady: false,
     verifyPending: hasLabel(labels, 'verify:pending'),
     verifyFail: hasLabel(labels, 'verify:fail'),
     managementTicket: hasLabel(labels, 'agent:management-ticket'),
     missingEssentials: hasLabel(labels, 'triage/missing-essentials'),
     needsDecomposition: hasLabel(labels, 'agent:needs-decomposition'),
+    claimed: isClaimed(labels),
+    shipBlocking: isShipBlocking(labels),
     m0Role: isM0Milestone(milestoneTitle) ? m0RoleForIssue(issue.number) : null,
     m0Bundle: isM0Milestone(milestoneTitle) ? m0BundleForIssue(issue.number) : null,
     unexpectedM0: isM0Milestone(milestoneTitle) && m0RoleForIssue(issue.number) === 'unexpected',
     contradictions,
+  };
+}
+
+function finalizeNormalizedIssue(issue) {
+  return {
+    ...issue,
+    executionReady: isExecutionReady(issue),
   };
 }
 
@@ -504,7 +519,7 @@ function countClosedLast24h(closedIssues, milestoneTitle) {
 }
 
 function buildLedger(openIssues, closedIssues, repo) {
-  const normalized = openIssues.map(normalizeIssue);
+  const normalized = openIssues.map(normalizeIssue).map(finalizeNormalizedIssue);
   const activeMilestone =
     MILESTONE_ORDER.find((title) => normalized.some((issue) => issue.milestoneTitle === title && issue.executableSource)) ||
     'none';
@@ -584,10 +599,92 @@ function buildLedger(openIssues, closedIssues, repo) {
   };
 }
 
+function bundleRank(issue) {
+  if (!issue.m0Bundle) return 99;
+  const index = M0_BUNDLE_ORDER.indexOf(issue.m0Bundle);
+  return index >= 0 ? index : 99;
+}
+
+function chooseWorkIssue(ledger, requestedIssueNumber = null) {
+  if (requestedIssueNumber !== null) {
+    const issue = ledger.issues.find((candidate) => candidate.number === requestedIssueNumber) || null;
+    return issue && issue.executableSource ? issue : null;
+  }
+
+  if (ledger.activeMilestone === 'none') return null;
+
+  const candidates = ledger.issues
+    .filter((issue) => issue.milestoneTitle === ledger.activeMilestone)
+    .filter((issue) => issue.executableSource)
+    .filter((issue) => issue.executionReady);
+
+  if (candidates.length === 0) return null;
+
+  return candidates.sort((a, b) => {
+    const shipBlockingDelta = Number(b.shipBlocking) - Number(a.shipBlocking);
+    if (shipBlockingDelta !== 0) return shipBlockingDelta;
+    if (ledger.activeMilestone === M0_TITLE) {
+      const bundleDelta = bundleRank(a) - bundleRank(b);
+      if (bundleDelta !== 0) return bundleDelta;
+    }
+    return a.number - b.number;
+  })[0];
+}
+
+function chooseVerifyIssue(ledger, requestedIssueNumber = null) {
+  if (requestedIssueNumber !== null) {
+    const issue = ledger.issues.find((candidate) => candidate.number === requestedIssueNumber) || null;
+    return issue && issue.executableSource ? issue : null;
+  }
+
+  const inActiveMilestone = ledger.issues
+    .filter((issue) => issue.milestoneTitle === ledger.activeMilestone)
+    .filter((issue) => issue.executableSource)
+    .filter((issue) => issue.verifyPending)
+    .sort((a, b) => a.number - b.number);
+  if (inActiveMilestone.length > 0) return inActiveMilestone[0];
+
+  const globalCandidates = ledger.issues
+    .filter((issue) => issue.executableSource)
+    .filter((issue) => issue.verifyPending)
+    .sort((a, b) => a.number - b.number);
+  return globalCandidates[0] || null;
+}
+
+function emitSelection(selection, githubOutputPath, jsonOutput) {
+  const outputs = selection
+    ? {
+        found: true,
+        issue_number: selection.number,
+        issue_title: selection.title,
+        issue_milestone: selection.milestoneTitle || 'none',
+        issue_bundle: selection.m0Bundle || '',
+        issue_verify_pending: selection.verifyPending,
+      }
+    : {
+        found: false,
+        issue_number: '',
+        issue_title: '',
+        issue_milestone: 'none',
+        issue_bundle: '',
+        issue_verify_pending: false,
+      };
+
+  writeGitHubOutput(githubOutputPath, outputs);
+
+  if (jsonOutput) {
+    console.log(JSON.stringify(selection, null, 2));
+  } else if (selection) {
+    console.log(`selected issue: #${selection.number} ${selection.title}`);
+  } else {
+    console.log('selected issue: none');
+  }
+}
+
 function renderMilestoneBrief(content, ledger) {
   const date = ledger.generatedAt.slice(0, 10);
   const executionTruthNote =
-    'Execution truth comes from generated ledger artifacts under `state/portfolio/` and `state/milestones/`. This brief is a synced summary, not the primary execution source.';
+    'Execution truth comes from generated ledger artifacts under `state/portfolio/` and `state/milestones/`. This brief is an advisory summary and must be checked against live GitHub issue state and CLI behavior before making product decisions.';
   const snapshotLines = [
     '## Backlog Snapshot',
     '',
@@ -808,6 +905,7 @@ function main() {
     args: rest,
     options: {
       repo: { type: 'string' },
+      issue: { type: 'string' },
       input: { type: 'string' },
       'closed-input': { type: 'string' },
       'baseline-in': { type: 'string' },
@@ -892,6 +990,24 @@ function main() {
   }
 
   const ledger = buildLedger(openIssues, closedIssues, repo);
+  if (command === 'select-work') {
+    const requestedIssueNumber =
+      typeof values.issue === 'string' && values.issue.trim()
+        ? Number.parseInt(values.issue, 10)
+        : null;
+    emitSelection(chooseWorkIssue(ledger, Number.isFinite(requestedIssueNumber) ? requestedIssueNumber : null), values['github-output'], values.json);
+    return;
+  }
+
+  if (command === 'select-verify') {
+    const requestedIssueNumber =
+      typeof values.issue === 'string' && values.issue.trim()
+        ? Number.parseInt(values.issue, 10)
+        : null;
+    emitSelection(chooseVerifyIssue(ledger, Number.isFinite(requestedIssueNumber) ? requestedIssueNumber : null), values['github-output'], values.json);
+    return;
+  }
+
   if (values.out) {
     writeJson(values.out, ledger);
   }

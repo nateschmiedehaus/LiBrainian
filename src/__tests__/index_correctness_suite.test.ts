@@ -354,10 +354,26 @@ describe('Index correctness verification suite (issue #467)', () => {
 
     expect(toolResponse.isError).not.toBe(true);
     const payload = JSON.parse(toolResponse.content[0]?.text ?? '{}') as {
+      summary?: string;
+      confidence?: number;
+      dataQuality?: string;
+      followUp?: unknown[];
+      result?: {
+        success?: boolean;
+        tool?: string;
+        tokenCount?: number;
+      };
       success?: boolean;
+      tool?: string;
       tokenCount?: number;
     };
-    expect(payload.success).toBe(true);
-    expect(payload.tokenCount ?? 0).toBeLessThanOrEqual(baseline.contextPack.tokenBudget);
+    const raw = payload.result ?? payload;
+    expect(typeof payload.summary).toBe('string');
+    expect(typeof payload.confidence).toBe('number');
+    expect(typeof payload.dataQuality).toBe('string');
+    expect(Array.isArray(payload.followUp)).toBe(true);
+    expect(raw.success).toBe(true);
+    expect(raw.tool).toBe('get_context_pack');
+    expect(raw.tokenCount ?? 0).toBeLessThanOrEqual(baseline.contextPack.tokenBudget);
   });
 });

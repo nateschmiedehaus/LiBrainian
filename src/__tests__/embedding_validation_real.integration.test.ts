@@ -227,7 +227,7 @@ const GROUND_TRUTH_PAIRS: FilePair[] = [
   {
     name: 'embeddings.ts vs migrations.ts',
     file1: 'api/embeddings.ts',
-    file2: 'api/migrations.ts',
+    file2: 'api/schema_migrations.ts',
     expectedRelated: false,
     difficulty: 'adversarial',
     reason: 'Same api/ folder but completely unrelated concerns',

@@ -15,6 +15,7 @@ import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
 import { getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 import type { LiBrainianStorage } from '../../../storage/types.js';
 import { readQueryCostTelemetry } from '../../../api/query_cost_telemetry.js';
+import { createStalenessTracker } from '../../../storage/staleness.js';
 
 vi.mock('../../db_path.js', () => ({
   resolveDbPath: vi.fn(),
@@ -48,6 +49,9 @@ vi.mock('../../../utils/git.js', () => ({
 vi.mock('../../../api/query_cost_telemetry.js', () => ({
   readQueryCostTelemetry: vi.fn(),
 }));
+vi.mock('../../../storage/staleness.js', () => ({
+  createStalenessTracker: vi.fn(),
+}));
 vi.mock('../../json_output.js', () => ({
   emitJsonOutput: vi.fn(async (payload: unknown, outPath?: string) => {
     const json = JSON.stringify(payload, null, 2);
@@ -71,6 +75,7 @@ describe('statusCommand', () => {
   const workspace = '/test/workspace';
 
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let mockStalenessTracker: { checkFiles: Mock };
   let mockStorage: {
     initialize: Mock;
     close: Mock;
@@ -86,6 +91,10 @@ describe('statusCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const defaultDbPath = path.join(os.tmpdir(), `librarian-status-${Date.now()}-${Math.random().toString(16).slice(2)}.sqlite`);
+    mockStalenessTracker = {
+      checkFiles: vi.fn().mockResolvedValue([]),
+    };
 
     mockStorage = {
       initialize: vi.fn().mockResolvedValue(undefined),
@@ -107,7 +116,7 @@ describe('statusCommand', () => {
       getFileByPath: vi.fn().mockResolvedValue(null),
     };
 
-    vi.mocked(resolveDbPath).mockResolvedValue('/tmp/librarian.sqlite');
+    vi.mocked(resolveDbPath).mockResolvedValue(defaultDbPath);
     vi.mocked(resolveWorkspaceRoot).mockReturnValue({
       original: workspace,
       workspace,
@@ -116,6 +125,7 @@ describe('statusCommand', () => {
       reason: 'no_candidate',
     });
     vi.mocked(createSqliteStorage).mockReturnValue(mockStorage as unknown as LiBrainianStorage);
+    vi.mocked(createStalenessTracker).mockReturnValue(mockStalenessTracker as never);
     vi.mocked(isBootstrapRequired).mockResolvedValue({ required: false, reason: 'ok' });
     vi.mocked(getBootstrapStatus).mockReturnValue({
       status: 'not_started',
@@ -262,6 +272,28 @@ describe('statusCommand', () => {
     expect(exitCode).toBe(1);
   });
 
+  it('surfaces repair-required bootstrap state as queryable when a usable snapshot exists', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    vi.mocked(isBootstrapRequired)
+      .mockResolvedValueOnce({
+        required: true,
+        reason: 'Previous bootstrap incomplete (last recorded phase: embeddings). Resume with `librainian bootstrap` or restart durable state with `librainian bootstrap --force --mode fast`.',
+      })
+      .mockResolvedValueOnce({ required: false, reason: 'ok' });
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      healthSummary?: {
+        checks?: Array<{ name?: string; message?: string; suggestion?: string }>;
+      };
+    };
+    const bootstrapCheck = parsed.healthSummary?.checks?.find((check) => check.name === 'Bootstrap Status');
+    expect(bootstrapCheck?.message).toContain('last-good snapshot may still be queryable');
+    expect(bootstrapCheck?.suggestion).toContain('--mode fast');
+  });
+
   it('marks storage as degraded when active lock pids are present', async () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     vi.mocked(inspectWorkspaceLocks).mockResolvedValue({
@@ -278,12 +310,16 @@ describe('statusCommand', () => {
     const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
     const parsed = JSON.parse(output ?? '{}') as {
       storage?: { status?: string; reason?: string };
+      healthSummary?: { checks?: Array<{ name?: string; status?: string; message?: string }> };
       locks?: { activePidFiles?: number };
     };
     expect(parsed.storage?.status).toBe('degraded');
     expect(parsed.storage?.reason).toContain('active storage lock');
     expect(parsed.locks?.activePidFiles).toBe(2);
-    expect(exitCode).toBe(1);
+    const storageCheck = parsed.healthSummary?.checks?.find((check) => check.name === 'Database Access');
+    expect(storageCheck?.status).toBe('WARNING');
+    expect(storageCheck?.message).toContain('Database busy');
+    expect(exitCode).toBe(0);
   });
 
   it('marks storage as degraded when active database lock file is present', async () => {
@@ -311,15 +347,55 @@ describe('statusCommand', () => {
     const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
     const parsed = JSON.parse(output ?? '{}') as {
       storage?: { status?: string; reason?: string };
+      healthSummary?: { checks?: Array<{ name?: string; status?: string; message?: string }> };
       locks?: { databaseLockActive?: boolean; databaseLockPid?: number | null };
     };
     expect(parsed.storage?.status).toBe('degraded');
     expect(parsed.storage?.reason).toContain('active database lock');
     expect(parsed.locks?.databaseLockActive).toBe(true);
     expect(parsed.locks?.databaseLockPid).toBe(process.pid);
-    expect(exitCode).toBe(1);
+    const storageCheck = parsed.healthSummary?.checks?.find((check) => check.name === 'Database Access');
+    expect(storageCheck?.status).toBe('WARNING');
+    expect(storageCheck?.message).toContain('Database busy');
+    expect(exitCode).toBe(0);
 
     await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  it('reports busy initialization failures as degraded storage instead of not initialized', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.initialize.mockRejectedValue(new Error('storage_locked:indexing in progress (pid=1234)'));
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      storage?: { status?: string; reason?: string };
+      healthSummary?: { checks?: Array<{ name?: string; status?: string; message?: string }> };
+    };
+    expect(parsed.storage?.status).toBe('degraded');
+    expect(parsed.storage?.reason).toContain('indexing in progress');
+    const storageCheck = parsed.healthSummary?.checks?.find((check) => check.name === 'Database Access');
+    expect(storageCheck?.status).toBe('WARNING');
+    expect(storageCheck?.message).toContain('Database busy');
+    expect(exitCode).toBe(0);
+  });
+
+  it('fails closed when storage recovery fails during initialization', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.initialize.mockRejectedValue(
+      new Error('storage_recovery_failed:recoverable storage initialization failed for /tmp/librarian.sqlite: database disk image is malformed')
+    );
+
+    const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      storage?: { status?: string; reason?: string };
+    };
+    expect(parsed.storage?.status).toBe('not_initialized');
+    expect(parsed.storage?.reason).toContain('recoverable storage initialization failed');
+    expect(exitCode).toBe(2);
   });
 
   it('includes cost telemetry in JSON output when --costs is enabled', async () => {
@@ -501,11 +577,14 @@ describe('statusCommand', () => {
       modified: ['src/changed.ts'],
       deleted: ['src/deleted.ts'],
     });
-    mockStorage.getFileByPath.mockImplementation(async (filePath: string) => {
-      if (filePath.endsWith('changed.ts')) return { id: 'changed' };
-      if (filePath.endsWith('deleted.ts')) return { id: 'deleted' };
-      return null;
-    });
+    mockStalenessTracker.checkFiles
+      .mockResolvedValueOnce([
+        { status: 'new' },
+        { status: 'stale' },
+      ])
+      .mockResolvedValueOnce([
+        { status: 'missing' },
+      ]);
 
     await statusCommand({ workspace, verbose: false, format: 'json' });
 
@@ -515,6 +594,37 @@ describe('statusCommand', () => {
     expect(parsed.freshness?.missingFiles).toBe(1);
     expect(parsed.freshness?.newFiles).toBe(1);
     expect(parsed.freshness?.freshFiles).toBe(8);
+  });
+
+  it('ignores non-indexable git artifacts in freshness counts', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    mockStorage.getMetadata.mockResolvedValue({
+      version: { major: 1, minor: 2, patch: 3, string: '1.2.3' },
+      qualityTier: 'full',
+      lastBootstrap: '2026-01-19T02:00:00.000Z',
+      lastIndexing: '2026-01-19T03:00:00.000Z',
+      totalFiles: 10,
+      workspace,
+      totalFunctions: 0,
+      totalContextPacks: 0,
+    });
+    vi.mocked(getGitStatusChanges).mockResolvedValue({
+      added: ['librainian-0.2.1.tgz', 'src/new.ts'],
+      modified: [],
+      deleted: [],
+    });
+    mockStalenessTracker.checkFiles.mockResolvedValueOnce([
+      { status: 'new' },
+    ]);
+
+    await statusCommand({ workspace, verbose: false, format: 'json' });
+
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as { freshness?: { newFiles?: number } };
+    expect(parsed.freshness?.newFiles).toBe(1);
+    expect(mockStalenessTracker.checkFiles).toHaveBeenCalledWith([
+      path.resolve(workspace, 'src/new.ts'),
+    ]);
   });
 
   it('handles serialized metadata timestamps from storage', async () => {
@@ -612,9 +722,28 @@ describe('statusCommand', () => {
       modified: ['src/changed.ts'],
       deleted: [],
     });
-    mockStorage.getFileByPath.mockResolvedValue({ id: 'changed' });
+    mockStalenessTracker.checkFiles
+      .mockResolvedValueOnce([{ status: 'stale' }])
+      .mockResolvedValueOnce([]);
 
     const exitCode = await statusCommand({ workspace, verbose: false, format: 'json' });
+    const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+    const parsed = JSON.parse(output ?? '{}') as {
+      healthSummary?: {
+        status?: string;
+        summary?: { warnings?: number };
+        checks?: Array<{ name?: string; status?: string; message?: string }>;
+      };
+    };
+
+    expect(parsed.healthSummary?.status).toBe('WARNING');
+    expect((parsed.healthSummary?.summary?.warnings ?? 0)).toBeGreaterThanOrEqual(1);
+    expect(parsed.healthSummary?.checks).toContainEqual(expect.objectContaining({
+      name: 'Index Freshness',
+      status: 'WARNING',
+      message: 'Index drift detected: 1 stale, 0 missing, 0 new file(s)',
+      suggestion: 'Run `librainian index --force --incremental` to refresh the index against current workspace changes',
+    }));
     expect(exitCode).toBe(0);
   });
 
@@ -665,7 +794,7 @@ describe('statusCommand', () => {
     vi.mocked(getWatchState).mockResolvedValue(null);
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'status-cross-db-'));
     const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
-    const legacyDbPath = path.join(tempRoot, '.librarian', 'knowledge.db');
+    const legacyDbPath = path.join(tempRoot, '.librarian', 'librarian.db');
 
     try {
       await fs.mkdir(path.dirname(activeDbPath), { recursive: true });
@@ -703,6 +832,44 @@ describe('statusCommand', () => {
         message: 'Legacy DB files are newer than active store (1 files)',
       }));
       expect(exitCode).toBe(1);
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat active auxiliary stores as legacy cross-db artifacts', async () => {
+    vi.mocked(getWatchState).mockResolvedValue(null);
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'status-cross-db-active-aux-'));
+    const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
+    const knowledgeDbPath = path.join(tempRoot, '.librarian', 'knowledge.db');
+    const evidenceDbPath = path.join(tempRoot, '.librarian', 'evidence_ledger.db');
+
+    try {
+      await fs.mkdir(path.dirname(activeDbPath), { recursive: true });
+      await fs.writeFile(activeDbPath, '', 'utf8');
+      await fs.writeFile(knowledgeDbPath, '', 'utf8');
+      await fs.writeFile(evidenceDbPath, '', 'utf8');
+
+      vi.mocked(resolveDbPath).mockResolvedValue(activeDbPath);
+      vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+        original: tempRoot,
+        workspace: tempRoot,
+        changed: false,
+        sourceFileCount: 0,
+        reason: 'no_candidate',
+      });
+
+      const exitCode = await statusCommand({ workspace: tempRoot, verbose: false, format: 'json' });
+
+      const output = consoleLogSpy.mock.calls[0]?.[0] as string | undefined;
+      const parsed = JSON.parse(output ?? '{}') as {
+        healthSummary?: {
+          checks?: Array<{ name?: string; status?: string }>;
+        };
+      };
+      const crossDb = parsed.healthSummary?.checks?.find((check) => check.name === 'Cross-DB Consistency');
+      expect(crossDb).toBeUndefined();
+      expect(exitCode).toBe(0);
     } finally {
       await fs.rm(tempRoot, { recursive: true, force: true });
     }

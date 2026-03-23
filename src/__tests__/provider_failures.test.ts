@@ -6,6 +6,8 @@ import {
   classifyProviderFailure,
   getActiveProviderFailures,
   recordProviderFailure,
+  resolveProviderWorkspaceRoot,
+  withProviderWorkspaceRoot,
 } from '../utils/provider_failures.js';
 
 describe('provider_failures', () => {
@@ -111,6 +113,20 @@ describe('provider_failures', () => {
       const failures = await getActiveProviderFailures(workspaceRoot);
       expect(failures.codex?.reason).toBe('invalid_response');
     } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers scoped provider workspace context over cwd and env overrides', async () => {
+    const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'librarian-provider-failure-scope-'));
+    const originalEnv = process.env.LIBRARIAN_WORKSPACE_ROOT;
+    process.env.LIBRARIAN_WORKSPACE_ROOT = '/tmp/provider-env-root';
+    try {
+      const resolved = withProviderWorkspaceRoot(workspaceRoot, () => resolveProviderWorkspaceRoot('/tmp/other-cwd'));
+      expect(resolved).toBe(workspaceRoot);
+    } finally {
+      if (originalEnv === undefined) delete process.env.LIBRARIAN_WORKSPACE_ROOT;
+      else process.env.LIBRARIAN_WORKSPACE_ROOT = originalEnv;
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });

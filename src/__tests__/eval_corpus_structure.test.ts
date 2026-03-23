@@ -1,201 +1,163 @@
-import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const corpusRoot = resolve(process.cwd(), 'eval-corpus');
-
-const repoIds = [
+const externalReposRoot = join(corpusRoot, 'external-repos');
+const manifestPath = join(externalReposRoot, 'manifest.json');
+const MIN_REAL_REPOS = 10;
+const MIN_UNANSWERABLE_RATIO = 0.2;
+const SYNTHETIC_FIXTURE_IDS = new Set([
   'small-typescript',
   'medium-python',
   'medium-mixed',
   'large-monorepo',
   'adversarial',
-];
+]);
 
-const queryCategories = [
-  'structural',
-  'behavioral',
-  'architectural',
-  'impact',
-  'security',
-];
+type ExternalRepoEntry = {
+  name?: string;
+  remote?: string;
+  source?: string;
+  commit?: string;
+  verifiedAt?: string;
+  language?: string;
+};
 
-describe('eval corpus structure', () => {
-  it('creates top-level corpus directories and README', () => {
-    expect(existsSync(corpusRoot)).toBe(true);
-    expect(existsSync(join(corpusRoot, 'README.md'))).toBe(true);
-    expect(existsSync(join(corpusRoot, 'schema'))).toBe(true);
-    expect(existsSync(join(corpusRoot, 'repos'))).toBe(true);
-    expect(existsSync(join(corpusRoot, 'queries'))).toBe(true);
-  });
+type ExternalRepoManifest = {
+  repos?: ExternalRepoEntry[];
+};
 
-  it('provides a ground truth schema placeholder', () => {
-    const schemaPath = join(corpusRoot, 'schema', 'ground_truth.schema.json');
-    expect(existsSync(schemaPath)).toBe(true);
+type GroundTruthQuery = {
+  verificationNotes?: string;
+  verifiedBy?: string;
+  tags?: string[];
+  correctAnswer?: {
+    evidenceRefs?: Array<{ path?: string }>;
+  };
+};
 
-    const raw = readFileSync(schemaPath, 'utf8');
-    const schema = JSON.parse(raw) as {
-      title?: string;
-      type?: string;
-      required?: string[];
-      definitions?: Record<string, unknown>;
-    };
+type RepoManifest = {
+  repoId?: string;
+  name?: string;
+  languages?: string[];
+  fileCount?: number;
+};
 
-    expect(schema.title).toBe('GroundTruthCorpus');
-    expect(schema.type).toBe('object');
-    expect(schema.required).toEqual(
-      expect.arrayContaining(['version', 'repos', 'queries'])
-    );
-    expect(schema.definitions && typeof schema.definitions).toBe('object');
-    expect(schema.definitions).toHaveProperty('RepoManifest');
-    expect(schema.definitions).toHaveProperty('GroundTruthQuery');
-    expect(schema.definitions).toHaveProperty('CorrectAnswer');
-    expect(schema.definitions).toHaveProperty('EvidenceRef');
-    expect(schema.definitions).toHaveProperty('EvidenceLink');
-    expect(schema.definitions).toHaveProperty('EvidenceLocation');
+function readJson<T>(filePath: string): T {
+  return JSON.parse(readFileSync(filePath, 'utf8')) as T;
+}
 
-    const correctAnswer = schema.definitions?.CorrectAnswer as {
-      required?: string[];
-    };
-    expect(correctAnswer?.required).toEqual(
-      expect.arrayContaining(['evidenceRefs'])
-    );
-  });
+function loadExternalManifest(): ExternalRepoManifest {
+  expect(existsSync(manifestPath)).toBe(true);
+  return readJson<ExternalRepoManifest>(manifestPath);
+}
 
-  it('creates repo fixtures with manifests and ground-truth placeholders', () => {
-    const requiredManifestKeys = [
-      'repoId',
-      'name',
-      'languages',
-      'fileCount',
-      'annotationLevel',
-      'characteristics',
-    ];
+function collectAuthoritativeRepos() {
+  const manifest = loadExternalManifest();
+  const repos = Array.isArray(manifest.repos) ? manifest.repos : [];
 
-    repoIds.forEach((repoId) => {
-      const repoRoot = join(corpusRoot, 'repos', repoId);
+  return repos
+    .filter((repo): repo is Required<Pick<ExternalRepoEntry, 'name'>> & ExternalRepoEntry => typeof repo.name === 'string' && repo.name.length > 0)
+    .map((repo) => {
+      const repoRoot = join(externalReposRoot, repo.name);
       const evalRoot = join(repoRoot, '.librarian-eval');
-      const manifestPath = join(evalRoot, 'manifest.json');
+      const repoManifestPath = join(evalRoot, 'manifest.json');
       const groundTruthPath = join(evalRoot, 'ground-truth.json');
 
-      expect(existsSync(repoRoot)).toBe(true);
-      expect(existsSync(evalRoot)).toBe(true);
-      expect(existsSync(manifestPath)).toBe(true);
-      expect(existsSync(groundTruthPath)).toBe(true);
+      return {
+        entry: repo,
+        repoRoot,
+        repoManifestPath,
+        groundTruthPath,
+        hasCheckout: existsSync(repoRoot) && existsSync(join(repoRoot, '.git')),
+        hasEvalArtifacts: existsSync(repoManifestPath) && existsSync(groundTruthPath),
+      };
+    });
+}
 
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
-      requiredManifestKeys.forEach((key) => {
-        expect(manifest).toHaveProperty(key);
+describe('eval corpus structure', () => {
+  it('tracks at least ten real external repos pinned to commits', () => {
+    expect(existsSync(corpusRoot)).toBe(true);
+    expect(existsSync(join(corpusRoot, 'README.md'))).toBe(true);
+    expect(existsSync(join(corpusRoot, 'schema', 'ground_truth.schema.json'))).toBe(true);
+
+    const manifest = loadExternalManifest();
+    const repos = Array.isArray(manifest.repos) ? manifest.repos : [];
+    expect(repos.length).toBeGreaterThanOrEqual(MIN_REAL_REPOS);
+
+    for (const repo of repos) {
+      expect(typeof repo.name).toBe('string');
+      expect(repo.name?.length ?? 0).toBeGreaterThan(0);
+      expect(SYNTHETIC_FIXTURE_IDS.has(repo.name ?? '')).toBe(false);
+      expect(typeof repo.remote).toBe('string');
+      expect(repo.remote).toContain('github.com');
+      expect(typeof repo.source).toBe('string');
+      expect(repo.source).toContain('github.com');
+      expect(typeof repo.commit).toBe('string');
+      expect(repo.commit).toMatch(/^[0-9a-f]{40}$/);
+      expect(typeof repo.verifiedAt).toBe('string');
+      expect(repo.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('keeps at least ten external repos checked out with git metadata', () => {
+    const repos = collectAuthoritativeRepos();
+    const checkedOut = repos.filter((repo) => repo.hasCheckout);
+    expect(checkedOut.length).toBeGreaterThanOrEqual(MIN_REAL_REPOS);
+  });
+
+  it('stores AST-generated ground truth for at least ten authoritative repos', () => {
+    const repos = collectAuthoritativeRepos()
+      .filter((repo) => repo.hasEvalArtifacts)
+      .map((repo) => {
+        const groundTruth = readJson<{ repoId?: string; queries?: GroundTruthQuery[] }>(repo.groundTruthPath);
+        return {
+          ...repo,
+          groundTruth,
+          queries: Array.isArray(groundTruth.queries) ? groundTruth.queries : [],
+        };
       });
-    });
+    expect(repos.length).toBeGreaterThanOrEqual(MIN_REAL_REPOS);
 
-    const annotationsRoot = join(
-      corpusRoot,
-      'repos',
-      'small-typescript',
-      '.librarian-eval',
-      'annotations'
-    );
+    const reposWithQueries = repos.filter((repo) => repo.queries.length > 0);
+    expect(reposWithQueries.length).toBeGreaterThan(0);
 
-    expect(existsSync(annotationsRoot)).toBe(true);
-    expect(existsSync(join(annotationsRoot, 'architecture.md'))).toBe(true);
-    expect(existsSync(join(annotationsRoot, 'auth-flow.md'))).toBe(true);
-    expect(existsSync(join(annotationsRoot, 'impact-matrix.json'))).toBe(true);
+    for (const repo of repos.slice(0, MIN_REAL_REPOS)) {
+      const repoManifest = readJson<RepoManifest>(repo.repoManifestPath);
+
+      expect(repoManifest.repoId).toBe(repo.entry.name);
+      expect(repoManifest.name).toBe(repo.entry.name);
+      expect(Array.isArray(repoManifest.languages)).toBe(true);
+      expect((repoManifest.fileCount ?? 0)).toBeGreaterThan(0);
+    }
+
+    for (const repo of reposWithQueries) {
+      const queries = repo.queries;
+      expect(queries.length).toBeGreaterThan(0);
+
+      for (const query of queries) {
+        expect(query.verificationNotes).toContain('AST facts');
+        expect(query.verifiedBy).toContain('external');
+        expect(query.tags).toEqual(expect.arrayContaining(['structural_ground_truth']));
+        expect(query.correctAnswer?.evidenceRefs?.length ?? 0).toBeGreaterThan(0);
+      }
+    }
   });
 
-  it('populates the small-typescript ground truth with minimum QA pairs', () => {
-    const groundTruthPath = join(
-      corpusRoot,
-      'repos',
-      'small-typescript',
-      '.librarian-eval',
-      'ground-truth.json'
-    );
+  it('maintains at least twenty percent unanswerable coverage across the authoritative corpus', () => {
+    const repos = collectAuthoritativeRepos().filter((repo) => repo.hasEvalArtifacts);
+    let totalQueries = 0;
+    let unanswerableQueries = 0;
 
-    const payload = JSON.parse(readFileSync(groundTruthPath, 'utf8')) as {
-      queries?: unknown[];
-    };
+    for (const repo of repos) {
+      const groundTruth = readJson<{ queries?: GroundTruthQuery[] }>(repo.groundTruthPath);
+      const queries = Array.isArray(groundTruth.queries) ? groundTruth.queries : [];
+      totalQueries += queries.length;
+      unanswerableQueries += queries.filter((query) => query.tags?.includes('unanswerable')).length;
+    }
 
-    expect(Array.isArray(payload.queries)).toBe(true);
-    expect(payload.queries?.length ?? 0).toBeGreaterThanOrEqual(20);
-  });
-
-  it('populates medium repo ground truth with minimum QA pairs', () => {
-    const mediumPythonPath = join(
-      corpusRoot,
-      'repos',
-      'medium-python',
-      '.librarian-eval',
-      'ground-truth.json'
-    );
-    const mediumMixedPath = join(
-      corpusRoot,
-      'repos',
-      'medium-mixed',
-      '.librarian-eval',
-      'ground-truth.json'
-    );
-
-    const pythonPayload = JSON.parse(readFileSync(mediumPythonPath, 'utf8')) as {
-      queries?: unknown[];
-    };
-    const mixedPayload = JSON.parse(readFileSync(mediumMixedPath, 'utf8')) as {
-      queries?: unknown[];
-    };
-
-    expect(Array.isArray(pythonPayload.queries)).toBe(true);
-    expect(Array.isArray(mixedPayload.queries)).toBe(true);
-    expect(pythonPayload.queries?.length ?? 0).toBeGreaterThanOrEqual(15);
-    expect(mixedPayload.queries?.length ?? 0).toBeGreaterThanOrEqual(15);
-  });
-
-  it('populates adversarial ground truth with minimum QA pairs', () => {
-    const groundTruthPath = join(
-      corpusRoot,
-      'repos',
-      'adversarial',
-      '.librarian-eval',
-      'ground-truth.json'
-    );
-
-    const payload = JSON.parse(readFileSync(groundTruthPath, 'utf8')) as {
-      queries?: unknown[];
-    };
-
-    expect(Array.isArray(payload.queries)).toBe(true);
-    expect(payload.queries?.length ?? 0).toBeGreaterThanOrEqual(15);
-  });
-
-  it('tracks total QA coverage across repos', () => {
-    const total = repoIds.reduce((sum, repoId) => {
-      const groundTruthPath = join(
-        corpusRoot,
-        'repos',
-        repoId,
-        '.librarian-eval',
-        'ground-truth.json'
-      );
-      const payload = JSON.parse(readFileSync(groundTruthPath, 'utf8')) as {
-        queries?: unknown[];
-      };
-      return sum + (payload.queries?.length ?? 0);
-    }, 0);
-
-    expect(total).toBeGreaterThanOrEqual(200);
-  });
-
-  it('includes query category placeholders', () => {
-    queryCategories.forEach((category) => {
-      const queryPath = join(corpusRoot, 'queries', `${category}.json`);
-      expect(existsSync(queryPath)).toBe(true);
-
-      const payload = JSON.parse(readFileSync(queryPath, 'utf8')) as {
-        category?: string;
-        queries?: unknown[];
-      };
-
-      expect(payload.category).toBe(category);
-      expect(Array.isArray(payload.queries)).toBe(true);
-    });
+    expect(totalQueries).toBeGreaterThan(0);
+    expect(unanswerableQueries / totalQueries).toBeGreaterThanOrEqual(MIN_UNANSWERABLE_RATIO);
   });
 });

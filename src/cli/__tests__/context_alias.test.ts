@@ -9,14 +9,14 @@ describe('context command alias', () => {
 
   it('has dedicated help text describing it as a query --depth L3 alias', () => {
     const help = getCommandHelp('context');
-    expect(help).toContain('librarian context');
+    expect(help).toContain('librainian context');
     expect(help).toContain('query');
     expect(help).toContain('L3');
   });
 
   it('help text includes usage examples', () => {
     const help = getCommandHelp('context');
-    expect(help).toContain('librarian context "error handling"');
+    expect(help).toContain('librainian context "error handling"');
     expect(help).toContain('--json');
   });
 

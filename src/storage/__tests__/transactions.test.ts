@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   withinTransaction,
   TransactionConflictError,
+  TransactionMergeUnimplementedError,
+  TransactionRetryExhaustedError,
 } from '../transactions.js';
 import type { LibrarianStorage, TransactionContext } from '../types.js';
 
@@ -64,7 +66,21 @@ describe('withinTransaction', () => {
       withinTransaction(storage, async () => 'ok', {
         contract: { onConflict: 'merge', maxRetries: 0 },
       })
-    ).rejects.toThrow('transaction_merge_unimplemented');
+    ).rejects.toBeInstanceOf(TransactionMergeUnimplementedError);
+  });
+
+  it('throws retry exhaustion with conflict context after the last retry', async () => {
+    const storage = {
+      transaction: async (): Promise<string> => {
+        throw new TransactionConflictError('collision');
+      },
+    } as unknown as LibrarianStorage;
+
+    await expect(
+      withinTransaction(storage, async () => 'ok', {
+        contract: { onConflict: 'retry', maxRetries: 1 },
+      })
+    ).rejects.toBeInstanceOf(TransactionRetryExhaustedError);
   });
 
   it('applies exponential backoff between retry attempts', async () => {

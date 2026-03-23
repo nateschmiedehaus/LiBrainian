@@ -8,11 +8,13 @@ describe('package identity', () => {
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
       name?: string;
       bin?: Record<string, string>;
+      exports?: Record<string, unknown>;
     };
 
     expect(packageJson.name).toBe('librainian');
     expect(packageJson.bin?.librainian).toBe('./dist/cli/index.js');
     expect(packageJson.bin?.librarian).toBe('./dist/cli/index.js');
+    expect(Object.keys(packageJson.exports ?? {})).toEqual(['.']);
   });
 
   it('documents install and import using librainian package id', () => {
@@ -20,6 +22,7 @@ describe('package identity', () => {
     const readme = fs.readFileSync(readmePath, 'utf8');
 
     expect(readme).toContain('npm install librainian');
-    expect(readme).toContain("import { createLibrarian } from 'librainian';");
+    expect(readme).toContain("import { initializeLibrarian } from 'librainian';");
+    expect(readme).not.toContain("import { createLibrarian } from 'librainian';");
   });
 });

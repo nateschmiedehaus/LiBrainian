@@ -156,11 +156,11 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
   {
     id: 'comprehensive-quality-construction',
     basePriority: 65,
-    isCore: true,
+    isCore: false,
     availability: EXPERIMENTAL,
     description: 'Comprehensive code quality assessment',
     motivation: 'Produce a broad quality baseline to prioritize engineering improvements.',
-    tags: ['quality'],
+    tags: ['quality', 'experimental'],
   },
   {
     id: 'preflight-checker',
@@ -567,8 +567,30 @@ export const DEFAULT_CONSTRUCTABLE_DEFINITIONS: ConstructableDefinition[] = [
   },
 ];
 
+function internalConstructableSurfaceEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
+const PUBLIC_HIDDEN_CONSTRUCTABLES = new Set<ConstructableId>([
+  'comprehensive-quality-construction',
+  'patrol-dogfood',
+]);
+
+function shouldExposeConstructableDefinition(definition: ConstructableDefinition): boolean {
+  if (internalConstructableSurfaceEnabled()) {
+    return true;
+  }
+  return !PUBLIC_HIDDEN_CONSTRUCTABLES.has(definition.id);
+}
+
 export function listConstructableDefinitions(): ConstructableDefinition[] {
   return DEFAULT_CONSTRUCTABLE_DEFINITIONS.map((definition) => ({ ...definition }));
+}
+
+export function listPublicConstructableDefinitions(): ConstructableDefinition[] {
+  return DEFAULT_CONSTRUCTABLE_DEFINITIONS
+    .filter((definition) => shouldExposeConstructableDefinition(definition))
+    .map((definition) => ({ ...definition }));
 }
 
 export function getConstructableDefinition(id: ConstructableId): ConstructableDefinition | undefined {

@@ -197,6 +197,203 @@ describe('MCP Server', () => {
       expect(semanticSearchTool?.description).toContain('Primary semantic code localization');
     });
 
+    it('advertises only the configured tool subset and hides blast_radius from discovery', async () => {
+      const configuredServer = await createLibrarianMCPServer({
+        enabledTools: ['query', 'get_context_pack', 'get_change_impact'],
+        authorization: {
+          enabledScopes: ['read', 'write', 'execute', 'network', 'admin'],
+          requireConsent: false,
+        },
+        audit: {
+          enabled: false,
+          logPath: '.librarian/audit/mcp',
+          retentionDays: 1,
+        },
+      });
+
+      const advertisedTools = (configuredServer as any).getAdvertisedTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+
+      expect(advertisedTools.map((tool) => tool.name)).toEqual([
+        'get_context_pack',
+        'query',
+        'get_change_impact',
+      ]);
+      expect(advertisedTools.find((tool) => tool.name === 'blast_radius')).toBeUndefined();
+      expect(advertisedTools.find((tool) => tool.name === 'get_change_impact')?.description).toContain('Also known as blast_radius');
+    });
+
+    it('hides legacy snake_case query aliases from advertised schemas while keeping the callable tool registered', () => {
+      const advertisedTools = (server as any).getAdvertisedTools() as Array<{
+        name: string;
+        inputSchema?: { properties?: Record<string, unknown> };
+      }>;
+      const queryTool = advertisedTools.find((tool) => tool.name === 'query');
+      const availableTools = (server as any).getAvailableTools() as Array<{
+        name: string;
+      }>;
+
+      expect(availableTools.find((tool) => tool.name === 'blast_radius')).toBeDefined();
+      expect(queryTool?.inputSchema?.properties?.context_hints).toBeUndefined();
+      expect(queryTool?.inputSchema?.properties?.recency_weight).toBeUndefined();
+      expect(queryTool?.inputSchema?.properties?.explain_misses).toBeUndefined();
+    });
+
+    it('applies the 4-part description template to every advertised tool', () => {
+      const advertisedTools = (server as any).getAdvertisedTools() as Array<{
+        name: string;
+        description?: string;
+      }>;
+
+      expect(advertisedTools.length).toBeGreaterThanOrEqual(10);
+      for (const tool of advertisedTools) {
+        expect(tool.description).toBeDefined();
+        expect(tool.description).toMatch(/Use(?: this)? when/i);
+        expect(tool.description).toContain('Provide');
+        expect(tool.description).toContain('Returns');
+        expect(tool.description).toContain('Not for');
+        expect(tool.description!.length).toBeLessThan(450);
+      }
+    });
+
+    it('renames confusing tools in the advertised surface while leaving old names out of tools/list', () => {
+      const advertisedTools = (server as any).getAdvertisedTools() as Array<{
+        name: string;
+      }>;
+      const names = advertisedTools.map((tool) => tool.name);
+
+      expect(names).toContain('describe_capabilities');
+      expect(names).toContain('run_health_check');
+      expect(names).toContain('query_codebase');
+      expect(names).not.toContain('system_contract');
+      expect(names).not.toContain('diagnose_self');
+      expect(names).not.toContain('compile_technique_composition');
+    });
+
+    it.each([
+      [
+        'query',
+        { intent: 'trace auth flow' },
+        {
+          packs: [{ packId: 'pack_1' }],
+          intent: 'trace auth flow',
+          totalConfidence: 0.84,
+          aggregateConfidence: { tier: 'high' },
+          disclosures: [],
+        },
+      ],
+      [
+        'get_context_pack',
+        { intent: 'prepare auth refactor' },
+        {
+          success: true,
+          intent: 'prepare auth refactor',
+          confidenceInIntent: 0.81,
+          tokenCount: 1400,
+          staleness: 'fresh',
+          contextComposition: { selectedPackCount: 3 },
+        },
+      ],
+      [
+        'find_symbol',
+        { query: 'validateToken' },
+        {
+          success: true,
+          query: 'validateToken',
+          totalMatches: 1,
+          matches: [{ name: 'validateToken', filePath: 'src/auth.ts', score: 0.93 }],
+        },
+      ],
+      [
+        'get_change_impact',
+        { target: 'src/auth.ts' },
+        {
+          success: true,
+          summary: { riskLevel: 'high', totalImpacted: 4 },
+          impacted: [{ filePath: 'src/session.ts' }],
+        },
+      ],
+      [
+        'explain_function',
+        { name: 'validateToken' },
+        {
+          found: true,
+          function: {
+            name: 'validateToken',
+            filePath: 'src/auth.ts',
+            callers: [{ id: 'caller_1' }],
+            callees: [{ id: 'callee_1' }],
+            confidence: 0.82,
+          },
+        },
+      ],
+      [
+        'find_usages',
+        { symbol: 'validateToken' },
+        {
+          success: true,
+          symbol: 'validateToken',
+          totalMatches: 2,
+          matches: [{ id: 'usage_1' }, { id: 'usage_2' }],
+        },
+      ],
+      [
+        'get_repo_map',
+        {},
+        {
+          success: true,
+          style: 'json',
+          entries: [{ path: 'src/api/query.ts' }, { path: 'src/mcp/server.ts' }],
+        },
+      ],
+    ])('wraps %s callTool responses in the standard golden-path envelope', async (toolName, args, payload) => {
+      vi.spyOn(server as any, 'executeTool').mockResolvedValueOnce(payload);
+
+      const callResult = await (server as any).callTool(toolName, args);
+      expect(callResult.isError).not.toBe(true);
+
+      const content = callResult.content[0];
+      expect(content.type).toBe('text');
+      const parsed = JSON.parse(content.text) as {
+        tool: string;
+        summary: string;
+        confidence: number;
+        dataQuality: string;
+        warnings: string[];
+        followUp: Array<{ tool: string; rationale: string }>;
+        result: Record<string, unknown>;
+      };
+
+      expect(parsed.tool).toBe(toolName);
+      expect(typeof parsed.summary).toBe('string');
+      expect(parsed.summary.length).toBeGreaterThan(20);
+      expect(parsed.confidence).toBeGreaterThanOrEqual(0);
+      expect(parsed.confidence).toBeLessThanOrEqual(1);
+      expect(['semantic', 'heuristic', 'degraded']).toContain(parsed.dataQuality);
+      expect(Array.isArray(parsed.warnings)).toBe(true);
+      expect(Array.isArray(parsed.followUp)).toBe(true);
+      expect(parsed.followUp.length).toBeGreaterThan(0);
+      expect(parsed.result).toEqual(payload);
+    });
+
+    it.each([
+      ['describe_capabilities', {}, 'system_contract'],
+      ['run_health_check', {}, 'diagnose_self'],
+      ['query_codebase', { compositionId: 'auth-review' }, 'compile_technique_composition'],
+    ])('accepts %s as a backward-compatible MCP alias for %s', async (requestedName, args, canonicalName) => {
+      const executeToolSpy = vi.spyOn(server as any, 'executeTool').mockResolvedValueOnce({
+        success: true,
+        tool: canonicalName,
+      });
+
+      const callResult = await (server as any).callTool(requestedName, args);
+      expect(callResult.isError).not.toBe(true);
+      expect(executeToolSpy).toHaveBeenCalled();
+      expect(executeToolSpy.mock.calls[0]?.[0]).toBe(canonicalName);
+    });
+
     it('includes get_context_pack as token-budgeted context retrieval tool', () => {
       const tools = (server as any).getAvailableTools() as Array<{
         name: string;
@@ -471,7 +668,7 @@ describe('MCP Server', () => {
         workspace,
       }, {});
 
-      expect(result.error).toContain('librarian embed --fix');
+      expect(result.error).toContain('librainian embed --fix');
       expect(result.embeddingCoverage?.coverage_pct).toBe(20);
       expect(result.embeddingCoverage?.needs_embedding_count).toBe(80);
       expect(executeQuerySpy).not.toHaveBeenCalled();

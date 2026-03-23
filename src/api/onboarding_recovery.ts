@@ -116,7 +116,7 @@ export async function runOnboardingRecovery(
     dbPath,
     autoHealConfig = true,
     riskTolerance = 'low',
-    allowDegradedEmbeddings = true,
+    allowDegradedEmbeddings = false,
     bootstrapMode = 'full',
     emitBaseline = false,
     updateAgentDocs = false,
@@ -272,14 +272,14 @@ export async function runOnboardingRecovery(
     }
 
     let providerStatus: AllProviderStatus | null = null;
-    let skipEmbeddings = true;
+    let skipEmbeddings = false;
     let skipLlm = true;
 
     try {
       providerStatus = await checkAllProviders({ workspaceRoot: activeWorkspace });
-      // Fast bootstrap is intentionally deterministic and latency-first:
-      // disable embeddings and LLM work to avoid long first-run stalls on large repos.
-      skipEmbeddings = bootstrapMode !== 'full' ? true : !providerStatus.embedding.available;
+      // Fast bootstrap stays semantically useful: embeddings remain enabled when
+      // available, while LLM enrichment is deferred unless full mode is requested.
+      skipEmbeddings = !providerStatus.embedding.available;
       skipLlm = bootstrapMode !== 'full' ? true : !providerStatus.llm.available;
     } catch {
       providerStatus = null;

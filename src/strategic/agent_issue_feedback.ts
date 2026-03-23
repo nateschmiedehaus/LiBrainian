@@ -3,6 +3,8 @@
  *
  * Converts GitHub issue snapshots into an execution-ordered fix queue with
  * explicit priority, area, and rollout wave suggestions.
+ *
+ * Advisory only: portfolio-control is the operational queue authority.
  */
 
 export type IssuePriority = 'P0' | 'P1' | 'P2' | 'P3';

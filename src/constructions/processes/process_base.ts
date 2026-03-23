@@ -1,5 +1,5 @@
 import type { Context, Construction } from '../types.js';
-import { ok } from '../types.js';
+import { fail, ok } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 
 export interface ProcessBudget {
@@ -63,6 +63,42 @@ export interface ConstructionPipeline<
   finalize(input: I, state: S, events: ProcessEvent[]): Promise<O> | O;
 }
 
+function normalizeProcessFailure(error: unknown, constructionId: string): ConstructionError {
+  if (error instanceof ConstructionError) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return new ConstructionError(error.message, constructionId, error);
+  }
+  return new ConstructionError(`Non-error process failure: ${String(error)}`, constructionId);
+}
+
+function createExitReasonFailure(
+  exitReason: Exclude<ProcessExitReason, 'completed'>,
+  constructionId: string,
+): ConstructionError {
+  switch (exitReason) {
+    case 'dry_run':
+      return new ConstructionError(
+        'Process completed in dry-run mode; preview output is not a successful execution result',
+        constructionId,
+      );
+    case 'budget_exceeded':
+      return new ConstructionError(
+        'Process exceeded its configured runtime or cost budget',
+        constructionId,
+      );
+    case 'timeout':
+      return new ConstructionError(
+        'Process timed out before completing successfully',
+        constructionId,
+      );
+    case 'failed':
+    default:
+      return new ConstructionError('Process did not complete successfully', constructionId);
+  }
+}
+
 /**
  * Base process abstraction for multi-stage/multi-agent constructions.
  * Subclasses declare the pipeline topology (sequential/parallel stages),
@@ -112,6 +148,9 @@ export abstract class AgenticProcess<
     const pipeline = this.buildPipeline(input, context);
     let state = pipeline.initialState(input);
     let exitReason: ProcessExitReason = 'completed';
+    let failureError: ConstructionError | undefined;
+    let failureAt: string | undefined;
+    let cleanupFailureError: ConstructionError | undefined;
 
     const checkRuntimeLimits = (stageId: string): void => {
       const elapsed = Date.now() - startedAt;
@@ -132,13 +171,23 @@ export abstract class AgenticProcess<
 
         if (stage.mode === 'sequential') {
           for (const task of stage.tasks) {
-            const patch = await task.run(input, state, context);
-            state = { ...state, ...patch };
-            checkRuntimeLimits(task.id);
+            try {
+              const patch = await task.run(input, state, context);
+              state = { ...state, ...patch };
+              checkRuntimeLimits(task.id);
+            } catch (error) {
+              failureAt = task.id;
+              throw error;
+            }
           }
         } else {
           const patches = await Promise.all(
-            stage.tasks.map((task) => task.run(input, state, context)),
+            stage.tasks.map((task) =>
+              task.run(input, state, context).catch((error) => {
+                failureAt = task.id;
+                throw error;
+              }),
+            ),
           );
           for (const patch of patches) {
             state = { ...state, ...patch };
@@ -152,6 +201,8 @@ export abstract class AgenticProcess<
       if (exitReason === 'completed') {
         exitReason = 'failed';
       }
+      failureError = normalizeProcessFailure(error, this.id);
+      failureAt ??= this.id;
       pushEvent(this.id, 'warning', error instanceof Error ? error.message : String(error));
     } finally {
       for (const cleanup of this.cleanups.reverse()) {
@@ -159,6 +210,7 @@ export abstract class AgenticProcess<
           await cleanup();
           pushEvent(this.id, 'cleanup');
         } catch (error) {
+          cleanupFailureError ??= normalizeProcessFailure(error, this.id);
           pushEvent(
             this.id,
             'warning',
@@ -169,22 +221,61 @@ export abstract class AgenticProcess<
       this.cleanups.length = 0;
     }
 
-    const output = await pipeline.finalize(input, state, events);
+    let output: O;
+    try {
+      output = await pipeline.finalize(input, state, events);
+    } catch (error) {
+      const normalized = normalizeProcessFailure(error, this.id);
+      pushEvent(this.id, 'warning', `finalize_failed:${normalized.message}`);
+      return fail<O, ConstructionError>(
+        failureError ?? normalized,
+        undefined,
+        failureAt ?? this.id,
+      );
+    }
     const durationMs = Date.now() - startedAt;
     const resolvedExitReason =
       exitReason === 'completed'
         ? (output.exitReason ?? 'completed')
         : exitReason;
-
-    return ok<O, ConstructionError>({
+    const normalizedOutput = {
       ...output,
       observations: output.observations ?? {},
       costSummary: {
         ...output.costSummary,
         durationMs: output.costSummary?.durationMs ?? durationMs,
       },
-      exitReason: resolvedExitReason,
+      exitReason:
+        cleanupFailureError && resolvedExitReason === 'completed'
+          ? ('failed' as const)
+          : resolvedExitReason,
       events,
-    });
+    };
+
+    if (failureError) {
+      return fail<O, ConstructionError>(
+        failureError,
+        normalizedOutput as Partial<O>,
+        failureAt ?? this.id,
+      );
+    }
+
+    if (cleanupFailureError) {
+      return fail<O, ConstructionError>(
+        cleanupFailureError,
+        normalizedOutput as Partial<O>,
+        this.id,
+      );
+    }
+
+    if (normalizedOutput.exitReason !== 'completed') {
+      return fail<O, ConstructionError>(
+        createExitReasonFailure(normalizedOutput.exitReason, this.id),
+        normalizedOutput as Partial<O>,
+        this.id,
+      );
+    }
+
+    return ok<O, ConstructionError>(normalizedOutput);
   }
 }

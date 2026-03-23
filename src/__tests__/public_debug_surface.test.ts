@@ -23,15 +23,12 @@ describe('public debug surface', () => {
     expect(typeof debugApi.createInspector).toBe('function');
   });
 
-  it('declares explicit debug subpath in package exports', () => {
+  it('does not declare debug as part of the public package exports', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
       exports?: Record<string, { import?: string; types?: string }>;
     };
 
-    expect(packageJson.exports?.['./debug']).toEqual({
-      import: './dist/debug/index.js',
-      types: './dist/debug/index.d.ts',
-    });
+    expect(packageJson.exports?.['./debug']).toBeUndefined();
   });
 });

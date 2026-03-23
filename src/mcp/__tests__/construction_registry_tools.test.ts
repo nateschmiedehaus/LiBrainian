@@ -64,6 +64,21 @@ describe('MCP construction registry tools', () => {
     );
   });
 
+  it('hides experimental constructions from default discovery output', async () => {
+    const server = await createLibrarianMCPServer({
+      authorization: { enabledScopes: ['read'], requireConsent: false },
+      audit: { enabled: false, logPath: '.librarian/audit/mcp', retentionDays: 1 },
+    });
+
+    const result = await (server as any).executeListConstructions({
+      availableOnly: false,
+    });
+
+    expect(
+      (result.constructions as Array<{ id: string }>).some((item) => item.id === 'librainian:comprehensive-quality-construction'),
+    ).toBe(false);
+  });
+
   it('invokes a registered runtime construction by id', async () => {
     createConstruction(
       'mcp-invoke-registry-test',
@@ -201,7 +216,7 @@ describe('MCP construction registry tools', () => {
 
     const compatible = await (server as any).executeCheckConstructionTypes({
       first: 'librainian:security-audit-helper',
-      second: 'librainian:comprehensive-quality-construction',
+      second: 'librainian:code-review-pipeline',
       operator: 'seq',
     });
 

@@ -15,6 +15,8 @@ export interface QueryIntentBiasProfileInput {
   isProjectUnderstandingQuery: boolean;
   isWhyQuery: boolean;
   isArchitectureOverviewQuery: boolean;
+  isPathQuery?: boolean;
+  isSymbolQuery?: boolean;
 }
 
 export interface QueryIntentBiasProfile {
@@ -47,6 +49,8 @@ export function buildQueryIntentBiasProfile(input: QueryIntentBiasProfileInput):
     isProjectUnderstandingQuery,
     isWhyQuery,
     isArchitectureOverviewQuery,
+    isPathQuery = false,
+    isSymbolQuery = false,
   } = input;
 
   let documentBias = 0.3;
@@ -56,7 +60,7 @@ export function buildQueryIntentBiasProfile(input: QueryIntentBiasProfileInput):
     documentBias = 0.95;
   } else if (isMetaQuery) {
     documentBias = 0.7 + (metaMatches * 0.05);
-  } else if (isCodeQuery || isTestQuery) {
+  } else if (isPathQuery || isSymbolQuery || isCodeQuery || isTestQuery) {
     documentBias = 0.1;
   }
   documentBias = Math.min(1.0, documentBias);
@@ -94,6 +98,10 @@ export function buildQueryIntentBiasProfile(input: QueryIntentBiasProfileInput):
 
   const entityTypes: EmbeddableEntityType[] = [];
   if (isTestQuery) {
+    entityTypes.push('function', 'module');
+  } else if (isPathQuery) {
+    entityTypes.push('module', 'function');
+  } else if (isSymbolQuery) {
     entityTypes.push('function', 'module');
   } else if (isWhyQuery) {
     entityTypes.push('document', 'function', 'module');

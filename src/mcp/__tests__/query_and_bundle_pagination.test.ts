@@ -1094,7 +1094,7 @@ describe('MCP query and context bundle pagination', () => {
     expect(result.disclosures.join(' ')).not.toContain('unverified_by_trace');
     expect(result.fix).toEqual(
       expect.arrayContaining([
-        `Run \`librarian bootstrap --workspace ${missingWorkspace}\` to register and index this workspace.`,
+        `Run \`librainian bootstrap --workspace ${missingWorkspace}\` to register and index this workspace.`,
       ])
     );
     expect(result.epistemicsDebug.join(' ')).toContain('unverified_by_trace(workspace_unavailable)');

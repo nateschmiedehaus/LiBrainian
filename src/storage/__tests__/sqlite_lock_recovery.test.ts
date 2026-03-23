@@ -156,6 +156,27 @@ describe('sqlite lock recovery on initialize', () => {
     expect(existsSync(lockPath)).toBe(false);
   });
 
+  it('allows same-process reentrant writers to share an owned sqlite lock', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
+    tempDirs.push(dir);
+    const dbPath = path.join(dir, 'librarian.sqlite');
+    const lockPath = `${dbPath}.lock`;
+
+    const writerA = createSqliteStorage(dbPath, dir);
+    await writerA.initialize();
+    expect(existsSync(lockPath)).toBe(true);
+
+    const writerB = createSqliteStorage(dbPath, dir);
+    await expect(writerB.initialize()).resolves.toBeUndefined();
+    expect(existsSync(lockPath)).toBe(true);
+
+    await writerB.close();
+    expect(existsSync(lockPath)).toBe(true);
+
+    await writerA.close();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
   it('allows concurrent :memory: storages without lock contention', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-sqlite-lock-'));
     tempDirs.push(dir);

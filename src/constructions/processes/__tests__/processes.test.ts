@@ -94,30 +94,40 @@ describe('process constructions', () => {
 
   it('runs patrol process in dry-run mode', async () => {
     const patrol = createPatrolProcessConstruction();
-    const result = unwrapConstructionExecutionResult(await patrol.execute({
+    const result = await patrol.execute({
       mode: 'quick',
       dryRun: true,
-    }));
+    });
 
-    expect(result.report.kind).toBe('PatrolReport.v1');
-    expect(result.exitReason).toBe('dry_run');
-    expect(Array.isArray(result.findings)).toBe(true);
-    expect(result.policyEnforcement.enforcement).toBe('allowed');
-    expect(result.policyEnforcement.requiredEvidenceMode).toBe('dry');
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('expected dry-run patrol preview to be non-success');
+    }
+    expect(result.error.message).toContain('dry-run mode');
+    expect(result.partial?.report.kind).toBe('PatrolReport.v1');
+    expect(result.partial?.exitReason).toBe('dry_run');
+    expect(Array.isArray(result.partial?.findings)).toBe(true);
+    expect(result.partial?.policyEnforcement.enforcement).toBe('allowed');
+    expect(result.partial?.policyEnforcement.requiredEvidenceMode).toBe('dry');
   });
 
   it('fails closed when release mode attempts dry-run bypass without wet evidence', async () => {
     const patrol = createPatrolProcessConstruction();
-    const result = unwrapConstructionExecutionResult(await patrol.execute({
+    const result = await patrol.execute({
       mode: 'release',
       dryRun: true,
       policyTrigger: 'release',
-    }));
+    });
 
-    expect(result.exitReason).toBe('failed');
-    expect(result.policyEnforcement.enforcement).toBe('blocked');
-    expect(result.policyEnforcement.requiredEvidenceMode).toBe('wet');
-    expect(result.findings.some((finding) => finding.category === 'policy')).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('expected patrol release bypass to fail closed');
+    }
+    expect(result.error.message).toContain('patrol_policy_fail_closed');
+    expect(result.partial?.exitReason).toBe('failed');
+    expect(result.partial?.policyEnforcement?.enforcement).toBe('blocked');
+    expect(result.partial?.policyEnforcement?.requiredEvidenceMode).toBe('wet');
+    expect(result.partial?.findings?.some((finding) => finding.category === 'policy')).toBe(true);
   });
 
   it('returns preset process plans in dry-run mode', async () => {
@@ -129,11 +139,64 @@ describe('process constructions', () => {
     expect(result.stages.length).toBeGreaterThan(2);
   });
 
-  it('guarantees cleanup execution even on failure', async () => {
-    const demo = new DemoProcess();
-    const result = unwrapConstructionExecutionResult(await demo.execute({ fail: true }));
+  it('fails presets closed when the dispatched command exits non-zero', async () => {
+    const preset = createCodeReviewPipelineConstruction();
+    const result = await preset.execute({
+      dryRun: false,
+      command: process.execPath,
+      args: ['-e', 'process.exit(1)'],
+    });
 
-    expect(result.exitReason).toBe('failed');
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('expected preset failure');
+    }
+    expect(result.error.message).toContain('failed with exit code 1');
+    expect(result.partial?.executed).toBe(true);
+    expect(result.partial?.execution?.exitCode).toBe(1);
+  });
+
+  it('fails patrol process closed when the dispatched command exits non-zero', async () => {
+    const patrol = createPatrolProcessConstruction();
+    const result = await patrol.execute({
+      mode: 'full',
+      dryRun: false,
+      command: process.execPath,
+      args: ['-e', 'process.exit(1)'],
+      policyTrigger: 'manual',
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('expected patrol process failure');
+    }
+    expect(result.error.message).toContain('failed with exit code 1');
+    expect(result.partial?.exitReason).toBe('failed');
+  });
+
+  it('returns a successful outcome and guarantees cleanup execution on success', async () => {
+    const demo = new DemoProcess();
+    const result = await demo.execute({});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error('expected demo process success');
+    }
+    expect(result.value.exitReason).toBe('completed');
+    expect(result.value.value).toBe(3);
+    expect(demo.getCleanupCount()).toBe(1);
+  });
+
+  it('returns a failed construction outcome and guarantees cleanup execution on failure', async () => {
+    const demo = new DemoProcess();
+    const result = await demo.execute({ fail: true });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error('expected demo process failure');
+    }
+    expect(result.error.message).toContain('boom');
+    expect(result.partial?.exitReason).toBe('failed');
     expect(demo.getCleanupCount()).toBe(1);
   });
 });

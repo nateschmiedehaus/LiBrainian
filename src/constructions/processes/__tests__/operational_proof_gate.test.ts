@@ -64,14 +64,14 @@ describe('operational proof gate', () => {
       ],
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.passed).toBe(false);
-    expect(result.value.failureCount).toBe(1);
-    expect(result.value.checkResults[0]?.passed).toBe(false);
-    expect(result.value.proofBundle.passed).toBe(false);
-    expect(result.value.checkResults[0]?.missingOutputSubstrings).toContain('REQUIRED_MARKER');
-    expect(result.value.checkResults[0]?.missingFilePaths).toContain('/tmp/does-not-exist-proof-artifact.txt');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.partial?.passed).toBe(false);
+    expect(result.partial?.failureCount).toBe(1);
+    expect(result.partial?.checkResults?.[0]?.passed).toBe(false);
+    expect(result.partial?.proofBundle?.passed).toBe(false);
+    expect(result.partial?.checkResults?.[0]?.missingOutputSubstrings).toContain('REQUIRED_MARKER');
+    expect(result.partial?.checkResults?.[0]?.missingFilePaths).toContain('/tmp/does-not-exist-proof-artifact.txt');
   });
 
   it('fails closed when wet-testing policy requires artifact contracts but checks do not require files', async () => {
@@ -99,14 +99,14 @@ describe('operational proof gate', () => {
       },
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.passed).toBe(false);
-    expect(result.value.failureCount).toBe(1);
-    expect(result.value.checkResults[0]?.id).toBe('policy.fail_closed');
-    expect(result.value.proofBundle.passed).toBe(false);
-    expect(result.value.policyDecisionArtifact?.decision.requiredEvidenceMode).toBe('wet');
-    expect(result.value.policyDecisionArtifact?.decision.failClosed).toBe(true);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.partial?.passed).toBe(false);
+    expect(result.partial?.failureCount).toBe(1);
+    expect(result.partial?.checkResults?.[0]?.id).toBe('policy.fail_closed');
+    expect(result.partial?.proofBundle?.passed).toBe(false);
+    expect(result.partial?.policyDecisionArtifact?.decision.requiredEvidenceMode).toBe('wet');
+    expect(result.partial?.policyDecisionArtifact?.decision.failClosed).toBe(true);
   });
 
   it('writes machine-readable policy decision and proof-bundle artifacts when output paths are provided', async () => {

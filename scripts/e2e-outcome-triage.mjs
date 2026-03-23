@@ -259,9 +259,9 @@ function dedupeStrings(values) {
 
 function buildVerificationCommands(key) {
   const commands = [
-    'npm run test:e2e:outcome',
-    'npm run test:e2e:triage',
-    'npm run test:e2e:full:quick',
+    'npm run internal:e2e:outcome',
+    'npm run internal:e2e:triage',
+    'npm run test:agentic:strict:quick',
   ];
   if (/reliability|time|sample|exploration|critique/i.test(key)) {
     commands.push('npm run eval:use-cases:agentic:quick');

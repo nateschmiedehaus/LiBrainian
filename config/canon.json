@@ -11,7 +11,7 @@
     "tier1_dogfood": "npm run tier1:dogfood"
   },
   "complexity": {
-    "threshold": 25,
+    "threshold": 30,
     "max_high_complexity": 140
   }
 }

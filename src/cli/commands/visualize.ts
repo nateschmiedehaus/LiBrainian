@@ -56,7 +56,7 @@ export async function visualizeCommand(options: VisualizeCommandOptions): Promis
     const edges = await storage.getGraphEdges({ limit: 1000 });
 
     if (modules.length === 0 && functions.length === 0) {
-      console.log('No data available. Run `librarian bootstrap` first.');
+      console.log('No data available. Run `librainian bootstrap` first.');
       return;
     }
 

@@ -272,7 +272,14 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
     ? { isEnumeration: false, confidence: 0, category: undefined }
     : detectEnumerationIntent(intent);
   const useEnumeration = explicitEnumerate || (enumerationIntent.isEnumeration && enumerationIntent.confidence >= 0.7);
-  const autoDetectExhaustive = sessionRequested ? false : shouldUseExhaustiveMode(intent);
+  const structuralIntentForAutoExhaustive = sessionRequested
+    ? { isStructural: false, targetEntity: null }
+    : parseStructuralQueryIntent(intent);
+  const autoDetectExhaustive = sessionRequested
+    ? false
+    : shouldUseExhaustiveMode(intent)
+      && structuralIntentForAutoExhaustive.isStructural
+      && Boolean(structuralIntentForAutoExhaustive.targetEntity);
   const useExhaustive = explicitExhaustive || autoDetectExhaustive;
   try {
     // Check if bootstrapped - detect current tier and use that as target
@@ -288,12 +295,10 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           buildQueryBootstrapRemediation(bootstrapCheck.reason, deferredReason)
         );
       }
-      const requirementFallback = deferredReason
-        ? { allowContinue: false as const }
-        : await evaluateBootstrapRequirementFallback(storage, {
-          reason: bootstrapCheck.reason,
-          allowSemanticFallback: !useEnumeration && !useExhaustive,
-        });
+      const requirementFallback = await evaluateBootstrapRequirementFallback(storage, {
+        reason: bootstrapCheck.reason,
+        allowSemanticFallback: !useEnumeration && !useExhaustive,
+      });
       if (requirementFallback.allowContinue) {
         if (requirementFallback.notice) {
           queryNotices.push(requirementFallback.notice);
@@ -526,7 +531,7 @@ export async function queryCommand(options: QueryCommandOptions): Promise<void> 
           `Semantic strategy requires at least ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}% embedding coverage. `
           + `Current coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}% `
           + `(${embeddingCoverage.embedded_functions}/${embeddingCoverage.total_functions}, `
-          + `${embeddingCoverage.needs_embedding_count} remaining). Run \`librarian embed --fix\` and retry.`
+          + `${embeddingCoverage.needs_embedding_count} remaining). Run \`librainian embed --fix\` and retry.`
         );
       }
     }
@@ -963,7 +968,7 @@ async function runQueryStorageLockPreflight(
             if (recoveryActionCount > maxRecoveryActions) {
               throw createError(
                 'STORAGE_LOCKED',
-                `Storage recovery exceeded ${maxRecoveryActions} actions without stabilizing lock state. Run \`librarian doctor --heal\` and retry.`
+                `Storage recovery exceeded ${maxRecoveryActions} actions without stabilizing lock state. Run \`librainian doctor --heal\` and retry.`
               );
             }
           }
@@ -1004,7 +1009,7 @@ async function runQueryStorageLockPreflight(
       const nextTimeoutMs = Math.max(timeoutMs * 2, timeoutMs + 1000);
       throw createError(
         'STORAGE_LOCKED',
-        `Storage lock active (pid=${activeBlockingLock.holder.pid}, startedAt=${activeBlockingLock.holder.startedAt}, lock=${activeBlockingLock.lockPath}). Waited ${timeoutMs}ms; run \`librarian doctor --heal\` or retry with \`--lock-timeout-ms ${nextTimeoutMs}\`.`
+        `Storage lock active (pid=${activeBlockingLock.holder.pid}, startedAt=${activeBlockingLock.holder.startedAt}, lock=${activeBlockingLock.lockPath}). Waited ${timeoutMs}ms; run \`librainian doctor --heal\` or retry with \`--lock-timeout-ms ${nextTimeoutMs}\`.`
       );
     }
 
@@ -1168,10 +1173,10 @@ function buildQueryBootstrapRemediation(
   deferredReason: QueryBootstrapDeferReason | null
 ): string {
   if (deferredReason === 'watch_catchup') {
-    return 'Watch catch-up required before query. Run `librarian index --force --incremental` (or `librarian watch`) and retry.';
+    return 'Watch catch-up required before query. Run `librainian index --force --incremental` (or `librainian watch`) and retry.';
   }
   if (deferredReason === 'stale_git_head') {
-    return 'Index cursor is stale relative to git HEAD. Run `librarian index --force --incremental` (or `librarian bootstrap --force` after history rewrites) and retry.';
+    return 'Index cursor is stale relative to git HEAD. Run `librainian index --force --incremental` (or `librainian bootstrap --force --mode fast` after history rewrites) and retry.';
   }
   return originalReason;
 }
@@ -1234,16 +1239,19 @@ function shouldExcludeTestsForIntent(intent: string | undefined): boolean {
 
 function deriveQueryAnswer(response: LibrarianResponse, intent?: string): string | undefined {
   const synthesized = response.synthesis?.answer?.trim();
-  if (synthesized) return synthesized;
-
   if (isLocationIntent(intent)) {
     const files = collectPreferredAnswerFiles(response.packs).slice(0, 1);
     const subjectMatch = intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
     const subject = subjectMatch?.[1]?.trim() || 'the requested logic';
+    if (synthesized && shouldTrustSynthesizedLocationAnswer(synthesized, files[0])) {
+      return synthesized;
+    }
     if (files.length > 0) {
       return `${subject} is primarily implemented in ${files[0]}.`;
     }
   }
+
+  if (synthesized) return synthesized;
 
   const summary = response.packs
     .map((pack) => pack.summary?.trim())
@@ -1257,10 +1265,21 @@ function deriveQueryAnswer(response: LibrarianResponse, intent?: string): string
   return undefined;
 }
 
+function shouldTrustSynthesizedLocationAnswer(answer: string, primaryFile?: string): boolean {
+  if (!primaryFile) {
+    return true;
+  }
+
+  const normalizedAnswer = answer.toLowerCase();
+  return normalizedAnswer.includes(primaryFile.toLowerCase());
+}
+
 function collectPreferredAnswerFiles(packs: LibrarianResponse['packs']): string[] {
   const files: string[] = [];
   const seen = new Set<string>();
-  const sorted = packs.slice().sort((left, right) => right.confidence - left.confidence);
+  const sorted = packs
+    .slice()
+    .sort((left, right) => Number(Boolean(right.isPrimaryResult)) - Number(Boolean(left.isPrimaryResult)));
   const add = (candidate: string | undefined) => {
     if (!candidate) return;
     const display = extractDisplayAnswerFile(candidate);
@@ -1329,7 +1348,7 @@ async function withQueryCommandTimeout<T>(
       reject(
         createError(
           'QUERY_TIMEOUT',
-          `${step} timed out after ${timeoutMs}ms. Run \`librarian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
+          `${step} timed out after ${timeoutMs}ms. Run \`librainian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
         )
       );
     }, timeoutMs);
@@ -1605,7 +1624,7 @@ async function executeQueryBootstrapWithRecovery(
         const nextTimeoutMs = Math.max(Math.round(timeoutMs * 1.5), timeoutMs + 1000);
         throw createError(
           'QUERY_TIMEOUT',
-          `Bootstrap during query timed out after ${timeoutMs}ms. Run \`librarian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
+          `Bootstrap during query timed out after ${timeoutMs}ms. Run \`librainian doctor --heal\` and retry with \`--timeout ${nextTimeoutMs}\` if needed.`
         );
       }
       throw error;
@@ -1676,7 +1695,7 @@ async function evaluateBootstrapRequirementFallback(
       allowContinue: true,
       notice:
         `Bootstrap repair is still required (${options.reason}). `
-        + 'Continuing with the last successful index snapshot; run `librarian bootstrap --force --mode fast` to repair durable state.',
+        + 'Continuing with the last successful index snapshot; run `librainian bootstrap --force --mode fast` to repair durable state.',
     };
   }
 
@@ -1688,7 +1707,7 @@ async function evaluateBootstrapRequirementFallback(
     allowContinue: true,
     notice:
       `Bootstrap required but no usable persistent index is available (${options.reason}). `
-      + 'Continuing with direct filesystem retrieval; run `librarian bootstrap --force --mode fast` to restore durable index state.',
+      + 'Continuing with direct filesystem retrieval; run `librainian bootstrap --force --mode fast` to restore durable index state.',
   };
 }
 
@@ -1706,7 +1725,7 @@ async function evaluateBootstrapFailureFallback(
   return {
     allowContinue: true,
     notice:
-      'Bootstrap validation failed during query; using last successful index snapshot. Run `librarian bootstrap --force` to repair bootstrap state.',
+      'Bootstrap validation failed during query; using last successful index snapshot. Run `librainian bootstrap --force --mode fast` to repair bootstrap state.',
   };
 }
 
@@ -1819,7 +1838,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
       || (entry.includes('storage') && entry.includes('lock') && entry.includes('degraded'))
     );
     if (storageWriteDegraded) {
-      add('Session degraded: results were returned but could not be persisted. Run `librarian doctor --heal` to recover storage locks.');
+      add('Session degraded: results were returned but could not be persisted. Run `librainian doctor --heal` to recover storage locks.');
     }
   }
 
@@ -1833,7 +1852,7 @@ function collectCriticalWarnings(response: LibrarianResponse): string[] {
     add(`LLM synthesis error: ${response.llmError}`);
   }
   if (!response.synthesis && synthesisUnavailable) {
-    add('LLM synthesis unavailable: results are structural-only. Run `librarian check-providers` to diagnose provider/config issues.');
+    add('LLM synthesis unavailable: results are structural-only. Run `librainian check-providers` to diagnose provider/config issues.');
   }
 
   const indexIncompleteHint = combined.find((entry) =>

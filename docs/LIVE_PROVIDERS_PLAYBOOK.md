@@ -166,11 +166,9 @@ function createDeterministicEmbeddingService(dimension: number = 768): Embedding
 
 ```typescript
 // ❌ FORBIDDEN - DO NOT DISABLE EMBEDDINGS
-const LiBrainian = await createLibrarian({
-  workspace,
-  bootstrapConfig: {
-    generateEmbeddings: false, // ← FORBIDDEN
-  },
+const session = await initializeLibrarian(workspace);
+await session.rebootstrap({
+  generateEmbeddings: false, // ← FORBIDDEN
 });
 
 // ❌ FORBIDDEN - NULL EMBEDDING SERVICE

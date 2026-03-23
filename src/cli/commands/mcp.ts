@@ -1,4 +1,8 @@
 import { startStdioServer } from '../../mcp/server.js';
+import {
+  DEFAULT_MCP_SERVER_INSTRUCTIONS,
+  MCP_GOLDEN_PATH_TOOLS,
+} from '../../mcp/types.js';
 
 type McpClient = 'claude' | 'cursor' | 'vscode' | 'windsurf' | 'gemini';
 type LauncherMode = 'installed' | 'npx';
@@ -7,6 +11,8 @@ interface McpServerEntry {
   command: string;
   args: string[];
   env: Record<string, string>;
+  enabled_tools?: readonly string[];
+  serverInstructions?: string;
 }
 
 interface McpConfigBundle {
@@ -42,13 +48,17 @@ function buildServerEntry(workspace: string, launcher: LauncherMode): McpServerE
       command: 'npx',
       args: ['-y', 'librainian', 'mcp', '--stdio'],
       env: { LIBRARIAN_WORKSPACE: workspace },
+      enabled_tools: MCP_GOLDEN_PATH_TOOLS,
+      serverInstructions: DEFAULT_MCP_SERVER_INSTRUCTIONS,
     };
   }
 
   return {
-    command: 'librarian',
+    command: 'librainian',
     args: ['mcp', '--stdio'],
     env: { LIBRARIAN_WORKSPACE: workspace },
+    enabled_tools: MCP_GOLDEN_PATH_TOOLS,
+    serverInstructions: DEFAULT_MCP_SERVER_INSTRUCTIONS,
   };
 }
 
@@ -130,5 +140,7 @@ export async function mcpCommand(options: McpCommandOptions): Promise<void> {
       enabledScopes: ['read', 'write'],
       requireConsent: true,
     },
+    enabledTools: [...MCP_GOLDEN_PATH_TOOLS],
+    serverInstructions: DEFAULT_MCP_SERVER_INSTRUCTIONS,
   });
 }

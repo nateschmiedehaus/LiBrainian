@@ -162,6 +162,10 @@ function humanizeSlug(id: string): string {
     .join(' ');
 }
 
+function internalConstructionSurfaceEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
 function levenshteinDistance(a: string, b: string): number {
   if (a === b) return 0;
   if (a.length === 0) return b.length;
@@ -261,6 +265,10 @@ export class ConstructionRegistry {
 
   list(filter?: ConstructionListFilter): ConstructionManifest[] {
     let manifests = Array.from(this.registry.values());
+    const experimentalExplicitlyRequested = filter?.tags?.includes('experimental') ?? false;
+    if (!internalConstructionSurfaceEnabled() && !experimentalExplicitlyRequested) {
+      manifests = manifests.filter((manifest) => !manifest.tags.includes('experimental'));
+    }
     if (filter?.tags?.length) {
       manifests = manifests.filter((manifest) =>
         filter.tags?.some((tag) => manifest.tags.includes(tag)));
@@ -357,6 +365,115 @@ function ensureLibrarianContext(
   return { librarian };
 }
 
+function readHiddenErrorField(value: unknown, key: string): unknown {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null) {
+    return undefined;
+  }
+  try {
+    return Reflect.get(value as object, key);
+  } catch {
+    return undefined;
+  }
+}
+
+function readHiddenErrorString(value: unknown, key: string): string | undefined {
+  const candidate = readHiddenErrorField(value, key);
+  if (typeof candidate !== 'string') {
+    return undefined;
+  }
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function inferOpaqueErrorMessage(error: unknown, depth = 0): string | undefined {
+  if (depth >= 4 || error === null || error === undefined) {
+    return undefined;
+  }
+  if (typeof error === 'string') {
+    const trimmed = error.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (error instanceof Error) {
+    const direct = error.message?.trim();
+    if (direct) {
+      return direct;
+    }
+  }
+
+  const direct = readHiddenErrorString(error, 'message');
+  if (direct) {
+    return direct;
+  }
+
+  const nestedCause = inferOpaqueErrorMessage(readHiddenErrorField(error, 'cause'), depth + 1);
+  if (nestedCause) {
+    return nestedCause;
+  }
+
+  const nestedError = inferOpaqueErrorMessage(readHiddenErrorField(error, 'error'), depth + 1);
+  if (nestedError) {
+    return nestedError;
+  }
+
+  try {
+    const rendered = String(error).trim();
+    if (rendered.length > 0 && rendered !== '[object Object]') {
+      return rendered;
+    }
+  } catch {
+    // Ignore stringification failures and fall through.
+  }
+
+  return undefined;
+}
+
+function inferOpaqueErrorCause(error: unknown): Error | undefined {
+  const directCause = readHiddenErrorField(error, 'cause');
+  if (directCause instanceof Error) {
+    return directCause;
+  }
+  const directMessage = inferOpaqueErrorMessage(directCause);
+  if (directMessage) {
+    return new Error(directMessage);
+  }
+  const nestedMessage = inferOpaqueErrorMessage(readHiddenErrorField(error, 'error'));
+  if (nestedMessage) {
+    return new Error(nestedMessage);
+  }
+  return undefined;
+}
+
+export function normalizeConstructionExecutionError(
+  error: unknown,
+  constructionId: ConstructionId,
+): ConstructionError {
+  if (error instanceof ConstructionError) {
+    if (error.message?.trim()) {
+      return error;
+    }
+    return new ConstructionError(
+      inferOpaqueErrorMessage(error) ?? `Construction ${constructionId} failed`,
+      constructionId,
+      error.cause,
+    );
+  }
+
+  const message = inferOpaqueErrorMessage(error);
+  if (error instanceof Error) {
+    return new ConstructionError(
+      message ?? `Construction ${constructionId} failed`,
+      constructionId,
+      error,
+    );
+  }
+
+  return new ConstructionError(
+    message ?? `Construction ${constructionId} failed`,
+    constructionId,
+    inferOpaqueErrorCause(error),
+  );
+}
+
 function readNumericField(value: unknown, key: string): number | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = (value as Record<string, unknown>)[key];
@@ -374,6 +491,14 @@ function hasObjectField(value: unknown, key: string): boolean {
   if (!value || typeof value !== 'object') return false;
   const candidate = (value as Record<string, unknown>)[key];
   return candidate !== null && candidate !== undefined;
+}
+
+function readObjectField(value: unknown, key: string): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? candidate as Record<string, unknown>
+    : null;
 }
 
 function enforceTruthfulConstructionOutput(constructionId: ConstructionId, output: unknown): void {
@@ -412,6 +537,26 @@ function enforceTruthfulConstructionOutput(constructionId: ConstructionId, outpu
     ) {
       throw new ConstructionError(
         'insufficient_data: bug-investigation-assistant produced no hypotheses/call chain/suspect',
+        constructionId,
+      );
+    }
+    return;
+  }
+
+  if (constructionId === 'librainian:comprehensive-quality-construction') {
+    const architecture = readObjectField(output, 'architecture');
+    const security = readObjectField(output, 'security');
+    const filesChecked = readNumericField(architecture, 'filesChecked');
+    const filesAudited = readNumericField(security, 'filesAudited');
+    if (filesChecked !== null && filesChecked <= 0) {
+      throw new ConstructionError(
+        'insufficient_data: comprehensive-quality-construction architecture branch checked 0 files',
+        constructionId,
+      );
+    }
+    if (filesAudited !== null && filesAudited <= 0) {
+      throw new ConstructionError(
+        'insufficient_data: comprehensive-quality-construction security branch audited 0 files',
         constructionId,
       );
     }
@@ -1314,20 +1459,24 @@ function activateCoreConstructions(): void {
           try {
             const execution = await runtimeEntry.execute(input, context);
             if (isConstructionOutcome(execution)) {
-              if (execution.ok) {
-                enforceTruthfulConstructionOutput(existing.id, execution.value);
+              if (!execution.ok) {
+                return fail(
+                  normalizeConstructionExecutionError(execution.error, existing.id),
+                  execution.partial,
+                  execution.errorAt ?? existing.id,
+                );
               }
+              enforceTruthfulConstructionOutput(existing.id, execution.value);
               return execution;
             }
             enforceTruthfulConstructionOutput(existing.id, execution);
             return ok(execution);
           } catch (error) {
-            const normalized = error instanceof ConstructionError
-              ? error
-              : error instanceof Error
-                ? new ConstructionError(error.message, existing.id, error)
-                : new ConstructionError(`Non-error failure: ${String(error)}`, existing.id);
-            return fail(normalized, undefined, existing.id);
+            return fail(
+              normalizeConstructionExecutionError(error, existing.id),
+              undefined,
+              existing.id,
+            );
           }
         },
       },

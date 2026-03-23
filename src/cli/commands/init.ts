@@ -37,6 +37,10 @@ function hasScaffoldingFlags(rawArgs: string[]): boolean {
     || rawArgs.includes('--claude-md');
 }
 
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
 function slugifyConstructionName(name: string): string {
   const slug = name
     .trim()
@@ -415,11 +419,6 @@ function printHumanReport(report: InitReport): void {
 export async function initCommand(options: InitCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
 
-  if (!hasScaffoldingFlags(rawArgs)) {
-    await quickstartCommand(options);
-    return;
-  }
-
   const { values } = parseArgs({
     args: rawArgs.slice(1),
     options: {
@@ -442,6 +441,18 @@ export async function initCommand(options: InitCommandOptions): Promise<void> {
 
   if (requestedConstruction && !constructionName) {
     throw createError('INVALID_ARGUMENT', 'Missing required value: --construction <name>');
+  }
+
+  if (!hasScaffoldingFlags(rawArgs)) {
+    await quickstartCommand(options);
+    return;
+  }
+
+  if (!internalCommandsEnabled()) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      'Init scaffolding flags are unavailable in the public release surface. Use `librainian quickstart` for onboarding, or set LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1 in a source checkout to access scaffolding mode.',
+    );
   }
 
   if (!constructionName && !withMcpConfig && !withClaudeMd) {

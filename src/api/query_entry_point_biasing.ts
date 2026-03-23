@@ -4,6 +4,8 @@ import {
   ENTRY_POINT_PATH_PATTERNS,
 } from './query_intent_patterns.js';
 
+export const MAX_ENTRY_POINT_BOOST = 2.0;
+
 /**
  * Checks if an entity is likely an entry point based on its ID/name/path.
  */
@@ -54,8 +56,8 @@ export function applyEntryPointBias(
 
     if (isEntryPoint) {
       // Boost entry point similarity based on bias
-      // Up to 60% boost for strong entry point queries
-      const boost = 1 + (entryPointBias * 0.6);
+      // Clamp the multiplier so entry points do not drown out more relevant results.
+      const boost = Math.min(MAX_ENTRY_POINT_BOOST, 1 + (Math.max(0, entryPointBias) * 0.6));
       return {
         ...result,
         similarity: Math.min(1.0, result.similarity * boost),

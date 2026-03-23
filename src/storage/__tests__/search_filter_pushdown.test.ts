@@ -74,15 +74,19 @@ describe('search filter pushdown', () => {
   let storage: LibrarianStorage | null = null;
   let apiFile = '';
   let webFile = '';
+  let fixtureFile = '';
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-search-filter-'));
     apiFile = path.join(tempDir, 'packages', 'api', 'src', 'auth.ts');
     webFile = path.join(tempDir, 'packages', 'web', 'src', 'auth.ts');
+    fixtureFile = path.join(tempDir, 'tests', 'fixtures', 'sample', 'src', 'auth.ts');
     await fs.mkdir(path.dirname(apiFile), { recursive: true });
     await fs.mkdir(path.dirname(webFile), { recursive: true });
+    await fs.mkdir(path.dirname(fixtureFile), { recursive: true });
     await fs.writeFile(apiFile, 'export function apiAuth() { return true; }\n', 'utf8');
     await fs.writeFile(webFile, 'export function webAuth() { return true; }\n', 'utf8');
+    await fs.writeFile(fixtureFile, 'export function fixtureAuth() { return true; }\n', 'utf8');
 
     const dbPath = path.join(tempDir, 'librarian.sqlite');
     storage = createSqliteStorage(dbPath, tempDir);
@@ -107,9 +111,19 @@ describe('search filter pushdown', () => {
       modelId: 'test-model',
       entityType: 'function',
     });
+    await storage.upsertFunction(buildFunction('fn-fixture', fixtureFile, 'export function authFixture() {}', {
+      isPure: false,
+      hasSideEffects: true,
+      effectSignature: ['fixture'],
+    }));
+    await storage.setEmbedding('fn-fixture', normalize([0.95, 0.05]), {
+      modelId: 'test-model',
+      entityType: 'function',
+    });
 
     await storage.upsertContextPack(buildPack('pack-web', 'fn-web', webFile));
     await storage.upsertContextPack(buildPack('pack-api', 'fn-api', apiFile));
+    await storage.upsertContextPack(buildPack('pack-fixture', 'fn-fixture', fixtureFile));
   });
 
   afterEach(async () => {
@@ -170,6 +184,7 @@ describe('search filter pushdown', () => {
       entityTypes: ['function'],
       filter: {
         isPure: true,
+        pathPrefix: 'packages/',
       },
     });
     expect(pureOnly.results.map((entry) => entry.entityId)).toEqual(['fn-api']);
@@ -180,8 +195,31 @@ describe('search filter pushdown', () => {
       entityTypes: ['function'],
       filter: {
         isPure: false,
+        pathPrefix: 'packages/',
       },
     });
     expect(impureOnly.results.map((entry) => entry.entityId)).toEqual(['fn-web']);
+  });
+
+  it('excludes top-level tests and fixture paths when excludeTests is enabled', async () => {
+    const query = normalize([1, 0]);
+
+    const filtered = await storage!.findSimilarByEmbedding(query, {
+      limit: 5,
+      minSimilarity: 0,
+      entityTypes: ['function'],
+      filter: {
+        excludeTests: true,
+      },
+    });
+    expect(filtered.results.map((entry) => entry.entityId)).toEqual(['fn-web', 'fn-api']);
+
+    const packs = await storage!.getContextPacks({
+      excludeTests: true,
+      limit: 10,
+    });
+    expect(packs.map((pack) => pack.packId)).toContain('pack-api');
+    expect(packs.map((pack) => pack.packId)).toContain('pack-web');
+    expect(packs.map((pack) => pack.packId)).not.toContain('pack-fixture');
   });
 });

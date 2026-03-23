@@ -1,5 +1,7 @@
 # LiBrainian: Full Diagnosis, Root Cause Analysis, and Path Forward
 
+Historical recovery snapshot from 2026-02-27. This document explains the failure state that triggered the M0/M1 rescue program; it is not a current release-readiness report and must not be used as fresh evidence without revalidation against live behavior.
+
 **Date**: 2026-02-27
 **Scope**: M0 (Dogfood-Ready) + M1 (Construction MVP) + Development Process Reform + Architectural Recovery
 **Total Issues**: 853 created, 347 open, 195 reopened | **New orchestration issues**: #854–#869
@@ -155,7 +157,7 @@ Per OpenHands "Agents in the Outer Loop," Anthropic's Claude Code best practices
 |----------|---------|--------|--------|
 | Core dev (build/test/lint) | 13 | 13 | Keep |
 | Test runners | 18 | 8 | Merge redundant modes |
-| E2E pipeline | 14 → 16 | 3 | `test:e2e`, `test:e2e:full`, `test:e2e:publish` |
+| E2E pipeline | 14 → 16 | 3 | `test:e2e`, `internal:e2e:full`, `test:e2e:publish` |
 | Evaluation harnesses | 22 | 3 | `eval:quick`, `eval:full`, `eval:publish-gate` |
 | Evidence/policy/gate | 26 | 1 | `evidence:verify` (CI does the rest) |
 | Release pipeline | 11 | 5 | Keep core, remove ceremony |

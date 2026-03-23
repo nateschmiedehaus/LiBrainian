@@ -471,7 +471,7 @@ describe('TieredBootstrap', () => {
   });
 
   describe('Basic Functionality', () => {
-    it('should complete all tiers successfully', async () => {
+    it('should complete the deferred FULL handoff successfully', async () => {
       const bootstrap = createTieredBootstrap({
         rootPath: tempDir,
         storage: mockStorage,
@@ -486,7 +486,7 @@ describe('TieredBootstrap', () => {
       expect(status.error).toBeUndefined();
     });
 
-    it('should process tiers in order: IMMEDIATE -> FAST -> FULL', async () => {
+    it('should process tiers in order: IMMEDIATE -> FAST -> FULL handoff', async () => {
       const completedTiers: BootstrapTier[] = [];
 
       const bootstrap = createTieredBootstrap({
@@ -708,8 +708,8 @@ describe('TieredBootstrap', () => {
     });
   });
 
-  describe('Tier 2 (FULL) - Complete Analysis', () => {
-    it('should enable all features after Tier 2', async () => {
+  describe('Tier 2 (FULL) - Deferred Handoff Signal', () => {
+    it('should expose the full-tier feature set after the deferred handoff', async () => {
       const bootstrap = createTieredBootstrap({
         rootPath: tempDir,
         storage: mockStorage,
@@ -722,7 +722,7 @@ describe('TieredBootstrap', () => {
       }
     });
 
-    it('should set isComplete to true after Tier 2', async () => {
+    it('should set isComplete to true after the deferred handoff', async () => {
       const bootstrap = createTieredBootstrap({
         rootPath: tempDir,
         storage: mockStorage,

@@ -12,16 +12,23 @@ vi.mock('../quickstart.js', () => ({
 describe('initCommand', () => {
   let workspace: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  const originalInternalCommands = process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
 
   beforeEach(async () => {
     workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-init-'));
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.clearAllMocks();
+    delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
   });
 
   afterEach(async () => {
     consoleLogSpy.mockRestore();
     await fs.rm(workspace, { recursive: true, force: true });
+    if (originalInternalCommands === undefined) {
+      delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+    } else {
+      process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = originalInternalCommands;
+    }
   });
 
   it('delegates to quickstart when no scaffolding flags are provided', async () => {
@@ -34,7 +41,14 @@ describe('initCommand', () => {
     });
   });
 
+  it('rejects scaffolding flags in public mode', async () => {
+    await expect(initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] })).rejects.toThrow(
+      /Init scaffolding flags are unavailable in the public release surface/,
+    );
+  });
+
   it('creates construction scaffolding files', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
     const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
@@ -55,6 +69,7 @@ describe('initCommand', () => {
   });
 
   it('does not overwrite construction files without --force', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
     const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
@@ -67,6 +82,7 @@ describe('initCommand', () => {
   });
 
   it('overwrites construction files with --force', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     await initCommand({ workspace, args: [], rawArgs: ['init', '--construction', 'SafeRefactorAdvisor'] });
 
     const constructionPath = path.join(workspace, '.librarian', 'constructions', 'safe-refactor-advisor.ts');
@@ -79,6 +95,7 @@ describe('initCommand', () => {
   });
 
   it('creates and merges .mcp.json safely', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     const mcpPath = path.join(workspace, '.mcp.json');
     await fs.writeFile(
       mcpPath,
@@ -106,6 +123,7 @@ describe('initCommand', () => {
   });
 
   it('does not overwrite existing librarian MCP entry without --force', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     const mcpPath = path.join(workspace, '.mcp.json');
     await fs.writeFile(
       mcpPath,
@@ -130,6 +148,7 @@ describe('initCommand', () => {
   });
 
   it('creates and idempotently updates CLAUDE.md section', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     const claudePath = path.join(workspace, 'CLAUDE.md');
     await fs.writeFile(claudePath, '# Local rules\n', 'utf8');
 

@@ -1,18 +1,41 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import {
   listConstructableDefinitions,
+  listPublicConstructableDefinitions,
   getConstructableDefinition,
   validateConstructableDefinitions,
   createMotivationIndex,
 } from '../constructable_registry.js';
 
 describe('Constructable registry', () => {
+  const originalInternal = process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+
+  afterEach(() => {
+    if (originalInternal === undefined) {
+      delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+    } else {
+      process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = originalInternal;
+    }
+  });
+
   it('exposes definitions for core constructables', () => {
     const definitions = listConstructableDefinitions();
     expect(definitions.length).toBeGreaterThan(5);
     const refactoring = getConstructableDefinition('refactoring-safety-checker');
     expect(refactoring?.id).toBe('refactoring-safety-checker');
     expect(refactoring?.description?.length).toBeGreaterThan(10);
+  });
+
+  it('hides experimental constructables from the default public registry surface', () => {
+    delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
+    const definitions = listPublicConstructableDefinitions();
+    expect(definitions.some((definition) => definition.id === 'comprehensive-quality-construction')).toBe(false);
+  });
+
+  it('keeps experimental constructables available in internal mode', () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
+    const definitions = listPublicConstructableDefinitions();
+    expect(definitions.some((definition) => definition.id === 'comprehensive-quality-construction')).toBe(true);
   });
 
   it('contains language metadata for language-specific constructables', () => {

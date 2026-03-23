@@ -85,7 +85,7 @@ describe('runProviderReadinessGate', () => {
     expect(result.bypassed).toBe(false);
   });
 
-  it('auto-runs forced codex probe when codex is sole candidate and claude is unavailable', async () => {
+  it('does not auto-run forced codex probe when codex is sole candidate and claude is unavailable', async () => {
     const authChecker = {
       checkAll: async () => buildAuthStatus({
         codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
@@ -94,15 +94,6 @@ describe('runProviderReadinessGate', () => {
     } as unknown as AuthChecker;
 
     const checkCodexHealth = vi.fn(async (forceCheck = false) => {
-      if (forceCheck) {
-        return {
-          provider: 'codex' as const,
-          available: false,
-          authenticated: false,
-          lastCheck: Date.now(),
-          error: 'Codex CLI state DB migration mismatch. Update/reset CODEX_HOME state or run `codex login` again.',
-        };
-      }
       return {
         provider: 'codex' as const,
         available: true,
@@ -135,12 +126,11 @@ describe('runProviderReadinessGate', () => {
     });
 
     expect(checkCodexHealth).toHaveBeenCalledWith(false);
-    expect(checkCodexHealth).toHaveBeenCalledWith(true);
-    expect(result.llmReady).toBe(false);
-    expect(result.selectedProvider).toBeNull();
+    expect(checkCodexHealth).toHaveBeenCalledTimes(1);
+    expect(result.llmReady).toBe(true);
+    expect(result.selectedProvider).toBe('codex');
     const codexStatus = result.providers.find((provider) => provider.provider === 'codex');
-    expect(codexStatus?.available).toBe(false);
-    expect(result.remediationSteps?.some((step) => step.includes('Codex state DB migration mismatch detected'))).toBe(true);
+    expect(codexStatus?.available).toBe(true);
   });
 
   it('uses lightweight embedding probe by default', async () => {
@@ -940,6 +930,53 @@ describe('runProviderReadinessGate', () => {
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
+  });
+
+  it('does not force a codex deep probe during non-force gate checks when codex is the sole healthy provider', async () => {
+    const authChecker = {
+      checkAll: async () =>
+        buildAuthStatus({
+          claude_code: { provider: 'claude_code', authenticated: false, lastChecked: 'now', source: 'test' },
+          codex: { provider: 'codex', authenticated: true, lastChecked: 'now', source: 'test' },
+        }),
+      getAuthGuidance: () => [],
+    } as unknown as AuthChecker;
+
+    const checkCodexHealth = vi
+      .fn()
+      .mockResolvedValueOnce({
+        provider: 'codex',
+        available: true,
+        authenticated: true,
+        lastCheck: Date.now(),
+      });
+
+    const llmService = buildAdapter({
+      checkClaudeHealth: async () => ({
+        provider: 'claude',
+        available: false,
+        authenticated: false,
+        lastCheck: Date.now(),
+        error: 'not authenticated',
+      }),
+      checkCodexHealth,
+    });
+
+    const result = await runProviderReadinessGate('/tmp', {
+      authChecker,
+      llmService,
+      embeddingHealthCheck: async () => ({
+        provider: 'xenova',
+        available: true,
+        lastCheck: Date.now(),
+      }),
+      emitReport: false,
+    });
+
+    expect(result.ready).toBe(true);
+    expect(result.selectedProvider).toBe('codex');
+    expect(checkCodexHealth).toHaveBeenCalledTimes(1);
+    expect(checkCodexHealth).toHaveBeenNthCalledWith(1, false);
   });
 });
 

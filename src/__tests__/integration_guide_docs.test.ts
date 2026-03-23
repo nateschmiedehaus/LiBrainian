@@ -13,10 +13,6 @@ const integrationsRoot = resolve(repoRoot, 'docs', 'integrations');
 const requiredGuides: RequiredGuide[] = [
   { file: 'mcp.md', title: 'MCP Integration' },
   { file: 'cli.md', title: 'CLI Integration' },
-  { file: 'rest-api.md', title: 'OpenAPI/REST Integration' },
-  { file: 'utcp.md', title: 'UTCP Integration' },
-  { file: 'a2a.md', title: 'A2A Integration' },
-  { file: 'python-sdk.md', title: 'Python SDK Integration' },
 ];
 
 const requiredSections = [
@@ -44,7 +40,6 @@ describe('integration guide docs', () => {
       expect(content).toContain(`./${guide.file}`);
     }
 
-    expect(existsSync(resolve(integrationsRoot, 'protocol-adapters.md'))).toBe(true);
   });
 
   it('keeps all required integration guides with expected sections and code examples', () => {
@@ -75,5 +70,22 @@ describe('integration guide docs', () => {
 
     const docsIndex = readFileSync(resolve(repoRoot, 'docs', 'README.md'), 'utf8');
     expect(docsIndex).toContain('/docs/integrations/README.md');
+  });
+
+  it('marks source-checkout-only validation commands as maintainer workflows', () => {
+    const readme = readFileSync(resolve(repoRoot, 'README.md'), 'utf8');
+    expect(readme).toContain('## Source Checkout Workflows');
+    expect(readme).toContain('not part of the shipped npm package contract');
+    expect(readme).toContain('CONTRIBUTING.md');
+
+    const startHere = readFileSync(resolve(repoRoot, 'docs', 'START_HERE.md'), 'utf8');
+    expect(startHere).toContain('Contributor validation and maintainer release qualification');
+    expect(startHere).toContain('source-checkout');
+    expect(startHere).toContain('workflows');
+    expect(startHere).toContain('CONTRIBUTING.md');
+
+    const docsIndex = readFileSync(resolve(repoRoot, 'docs', 'README.md'), 'utf8');
+    expect(docsIndex).toContain('source checkout');
+    expect(docsIndex).toContain('outside the shipped npm package contract');
   });
 });

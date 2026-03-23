@@ -18,8 +18,8 @@ describe('github readiness docs', () => {
     const readmePath = path.join(process.cwd(), 'README.md');
     const readme = fs.readFileSync(readmePath, 'utf8');
     expect(readme).toContain('## Community Standards');
-    expect(readme).toContain('[Code of Conduct](CODE_OF_CONDUCT.md)');
-    expect(readme).toContain('[Security Policy](SECURITY.md)');
+    expect(readme).toContain('[Code of Conduct](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CODE_OF_CONDUCT.md)');
+    expect(readme).toContain('[Security Policy](https://github.com/nateschmiedehaus/LiBrainian/blob/main/SECURITY.md)');
     expect(readme).toContain('## GitHub Action (CI Index Refresh)');
     expect(readme).toContain('uses: nateschmiedehaus/LiBrainian/.github/actions/librainian@main');
   });
@@ -27,10 +27,11 @@ describe('github readiness docs', () => {
   it('documents release-grade validation in contributing guide', () => {
     const contributingPath = path.join(process.cwd(), 'CONTRIBUTING.md');
     const contributing = fs.readFileSync(contributingPath, 'utf8');
-    expect(contributing).toContain('### Release-Grade Validation (Required Before Merge)');
+    expect(contributing).toContain('### Release-Grade Validation (Maintainer-Only Before Release)');
     expect(contributing).toContain('npm run package:assert-identity');
     expect(contributing).toContain('npm run package:install-smoke');
     expect(contributing).toContain('npm run eval:publish-gate -- --json');
+    expect(contributing).toContain('These are not the default contributor merge checklist');
   });
 
   it('documents inner-loop check command in AGENTS guide', () => {

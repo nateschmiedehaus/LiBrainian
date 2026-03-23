@@ -268,9 +268,9 @@ export async function exportIndexStateCommand(options: IndexStateBundleCommandOp
   const outputPath = path.resolve(
     (typeof values.output === 'string' && values.output.length > 0)
       ? values.output
-      : (typeof positionalOutput === 'string' && positionalOutput.length > 0)
+        : (typeof positionalOutput === 'string' && positionalOutput.length > 0)
         ? positionalOutput
-        : path.join(workspaceRoot, '.librarian', 'exports', 'librarian-index.tar.gz')
+        : path.join(workspaceRoot, '.librarian', 'exports', 'librainian-index.tar.gz')
   );
   const json = Boolean(values.json);
   const out = typeof values.out === 'string' ? values.out : undefined;
@@ -278,18 +278,18 @@ export async function exportIndexStateCommand(options: IndexStateBundleCommandOp
   const librarianDir = path.join(workspaceRoot, '.librarian');
   const entries = await fs.readdir(librarianDir).catch(() => {
     throw new CliError(
-      `Index directory not found at ${librarianDir}. Run "librarian bootstrap" before export.`,
+      `Index directory not found at ${librarianDir}. Run "librainian bootstrap" before export.`,
       'NOT_BOOTSTRAPPED',
     );
   });
   if (!entries.includes('librarian.sqlite')) {
     throw new CliError(
-      `Missing ${path.join('.librarian', 'librarian.sqlite')}. Run "librarian bootstrap" before export.`,
+      `Missing ${path.join('.librarian', 'librarian.sqlite')}. Run "librainian bootstrap" before export.`,
       'NOT_BOOTSTRAPPED',
     );
   }
 
-  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-index-export-'));
+  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-index-export-'));
   try {
     const filesToBundle: string[] = [];
     const checksums: Record<string, string> = {};
@@ -394,7 +394,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
   const json = Boolean(values.json);
   const out = typeof values.out === 'string' ? values.out : undefined;
 
-  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-index-import-'));
+  const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'librainian-index-import-'));
   try {
     await extractTarball(inputPath, stagingDir);
     const manifest = await readManifest(stagingDir);
@@ -449,7 +449,7 @@ export async function importIndexStateCommand(options: IndexStateBundleCommandOp
       gitHeadMatches: headShaMatches,
       sqlitePathRewrites: sqliteRewrites,
       warning: headShaMatches === false
-        ? `Bundle was exported at ${manifest.gitHeadSha}; current workspace is ${currentHeadSha}. Run "librarian update --since ${manifest.gitHeadSha}" to apply incremental changes.`
+        ? `Bundle was exported at ${manifest.gitHeadSha}; current workspace is ${currentHeadSha}. Run "librainian update --since ${manifest.gitHeadSha}" to apply incremental changes.`
         : undefined,
     };
 

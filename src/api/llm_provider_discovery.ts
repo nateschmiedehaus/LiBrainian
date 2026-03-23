@@ -856,7 +856,7 @@ async function checkCodexCli(): Promise<LlmProviderProbeResult> {
     const statusLower = status.output.toLowerCase();
     const negativeMatch = /not\s+logged\s+in|not\s+authenticated|unauthenticated|expired/.test(statusLower);
     const positiveMatch = /\blogged\s+in\b|\bauthenticated\b/.test(statusLower);
-    const loggedIn = status.ok && !negativeMatch && positiveMatch;
+    const loggedIn = positiveMatch && !negativeMatch;
     if (!loggedIn) {
       return {
         available: true,

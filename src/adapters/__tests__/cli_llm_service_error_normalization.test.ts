@@ -66,4 +66,14 @@ describe('cli_llm_service codex error normalization', () => {
     const sanitized = __testing.sanitizeCliErrorMessage(raw, 'codex');
     expect(sanitized).toContain('codex CLI failed without diagnostic output');
   });
+
+  it('treats helper-path warnings as codex noise instead of meaningful auth errors', () => {
+    const raw = [
+      'WARNING: proceeding, even though we could not update PATH: Refusing to create helper binaries under temporary dir "/tmp/codex-home"',
+      'Refusing to create helper binaries under temporary dir "/tmp/codex-home"',
+    ].join('\n');
+
+    const sanitized = __testing.sanitizeCliErrorMessage(raw, 'codex');
+    expect(sanitized).toContain('codex CLI failed without diagnostic output');
+  });
 });

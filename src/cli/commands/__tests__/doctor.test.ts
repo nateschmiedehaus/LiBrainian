@@ -14,7 +14,9 @@ import {
 import { checkAllProviders } from '../../../api/provider_check.js';
 import { diagnoseConfiguration, autoHealConfiguration } from '../../../config/self_healing.js';
 import { resolveWorkspaceRoot } from '../../../utils/workspace_resolver.js';
+import { getGitStatusChanges, isGitRepo } from '../../../utils/git.js';
 import type { LibrarianStorage } from '../../../storage/types.js';
+import { createStalenessTracker } from '../../../storage/staleness.js';
 
 vi.mock('../../db_path.js', () => ({
   resolveDbPath: vi.fn(),
@@ -37,6 +39,13 @@ vi.mock('../../../config/self_healing.js', () => ({
 }));
 vi.mock('../../../utils/workspace_resolver.js', () => ({
   resolveWorkspaceRoot: vi.fn(),
+}));
+vi.mock('../../../utils/git.js', () => ({
+  isGitRepo: vi.fn(() => true),
+  getGitStatusChanges: vi.fn(async () => null),
+}));
+vi.mock('../../../storage/staleness.js', () => ({
+  createStalenessTracker: vi.fn(),
 }));
 
 const createStorageStub = (statsOverrides: Partial<{
@@ -88,6 +97,7 @@ const createStorageStub = (statsOverrides: Partial<{
     completedAt: new Date().toISOString(),
   }) as Mock,
   getState: vi.fn().mockResolvedValue(null) as Mock,
+  getFileByPath: vi.fn().mockResolvedValue(null) as Mock,
 } as unknown as LibrarianStorage);
 
 function parseJsonReport(consoleLogSpy: ReturnType<typeof vi.spyOn>): any {
@@ -102,14 +112,19 @@ describe('doctorCommand', () => {
   const workspace = '/tmp/librarian-doctor-workspace';
   let dbPath: string;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let mockStalenessTracker: { checkFiles: Mock };
   const originalHome = process.env.HOME;
 
   beforeEach(() => {
     vi.clearAllMocks();
     dbPath = path.join(os.tmpdir(), `librarian-doctor-${Date.now()}.db`);
     fs.writeFileSync(dbPath, '');
+    mockStalenessTracker = {
+      checkFiles: vi.fn().mockResolvedValue([]),
+    };
 
     vi.mocked(resolveDbPath).mockResolvedValue(dbPath);
+    vi.mocked(createStalenessTracker).mockReturnValue(mockStalenessTracker as never);
     vi.mocked(resolveWorkspaceRoot).mockReturnValue({
       original: workspace,
       workspace,
@@ -117,6 +132,8 @@ describe('doctorCommand', () => {
       sourceFileCount: 0,
       reason: 'no_candidate',
     });
+    vi.mocked(isGitRepo).mockReturnValue(true);
+    vi.mocked(getGitStatusChanges).mockResolvedValue(null);
     vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub());
     vi.mocked(getBootstrapStatus).mockReturnValue({
       status: 'not_started',
@@ -215,7 +232,7 @@ describe('doctorCommand', () => {
   it('elevates overall status when cross-db consistency is critical', async () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-cross-db-'));
     const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
-    const legacyDbPath = path.join(tempRoot, '.librarian', 'knowledge.db');
+    const legacyDbPath = path.join(tempRoot, '.librarian', 'librarian.db');
 
     try {
       fs.mkdirSync(path.dirname(activeDbPath), { recursive: true });
@@ -243,6 +260,48 @@ describe('doctorCommand', () => {
         name: 'Cross-DB Consistency',
         status: 'ERROR',
         message: 'Legacy DB files are newer than active store (1 files)',
+      }));
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('archives stale legacy librarian.db artifacts during doctor --heal', async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-cross-db-heal-'));
+    const activeDbPath = path.join(tempRoot, '.librarian', 'librarian.sqlite');
+    const legacyDbPath = path.join(tempRoot, '.librarian', 'librarian.db');
+
+    try {
+      fs.mkdirSync(path.dirname(activeDbPath), { recursive: true });
+      fs.writeFileSync(activeDbPath, '');
+      fs.writeFileSync(legacyDbPath, '');
+      const now = new Date();
+      const older = new Date(now.getTime() - 10_000);
+      fs.utimesSync(activeDbPath, now, now);
+      fs.utimesSync(legacyDbPath, older, older);
+
+      vi.mocked(resolveDbPath).mockResolvedValue(activeDbPath);
+      vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+        original: tempRoot,
+        workspace: tempRoot,
+        changed: false,
+        sourceFileCount: 0,
+        reason: 'no_candidate',
+      });
+
+      await doctorCommand({ workspace: tempRoot, json: true, heal: true });
+
+      const report = parseJsonReport(consoleLogSpy);
+      expect(fs.existsSync(legacyDbPath)).toBe(false);
+      expect(report.checks).toContainEqual(expect.objectContaining({
+        name: 'Cross-DB Consistency',
+        status: 'OK',
+        message: 'No legacy DB divergence artifacts detected',
+      }));
+      expect(report.checks).toContainEqual(expect.objectContaining({
+        name: 'Cross-DB Consistency',
+        status: 'OK',
+        message: expect.stringContaining('Archived 1 stale legacy DB artifacts'),
       }));
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -456,9 +515,66 @@ describe('doctorCommand', () => {
     expect(freshness).toBeTruthy();
     expect(freshness.status).toBe('WARNING');
     expect(freshness.message).toContain('stale');
+    expect(freshness.suggestion).toBe(
+      'Run `librainian index --force --incremental` to refresh stale index data',
+    );
+    const action = report.actions.find((entry: any) => entry.check === 'Index Freshness');
+    expect(action?.command).toBe('librainian index --force --incremental');
 
     fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
     vi.useRealTimers();
+  });
+
+  it('flags git freshness drift before falling back to timestamp-only freshness', async () => {
+    vi.mocked(getGitStatusChanges).mockResolvedValue({
+      added: ['src/new.ts'],
+      modified: ['src/changed.ts'],
+      deleted: ['src/deleted.ts'],
+      renamed: [],
+    });
+    vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub());
+    mockStalenessTracker.checkFiles
+      .mockResolvedValueOnce([
+        { status: 'new' },
+        { status: 'stale' },
+      ])
+      .mockResolvedValueOnce([
+        { status: 'missing' },
+      ]);
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const freshness = report.checks.find((check: any) => check.name === 'Index Freshness');
+    expect(freshness).toBeTruthy();
+    expect(freshness.status).toBe('WARNING');
+    expect(freshness.message).toBe('Index drift detected: 1 stale, 1 missing, 1 new file(s)');
+    expect(freshness.suggestion).toBe('Run `librainian index --force --incremental` to refresh index data for current workspace changes');
+    const action = report.actions.find((entry: any) => entry.check === 'Index Freshness');
+    expect(action?.command).toBe('librainian index --force --incremental');
+  });
+
+  it('ignores non-indexable git artifacts in freshness drift checks', async () => {
+    vi.mocked(getGitStatusChanges).mockResolvedValue({
+      added: ['librainian-0.2.1.tgz', 'src/new.ts'],
+      modified: [],
+      deleted: [],
+      renamed: [],
+    });
+    vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub());
+    mockStalenessTracker.checkFiles.mockResolvedValueOnce([
+      { status: 'new' },
+    ]);
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const freshness = report.checks.find((check: any) => check.name === 'Index Freshness');
+    expect(freshness).toBeTruthy();
+    expect(freshness.message).toBe('Index drift detected: 0 stale, 0 missing, 1 new file(s)');
+    expect(mockStalenessTracker.checkFiles).toHaveBeenCalledWith([
+      path.resolve(workspace, 'src/new.ts'),
+    ]);
   });
 
   it('reports stale lock files in lock directories', async () => {
@@ -486,6 +602,78 @@ describe('doctorCommand', () => {
     fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
   });
 
+  it('downgrades active database lock contention from error to warning', async () => {
+    const dynamicWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-busy-'));
+    const dbPath = path.join(dynamicWorkspace, '.librarian', 'librarian.sqlite');
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    fs.writeFileSync(dbPath, '');
+    fs.writeFileSync(`${dbPath}.lock`, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }), 'utf8');
+
+    vi.mocked(resolveWorkspaceRoot).mockReturnValue({
+      original: dynamicWorkspace,
+      workspace: dynamicWorkspace,
+      changed: false,
+      sourceFileCount: 0,
+      reason: 'explicit',
+    });
+    vi.mocked(resolveDbPath).mockResolvedValue(dbPath);
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as { initialize: Mock };
+      storage.initialize = vi.fn().mockRejectedValue(new Error('database is locked'));
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace: dynamicWorkspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const dbCheck = report.checks.find((check: any) => check.name === 'Database Access');
+    expect(dbCheck).toBeTruthy();
+    expect(dbCheck.status).toBe('WARNING');
+    expect(dbCheck.message).toContain('Busy: active database lock');
+    expect(dbCheck.suggestion).toContain('Wait for active indexing/query work to finish');
+    expect(report.overallStatus).toBe('WARNING');
+
+    fs.rmSync(dynamicWorkspace, { recursive: true, force: true });
+  });
+
+  it('reports failed storage recovery as a hard database error', async () => {
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as { initialize: Mock };
+      storage.initialize = vi.fn().mockRejectedValue(
+        new Error('storage_recovery_failed:recoverable storage initialization failed for /tmp/librarian.sqlite: database disk image is malformed')
+      );
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const dbCheck = report.checks.find((check: any) => check.name === 'Database Access');
+    expect(dbCheck).toBeTruthy();
+    expect(dbCheck.status).toBe('ERROR');
+    expect(dbCheck.message).toContain('Storage recovery failed');
+    expect(dbCheck.suggestion).toContain('--mode fast');
+  });
+
+  it('reports rollback-compromised storage as untrustworthy writes', async () => {
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as { initialize: Mock };
+      storage.initialize = vi.fn().mockRejectedValue(
+        new Error('storage_transaction_rollback_failed:transaction failed and rollback did not complete cleanly (indexing conflict; rollback: disk I/O error)')
+      );
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const dbCheck = report.checks.find((check: any) => check.name === 'Database Access');
+    expect(dbCheck).toBeTruthy();
+    expect(dbCheck.status).toBe('ERROR');
+    expect(dbCheck.message).toContain('Storage writes are not trustworthy');
+    expect(dbCheck.suggestion).toContain('--mode fast');
+  });
+
   it('flags missing librarian MCP registration when config exists', async () => {
     const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'librarian-doctor-home-'));
     process.env.HOME = homeDir;
@@ -504,6 +692,7 @@ describe('doctorCommand', () => {
     expect(mcpCheck).toBeTruthy();
     expect(mcpCheck.status).toBe('WARNING');
     expect(mcpCheck.message).toContain('not registered');
+    expect(report.overallStatus).toBe('WARNING');
 
     fs.rmSync(homeDir, { recursive: true, force: true });
   });
@@ -533,7 +722,43 @@ describe('doctorCommand', () => {
     const report = JSON.parse(raw!);
     expect(Array.isArray(report.actions)).toBe(true);
     expect(report.actions.length).toBeGreaterThan(0);
-    expect(report.actions[0].command).toContain('librarian bootstrap --force');
+    expect(report.actions[0].command).toContain('librainian bootstrap --force');
+  });
+
+  it('downgrades failed bootstrap recovery state when a usable snapshot still exists', async () => {
+    vi.mocked(createSqliteStorage).mockImplementation(() => createStorageStub({
+      totalFunctions: 10,
+      totalModules: 5,
+      totalContextPacks: 5,
+    }));
+    vi.mocked(isBootstrapRequired)
+      .mockResolvedValueOnce({
+        required: true,
+        reason: 'Previous bootstrap incomplete (last recorded phase: embeddings). Resume with `librainian bootstrap` or restart durable state with `librainian bootstrap --force --mode fast`.',
+      })
+      .mockResolvedValueOnce({ required: false, reason: 'ok' });
+    vi.mocked(createSqliteStorage).mockImplementation(() => {
+      const storage = createStorageStub() as unknown as {
+        getLastBootstrapReport: Mock;
+      };
+      storage.getLastBootstrapReport = vi.fn().mockResolvedValue({
+        success: false,
+        error: 'bootstrap_failed_restored_previous_state: embeddings',
+        completedAt: new Date().toISOString(),
+      });
+      return storage as unknown as LibrarianStorage;
+    });
+
+    await doctorCommand({ workspace, json: true });
+
+    const report = parseJsonReport(consoleLogSpy);
+    const bootstrapCheck = report.checks.find((check: any) => check.name === 'Bootstrap Status');
+    expect(bootstrapCheck).toBeTruthy();
+    expect(bootstrapCheck.status).toBe('WARNING');
+    expect(bootstrapCheck.message).toContain('last-good snapshot may still be serving queries');
+    expect(bootstrapCheck.suggestion).toContain('--mode fast');
+    const action = report.actions.find((entry: any) => entry.check === 'Bootstrap Status');
+    expect(action?.command).toContain('--mode fast');
   });
 
   it('reports invalid embeddings and suggests doctor --fix', async () => {

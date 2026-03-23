@@ -172,9 +172,11 @@ test(quality): add tests for dead code detection
 4. **Request review** from maintainers
 5. **Address feedback** promptly
 
-### Release-Grade Validation (Required Before Merge)
+### Release-Grade Validation (Maintainer-Only Before Release)
 
-Run these before requesting final review:
+These are not the default contributor merge checklist. Run them only for
+release qualification, publish dry-runs, or when a maintainer explicitly asks
+for release-grade evidence:
 
 ```bash
 npm run validate:fast
@@ -182,7 +184,6 @@ npm run validate:full
 npm run test:agentic:strict
 npm run typecheck
 npm test -- --run
-npm run repo:audit
 npm run package:assert-identity
 npm run package:install-smoke
 npm run eval:publish-gate -- --json
@@ -190,8 +191,8 @@ npm run eval:publish-gate -- --json
 
 Validation ladder:
 - `npm run validate:fast` — typecheck + changed tests + public-surface checks (default PR path).
-- `npm run validate:full` — deterministic full gate before merge.
-- `npm run test:agentic:strict` — release-grade real-agent qualification.
+- `npm run validate:full` — deterministic full gate for high-risk or maintainer-directed changes.
+- `npm run test:agentic:strict` — maintainer-only release-grade real-agent qualification.
 
 ### Streamlined npm Publish Flow
 

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Detailed help text for librarian CLI commands
+ * @fileoverview Detailed help text for librainian CLI commands
  */
 
 const HELP_TEXT = {
@@ -8,79 +8,41 @@ LiBrainian CLI
 
 USAGE:
     librainian <command> [options]
-    librarian <command> [options]     # compatibility alias
+    librainian <command> [options]     # compatibility alias
 
 START HERE:
     librainian quickstart
-    librainian setup --depth quick
     librainian query "How does authentication work?"
     librainian status --format json
-    librainian stats --json
+    librainian doctor --json
+    librainian mcp --print-config
 
-COMMANDS:
+CORE COMMANDS:
     quickstart          Smooth onboarding and recovery flow
-    setup               Alias for quickstart (setup-oriented naming)
-    init                Scaffold templates or run quickstart/editor onboarding
     query <intent>      Run a query against the knowledge base
     context <topic>     Get focused deep context on a topic (alias for query --depth L3)
     repo-map            Generate a compact, ranked symbol map of the repository
-    feedback <token>    Submit outcome feedback for a prior query
     status              Show current index and health status
-    stats               Summarize tool-call cost/performance telemetry
-    calibration         Build confidence calibration dashboard from patrol artifacts
-    bootstrap           Initialize or refresh the knowledge index
-    embed               Repair and backfill semantic embeddings
-    uninstall           Remove LiBrainian bootstrap artifacts from workspace
-    install-openclaw-skill Install official OpenClaw skill and config wiring
-    openclaw-daemon     Manage OpenClaw daemon registration and state
-    memory-bridge       Show MEMORY.md bridge state and manage session core memory
-    test-integration    Run quantitative integration benchmark suites
-    benchmark           Run local performance SLA diagnostics
-    privacy-report      Summarize privacy audit evidence
-    export              Export portable .librarian index bundle
-    import              Import portable .librarian index bundle
-    features            Show dynamic feature registry and current status
-    capabilities        Emit machine-readable capability inventory
-    mcp                 Start MCP stdio server / print client config snippets
-    eject-docs          Remove injected librarian docs from CLAUDE.md files
-    generate-docs       Generate TOOLS/CONTEXT/RULES prompt docs
-    check-providers     Check provider availability and authentication
-    audit-skill         Audit a SKILL.md for malicious patterns
-    watch               Watch for file changes and auto-reindex
-    check               Run diff-aware CI integrity checks
-    scan                Show security redaction scan results
-    triage              Assess/cluster dirty worktree state and recovery options
-    compose             Compose construction pipelines or technique bundles
-    constructions       Browse/search/describe/install/validate constructions
     doctor              Run diagnostics and recovery hints
-    health              Show current LiBrainian health status
-    check               Run CI integrity checks for changed files
-    smoke               Run external repo smoke harness
-    journey             Run agentic journey simulations
-    live-fire           Run continuous objective trial matrix
-    publish-gate        Run strict publish-readiness gate checks
+    bootstrap           Initialize or refresh the knowledge index
+    mcp                 Start MCP stdio server / print client config snippets
     help [command]      Show help for a command
 
-ADVANCED:
-    inspect <module>    Inspect a module or function's knowledge
-    confidence <entity> Show confidence scores for an entity
-    validate <file>     Validate constraints for a file
-    visualize           Generate codebase visualizations
-    coverage            Generate UC x method x scenario coverage audit
-    heal                Run homeostatic healing loop until healthy
-    evolve              Run evolutionary improvement loop
-    eval                Produce FitnessReport.v1 for current state
-    replay              Replay an evolution cycle or variant
-    index --force ...        Incrementally index explicit files or git-selected changes
-    update              Hook-friendly alias for incremental index updates
-    scan --secrets      Report secret redaction audit totals
-    analyze             Run static analysis (dead code, complexity)
-    config heal         Auto-detect and fix suboptimal configuration
-    repair              Run DETECT->FIX->VERIFY loop and write an audit report
-    ralph               Deprecated alias for repair
-    external-repos      Sync external repo corpus from manifest.json
-    export              Export portable index bundle for team/CI reuse
-    import              Import portable index bundle from another machine
+INTEGRATION AND AUTOMATION:
+    setup               Alias for quickstart (setup-oriented naming)
+    init                Alias for quickstart onboarding
+    features            Show stable runtime features for the public release surface
+    capabilities        Emit machine-readable public capability inventory
+    export              Export portable .librainian index bundle
+    import              Import portable .librainian index bundle
+    check-providers     Check provider availability and authentication
+    embed               Repair and backfill semantic embeddings
+    index --force ...   Incrementally index explicit files or git-selected changes
+    uninstall           Remove LiBrainian bootstrap artifacts from workspace
+
+MAINTAINER-ONLY COMMANDS:
+    Hidden from the public release surface by default.
+    Set LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1 in a source checkout to access them.
 
 GLOBAL OPTIONS:
     -h, --help          Show help information
@@ -102,35 +64,20 @@ EXAMPLES:
     librainian quickstart
     librainian query "How does the payment flow work?"
     librainian bootstrap --force
-    librainian check --diff HEAD~1..HEAD --format junit
-    librainian uninstall --dry-run
-    librainian audit-skill ./SKILL.md --json
-    librainian install-openclaw-skill --dry-run
-    librainian openclaw-daemon start --json
-    librainian memory-bridge status --json
-    librainian memory-bridge remember auth_model "JWT expires in 1 hour"
-    librainian test-integration --suite openclaw --json
-    librainian benchmark --json
-    librainian privacy-report --since 2026-02-01T00:00:00Z --json
-    librainian export --output state/exports/librarian-index.tar.gz
-    librainian import --input state/exports/librarian-index.tar.gz
-    librainian features --json
-    librainian capabilities --json --out state/capabilities.json
+    librainian query "What breaks if I change the scoring pipeline?"
+    librainian doctor --json
     librainian mcp --print-config --client claude
-    librainian generate-docs --include tools,context,rules
-    librainian compose "Prepare a release plan" --limit 1
-    librainian constructions search "security audit"
-    librainian publish-gate --profile release --json
+    librainian capabilities --json
 
 For command-specific details:
     librainian help <command>
 `,
 
   status: `
-librarian status - Show current librarian status and index health
+librainian status - Show current librainian status and index health
 
 USAGE:
-    librarian status [options]
+    librainian status [options]
 
 OPTIONS:
     --verbose           Show detailed statistics
@@ -144,7 +91,7 @@ OPTIONS:
     --workspace-set <path>  Load monorepo workspace-set config and report per-package status
 
 DESCRIPTION:
-    Displays the current state of the librarian knowledge index, including:
+    Displays the current state of the librainian knowledge index, including:
     - Bootstrap status and version
     - Number of indexed files, functions, and modules
     - Context pack statistics
@@ -153,17 +100,17 @@ DESCRIPTION:
     - Optional per-query cost/runtime telemetry when --costs is enabled
 
 EXAMPLES:
-    librarian status
-    librarian status --verbose
-    librarian status --costs --cost-budget-usd 0.50
-    librarian status --json --out /tmp/librarian-status.json
+    librainian status
+    librainian status --verbose
+    librainian status --costs --cost-budget-usd 0.50
+    librainian status --json --out /tmp/librainian-status.json
 `,
 
   stats: `
-librarian stats - Summarize evidence-ledger tool-call cost/performance telemetry
+librainian stats - Summarize evidence-ledger tool-call cost/performance telemetry
 
 USAGE:
-    librarian stats [options]
+    librainian stats [options]
 
 OPTIONS:
     --days <n>          Rolling window in days (default: 7)
@@ -177,16 +124,16 @@ DESCRIPTION:
     - Daily trend snapshot and optimization recommendations
 
 EXAMPLES:
-    librarian stats
-    librarian stats --days 30 --limit 10
-    librarian stats --json
+    librainian stats
+    librainian stats --days 30 --limit 10
+    librainian stats --json
 `,
 
   calibration: `
-librarian calibration - Build confidence calibration dashboard from patrol runs
+librainian calibration - Build confidence calibration dashboard from patrol runs
 
 USAGE:
-    librarian calibration [options]
+    librainian calibration [options]
 
 OPTIONS:
     --patrol-dir <path>    Path to patrol artifacts directory (default: state/patrol)
@@ -206,16 +153,16 @@ DESCRIPTION:
     or sample volume is insufficient.
 
 EXAMPLES:
-    librarian calibration
-    librarian calibration --bucket-count 12 --min-samples 80
-    librarian calibration --patrol-dir state/patrol --json
+    librainian calibration
+    librainian calibration --bucket-count 12 --min-samples 80
+    librainian calibration --patrol-dir state/patrol --json
 `,
 
   query: `
-librarian query - Run a query against the knowledge base
+librainian query - Run a query against the knowledge base
 
 USAGE:
-    librarian query "<intent>" [options]
+    librainian query "<intent>" [options]
 
 OPTIONS:
     --depth <level>     Query depth: L0 (shallow), L1 (default), L2 (deep), L3 (comprehensive)
@@ -244,7 +191,7 @@ OPTIONS:
     --out <path>        Write JSON output to file (requires --json)
 
 DESCRIPTION:
-    Queries the librarian knowledge base for context packs matching your intent.
+    Queries the librainian knowledge base for context packs matching your intent.
     The intent should describe what you want to understand or accomplish.
 
     Depth levels:
@@ -281,28 +228,28 @@ DESCRIPTION:
     - Use --transitive to include indirect dependencies
 
 EXAMPLES:
-    librarian query "How does authentication work?"
-    librarian query "Find error handling patterns" --depth L2
-    librarian query "Show prior related tasks" --depth L3
-    librarian query "What tests cover login?" --files src/auth/login.ts
-    librarian query "Assess impact" --uc UC-041,UC-042 --uc-priority high
-    librarian query "API endpoint structure" --json
-    librarian query "API endpoint structure" --json --out /tmp/librarian-query.json
-    librarian query "Quick overview" --token-budget 2000 --token-reserve 500
-    librarian query "Test reproducibility" --deterministic --json
-    librarian query "list all CLI commands" --enumerate
-    librarian query "how many test files" --enumerate --json
-    librarian query "what depends on SqliteStorage" --exhaustive --transitive
-    librarian query "How does auth work?" --session new --json
-    librarian query "What about token refresh?" --session sess_abc123 --json
-    librarian query --session sess_abc123 --drill-down src/auth/session.ts --json
+    librainian query "How does authentication work?"
+    librainian query "Find error handling patterns" --depth L2
+    librainian query "Show prior related tasks" --depth L3
+    librainian query "What tests cover login?" --files src/auth/login.ts
+    librainian query "Assess impact" --uc UC-041,UC-042 --uc-priority high
+    librainian query "API endpoint structure" --json
+    librainian query "API endpoint structure" --json --out /tmp/librarian-query.json
+    librainian query "Quick overview" --token-budget 2000 --token-reserve 500
+    librainian query "Test reproducibility" --deterministic --json
+    librainian query "list all CLI commands" --enumerate
+    librainian query "how many test files" --enumerate --json
+    librainian query "what depends on SqliteStorage" --exhaustive --transitive
+    librainian query "How does auth work?" --session new --json
+    librainian query "What about token refresh?" --session sess_abc123 --json
+    librainian query --session sess_abc123 --drill-down src/auth/session.ts --json
 `,
 
   context: `
-librarian context - Get focused deep context on a topic
+librainian context - Get focused deep context on a topic
 
 USAGE:
-    librarian context "<topic>" [options]
+    librainian context "<topic>" [options]
 
 OPTIONS:
     --depth <level>     Query depth: L0|L1|L2|L3 (default: L3 for comprehensive context)
@@ -313,7 +260,7 @@ OPTIONS:
     --no-bootstrap      Skip bootstrap check (use existing index)
 
 DESCRIPTION:
-    Alias for \`librarian query "<topic>" --depth L3\`. Provides focused, comprehensive
+    Alias for \`librainian query "<topic>" --depth L3\`. Provides focused, comprehensive
     context on a topic, concept, module, or codebase pattern. Designed for use
     by agents that need deep contextual understanding before acting.
 
@@ -324,18 +271,18 @@ DESCRIPTION:
     All query flags are supported. Pass --depth to override the L3 default.
 
 EXAMPLES:
-    librarian context "error handling"
-    librarian context "authentication flow"
-    librarian context "How does the storage layer work?" --json
-    librarian context "payment processing" --scope src/payments
-    librarian context "database migrations" --depth L2
+    librainian context "error handling"
+    librainian context "authentication flow"
+    librainian context "How does the storage layer work?" --json
+    librainian context "payment processing" --scope src/payments
+    librainian context "database migrations" --depth L2
 `,
 
   'repo-map': `
-librarian repo-map - Generate a compact repo map ranked by symbol centrality
+librainian repo-map - Generate a compact repo map ranked by symbol centrality
 
 USAGE:
-    librarian repo-map [options]
+    librainian repo-map [options]
 
 OPTIONS:
     --style <value>      Output style: compact | detailed | json (default: compact)
@@ -353,18 +300,18 @@ DESCRIPTION:
     (falling back to symbol density), then truncated to the requested token budget.
 
 EXAMPLES:
-    librarian repo-map
-    librarian repo-map --max-tokens 4096
-    librarian repo-map --focus src/auth,src/api
-    librarian repo-map --style detailed
-    librarian repo-map --json
+    librainian repo-map
+    librainian repo-map --max-tokens 4096
+    librainian repo-map --focus src/auth,src/api
+    librainian repo-map --style detailed
+    librainian repo-map --json
 `,
 
   feedback: `
-librarian feedback - Submit outcome feedback for a prior query
+librainian feedback - Submit outcome feedback for a prior query
 
 USAGE:
-    librarian feedback <feedbackToken> --outcome <success|failure|partial> [options]
+    librainian feedback <feedbackToken> --outcome <success|failure|partial> [options]
 
 OPTIONS:
     --outcome <value>        Task outcome: success | failure | partial
@@ -379,37 +326,35 @@ DESCRIPTION:
     context-pack confidence and track retrieval gaps.
 
     Notes:
-    - feedbackToken comes from librarian query output (feedbackToken field)
+    - feedbackToken comes from librainian query output (feedbackToken field)
     - Use --ratings/--ratings-file for explicit per-pack relevance control
     - Without custom ratings, outcome-level feedback applies to all packs
 
 EXAMPLES:
-    librarian feedback fbk_123 --outcome success
-    librarian feedback fbk_123 --outcome failure --missing-context "Need auth token lifecycle docs"
-    librarian feedback fbk_123 --outcome partial --ratings-file state/ratings.json --json
+    librainian feedback fbk_123 --outcome success
+    librainian feedback fbk_123 --outcome failure --missing-context "Need auth token lifecycle docs"
+    librainian feedback fbk_123 --outcome partial --ratings-file state/ratings.json --json
 `,
 
   bootstrap: `
-librarian bootstrap - Initialize or refresh the knowledge index
+librainian bootstrap - Initialize or refresh the knowledge index
 
 USAGE:
-    librarian bootstrap [options]
+    librainian bootstrap [options]
 
 OPTIONS:
     --force             Force full reindex even if data exists
     --force-resume      Resume bootstrap even if workspace fingerprint changed
-    --scope <name>      Bootstrap scope: full | librarian (default: full)
+    --scope <name>      Bootstrap scope: full | librainian (default: full)
     --mode <name>       Bootstrap mode: fast | full (default: full)
     --workspace-set <path>  Bootstrap all packages from a workspace-set config JSON
     --emit-baseline     Write OnboardingBaseline.v1 after successful bootstrap
-    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
-    --no-claude-md      Skip CLAUDE.md injection even when updating agent docs
     --install-grammars  Install missing tree-sitter grammar packages
     --llm-provider <p>  Force LLM provider: claude | codex (default: auto)
     --llm-model <id>    Force LLM model id (default: daily selection)
 
 DESCRIPTION:
-    Initializes the librarian knowledge index by:
+    Initializes the librainian knowledge index by:
     1. Scanning the workspace directory structure
     2. Indexing all code files (functions, modules, exports)
     3. Generating embeddings for semantic search
@@ -417,7 +362,7 @@ DESCRIPTION:
     5. Creating pre-computed context packs
 
     This command MUST complete before any agent work can proceed.
-    It automatically detects and upgrades older librarian data.
+    It automatically detects and upgrades older librainian data.
 
 PROGRESS INDICATORS:
     The bootstrap process shows real-time progress with:
@@ -427,19 +372,19 @@ PROGRESS INDICATORS:
     - Files processed count
 
 EXAMPLES:
-    librarian bootstrap
-    librarian bootstrap --force
-    librarian bootstrap --force-resume
-    librarian bootstrap --scope librarian
-    librarian bootstrap --scope librarian --llm-provider codex --llm-model gpt-4o-mini
-    librarian bootstrap --emit-baseline
+    librainian bootstrap
+    librainian bootstrap --force
+    librainian bootstrap --force-resume
+    librainian bootstrap --scope librarian
+    librainian bootstrap --scope librainian --llm-provider codex --llm-model gpt-4o-mini
+    librainian bootstrap --emit-baseline
 `,
 
   embed: `
-librarian embed - Repair and backfill semantic embeddings
+librainian embed - Repair and backfill semantic embeddings
 
 USAGE:
-    librarian embed --fix [--json]
+    librainian embed --fix [--json]
 
 OPTIONS:
     --fix               Run embedding backfill remediation (required)
@@ -451,19 +396,19 @@ DESCRIPTION:
     unavailable.
 
 EXAMPLES:
-    librarian embed --fix
-    librarian embed --fix --json
+    librainian embed --fix
+    librainian embed --fix --json
 `,
 
   uninstall: `
-librarian uninstall - Remove LiBrainian bootstrap artifacts
+librainian uninstall - Remove LiBrainian bootstrap artifacts
 
 USAGE:
-    librarian uninstall [options]
+    librainian uninstall [options]
 
 OPTIONS:
     --dry-run           Preview changes without modifying files
-    --keep-index        Keep .librarian index data while removing docs/config artifacts
+    --keep-index        Keep .librainian index data while removing docs/config artifacts
     --force             Skip confirmation prompt
     --json              Output machine-readable JSON summary
     --no-install        Skip npm install after package.json dependency removal
@@ -471,7 +416,7 @@ OPTIONS:
 DESCRIPTION:
     Removes LiBrainian-managed workspace artifacts in one flow:
     - Strips injected <!-- LIBRARIAN_DOCS_START --> blocks from known agent docs
-    - Removes librainian/librarian dependencies from package.json when present
+    - Removes librainian/librainian dependencies from package.json when present
     - Deletes generated directories (.librarian, state) unless --keep-index
     - Deletes .librainian-manifest.json uninstall record
 
@@ -479,17 +424,17 @@ DESCRIPTION:
     If missing, uninstall falls back to a deterministic scan of known artifacts.
 
 EXAMPLES:
-    librarian uninstall --dry-run
-    librarian uninstall --force
-    librarian uninstall --force --keep-index
-    librarian uninstall --json --force
+    librainian uninstall --dry-run
+    librainian uninstall --force
+    librainian uninstall --force --keep-index
+    librainian uninstall --json --force
 `,
 
   'audit-skill': `
-librarian audit-skill - Audit a SKILL.md file for malicious patterns
+librainian audit-skill - Audit a SKILL.md file for malicious patterns
 
 USAGE:
-    librarian audit-skill <path-to-SKILL.md> [options]
+    librainian audit-skill <path-to-SKILL.md> [options]
 
 OPTIONS:
     --json              Emit machine-readable JSON report
@@ -502,69 +447,20 @@ DESCRIPTION:
     - recommendation for install safety
 
 EXAMPLES:
-    librarian audit-skill ./skills/openclaw/SKILL.md
-    librarian audit-skill ./SKILL.md --json
-`,
-
-  'install-openclaw-skill': `
-librarian install-openclaw-skill - Install the official OpenClaw LiBrainian skill
-
-USAGE:
-    librarian install-openclaw-skill [options]
-
-OPTIONS:
-    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
-    --dry-run               Preview install and config wiring without writing files
-    --json                  Emit machine-readable JSON report
-
-DESCRIPTION:
-    Installs the official LiBrainian OpenClaw skill and applies deterministic
-    local configuration updates:
-    - Writes SKILL.md to ~/.openclaw/skills/librainian/SKILL.md
-    - Updates ~/.openclaw/openclaw.json under skills.entries.librainian
-    - Verifies required MCP tools are present in LiBrainian's schema registry
-    - Prints a test invocation for immediate validation
-
-EXAMPLES:
-    librarian install-openclaw-skill
-    librarian install-openclaw-skill --dry-run
-    librarian install-openclaw-skill --openclaw-root /tmp/.openclaw --json
-`,
-
-  'openclaw-daemon': `
-librarian openclaw-daemon - Manage OpenClaw daemon registration and local state
-
-USAGE:
-    librarian openclaw-daemon <start|status|stop> [options]
-
-OPTIONS:
-    --openclaw-root <path>  Override OpenClaw root directory (default: ~/.openclaw)
-    --state-root <path>     Override daemon state directory (default: ~/.librainian/openclaw-daemon)
-    --json                  Emit machine-readable JSON report
-
-DESCRIPTION:
-    Provides a deterministic control surface for OpenClaw integration:
-    - start: registers librainian in ~/.openclaw/config.yaml backgroundServices
-             and marks daemon state as running
-    - status: reports daemon running state + registration metadata
-    - stop: marks daemon state as stopped without deleting registration
-
-EXAMPLES:
-    librarian openclaw-daemon start
-    librarian openclaw-daemon status --json
-    librarian openclaw-daemon stop --state-root /tmp/librainian-state
+    librainian audit-skill ./skills/openclaw/SKILL.md
+    librainian audit-skill ./SKILL.md --json
 `,
 
   'memory-bridge': `
-librarian memory-bridge - Inspect memory bridge state and manage session core memory
+librainian memory-bridge - Inspect memory bridge state and manage session core memory
 
 USAGE:
-    librarian memory-bridge status [options]
-    librarian memory-bridge remember <key> <value> [--json]
-    librarian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>] [--json]
-    librarian memory-bridge search <query> [--limit <n>] [--json]
-    librarian memory-bridge update <id> <content> [--json]
-    librarian memory-bridge delete <id> [--json]
+    librainian memory-bridge status [options]
+    librainian memory-bridge remember <key> <value> [--json]
+    librainian memory-bridge add <content> [--scope codebase|module|function] [--scope-key <id>] [--json]
+    librainian memory-bridge search <query> [--limit <n>] [--json]
+    librainian memory-bridge update <id> <content> [--json]
+    librainian memory-bridge delete <id> [--json]
 
 OPTIONS:
     --memory-file <path>    Override MEMORY.md location (default: <workspace>/.openclaw/memory/MEMORY.md)
@@ -588,18 +484,18 @@ DESCRIPTION:
     instead of creating duplicates.
 
 EXAMPLES:
-    librarian memory-bridge status
-    librarian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
-    librarian memory-bridge remember auth_model "JWT expires in 1 hour"
-    librarian memory-bridge add "validateToken has race condition under refresh" --scope function --scope-key validateToken
-    librarian memory-bridge search "token validation race"
+    librainian memory-bridge status
+    librainian memory-bridge status --memory-file /tmp/.openclaw/memory/MEMORY.md --json
+    librainian memory-bridge remember auth_model "JWT expires in 1 hour"
+    librainian memory-bridge add "validateToken has race condition under refresh" --scope function --scope-key validateToken
+    librainian memory-bridge search "token validation race"
 `,
 
   'test-integration': `
-librarian test-integration - Run quantitative integration benchmark suites
+librainian test-integration - Run quantitative integration benchmark suites
 
 USAGE:
-    librarian test-integration --suite openclaw [options]
+    librainian test-integration --suite openclaw [options]
 
 OPTIONS:
     --suite <name>          Integration suite name (currently: openclaw)
@@ -619,16 +515,16 @@ DESCRIPTION:
     6. calibration convergence
 
 EXAMPLES:
-    librarian test-integration --suite openclaw
-    librarian test-integration --suite openclaw --scenario skill-audit --json
-    librarian test-integration --suite openclaw --strict --out state/eval/openclaw/benchmark.json
+    librainian test-integration --suite openclaw
+    librainian test-integration --suite openclaw --scenario skill-audit --json
+    librainian test-integration --suite openclaw --strict --out state/eval/openclaw/benchmark.json
 `,
 
   'benchmark': `
-librarian benchmark - Run local performance SLA diagnostics
+librainian benchmark - Run local performance SLA diagnostics
 
 USAGE:
-    librarian benchmark [options]
+    librainian benchmark [options]
 
 OPTIONS:
     --queries <n>            Number of query samples to run (default: 8)
@@ -650,16 +546,16 @@ DESCRIPTION:
     - >100% over target (>2x) => block
 
 EXAMPLES:
-    librarian benchmark
-    librarian benchmark --queries 12 --incremental-files 10
-    librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
+    librainian benchmark
+    librainian benchmark --queries 12 --incremental-files 10
+    librainian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
 `,
 
   'privacy-report': `
-librarian privacy-report - Summarize strict privacy-mode audit evidence
+librainian privacy-report - Summarize strict privacy-mode audit evidence
 
 USAGE:
-    librarian privacy-report [options]
+    librainian privacy-report [options]
 
 OPTIONS:
     --since <ISO-8601>     Only include events at/after this timestamp
@@ -675,19 +571,19 @@ DESCRIPTION:
     - external content transmissions (must be zero for strict compliance)
 
 EXAMPLES:
-    librarian privacy-report
-    librarian privacy-report --since 2026-02-01T00:00:00Z
-    librarian privacy-report --json --out state/audits/privacy-report.json
+    librainian privacy-report
+    librainian privacy-report --since 2026-02-01T00:00:00Z
+    librainian privacy-report --json --out state/audits/privacy-report.json
 `,
 
   'export': `
-librarian export - Export a portable .librarian index bundle
+librainian export - Export a portable .librainian index bundle
 
 USAGE:
-    librarian export [options]
+    librainian export [options]
 
 OPTIONS:
-    --output <path>      Output bundle path (default: .librarian/exports/librarian-index.tar.gz)
+    --output <path>      Output bundle path (default: .librarian/exports/librainian-index.tar.gz)
     --json               Emit machine-readable JSON output
     --out <path>         Write JSON output to file
 
@@ -704,16 +600,16 @@ DESCRIPTION:
     placeholder token, so bundles can be imported on different machines.
 
 EXAMPLES:
-    librarian export
-    librarian export --output state/exports/librarian-index.tar.gz
-    librarian export --json --out state/exports/index-export.json
+    librainian export
+    librainian export --output state/exports/librainian-index.tar.gz
+    librainian export --json --out state/exports/index-export.json
 `,
 
   'import': `
-librarian import - Import a portable .librarian index bundle
+librainian import - Import a portable .librainian index bundle
 
 USAGE:
-    librarian import --input <bundle.tar.gz> [options]
+    librainian import --input <bundle.tar.gz> [options]
 
 OPTIONS:
     --input <path>       Path to exported bundle tarball
@@ -725,18 +621,18 @@ DESCRIPTION:
     directory, validates manifest compatibility/checksums, and rewrites the
     workspace placeholder token back to this machine's absolute workspace root.
     If git HEAD differs from the bundle SHA, import warns and suggests running:
-      librarian update --since <bundleSha>
+      librainian index --force --since <bundleSha>
 
 EXAMPLES:
-    librarian import --input state/exports/librarian-index.tar.gz
-    librarian import --input ./librarian-index.tar.gz --json
+    librainian import --input state/exports/librainian-index.tar.gz
+    librainian import --input ./librainian-index.tar.gz --json
 `,
 
   'features': `
-librarian features - Show dynamic feature registry with status and config hints
+librainian features - Show dynamic feature registry with status and config hints
 
 USAGE:
-    librarian features [options]
+    librainian features [options]
 
 OPTIONS:
     --json               Emit machine-readable feature registry
@@ -744,45 +640,50 @@ OPTIONS:
     --out <path>         Write JSON output to file (requires --json)
 
 DESCRIPTION:
-    Lists core and experimental LiBrainian capabilities, their runtime status
-    (active/limited/inactive/not_implemented), and where to configure or learn
-    more. This command is designed to run quickly without deep index scans.
+    Lists the stable public-release feature surface and runtime status
+    (active/limited/inactive) by default. This command is designed to run
+    quickly without deep index scans.
+
+    Maintainers can opt into internal and planned entries from a source checkout
+    with LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1.
 
 EXAMPLES:
-    librarian features
-    librarian features --verbose
-    librarian features --json --out state/features.json
+    librainian features
+    librainian features --verbose
+    librainian features --json --out state/features.json
 `,
 
   'capabilities': `
-librarian capabilities - Emit machine-readable capability inventory
+librainian capabilities - Emit machine-readable capability inventory
 
 USAGE:
-    librarian capabilities [options]
+    librainian capabilities [options]
 
 OPTIONS:
     --json               Emit machine-readable inventory (default)
     --out <path>         Write JSON output to a file
 
 DESCRIPTION:
-    Returns a versioned capability inventory for agent startup/discovery that includes:
-    - MCP tools (name, description, input schema, example usage)
-    - Registered constructions (name/id, description, input schema, example usage)
-    - Available technique compositions (name/id, description, input schema, example usage)
+    Returns a versioned capability inventory for agent startup/discovery.
+    By default this is the stable public MCP surface.
+
+    Maintainers can opt into the broader internal inventory, including
+    constructions and technique compositions, from a source checkout with
+    LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1.
 
     The output includes inventoryVersion so agents can detect capability set changes.
 
 EXAMPLES:
-    librarian capabilities
-    librarian capabilities --json
-    librarian capabilities --out state/capabilities.json
+    librainian capabilities
+    librainian capabilities --json
+    librainian capabilities --out state/capabilities.json
 `,
 
   mcp: `
-librarian mcp - Start MCP stdio server and print client setup snippets
+librainian mcp - Start MCP stdio server and print client setup snippets
 
 USAGE:
-    librarian mcp [options]
+    librainian mcp [options]
 
 OPTIONS:
     --print-config        Print config snippets and exit (do not start server)
@@ -796,17 +697,17 @@ DESCRIPTION:
     Use --print-config to generate copy-ready JSON snippets for client setup.
 
 EXAMPLES:
-    librarian mcp
-    librarian mcp --print-config
-    librarian mcp --print-config --client claude
-    librarian mcp --print-config --launcher npx --json
+    librainian mcp
+    librainian mcp --print-config
+    librainian mcp --print-config --client claude
+    librainian mcp --print-config --launcher npx --json
 `,
 
   'eject-docs': `
-librarian eject-docs - Remove injected librarian docs from CLAUDE.md files
+librainian eject-docs - Remove injected librainian docs from CLAUDE.md files
 
 USAGE:
-    librarian eject-docs [options]
+    librainian eject-docs [options]
 
 OPTIONS:
     --dry-run           Report files that would be changed without writing
@@ -821,16 +722,16 @@ DESCRIPTION:
     Safe to run multiple times.
 
 EXAMPLES:
-    librarian eject-docs
-    librarian eject-docs --dry-run
-    librarian eject-docs --json
+    librainian eject-docs
+    librainian eject-docs --dry-run
+    librainian eject-docs --json
 `,
 
   'generate-docs': `
-librarian generate-docs - Generate prompt-injection docs (TOOLS/CONTEXT/RULES)
+librainian generate-docs - Generate prompt-injection docs (TOOLS/CONTEXT/RULES)
 
 USAGE:
-    librarian generate-docs [options]
+    librainian generate-docs [options]
 
 OPTIONS:
     --output-dir <path>      Output directory (default: workspace root)
@@ -853,16 +754,16 @@ DESCRIPTION:
     - prompt_docs.tools / prompt_docs.context / prompt_docs.rules
 
 EXAMPLES:
-    librarian generate-docs
-    librarian generate-docs --output-dir docs/generated --combined
-    librarian generate-docs --include tools,context --json
+    librainian generate-docs
+    librainian generate-docs --output-dir docs/generated --combined
+    librainian generate-docs --include tools,context --json
 `,
 
   quickstart: `
-librarian quickstart - Smooth onboarding and recovery flow
+librainian quickstart - Smooth onboarding and recovery flow
 
 USAGE:
-    librarian quickstart [options]
+    librainian quickstart [options]
 
 OPTIONS:
     --mode <name>       Bootstrap mode: fast | full (default: fast)
@@ -870,7 +771,6 @@ OPTIONS:
     --risk-tolerance <t>  Config heal risk: safe | low | medium (default: low)
     --force             Force bootstrap even if not required
     --skip-baseline     Skip writing OnboardingBaseline.v1
-    --update-agent-docs Opt in to updating AGENTS.md / CLAUDE.md / CODEX.md
     --ci                CI-friendly mode (non-interactive, skips MCP registration)
     --no-mcp            Skip MCP registration/setup steps
     --json              Output results as JSON
@@ -883,73 +783,58 @@ DESCRIPTION:
     - Bootstraps if required (fast by default)
     - Emits a baseline audit (unless skipped)
 
-    If embeddings or LLMs are unavailable, quickstart proceeds in degraded mode.
+    Quickstart fails closed when semantic embeddings are unavailable.
+    LLM synthesis may still be skipped when providers are missing, but semantic
+    retrieval readiness is required for a healthy first-run install.
 
 EXAMPLES:
-    librarian quickstart
-    librarian setup --depth quick --ci --no-mcp
-    librarian init --depth full
-    librarian quickstart --mode full
-    librarian quickstart --force --skip-baseline
-    librarian quickstart --update-agent-docs
-    librarian quickstart --json
+    librainian quickstart
+    librainian setup --depth quick --ci --no-mcp
+    librainian setup --mode full
+    librainian quickstart --mode full
+    librainian quickstart --force --skip-baseline
+    librainian quickstart --json
 `,
 
   setup: `
-librarian setup - Alias for quickstart onboarding
+librainian setup - Alias for quickstart onboarding
 
 USAGE:
-    librarian setup [options]
+    librainian setup [options]
 
 DESCRIPTION:
     Runs the same onboarding flow as:
-    librarian quickstart [options]
+    librainian quickstart [options]
 
     Common setup invocation:
-    librarian setup --depth quick --ci --no-mcp
+    librainian setup --depth quick --ci --no-mcp
 
 See:
-    librarian help quickstart
+    librainian help quickstart
 `,
   init: `
-librarian init - Scaffold constructions/MCP/CLAUDE.md with quickstart fallback
+librainian init - Alias for quickstart onboarding
 
 USAGE:
-    librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json]
-    librarian init [--editor vscode|cursor|continue|claude|jetbrains|windsurf|all] [--dry-run] [--global] [quickstart options]
-    librarian init [quickstart options]
-
-OPTIONS:
-    --construction <name>  Create .librarian construction + test + docs scaffolding
-    --mcp-config           Create or merge .mcp.json with librainian MCP server entry
-    --claude-md            Create/update LIBRARIAN_DOCS section in CLAUDE.md
-    --force                Overwrite conflicting scaffold files/entries when safe
-    --json                 Emit machine-readable action report for scaffolding mode
+    librainian init [quickstart options]
 
 DESCRIPTION:
-    When one or more scaffolding flags are present, init creates opinionated
-    templates for extending LiBrainian:
-    - Construction source/test/docs skeleton
-    - MCP config entry for \`librainian mcp\`
-    - CLAUDE.md operating notes injection block
-
-    Without scaffolding flags, init falls back to:
-    librarian quickstart [options]
+    Runs the same onboarding flow as:
+    librainian quickstart [options]
 
 EXAMPLES:
-    librarian init --construction SafeRefactorAdvisor
-    librarian init --mcp-config --claude-md
-    librarian init --construction SafeRefactorAdvisor --mcp-config --json
-    librarian init --depth quick --ci --no-mcp
+    librainian init
+    librainian init --depth quick --ci --no-mcp
+    librainian init --json
 
 See:
-    librarian help quickstart
+    librainian help quickstart
 `,
   smoke: `
-librarian smoke - Run external repo smoke harness
+librainian smoke - Run external repo smoke harness
 
 USAGE:
-    librarian smoke [options]
+    librainian smoke [options]
 
 OPTIONS:
     --repos-root <path>  Root folder with external repos (default: eval-corpus/external-repos)
@@ -964,17 +849,17 @@ DESCRIPTION:
     Uses a short query set to verify that overview and file-scoped context work.
 
 EXAMPLES:
-    librarian smoke
-    librarian smoke --max-repos 3
-    librarian smoke --timeout-ms 120000 --artifacts-dir state/eval/smoke
-    librarian smoke --repos-root ./eval-corpus/external-repos --json
+    librainian smoke
+    librainian smoke --max-repos 3
+    librainian smoke --timeout-ms 120000 --artifacts-dir state/eval/smoke
+    librainian smoke --repos-root ./eval-corpus/external-repos --json
 `,
 
   journey: `
-librarian journey - Run agentic journey simulations
+librainian journey - Run agentic journey simulations
 
 USAGE:
-    librarian journey [options]
+    librainian journey [options]
 
 OPTIONS:
     --repos-root <path>  Root folder with external repos (default: eval-corpus/external-repos)
@@ -995,17 +880,17 @@ DESCRIPTION:
     - Constraint validation on a representative file
 
 EXAMPLES:
-    librarian journey
-    librarian journey --max-repos 3 --deterministic
-    librarian journey --strict-objective --timeout-ms 120000
-    librarian journey --llm optional --json
+    librainian journey
+    librainian journey --max-repos 3 --deterministic
+    librainian journey --strict-objective --timeout-ms 120000
+    librainian journey --llm optional --json
 `,
 
   'live-fire': `
-librarian live-fire - Run continuous objective trial matrix
+librainian live-fire - Run continuous objective trial matrix
 
 USAGE:
-    librarian live-fire [options]
+    librainian live-fire [options]
 
 OPTIONS:
     --repos-root <path>            Root folder with external repos (default: eval-corpus/external-repos)
@@ -1041,18 +926,18 @@ DESCRIPTION:
     LiveFireMatrixReport.v1 plus per-profile artifacts.
 
 EXAMPLES:
-    librarian live-fire --list-profiles
-    librarian live-fire --profile baseline --profiles-file config/live_fire_profiles.json
-    librarian live-fire --matrix --profiles baseline,hardcore --profiles-file config/live_fire_profiles.json
-    librarian live-fire --strict-objective --include-smoke
-    librarian live-fire --rounds 2 --llm-modes disabled,optional --json
+    librainian live-fire --list-profiles
+    librainian live-fire --profile baseline --profiles-file config/live_fire_profiles.json
+    librainian live-fire --matrix --profiles baseline,hardcore --profiles-file config/live_fire_profiles.json
+    librainian live-fire --strict-objective --include-smoke
+    librainian live-fire --rounds 2 --llm-modes disabled,optional --json
 `,
 
   inspect: `
-librarian inspect - Inspect a module or function's knowledge
+librainian inspect - Inspect a module or function's knowledge
 
 USAGE:
-    librarian inspect <path-or-name> [options]
+    librainian inspect <path-or-name> [options]
 
 OPTIONS:
     --type <type>       Entity type: function, module, or auto (default)
@@ -1068,16 +953,16 @@ DESCRIPTION:
     - Related context packs
 
 EXAMPLES:
-    librarian inspect src/auth/login.ts
-    librarian inspect loginUser --type function
-    librarian inspect src/api/handlers/ --json
+    librainian inspect src/auth/login.ts
+    librainian inspect loginUser --type function
+    librainian inspect src/api/handlers/ --json
 `,
 
   compose: `
-librarian compose - Compose construction pipelines or technique bundles
+librainian compose - Compose construction pipelines or technique bundles
 
 USAGE:
-    librarian compose "<intent>" [options]
+    librainian compose "<intent>" [options]
 
 OPTIONS:
     --mode <m>         Compose mode: constructions|techniques (default: constructions)
@@ -1098,18 +983,18 @@ DESCRIPTION:
     - Outputs template + primitive bundles for downstream automation
 
 EXAMPLES:
-    librarian compose "Investigate payment auth regression"
-    librarian compose "Prepare a release plan" --mode techniques
-    librarian compose "Performance regression triage" --mode techniques --limit 2
-    librarian compose "Release readiness" --mode techniques --include-primitives --pretty
-    librarian compose "Release readiness" --timeout 120000 --verbose
+    librainian compose "Investigate payment auth regression"
+    librainian compose "Prepare a release plan" --mode techniques
+    librainian compose "Performance regression triage" --mode techniques --limit 2
+    librainian compose "Release readiness" --mode techniques --include-primitives --pretty
+    librainian compose "Release readiness" --timeout 120000 --verbose
 `,
 
   constructions: `
-librarian constructions - Browse, search, describe, install, run, and validate constructions
+librainian constructions - Browse, search, describe, install, run, and validate constructions
 
 USAGE:
-    librarian constructions <subcommand> [options]
+    librainian constructions <subcommand> [options]
 
 SUBCOMMANDS:
     list                    List available constructions (grouped by trust tier)
@@ -1138,21 +1023,21 @@ DESCRIPTION:
     It supports discovery and validation workflows without requiring MCP setup.
 
 EXAMPLES:
-    librarian constructions list
-    librarian constructions list --all
-    librarian constructions list --trust-tier official --limit 20
-    librarian constructions search "blast radius change impact"
-    librarian constructions describe librainian:security-audit-helper
-    librarian constructions install librainian:security-audit-helper --dry-run
-    librarian constructions run librainian:security-audit-helper --input '{"files":["src/auth.ts"],"checkTypes":["auth"]}'
-    librarian constructions validate ./construction.manifest.json --json
+    librainian constructions list
+    librainian constructions list --all
+    librainian constructions list --trust-tier official --limit 20
+    librainian constructions search "blast radius change impact"
+    librainian constructions describe librainian:security-audit-helper
+    librainian constructions install librainian:security-audit-helper --dry-run
+    librainian constructions run librainian:security-audit-helper --input '{"files":["src/auth.ts"],"checkTypes":["auth"]}'
+    librainian constructions validate ./construction.manifest.json --json
 `,
 
   confidence: `
-librarian confidence - Show confidence scores for an entity
+librainian confidence - Show confidence scores for an entity
 
 USAGE:
-    librarian confidence <entity-id> [options]
+    librainian confidence <entity-id> [options]
 
 OPTIONS:
     --history           Show confidence history over time
@@ -1173,15 +1058,15 @@ DESCRIPTION:
     - <0.5: Low confidence, treat with caution
 
 EXAMPLES:
-    librarian confidence function:loginUser:src/auth/login.ts
-    librarian confidence module:src/api/handlers.ts --history
+    librainian confidence function:loginUser:src/auth/login.ts
+    librainian confidence module:src/api/handlers.ts --history
 `,
 
   validate: `
-librarian validate - Validate constraints for a file
+librainian validate - Validate constraints for a file
 
 USAGE:
-    librarian validate <file-path> [options]
+    librainian validate <file-path> [options]
 
 OPTIONS:
     --before <content>  Previous file content (for change validation)
@@ -1200,17 +1085,15 @@ DESCRIPTION:
     - Suggestions for resolution
 
 EXAMPLES:
-    librarian validate src/api/handler.ts
-    librarian coverage
-    librarian coverage --output state/audits/librarian/coverage/custom.json --strict
-    librarian validate src/auth/login.ts --json
+    librainian validate src/api/handler.ts
+    librainian validate src/auth/login.ts --json
 `,
 
   coverage: `
-librarian coverage - Generate UC x method x scenario coverage audit
+librainian coverage - Generate UC x method x scenario coverage audit
 
 USAGE:
-    librarian coverage [options]
+    librainian coverage [options]
 
 OPTIONS:
     --output <path>     Output path for coverage matrix JSON
@@ -1221,15 +1104,15 @@ DESCRIPTION:
     The report is written to state/audits/librarian/coverage/.
 
 EXAMPLES:
-    librarian coverage
-    librarian coverage --output state/audits/librarian/coverage/custom.json --strict
+    librainian coverage
+    librainian coverage --output state/audits/librarian/coverage/custom.json --strict
 `,
 
   'check-providers': `
-librarian check-providers - Check provider availability and authentication
+librainian check-providers - Check provider availability and authentication
 
 USAGE:
-    librarian check-providers [options]
+    librainian check-providers [options]
 
 OPTIONS:
     --json              Output results as JSON
@@ -1250,17 +1133,17 @@ DESCRIPTION:
     - Remediation steps if unavailable
 
 EXAMPLES:
-    librarian check-providers
-    librarian check-providers --json
-    librarian check-providers --force-probe
-    librarian check-providers --json --out /tmp/librarian-providers.json
+    librainian check-providers
+    librainian check-providers --json
+    librainian check-providers --force-probe
+    librainian check-providers --json --out /tmp/librarian-providers.json
 `,
 
   watch: `
-librarian watch - Watch for file changes and auto-reindex
+librainian watch - Watch for file changes and auto-reindex
 
 USAGE:
-    librarian watch [options]
+    librainian watch [options]
 
 OPTIONS:
     --debounce <ms>     Debounce interval in milliseconds (default: 200)
@@ -1268,7 +1151,7 @@ OPTIONS:
 
 DESCRIPTION:
     Starts a file watcher that automatically reindexes changed files,
-    keeping the librarian knowledge base up-to-date as you code.
+    keeping the librainian knowledge base up-to-date as you code.
 
     The watcher will:
     - Detect file changes in real-time
@@ -1280,16 +1163,16 @@ DESCRIPTION:
     Press Ctrl+C to stop the watcher.
 
 EXAMPLES:
-    librarian watch
-    librarian watch --debounce 500
-    librarian watch --quiet
+    librainian watch
+    librainian watch --debounce 500
+    librainian watch --quiet
 `,
 
   health: `
-librarian health - Show current LiBrainian health status
+librainian health - Show current LiBrainian health status
 
 USAGE:
-    librarian health [options]
+    librainian health [options]
 
 OPTIONS:
     --verbose           Show detailed health metrics
@@ -1303,16 +1186,16 @@ DESCRIPTION:
     - Recommended actions
 
 EXAMPLES:
-    librarian health
-    librarian health --verbose
-    librarian health --format json
+    librainian health
+    librainian health --verbose
+    librainian health --format json
 `,
 
   check: `
-librarian check - Run diff-aware CI integrity checks
+librainian check - Run diff-aware CI integrity checks
 
 USAGE:
-    librarian check [options]
+    librainian check [options]
 
 OPTIONS:
     --diff <spec>       Diff selector: HEAD~1..HEAD | <base-ref> | working-tree (default: working-tree)
@@ -1334,17 +1217,17 @@ DESCRIPTION:
     - 2: unchecked (bootstrap/index missing)
 
 EXAMPLES:
-    librarian check
-    librarian check --diff HEAD~1..HEAD --format text
-    librarian check --diff origin/main --json
-    librarian check --diff HEAD~1..HEAD --format junit --out reports/librarian-check.xml
+    librainian check
+    librainian check --diff HEAD~1..HEAD --format text
+    librainian check --diff origin/main --json
+    librainian check --diff HEAD~1..HEAD --format junit --out reports/librarian-check.xml
 `,
 
   triage: `
-librarian triage - Assess dirty worktree state and cluster changes for safe recovery
+librainian triage - Assess dirty worktree state and cluster changes for safe recovery
 
 USAGE:
-    librarian triage [options]
+    librainian triage [options]
 
 OPTIONS:
     --threshold <N>     Dirty-file threshold to block new edits (default: 50)
@@ -1365,19 +1248,19 @@ DESCRIPTION:
     If threshold is exceeded and no recovery action is selected, exit code is 2.
 
 EXAMPLES:
-    librarian triage
-    librarian triage --json
-    librarian triage --threshold 75
-    librarian triage --auto
-    librarian triage --stash
-    librarian triage --revert --confirm
+    librainian triage
+    librainian triage --json
+    librainian triage --threshold 75
+    librainian triage --auto
+    librainian triage --stash
+    librainian triage --revert --confirm
 `,
 
   heal: `
-librarian heal - Run homeostatic healing loop until healthy
+librainian heal - Run homeostatic healing loop until healthy
 
 USAGE:
-    librarian heal [options]
+    librainian heal [options]
 
 OPTIONS:
     --max-cycles <N>    Maximum healing cycles (default: 10)
@@ -1392,16 +1275,16 @@ DESCRIPTION:
     - Resolving detected issues
 
 EXAMPLES:
-    librarian heal
-    librarian heal --max-cycles 5
-    librarian heal --dry-run
+    librainian heal
+    librainian heal --max-cycles 5
+    librainian heal --dry-run
 `,
 
   evolve: `
-librarian evolve - Run evolutionary improvement loop
+librainian evolve - Run evolutionary improvement loop
 
 USAGE:
-    librarian evolve [options]
+    librainian evolve [options]
 
 OPTIONS:
     --cycles <N>        Number of evolution cycles (default: 1)
@@ -1417,16 +1300,16 @@ DESCRIPTION:
     - Recording outcomes for learning
 
 EXAMPLES:
-    librarian evolve
-    librarian evolve --cycles 3 --candidates 5
-    librarian evolve --dry-run
+    librainian evolve
+    librainian evolve --cycles 3 --candidates 5
+    librainian evolve --dry-run
 `,
 
   eval: `
-librarian eval - Produce FitnessReport.v1 for current state
+librainian eval - Produce FitnessReport.v1 for current state
 
 USAGE:
-    librarian eval [options]
+    librainian eval [options]
 
 OPTIONS:
     --output <path>     Output path for the report
@@ -1443,16 +1326,16 @@ DESCRIPTION:
     - Stage 4: Performance benchmarks
 
 EXAMPLES:
-    librarian eval
-    librarian eval --save-baseline
-    librarian eval --stages 0-2 --format json
+    librainian eval
+    librainian eval --save-baseline
+    librainian eval --stages 0-2 --format json
 `,
 
   replay: `
-librarian replay - Replay an evolution cycle or variant for analysis
+librainian replay - Replay an evolution cycle or variant for analysis
 
 USAGE:
-    librarian replay <cycle-id|variant-id> [options]
+    librainian replay <cycle-id|variant-id> [options]
 
 OPTIONS:
     --verbose           Show detailed replay information
@@ -1466,18 +1349,18 @@ DESCRIPTION:
     - Useful for debugging evolution issues
 
 EXAMPLES:
-    librarian replay cycle-2025-01-18-001
-    librarian replay variant-abc123 --verbose
+    librainian replay cycle-2025-01-18-001
+    librainian replay variant-abc123 --verbose
 `,
 
   index: `
-librarian index - Incrementally index specific files
+librainian index - Incrementally index specific files
 
 USAGE:
-    librarian index --force <file...> [options]
-    librarian index --force --incremental [options]
-    librarian index --force --staged [options]
-    librarian index --force --since <ref> [options]
+    librainian index --force <file...> [options]
+    librainian index --force --incremental [options]
+    librainian index --force --staged [options]
+    librainian index --force --since <ref> [options]
 
 OPTIONS:
     --force             REQUIRED. Acknowledge risk of context pack loss on failure
@@ -1507,26 +1390,26 @@ DESCRIPTION:
 
     CAUTION: Context packs are invalidated BEFORE reindexing. If indexing
     fails mid-operation, context packs for target files will be PERMANENTLY
-    LOST. Recovery requires running 'librarian bootstrap' to regenerate.
+    LOST. Recovery requires running 'librainian bootstrap' to regenerate.
     The --force flag is required to acknowledge this risk.
 
 EXAMPLES:
-    librarian index --force src/new_feature.ts
-    librarian index --force src/auth/*.ts --verbose
-    librarian index --force file1.ts file2.ts file3.ts
-    librarian index --force --incremental
-    librarian index --force --staged
-    librarian index --force --since origin/main
+    librainian index --force src/new_feature.ts
+    librainian index --force src/auth/*.ts --verbose
+    librainian index --force file1.ts file2.ts file3.ts
+    librainian index --force --incremental
+    librainian index --force --staged
+    librainian index --force --since origin/main
 `,
 
   update: `
-librarian update - Hook-friendly alias for incremental indexing
+librainian update - Hook-friendly alias for incremental indexing
 
 USAGE:
-    librarian update <file...> [options]
-    librarian update --incremental [options]
-    librarian update --staged [options]
-    librarian update --since <ref> [options]
+    librainian update <file...> [options]
+    librainian update --incremental [options]
+    librainian update --staged [options]
+    librainian update --since <ref> [options]
 
 OPTIONS:
     --incremental       Index changed files from git status (modified + added + untracked)
@@ -1535,22 +1418,22 @@ OPTIONS:
     --verbose           Show detailed indexing output
 
 DESCRIPTION:
-    Equivalent to \`librarian index --force ...\` and intended for pre-commit
+    Equivalent to \`librainian index --force ...\` and intended for pre-commit
     tooling (lint-staged, lefthook, pre-commit). This command still performs
     context-pack invalidation/rebuild behavior from indexCommand. Empty
     selector results are treated as no-op success for CI stability.
 
 EXAMPLES:
-    librarian update --staged
-    librarian update src/auth/session.ts src/api/mcp.ts
-    librarian update --since origin/main
+    librainian update --staged
+    librainian update src/auth/session.ts src/api/mcp.ts
+    librainian update --since origin/main
 `,
 
   scan: `
-librarian scan - Security redaction scan reporting
+librainian scan - Security redaction scan reporting
 
 USAGE:
-    librarian scan --secrets [options]
+    librainian scan --secrets [options]
 
 OPTIONS:
     --secrets           Report secret redaction totals from latest audit report
@@ -1565,17 +1448,17 @@ DESCRIPTION:
     and prints total redactions plus per-type counts.
 
 EXAMPLES:
-    librarian scan --secrets
-    librarian scan --secrets --json
+    librainian scan --secrets
+    librainian scan --secrets --json
 `,
 
   analyze: `
-librarian analyze - Run static analysis on the codebase
+librainian analyze - Run static analysis on the codebase
 
 USAGE:
-    librarian analyze --dead-code [options]
-    librarian analyze --dead-weight [options]
-    librarian analyze --complexity [options]
+    librainian analyze --dead-code [options]
+    librainian analyze --dead-weight [options]
+    librainian analyze --complexity [options]
 
 OPTIONS:
     --dead-code         Detect dead/unused code
@@ -1612,20 +1495,20 @@ DESCRIPTION:
     - Actionable recommendations
 
 EXAMPLES:
-    librarian analyze --dead-code
-    librarian analyze --dead-weight
-    librarian analyze --dead-weight --format json
-    librarian analyze --dead-code --format json
-    librarian analyze --complexity
-    librarian analyze --complexity --threshold 15
-    librarian analyze --complexity --format json
+    librainian analyze --dead-code
+    librainian analyze --dead-weight
+    librainian analyze --dead-weight --format json
+    librainian analyze --dead-code --format json
+    librainian analyze --complexity
+    librainian analyze --complexity --threshold 15
+    librainian analyze --complexity --format json
 `,
 
   config: `
-librarian config - Configuration management commands
+librainian config - Configuration management commands
 
 USAGE:
-    librarian config heal [options]
+    librainian config heal [options]
 
 SUBCOMMANDS:
     heal                Auto-detect and fix suboptimal configuration settings
@@ -1662,20 +1545,20 @@ DESCRIPTION:
     continuous autonomous healing when running in daemon mode.
 
 EXAMPLES:
-    librarian config heal                    # Diagnose and fix issues
-    librarian config heal --dry-run          # Preview changes only
-    librarian config heal --diagnose-only    # Diagnosis report only
-    librarian config heal --rollback         # Undo last healing
-    librarian config heal --history          # View effectiveness history
-    librarian config heal --risk-tolerance safe  # Only apply safest fixes
-    librarian config heal --format json      # JSON output for automation
+    librainian config heal                    # Diagnose and fix issues
+    librainian config heal --dry-run          # Preview changes only
+    librainian config heal --diagnose-only    # Diagnosis report only
+    librainian config heal --rollback         # Undo last healing
+    librainian config heal --history          # View effectiveness history
+    librainian config heal --risk-tolerance safe  # Only apply safest fixes
+    librainian config heal --format json      # JSON output for automation
 `,
 
 	  doctor: `
-	librarian doctor - Run health diagnostics to identify issues
+	librainian doctor - Run health diagnostics to identify issues
 
 USAGE:
-    librarian doctor [options]
+    librainian doctor [options]
 
 OPTIONS:
     --verbose           Show detailed diagnostic information
@@ -1752,22 +1635,22 @@ OUTPUT:
     - 1: One or more errors detected
 
 EXAMPLES:
-    librarian doctor
-    librarian doctor --verbose
-    librarian doctor --json
-    librarian doctor --verbose --json
-    librarian doctor --heal
-    librarian doctor --fix
-    librarian doctor --check-consistency --json
-	    librarian doctor --heal --risk-tolerance safe
-	    librarian doctor --install-grammars
+    librainian doctor
+    librainian doctor --verbose
+    librainian doctor --json
+    librainian doctor --verbose --json
+    librainian doctor --heal
+    librainian doctor --fix
+    librainian doctor --check-consistency --json
+	    librainian doctor --heal --risk-tolerance safe
+	    librainian doctor --install-grammars
 		`,
 
 	  'publish-gate': `
-	librarian publish-gate - Run strict publish-readiness gate checks
+	librainian publish-gate - Run strict publish-readiness gate checks
 
 	USAGE:
-	    librarian publish-gate [options]
+	    librainian publish-gate [options]
 
 	OPTIONS:
 	    --profile broad|release
@@ -1779,7 +1662,6 @@ EXAMPLES:
 	                      max allowed age for release evidence artifacts (default: 168)
 	    --live-fire-pointer <path>
 	                      override live-fire quick pointer path
-	    --ab-report <path>    override A/B harness report path
 	    --use-case-report <path>
 	                      override agentic use-case review report path
 	    --smoke-report <path> override external smoke report path
@@ -1788,23 +1670,24 @@ EXAMPLES:
 	DESCRIPTION:
 	    Evaluates whether LiBrainian is publish-ready using evidence-backed artifacts.
 	    Broad profile is backlog-complete and blocks on all status drift.
-	    Release profile is publish-focused: live-fire, strict A/B, strict use-case
-	    review, and external smoke evidence must be fresh and passing; smoke must
-	    demonstrate multi-language coverage; release-critical metrics must be met.
+	    Release profile is publish-focused: live-fire, strict use-case review,
+	    external smoke, and release-integrity evidence must be fresh and passing;
+	    smoke must demonstrate multi-language coverage; release-critical metrics
+	    must be met.
 	    Reports machine-actionable blockers with remediation hints.
 
 	EXAMPLES:
-	    librarian publish-gate
-	    librarian publish-gate --json
-	    librarian publish-gate --profile broad --json
-	    librarian publish-gate --gates-file /tmp/GATES.json --status-file /tmp/STATUS.md --json
+	    librainian publish-gate
+	    librainian publish-gate --json
+	    librainian publish-gate --profile broad --json
+	    librainian publish-gate --gates-file /tmp/GATES.json --status-file /tmp/STATUS.md --json
 	`,
 
 	  repair: `
-	librarian repair - Run DETECT->FIX->VERIFY loop and write an audit report
+	librainian repair - Run DETECT->FIX->VERIFY loop and write an audit report
 
 	USAGE:
-	    librarian repair [options]
+	    librainian repair [options]
 
 	OPTIONS:
 	    --mode fast|full       fast bootstraps without LLM; full enables evaluation (default: fast)
@@ -1822,27 +1705,27 @@ EXAMPLES:
 	    - Writes a single audit artifact for evidence and debugging
 
 	EXAMPLES:
-	    librarian repair
-	    librarian repair --mode full
-	    librarian repair --mode full --max-cycles 3 --json
+	    librainian repair
+	    librainian repair --mode full
+	    librainian repair --mode full --max-cycles 3 --json
 	`,
 
 	  ralph: `
-	librarian ralph - Deprecated alias for librarian repair
+	librainian ralph - Deprecated alias for librainian repair
 
 	USAGE:
-	    librarian ralph [options]
+	    librainian ralph [options]
 
 	DESCRIPTION:
 	    This command still works for backward compatibility, but is deprecated.
-	    Use \`librarian repair\` for all new scripts and documentation.
+	    Use \`librainian repair\` for all new scripts and documentation.
 	`,
 
 	  'external-repos': `
-	librarian external-repos - Sync external repo corpus from manifest.json
+	librainian external-repos - Sync external repo corpus from manifest.json
 
 	USAGE:
-	    librarian external-repos sync [options]
+	    librainian external-repos sync [options]
 
 	OPTIONS:
 	    --repos-root <path>   directory containing manifest.json (default: eval-corpus/external-repos)
@@ -1853,13 +1736,13 @@ EXAMPLES:
 	DESCRIPTION:
 	    Ensures the external repo evaluation corpus is present on disk and pinned
 	    to the commits recorded in manifest.json. This is used by:
-	    - librarian smoke
+	    - librainian smoke
 	    - evaluation harnesses that require real repos
 
 	EXAMPLES:
-	    librarian external-repos sync
-	    librarian external-repos sync --verify
-	    librarian external-repos sync --max-repos 3 --json
+	    librainian external-repos sync
+	    librainian external-repos sync --verify
+	    librainian external-repos sync --max-repos 3 --json
 	`,
 	};
 
@@ -1887,6 +1770,56 @@ STATUS EXIT CODES:
 `,
 };
 
+const HIDDEN_HELP_ONLY_COMMANDS = new Set([
+  'evolve',
+  'eval',
+  'replay',
+  'repair',
+  'ralph',
+]);
+
+const INTERNAL_HELP_COMMANDS = new Set([
+  'stats',
+  'calibration',
+  'briefing',
+  'feedback',
+  'stats',
+  'eject-docs',
+  'generate-docs',
+  'inspect',
+  'confidence',
+  'validate',
+  'audit-skill',
+  'visualize',
+  'coverage',
+  'smoke',
+  'journey',
+  'live-fire',
+  'health',
+  'check',
+  'heal',
+  'watch',
+  'scan',
+  'triage',
+  'contract',
+  'diagnose',
+  'compose',
+  'constructions',
+  'analyze',
+  'config',
+  'update',
+  'publish-gate',
+  'external-repos',
+  'memory-bridge',
+  'test-integration',
+  'benchmark',
+  'privacy-report',
+]);
+
+function internalHelpEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
 function withExitCodes(command: keyof typeof HELP_TEXT, text: string): string {
   if (/exit codes:/i.test(text)) {
     return text;
@@ -1901,9 +1834,18 @@ function withExitCodes(command: keyof typeof HELP_TEXT, text: string): string {
   return `${sections.join('\n\n')}\n`;
 }
 
+function normalizePrimaryInvocation(command: keyof typeof HELP_TEXT, text: string): string {
+  if (command === 'main') return text;
+  return text.replace(/\blibrarian\b/g, 'librainian');
+}
+
 function renderHelp(command?: string): string {
-  if (command && command in HELP_TEXT) {
-    return withExitCodes(command as keyof typeof HELP_TEXT, HELP_TEXT[command as keyof typeof HELP_TEXT]);
+  if (command && INTERNAL_HELP_COMMANDS.has(command) && !internalHelpEnabled()) {
+    return `Command unavailable in the public release surface: ${command}\nSet LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1 in a source checkout to access maintainer-only commands.\n\n${withExitCodes('main', HELP_TEXT.main)}`;
+  }
+  if (command && command in HELP_TEXT && !HIDDEN_HELP_ONLY_COMMANDS.has(command)) {
+    const helpCommand = command as keyof typeof HELP_TEXT;
+    return withExitCodes(helpCommand, normalizePrimaryInvocation(helpCommand, HELP_TEXT[helpCommand]));
   }
 
   if (command) {

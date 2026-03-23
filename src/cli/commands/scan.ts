@@ -71,7 +71,7 @@ export async function scanCommand(options: ScanCommandOptions): Promise<void> {
     console.log(`Report created: ${payload.sourceReport.created_at}`);
   } else {
     console.log('Source report: none found');
-    console.log('Run librarian bootstrap/index to generate redaction audit artifacts.');
+    console.log('Run librainian bootstrap/index to generate redaction audit artifacts.');
   }
   console.log(`\nTotal redactions: ${payload.redactions.total}`);
   for (const [type, count] of Object.entries(payload.redactions.by_type)) {

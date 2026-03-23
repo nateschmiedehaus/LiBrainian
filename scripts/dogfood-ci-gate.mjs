@@ -11,7 +11,7 @@ const DURABILITY_RELATION_EXPECTATIONS = [
     scenario: 'branch_switch',
     relation: 'indexed_ancestor',
     reasonPattern: /new commits detected on current lineage/iu,
-    remediationPattern: /Run `librarian bootstrap`/u,
+    remediationPattern: /Run `librainian bootstrap`/u,
   },
   {
     scenario: 'history_rewrite',
@@ -1155,7 +1155,7 @@ function isUpdateNoopOutput(text) {
   const normalized = String(text ?? '');
   return (
     /No modified files found to index/iu.test(normalized)
-    || /No files specified\.\s*Usage:\s*librarian index <file\.\.\.>/iu.test(normalized)
+    || /No files specified\.\s*Usage:\s*libr(?:ainian|arian) index <file\.\.\.>/iu.test(normalized)
   );
 }
 

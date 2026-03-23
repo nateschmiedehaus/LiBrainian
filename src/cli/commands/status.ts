@@ -4,16 +4,17 @@ import { parseArgs } from 'node:util';
 import { resolveDbPath } from '../db_path.js';
 import { createSqliteStorage } from '../../storage/sqlite_storage.js';
 import { isBootstrapRequired, getBootstrapStatus } from '../../api/bootstrap.js';
-import { SCHEMA_VERSION } from '../../api/migrations.js';
+import { SCHEMA_VERSION } from '../../api/schema_migrations.js';
 import { getIndexState } from '../../state/index_state.js';
 import { getWatchState } from '../../state/watch_state.js';
 import { deriveWatchHealth } from '../../state/watch_health.js';
+import { createStalenessTracker } from '../../storage/staleness.js';
 import { checkAllProviders, type AllProviderStatus } from '../../api/provider_check.js';
 import { resolveSynthesisAvailability, type SynthesisAvailability } from '../../api/llm_env.js';
 import { computeEmbeddingCoverage, type EmbeddingCoverageSummary } from '../../api/embedding_coverage.js';
 import { inspectWorkspaceLocks } from '../../storage/storage_recovery.js';
 import type { LiBrainianStorage } from '../../storage/types.js';
-import { LIBRARIAN_VERSION } from '../../index.js';
+import { LIBRARIAN_VERSION, LIBRAINIAN_PACKAGE_VERSION } from '../../index.js';
 import { printKeyValue, formatTimestamp, formatBytes, formatDuration } from '../progress.js';
 import { safeJsonParse } from '../../utils/safe_json.js';
 import { resolveWorkspaceRoot } from '../../utils/workspace_resolver.js';
@@ -30,8 +31,15 @@ import {
   readWorkspaceSetState,
   type WorkspaceSetPackageStatus,
 } from '../workspace_set.js';
+import { isRetirableGitSelection } from './index.js';
 import { CROSS_DB_CONSISTENCY_CHECK_NAME, evaluateCrossDbConsistency } from './cross_db_consistency.js';
-import { summarizeSharedHealthChecks, type HealthCheck, type HealthCheckStatus, type SharedHealthSummary } from './health_summary.js';
+import {
+  classifyStorageRuntimeFailure,
+  summarizeSharedHealthChecks,
+  type HealthCheck,
+  type HealthCheckStatus,
+  type SharedHealthSummary,
+} from './health_summary.js';
 
 export interface StatusCommandOptions {
   workspace: string;
@@ -40,6 +48,8 @@ export interface StatusCommandOptions {
   out?: string;
   rawArgs?: string[];
 }
+
+const INCREMENTAL_INDEX_REFRESH_COMMAND = 'librainian index --force --incremental';
 
 type ServerStatus = {
   pidFile: string;
@@ -275,7 +285,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
   const report: StatusReport = {
     workspace: workspaceRoot,
     workspaceOriginal: workspaceRoot !== workspace ? workspace : undefined,
-    version: { cli: LIBRARIAN_VERSION.string },
+    version: { cli: LIBRAINIAN_PACKAGE_VERSION },
     runtime,
     storage: { status: 'not_initialized' },
   };
@@ -286,7 +296,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     console.log('================\n');
 
     console.log('Version Information:');
-    printKeyValue([{ key: 'CLI Version', value: LIBRARIAN_VERSION.string }, { key: 'Workspace', value: workspaceRoot }]);
+    printKeyValue([
+      { key: 'CLI Version', value: LIBRAINIAN_PACKAGE_VERSION },
+      { key: 'Index Schema', value: LIBRARIAN_VERSION.string },
+      { key: 'Workspace', value: workspaceRoot },
+    ]);
     console.log();
 
     console.log('Runtime Mode:');
@@ -327,9 +341,50 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     await storage.initialize();
     report.storage = { status: 'ready' };
   } catch (error) {
+    const failure = classifyStorageRuntimeFailure(error);
+    if (failure.kind === 'busy_lock') {
+      const workspaceLocks = await inspectWorkspaceLocks(workspaceRoot).catch(() => ({
+        lockDirs: [] as string[],
+        scannedFiles: 0,
+        staleFiles: 0,
+        activePidFiles: 0,
+        unknownFreshFiles: 0,
+        stalePaths: [] as string[],
+      }));
+      report.storage = {
+        status: 'degraded',
+        reason: failure.displayMessage,
+      };
+      report.locks = {
+        lockDirs: workspaceLocks.lockDirs,
+        scannedFiles: workspaceLocks.scannedFiles,
+        staleFiles: workspaceLocks.staleFiles,
+        activePidFiles: workspaceLocks.activePidFiles,
+        unknownFreshFiles: workspaceLocks.unknownFreshFiles,
+        databaseLockActive: databaseLockInspection?.active ?? false,
+        databaseLockPid: databaseLockInspection?.pid ?? null,
+        databaseLockPath: databaseLockInspection?.lockPath ?? (resolvedDbPath ? `${resolvedDbPath}.lock` : null),
+      };
+      report.healthSummary = summarizeSharedHealthChecks(
+        [createStorageHealthCheck(report)],
+        { includePassingChecks: false },
+      );
+      if (format === 'json') {
+        await emitJsonOutput(report, out);
+        return deriveStatusExitCode(report);
+      }
+      console.log('Storage Status:');
+      printKeyValue([
+        { key: 'Status', value: 'Degraded' },
+        { key: 'Reason', value: failure.displayMessage },
+      ]);
+      console.log();
+      console.log('Storage is busy. Wait for active indexing/query work to finish, or run `librainian doctor --heal` if the lock is stale.');
+      return deriveStatusExitCode(report);
+    }
     report.storage = {
       status: 'not_initialized',
-      reason: error instanceof Error ? error.message : 'Unknown error',
+      reason: failure.displayMessage,
     };
     if (format === 'json') {
       await emitJsonOutput(report, out);
@@ -338,10 +393,10 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
     console.log('Storage Status:');
     printKeyValue([
       { key: 'Status', value: 'Not Initialized' },
-      { key: 'Reason', value: error instanceof Error ? error.message : 'Unknown error' },
+      { key: 'Reason', value: failure.displayMessage },
     ]);
     console.log();
-    console.log('Run `librarian bootstrap` to initialize the knowledge index.');
+    console.log('Run `librainian bootstrap --force --mode fast` to initialize or repair the active store.');
     return 2;
   }
 
@@ -507,11 +562,11 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
           ]);
         }
         if (watchHealth?.suspectedDead || watchState.needs_catchup) {
-          console.log('\nTip: Run `librarian watch` to restart indexing and catch up on changes.');
+          console.log('\nTip: Run `librainian index --force --incremental` to restart indexing and catch up on changes.');
         }
       } else {
         printKeyValue([{ key: 'Watch Status', value: 'No watch state recorded' }]);
-        console.log('\nTip: Run `librarian watch` to keep the index up-to-date.');
+        console.log('\nTip: Run `librainian index --force --incremental` to keep the index up-to-date.');
       }
       console.log();
     }
@@ -558,10 +613,10 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'DB Lock Path', value: databaseLockInspection?.lockPath ?? (resolvedDbPath ? `${resolvedDbPath}.lock` : 'unknown') },
       ]);
       if (workspaceLocks.staleFiles > 0) {
-        console.log('\nTip: Run `librarian doctor --heal` to remove stale lock files.');
+        console.log('\nTip: Run `librainian doctor --heal` to remove stale lock files.');
       }
       if (workspaceLocks.activePidFiles > 0) {
-        console.log('\nTip: Storage is degraded while active locks exist. Wait for indexing to finish or run `librarian doctor --heal` if stuck.');
+        console.log('\nTip: Storage is degraded while active locks exist. Wait for indexing to finish or run `librainian doctor --heal` if stuck.');
       }
       if (databaseLockInspection?.active) {
         console.log('\nTip: Active database lock detected. Wait for ongoing indexing/query work to finish before trusting read/write health.');
@@ -705,7 +760,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'New (Unindexed)', value: report.freshness.newFiles },
       ]);
       if (report.freshness.staleFiles + report.freshness.missingFiles + report.freshness.newFiles > 0) {
-        printKeyValue([{ key: 'Suggested Command', value: 'librarian index --force --incremental' }]);
+        printKeyValue([{ key: 'Suggested Command', value: 'librainian index --force --incremental' }]);
       }
       console.log();
     }
@@ -729,7 +784,7 @@ export async function statusCommand(options: StatusCommandOptions): Promise<numb
         { key: 'Embedding Provider', value: providers.embedding.provider },
       ]);
       if (!providers.llm.available || !providers.embedding.available) {
-        console.log('\nRun `librarian check-providers` for detailed diagnostics.');
+        console.log('\nRun `librainian check-providers` for detailed diagnostics.');
       }
     } else {
       printKeyValue([{ key: 'Status', value: 'Unable to check providers' }]);
@@ -872,7 +927,7 @@ async function statusWorkspaceSet(options: {
   const report: StatusReport = {
     workspace: workspaceSet.root,
     workspaceOriginal: workspaceRoot !== workspaceOriginal ? workspaceOriginal : undefined,
-    version: { cli: LIBRARIAN_VERSION.string },
+    version: { cli: LIBRAINIAN_PACKAGE_VERSION },
     storage: { status: 'ready' },
     workspaceSet: {
       root: workspaceSet.root,
@@ -931,22 +986,48 @@ async function buildStatusHealthSummary(
   );
 }
 
+function hasUsablePersistentSnapshot(report: StatusReport): boolean {
+  return Boolean(
+    report.stats
+    && report.stats.totalFunctions > 0
+    && report.stats.totalModules > 0
+    && report.stats.totalContextPacks > 0,
+  );
+}
+
+function isBootstrapRepairStateReason(reason: string): boolean {
+  return reason.startsWith('Previous bootstrap incomplete')
+    || reason.startsWith('Bootstrap consistency marker is')
+    || reason.startsWith('Bootstrap artifacts missing')
+    || reason.startsWith('Bootstrap artifact snapshot is inconsistent');
+}
+
 async function collectStatusHealthChecks(
   report: StatusReport,
   workspaceRoot: string,
   resolvedDbPath: string | null,
 ): Promise<HealthCheck[]> {
   const checks: HealthCheck[] = [];
+  const usableSnapshot = hasUsablePersistentSnapshot(report);
 
   checks.push(createStorageHealthCheck(report));
   if (report.bootstrap) {
+    const repairWhileQueryable = report.bootstrap.required.mvp
+      && usableSnapshot
+      && isBootstrapRepairStateReason(report.bootstrap.reasons.mvp);
     checks.push({
       name: 'Bootstrap Status',
       status: report.bootstrap.required.mvp ? 'WARNING' : 'OK',
-      message: report.bootstrap.required.mvp
-        ? `Bootstrap outdated: ${report.bootstrap.reasons.mvp}`
+      message: repairWhileQueryable
+        ? `Bootstrap repair required; last-good snapshot may still be queryable. ${report.bootstrap.reasons.mvp}`
+        : report.bootstrap.required.mvp
+          ? `Bootstrap outdated: ${report.bootstrap.reasons.mvp}`
         : 'Bootstrap complete and up-to-date',
-      suggestion: report.bootstrap.required.mvp ? 'Run `librarian bootstrap` to refresh' : undefined,
+      suggestion: repairWhileQueryable
+        ? 'Run `librainian bootstrap --force --mode fast` to repair durable state.'
+        : report.bootstrap.required.mvp
+          ? 'Run `librainian bootstrap` to refresh'
+          : undefined,
     });
   }
   checks.push(createIndexFreshnessHealthCheck(report));
@@ -984,7 +1065,7 @@ async function createCrossDbConsistencyHealthCheck(
       name: CROSS_DB_CONSISTENCY_CHECK_NAME,
       status: 'ERROR',
       message: `Failed to inspect cross-DB consistency: ${error instanceof Error ? error.message : String(error)}`,
-      suggestion: 'Run `librarian bootstrap --force` to rebuild a single active database',
+      suggestion: 'Run `librainian bootstrap --force --mode fast` to rebuild a single active database',
     };
   }
 }
@@ -998,29 +1079,50 @@ function createStorageHealthCheck(report: StatusReport): HealthCheck {
     };
   }
   if (report.storage.status === 'degraded') {
+    const reason = report.storage.reason ?? 'storage health degraded';
+    const classified = classifyStorageRuntimeFailure(reason);
+    const activeLockDegradation = classified.kind === 'busy_lock'
+      || /active (?:storage|database) lock/iu.test(reason)
+      || /indexing in progress/iu.test(reason);
     return {
       name: 'Database Access',
-      status: 'ERROR',
-      message: `Database degraded: ${report.storage.reason ?? 'storage health degraded'}`,
-      suggestion: 'Run `librarian doctor --heal` or wait for active locks to clear.',
+      status: activeLockDegradation ? 'WARNING' : 'ERROR',
+      message: activeLockDegradation
+        ? `Database busy: ${reason}`
+        : `Database degraded: ${reason}`,
+      suggestion: activeLockDegradation
+        ? 'Wait for active indexing/query work to finish, or run `librainian doctor --heal` if the lock is stale.'
+        : 'Run `librainian doctor --heal` or wait for active locks to clear.',
     };
   }
   return {
     name: 'Database Access',
     status: 'ERROR',
     message: `Database unavailable: ${report.storage.reason ?? 'not initialized'}`,
-    suggestion: 'Run `librarian bootstrap --force` to initialize the active store.',
+    suggestion: 'Run `librainian bootstrap --force --mode fast` to initialize the active store.',
   };
 }
 
 function createIndexFreshnessHealthCheck(report: StatusReport): HealthCheck {
+  const freshness = report.freshness;
+  if (freshness) {
+    const driftCount = freshness.staleFiles + freshness.missingFiles + freshness.newFiles;
+    if (driftCount > 0) {
+      return {
+        name: 'Index Freshness',
+        status: 'WARNING',
+        message: `Index drift detected: ${freshness.staleFiles} stale, ${freshness.missingFiles} missing, ${freshness.newFiles} new file(s)`,
+        suggestion: `Run \`${INCREMENTAL_INDEX_REFRESH_COMMAND}\` to refresh the index against current workspace changes`,
+      };
+    }
+  }
   const lastFullIndex = report.index?.lastFullIndex ?? report.metadata?.lastIndexing ?? null;
   if (!lastFullIndex) {
     return {
       name: 'Index Freshness',
       status: 'WARNING',
       message: 'Missing last-index timestamp',
-      suggestion: 'Run `librarian bootstrap --force` to create a fresh index baseline',
+      suggestion: 'Run `librainian bootstrap --force --mode fast` to create a fresh index baseline',
     };
   }
   return {
@@ -1038,7 +1140,7 @@ function createWatchHealthCheck(report: StatusReport): HealthCheck {
       name: 'Watch Freshness',
       status: 'WARNING',
       message: 'No watch state recorded',
-      suggestion: 'Run `librarian watch` to keep the index up-to-date.',
+      suggestion: 'Run `librainian index --force --incremental` to keep the index up-to-date.',
     };
   }
   if (watchState?.last_error) {
@@ -1046,7 +1148,7 @@ function createWatchHealthCheck(report: StatusReport): HealthCheck {
       name: 'Watch Freshness',
       status: 'WARNING',
       message: `Watch degraded: last error ${watchState.last_error}`,
-      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+      suggestion: 'Run `librainian index --force --incremental` to restart indexing and catch up on changes',
     };
   }
   if (health?.suspectedDead) {
@@ -1054,7 +1156,7 @@ function createWatchHealthCheck(report: StatusReport): HealthCheck {
       name: 'Watch Freshness',
       status: 'WARNING',
       message: 'Watch degraded: suspected dead',
-      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+      suggestion: 'Run `librainian index --force --incremental` to restart indexing and catch up on changes',
     };
   }
   if (watchState?.needs_catchup) {
@@ -1062,7 +1164,7 @@ function createWatchHealthCheck(report: StatusReport): HealthCheck {
       name: 'Watch Freshness',
       status: 'WARNING',
       message: 'Watch degraded: needs catch-up',
-      suggestion: 'Run `librarian watch` to restart indexing and catch up on changes',
+      suggestion: 'Run `librainian index --force --incremental` to restart indexing and catch up on changes',
     };
   }
   return {
@@ -1086,7 +1188,7 @@ function createLockHealthCheck(report: StatusReport): HealthCheck {
       name: 'Lock File Staleness',
       status: 'WARNING',
       message: `Detected ${locks.staleFiles} stale lock file(s)`,
-      suggestion: 'Run `librarian doctor --heal` to safely remove stale lock files',
+      suggestion: 'Run `librainian doctor --heal` to safely remove stale lock files',
     };
   }
   if ((locks.unknownFreshFiles ?? 0) > 0) {
@@ -1094,7 +1196,7 @@ function createLockHealthCheck(report: StatusReport): HealthCheck {
       name: 'Lock File Staleness',
       status: 'WARNING',
       message: `Found ${locks.unknownFreshFiles} lock file(s) with unknown PID`,
-      suggestion: 'If indexing appears stuck, run `librarian doctor --heal`',
+      suggestion: 'If indexing appears stuck, run `librainian doctor --heal`',
     };
   }
   return {
@@ -1112,7 +1214,7 @@ function createEmbeddingCoverageHealthCheck(report: StatusReport): HealthCheck {
       name: 'Functions/Embeddings Correlation',
       status: 'WARNING',
       message: 'No functions indexed',
-      suggestion: 'Run `librarian bootstrap` to index codebase',
+      suggestion: 'Run `librainian bootstrap` to index codebase',
     };
   }
   if (totalEmbeddings === 0) {
@@ -1120,7 +1222,7 @@ function createEmbeddingCoverageHealthCheck(report: StatusReport): HealthCheck {
       name: 'Functions/Embeddings Correlation',
       status: 'ERROR',
       message: `${totalFunctions} functions but 0 embeddings`,
-      suggestion: 'Embedding model may have failed. Run `librarian bootstrap --force`',
+      suggestion: 'Embedding model may have failed. Run `librainian bootstrap --force --mode fast`',
     };
   }
   const coverage = (totalEmbeddings / totalFunctions) * 100;
@@ -1129,7 +1231,7 @@ function createEmbeddingCoverageHealthCheck(report: StatusReport): HealthCheck {
       name: 'Functions/Embeddings Correlation',
       status: 'ERROR',
       message: `Critical embedding coverage: ${coverage.toFixed(1)}% (${totalEmbeddings}/${totalFunctions})`,
-      suggestion: 'Embedding generation likely failed. Run `librarian bootstrap --force` and verify provider health.',
+      suggestion: 'Embedding generation likely failed. Run `librainian bootstrap --force --mode fast` and verify provider health.',
     };
   }
   if (coverage < 80) {
@@ -1163,7 +1265,7 @@ function createModulesHealthCheck(report: StatusReport): HealthCheck {
       name: 'Modules Indexed',
       status: 'WARNING',
       message: 'No modules indexed',
-      suggestion: 'Run `librarian bootstrap` to index codebase',
+      suggestion: 'Run `librainian bootstrap` to index codebase',
     };
   }
   return {
@@ -1180,7 +1282,7 @@ function createContextPackHealthCheck(report: StatusReport): HealthCheck {
       name: 'Context Packs Health',
       status: 'WARNING',
       message: 'No context packs generated',
-      suggestion: 'Run `librarian bootstrap` to generate context packs',
+      suggestion: 'Run `librainian bootstrap` to generate context packs',
     };
   }
   return {
@@ -1234,7 +1336,7 @@ function createEmbeddingProviderHealthCheck(report: StatusReport): HealthCheck {
       name: 'Embedding Provider',
       status: 'ERROR',
       message: `Embedding provider unavailable: ${report.providers?.error ?? 'unknown'}`,
-      suggestion: 'Check embedding provider installation or run `librarian check-providers`',
+      suggestion: 'Check embedding provider installation or run `librainian check-providers`',
     };
   }
   if (!providers.embedding.available) {
@@ -1242,7 +1344,7 @@ function createEmbeddingProviderHealthCheck(report: StatusReport): HealthCheck {
       name: 'Embedding Provider',
       status: 'ERROR',
       message: `Embedding provider unavailable: ${providers.embedding.error ?? 'unknown'}`,
-      suggestion: 'Check embedding provider installation or run `librarian check-providers`',
+      suggestion: 'Check embedding provider installation or run `librainian check-providers`',
     };
   }
   return {
@@ -1496,22 +1598,19 @@ async function collectGitFreshnessSummary(params: {
   }
 
   const addedOrModified = dedupePaths([...changes.added, ...changes.modified])
+    .filter((relPath) => isRetirableGitSelection(relPath))
     .map((relPath) => path.resolve(workspaceRoot, relPath));
-  const deleted = dedupePaths(changes.deleted).map((relPath) => path.resolve(workspaceRoot, relPath));
+  const deleted = dedupePaths(changes.deleted)
+    .filter((relPath) => isRetirableGitSelection(relPath))
+    .map((relPath) => path.resolve(workspaceRoot, relPath));
 
-  let staleFiles = 0;
-  let newFiles = 0;
-  let missingFiles = 0;
+  const tracker = createStalenessTracker(storage);
+  const changedStatuses = await tracker.checkFiles(addedOrModified);
+  const deletedStatuses = await tracker.checkFiles(deleted);
 
-  for (const filePath of addedOrModified) {
-    const indexed = await storage.getFileByPath(filePath);
-    if (indexed) staleFiles += 1;
-    else newFiles += 1;
-  }
-  for (const filePath of deleted) {
-    const indexed = await storage.getFileByPath(filePath);
-    if (indexed) missingFiles += 1;
-  }
+  const staleFiles = changedStatuses.filter((status) => status.status === 'stale').length;
+  const newFiles = changedStatuses.filter((status) => status.status === 'new').length;
+  const missingFiles = deletedStatuses.filter((status) => status.status === 'missing').length;
 
   const freshFiles = Math.max(totalIndexedFiles - staleFiles - missingFiles, 0);
   return {

@@ -23,9 +23,9 @@ Healthy output includes:
 ## 3) Common next commands
 
 ```bash
-npx librainian status --format json
-npx librainian health --format json
-npx librainian compose "Plan a safe refactor for auth token refresh"
+npx librainian status --json
+npx librainian doctor --json
+npx librainian repo-map --json
 ```
 
 ## 4) Programmatic integration
@@ -39,19 +39,13 @@ const context = await session.query('Add request-id tracing to API handlers');
 
 ## 5) Contributor loop
 
-```bash
-npm run build
-npm test -- --run
-npm run typecheck
-```
+Maintainer-only source-checkout validation lives in
+[`CONTRIBUTING.md`](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md).
 
-Before opening a PR:
-
-```bash
-npm run package:assert-identity
-npm run package:install-smoke
-npm run eval:publish-gate -- --json
-```
+Contributor validation and maintainer release qualification are source-checkout
+workflows. Use
+[`CONTRIBUTING.md`](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md)
+for build, test, packaging, and release commands.
 
 ## 6) If something fails
 

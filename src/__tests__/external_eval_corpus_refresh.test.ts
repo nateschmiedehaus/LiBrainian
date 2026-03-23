@@ -66,22 +66,36 @@ describe('external eval corpus refresh', () => {
     expect(result.reposUsed).toBe(2);
     expect(result.totalQueries).toBeGreaterThan(0);
     expect(result.unanswerableQueries).toBeGreaterThan(0);
+    expect(result.unanswerableRatio).toBeGreaterThanOrEqual(0.2);
+    expect(result.evaluationMode).toBe('lexical_placeholder');
+    expect(result.releaseQualified).toBe(false);
+    expect(result.releaseQualificationReason).toContain('placeholder lexical evaluation');
 
     const metricsRaw = await readFile(reportPath, 'utf8');
     const metrics = JSON.parse(metricsRaw) as {
+      diagnostic_mode: string;
+      diagnostic_only: boolean;
+      release_evidence_eligible: boolean;
+      release_evidence_block_reason: string;
       metrics: {
         retrieval_recall_at_5: { mean: number };
         context_precision: { mean: number };
       };
+      targets_met: boolean;
     };
     expect(metrics.metrics.retrieval_recall_at_5.mean).toBeGreaterThanOrEqual(0);
     expect(metrics.metrics.context_precision.mean).toBeGreaterThanOrEqual(0);
+    expect(metrics.diagnostic_mode).toBe('lexical_placeholder');
+    expect(metrics.diagnostic_only).toBe(true);
+    expect(metrics.release_evidence_eligible).toBe(false);
+    expect(metrics.release_evidence_block_reason).toContain('placeholder lexical evaluation');
 
     const gatesRaw = await readFile(gatesPath, 'utf8');
     const gates = JSON.parse(gatesRaw) as {
       tasks: Record<string, { status: string; note?: string }>;
     };
-    expect(gates.tasks['layer5.evalCorpus']?.status).toBe('pass');
-    expect(String(gates.tasks['layer5.evalCorpus']?.note ?? '')).toContain('unanswerable');
+    expect(gates.tasks['layer5.evalCorpus']?.status).toBe('fail');
+    expect(String(gates.tasks['layer5.evalCorpus']?.note ?? '')).toContain('placeholder lexical evaluation');
+    expect(String(gates.tasks['layer5.evalCorpus']?.currentState ?? '')).toContain('not release evidence');
   });
 });

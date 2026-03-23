@@ -167,7 +167,6 @@ export class AnthropicApiLlmService {
   private apiKey: string;
   private timeoutMs: number;
   private healthCheckIntervalMs: number;
-  private providerWorkspaceRoot: string;
   private semaphore: AsyncSemaphore;
   private lastHealthCheck: LlmProviderHealth = {
     provider: 'claude',
@@ -184,10 +183,13 @@ export class AnthropicApiLlmService {
     this.apiKey = key;
     this.timeoutMs = coercePositiveTimeout(process.env.CLAUDE_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
     this.healthCheckIntervalMs = coerceTimeout(process.env.LLM_HEALTH_CHECK_INTERVAL_MS, 60_000);
-    this.providerWorkspaceRoot = resolveProviderWorkspaceRoot();
     this.semaphore = new AsyncSemaphore(
       Number.parseInt(process.env.CLAUDE_MAX_CONCURRENT || '2', 10)
     );
+  }
+
+  private getProviderWorkspaceRoot(): string {
+    return resolveProviderWorkspaceRoot();
   }
 
   async chat(options: LlmChatOptions): Promise<ChatResult> {
@@ -421,7 +423,7 @@ export class AnthropicApiLlmService {
 
   private async assertProviderAvailable(): Promise<void> {
     try {
-      const failures = await getActiveProviderFailures(this.providerWorkspaceRoot);
+      const failures = await getActiveProviderFailures(this.getProviderWorkspaceRoot());
       const failure = failures['claude'];
       if (failure) {
         if (!isStickyFailureReason(failure.reason)) {
@@ -454,7 +456,7 @@ export class AnthropicApiLlmService {
   private async recordFailure(reason: string, message: string): Promise<void> {
     try {
       const classification = classifyProviderFailure(message);
-      await recordProviderFailure(this.providerWorkspaceRoot, {
+      await recordProviderFailure(this.getProviderWorkspaceRoot(), {
         provider: 'claude',
         reason: classification.reason || reason,
         message,
@@ -468,7 +470,7 @@ export class AnthropicApiLlmService {
 
   private async recordSuccess(): Promise<void> {
     try {
-      await recordProviderSuccess(this.providerWorkspaceRoot, 'claude');
+      await recordProviderSuccess(this.getProviderWorkspaceRoot(), 'claude');
     } catch {
       // Ignore persistence failures.
     }
@@ -482,7 +484,7 @@ export class AnthropicApiLlmService {
     status: 'allowed' | 'blocked';
     note?: string;
   }): Promise<void> {
-    await appendPrivacyAuditEvent(this.providerWorkspaceRoot, {
+    await appendPrivacyAuditEvent(this.getProviderWorkspaceRoot(), {
       ts: new Date().toISOString(),
       op: event.op,
       files: [],

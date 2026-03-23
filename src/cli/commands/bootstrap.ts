@@ -43,10 +43,26 @@ export interface BootstrapCommandOptions {
   rawArgs: string[];
 }
 
+type ProviderReadinessLevel = 'ready' | 'skipped' | 'limited' | 'failed';
+type ProviderSpinnerAction = 'succeed' | 'stop' | 'fail';
+
+interface ProviderReadinessPresentation {
+  level: ProviderReadinessLevel;
+  spinnerAction: ProviderSpinnerAction;
+  spinnerMessage: string;
+  notices: string[];
+  readyMessage: string;
+}
+
 const DEFAULT_BOOTSTRAP_TIMEOUT_MS = 1_200_000;
+
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
 
 export async function bootstrapCommand(options: BootstrapCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
+  const internalSurface = internalCommandsEnabled();
   let workspaceRoot = path.resolve(workspace);
   if (process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT !== '1') {
     const resolution = resolveWorkspaceRoot(workspaceRoot);
@@ -109,6 +125,12 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   if (force && forceResume) {
     throw createError('INVALID_ARGUMENT', 'Use either --force or --force-resume (not both).');
   }
+  if ((updateAgentDocs || noClaudeMd) && !internalSurface) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      'Bootstrap agent-doc mutation flags are unavailable in the public release surface.',
+    );
+  }
   console.log('LiBrainian Bootstrap');
   console.log('===================\n');
   if (scope !== 'full') {
@@ -121,7 +143,9 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
   } else {
     console.log('LLM: auto (enabled when providers are ready)');
   }
-  console.log(`Agent docs update: ${updateAgentDocs ? 'enabled' : 'disabled (opt-in)'}`);
+  if (internalSurface || updateAgentDocs) {
+    console.log(`Agent docs update: ${updateAgentDocs ? 'enabled' : 'disabled'}`);
+  }
   if (updateAgentDocs) {
     console.log(`CLAUDE.md injection: ${noClaudeMd ? 'disabled (--no-claude-md)' : 'enabled'}`);
   }
@@ -210,6 +234,13 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
     let enableLlm = explicitLlmRequested;
     let skipLlm = !enableLlm;
     let skipEmbeddings = false;
+    let providerReadiness: ProviderReadinessPresentation = {
+      level: 'ready',
+      spinnerAction: 'succeed',
+      spinnerMessage: 'Providers available',
+      notices: [],
+      readyMessage: 'LiBrainian is ready! Run `librainian query "<intent>"` to search the knowledge base.',
+    };
 
     const providerSpinner = createSpinner('Verifying provider configuration...');
     let providerStatus: AllProviderStatus | null = null;
@@ -221,48 +252,70 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         // Embeddings are critical for retrieval quality and xenova runs locally.
         const { isXenovaAvailable, isSentenceTransformersAvailable } = await import('../../api/embedding_providers/real_embeddings.js');
         const localEmbeddingAvailable = await isXenovaAvailable() || await isSentenceTransformersAvailable();
-        if (localEmbeddingAvailable) {
-          providerSpinner.succeed('LLM checks skipped; local embedding provider available');
-        } else {
-          providerSpinner.succeed('Provider checks skipped (offline/degraded mode)');
+        providerReadiness = describeProviderReadiness({
+          explicitLlmRequested,
+          providerCheckSkipped: true,
+          localEmbeddingAvailable,
+          providerStatus: null,
+        });
+        if (!localEmbeddingAvailable) {
           skipEmbeddings = true;
         }
       } else {
         providerStatus = await checkAllProviders({ workspaceRoot: runWorkspaceRoot, forceProbe: explicitLlmRequested });
-        const llmOk = providerStatus.llm.available;
-        const embedOk = providerStatus.embedding.available;
-        if (explicitLlmRequested && llmOk && embedOk) {
-          providerSpinner.succeed('Providers available');
-        } else if (!explicitLlmRequested && embedOk) {
-          providerSpinner.succeed('Embedding provider available');
-        } else {
-          providerSpinner.succeed('Providers limited (continuing in degraded mode)');
-        }
-        if (!embedOk) {
+        providerReadiness = describeProviderReadiness({
+          explicitLlmRequested,
+          providerCheckSkipped: false,
+          providerStatus,
+        });
+        if (!providerStatus.embedding.available) {
           skipEmbeddings = true;
         }
       }
     } catch (error) {
-      providerSpinner.succeed('Provider check failed (continuing in degraded mode)');
       providerStatus = null;
       skipEmbeddings = true;
+      providerReadiness = describeProviderReadiness({
+        explicitLlmRequested,
+        providerCheckSkipped: false,
+        providerStatus: null,
+        error,
+      });
+    }
+
+    switch (providerReadiness.spinnerAction) {
+      case 'succeed':
+        providerSpinner.succeed(providerReadiness.spinnerMessage);
+        break;
+      case 'fail':
+        providerSpinner.fail(providerReadiness.spinnerMessage);
+        break;
+      default:
+        providerSpinner.stop();
+        break;
+    }
+    for (const notice of providerReadiness.notices) {
+      console.log(`⚠️  ${notice}`);
+    }
+
+    if (skipEmbeddings) {
+      throw createError(
+        'PROVIDER_UNAVAILABLE',
+        'Embedding provider unavailable. Bootstrap stops before creating a degraded semantic install. ' +
+          'Run `librainian check-providers` or `librainian doctor` and retry.'
+      );
     }
 
     if (!explicitLlmRequested) {
       enableLlm = Boolean(providerStatus?.llm.available);
       skipLlm = !enableLlm;
     } else if (providerStatus && !providerStatus.llm.available) {
-      console.log('⚠️  LLM provider unavailable - continuing without LLM enrichment.');
       enableLlm = false;
       skipLlm = true;
     }
     if (skipLlm) {
       console.log('LLM: disabled (heuristic mode)');
     }
-    if (skipEmbeddings) {
-      console.log('Embeddings: disabled (semantic search limited)');
-    }
-
     let llmProvider: 'claude' | 'codex' | undefined;
     let llmModelId: string | undefined;
     if (enableLlm) {
@@ -383,10 +436,11 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
       }
       const config = createBootstrapConfig(runWorkspaceRoot, configOverrides);
 
-      const report = await withBootstrapCommandTimeout(
-        timeoutMs,
-        () => bootstrapProject(config, storage)
-      );
+      // bootstrapProject already carries the wall-time budget via config.timeoutMs/governor.
+      // A second CLI-level timeout race is unsafe here because it rejects without canceling
+      // the underlying bootstrap, and the command finally block then closes storage while the
+      // bootstrap promise is still running.
+      const report = await bootstrapProject(config, storage);
       progressReporter.complete();
 
       const elapsed = Date.now() - startTime;
@@ -441,7 +495,7 @@ export async function bootstrapCommand(options: BootstrapCommandOptions): Promis
         console.log('\nBootstrap completed with errors. Some features may be limited.');
         console.log('Run `librainian status` for more details.');
       } else {
-        console.log('\nLiBrainian is ready! Run `librainian query \"<intent>\"` to search the knowledge base.');
+        console.log(`\n${providerReadiness.readyMessage}`);
       }
     } finally {
       progressReporter.complete();
@@ -674,8 +728,124 @@ function toSingleLine(value: string): string {
   return value.replace(/\s+/gu, ' ').trim();
 }
 
+function describeProviderReadiness(input: {
+  explicitLlmRequested: boolean;
+  providerCheckSkipped: boolean;
+  localEmbeddingAvailable?: boolean;
+  providerStatus: AllProviderStatus | null;
+  error?: unknown;
+}): ProviderReadinessPresentation {
+  if (input.error) {
+    const detail = toSingleLine(input.error instanceof Error ? input.error.message : String(input.error));
+    return {
+      level: 'failed',
+      spinnerAction: 'fail',
+      spinnerMessage: 'Provider verification failed',
+      notices: [
+        'Provider verification failed; bootstrap stopped before creating a degraded install.',
+        `Provider check error: ${detail}`,
+      ],
+      readyMessage:
+        'LiBrainian bootstrap cannot continue until provider verification succeeds. Run `librainian doctor` before retrying.',
+    };
+  }
+
+  if (input.providerCheckSkipped) {
+    if (input.localEmbeddingAvailable) {
+      return {
+        level: 'skipped',
+        spinnerAction: 'stop',
+        spinnerMessage: 'Provider checks skipped',
+        notices: [
+          'Provider checks were skipped; local embeddings are available, but LLM readiness is unverified.',
+          'LLM-backed enrichment remains disabled until providers are verified.',
+        ],
+        readyMessage:
+          'LiBrainian bootstrap completed with unverified provider readiness. Semantic retrieval is available, but LLM enrichment remains disabled until providers are verified.',
+      };
+    }
+    return {
+      level: 'failed',
+      spinnerAction: 'fail',
+      spinnerMessage: 'Embedding provider unavailable',
+      notices: [
+        'Provider checks were skipped and no local embedding provider is available.',
+        'Bootstrap stops before creating a degraded semantic install.',
+      ],
+      readyMessage:
+        'LiBrainian bootstrap cannot continue without semantic embeddings. Run provider checks or install a local embedding provider and retry.',
+    };
+  }
+
+  const providerStatus = input.providerStatus;
+  if (!providerStatus) {
+    return {
+      level: 'failed',
+      spinnerAction: 'fail',
+      spinnerMessage: 'Provider verification failed',
+      notices: [
+        'Provider verification did not return a usable status.',
+        'Bootstrap stops before creating a degraded semantic install.',
+      ],
+      readyMessage:
+        'LiBrainian bootstrap cannot continue until provider verification returns a usable result.',
+    };
+  }
+
+  const llmOk = providerStatus.llm.available;
+  const embedOk = providerStatus.embedding.available;
+  if (llmOk && embedOk) {
+    return {
+      level: 'ready',
+      spinnerAction: 'succeed',
+      spinnerMessage: 'Providers available',
+      notices: [],
+      readyMessage: 'LiBrainian is ready! Run `librainian query "<intent>"` to search the knowledge base.',
+    };
+  }
+
+  const notices: string[] = [];
+  if (!llmOk) {
+    notices.push(
+      input.explicitLlmRequested
+        ? 'Requested LLM provider unavailable; continuing without LLM enrichment.'
+        : 'LLM provider unavailable; continuing in heuristic mode.'
+    );
+    if (providerStatus.llm.error) {
+      notices.push(`LLM check: ${providerStatus.llm.error}`);
+    }
+  }
+  if (!embedOk) {
+    notices.push('Embedding provider unavailable; semantic retrieval is required for bootstrap.');
+    if (providerStatus.embedding.error) {
+      notices.push(`Embedding check: ${providerStatus.embedding.error}`);
+    }
+  }
+
+  if (!embedOk) {
+    return {
+      level: 'failed',
+      spinnerAction: 'fail',
+      spinnerMessage: 'Embedding provider unavailable',
+      notices,
+      readyMessage:
+        'LiBrainian bootstrap cannot continue without semantic embeddings. Restore embedding readiness and retry.',
+    };
+  }
+
+  return {
+    level: 'limited',
+    spinnerAction: 'stop',
+    spinnerMessage: 'Provider readiness limited',
+    notices,
+    readyMessage:
+      'LiBrainian bootstrap completed with limited provider readiness. Semantic retrieval is available, but LLM enrichment is disabled until provider checks pass.',
+  };
+}
+
 export const __testing = {
   resolveScopeOverrides,
   parseNonNegativeInt,
   withBootstrapCommandTimeout,
+  describeProviderReadiness,
 };

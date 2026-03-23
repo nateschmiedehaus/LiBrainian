@@ -892,7 +892,7 @@ describe('Debt Detectors', () => {
     expect(detector.confidence).toBe(0.80);
   });
 
-  it('detectors return empty arrays when run (placeholder implementation)', async () => {
+  it('complexity detector returns no findings when the target path is missing', async () => {
     const detector = createComplexityDetector({
       includePaths: ['src/'],
       excludePaths: [],

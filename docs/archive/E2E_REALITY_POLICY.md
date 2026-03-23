@@ -23,8 +23,8 @@ This policy enforces black-box package reality checks so releases cannot pass on
 ## Required Gates
 1. PR/verify gate:
    - Run primary external natural-usage E2E (`npm run eval:use-cases:agentic:quick` for cadence, `npm run eval:use-cases:agentic` for release verification).
-   - Run strict outcome diagnostics (`npm run test:e2e:outcome`).
-   - Run diagnosis triage (`npm run test:e2e:triage`) to classify immediate-action vs issue candidates.
+   - Run strict outcome diagnostics (`npm run internal:e2e:outcome`).
+   - Run diagnosis triage (`npm run internal:e2e:triage`) to classify immediate-action vs issue candidates.
    - Run strict development-truth tarball E2E (`npm run test:e2e:dev-truth`).
    - Run strict published-truth E2E with freshness (`npm run test:e2e:reality`).
    - Run AB diagnostics as a secondary signal (`npm run test:e2e:diagnostic:ab:quick` / `npm run test:e2e:diagnostic:ab:release`).

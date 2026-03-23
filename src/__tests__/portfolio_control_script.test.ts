@@ -203,7 +203,7 @@ describe('portfolio-control script', () => {
     expect(ledger.activeMilestone).toBe('M0: Dogfood-Ready');
     expect(ledger.milestones['M0: Dogfood-Ready'].total).toBe(5);
     expect(ledger.milestones['M0: Dogfood-Ready'].executableSource).toBe(3);
-    expect(ledger.milestones['M0: Dogfood-Ready'].executionReady).toBe(2);
+    expect(ledger.milestones['M0: Dogfood-Ready'].executionReady).toBe(1);
     expect(ledger.milestones['M0: Dogfood-Ready'].management).toBe(1);
     expect(ledger.milestones['M0: Dogfood-Ready'].closedSource24h).toBe(1);
     expect(ledger.milestones['M0: Dogfood-Ready'].bundleIssueNumbers['m0:bundle-b']).toEqual([905, 907]);
@@ -214,13 +214,14 @@ describe('portfolio-control script', () => {
       await fs.readFile(path.join(scorecardDir, 'M0', 'scorecard.json'), 'utf8'),
     );
     expect(m0Scorecard.transitionVerdict).toBe('NO_GO');
-    expect(m0Scorecard.readyIssueNumbers).toEqual([905, 907]);
+    expect(m0Scorecard.readyIssueNumbers).toEqual([905]);
 
     const docs = await fs.readFile(docsPath, 'utf8');
     expect(docs).toContain('Generated from live GitHub issue ledger');
-    expect(docs).toContain('M0: 5 total (3 executable, 2 execution-ready)');
+    expect(docs).toContain('advisory summary');
+    expect(docs).toContain('M0: 5 total (3 executable, 1 execution-ready)');
     expect(docs).toContain('Open issues (');
-    expect(docs).toContain('5 total / 3 executable / 2 execution-ready');
+    expect(docs).toContain('5 total / 3 executable / 1 execution-ready');
     const firstDocs = docs;
 
     await runScript([
@@ -238,8 +239,80 @@ describe('portfolio-control script', () => {
     const outputs = await fs.readFile(githubOutput, 'utf8');
     expect(outputs).toContain('active_milestone=M0: Dogfood-Ready');
     expect(outputs).toContain('open_source=3');
-    expect(outputs).toContain('runnable_source=2');
+    expect(outputs).toContain('runnable_source=1');
     expect(outputs).toContain('closed_source_24h=1');
+  });
+
+  it('selects work and verify issues from source issues only', async () => {
+    const temp = await mkTempDir('portfolio-control-select-');
+    const inputPath = path.join(temp, 'open.json');
+    const closedPath = path.join(temp, 'closed.json');
+    const workOutputPath = path.join(temp, 'work-output.txt');
+    const verifyOutputPath = path.join(temp, 'verify-output.txt');
+
+    const openIssues = [
+      {
+        number: 1061,
+        title: 'meta: manage issue #910',
+        body: 'Source issue: #910\nqueue=work',
+        url: 'https://example.com/1061',
+        labels: [{ name: 'agent:management-ticket' }, { name: 'triage/ready' }, { name: 'agent:actionable' }],
+        milestone: { title: 'M0: Dogfood-Ready' },
+      },
+      {
+        number: 910,
+        title: 'Ranking guardrail',
+        body: '',
+        url: 'https://example.com/910',
+        labels: [{ name: 'triage/ready' }, { name: 'agent:actionable' }, { name: 'm0:bundle-a' }],
+        milestone: { title: 'M0: Dogfood-Ready' },
+      },
+      {
+        number: 888,
+        title: 'Incremental reindex',
+        body: '',
+        url: 'https://example.com/888',
+        labels: [{ name: 'triage/ready' }, { name: 'agent:actionable' }, { name: 'm0:bundle-c' }, { name: 'verify:pending' }],
+        milestone: { title: 'M0: Dogfood-Ready' },
+      },
+      {
+        number: 916,
+        title: 'Golden path MCP descriptions',
+        body: '',
+        url: 'https://example.com/916',
+        labels: [{ name: 'triage/ready' }, { name: 'agent:actionable' }, { name: 'm0:bundle-d' }],
+        milestone: { title: 'M0: Dogfood-Ready' },
+      },
+    ];
+
+    await fs.writeFile(inputPath, JSON.stringify(openIssues), 'utf8');
+    await fs.writeFile(closedPath, '[]', 'utf8');
+
+    await runScript([
+      'select-work',
+      '--repo', 'owner/repo',
+      '--input', inputPath,
+      '--closed-input', closedPath,
+      '--github-output', workOutputPath,
+    ]);
+
+    await runScript([
+      'select-verify',
+      '--repo', 'owner/repo',
+      '--input', inputPath,
+      '--closed-input', closedPath,
+      '--github-output', verifyOutputPath,
+    ]);
+
+    const workOutputs = await fs.readFile(workOutputPath, 'utf8');
+    expect(workOutputs).toContain('found=true');
+    expect(workOutputs).toContain('issue_number=910');
+    expect(workOutputs).toContain('issue_bundle=m0:bundle-a');
+
+    const verifyOutputs = await fs.readFile(verifyOutputPath, 'utf8');
+    expect(verifyOutputs).toContain('found=true');
+    expect(verifyOutputs).toContain('issue_number=888');
+    expect(verifyOutputs).toContain('issue_verify_pending=true');
   });
 
   it('repairs contradictory labels and closes malformed management tickets', async () => {

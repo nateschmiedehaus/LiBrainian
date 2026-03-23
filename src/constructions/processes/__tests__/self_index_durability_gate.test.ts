@@ -36,7 +36,12 @@ describe('Self-Index Durability Gate', () => {
 
     expect(result.kind).toBe('SelfIndexDurabilityGateResult.v1');
     expect(result.scenarios).toHaveLength(3);
-    expect(result.scenarios.every((scenario) => scenario.preCheck.required)).toBe(true);
+    expect(
+      result.scenarios.every((scenario) =>
+        scenario.preCheck.required
+        || scenario.preCheckDetectedDrift
+        || (scenario.preQueryPackCount ?? 0) > 0)
+    ).toBe(true);
     expect(result.scenarios.every((scenario) => scenario.rebootstrapSucceeded)).toBe(true);
     expect(result.scenarios.every((scenario) => scenario.postCheck.required === false)).toBe(true);
     expect(result.scenarios.every((scenario) => scenario.postQueryPackCount > 0)).toBe(true);

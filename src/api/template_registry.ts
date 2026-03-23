@@ -315,16 +315,16 @@ function createStubExecute(templateId: string): (ctx: TemplateContext) => Promis
   return async (ctx: TemplateContext): Promise<TemplateResult> => {
     const now = new Date().toISOString();
     return {
-      success: true,
+      success: false,
       packs: [],
       adequacy: null,
       verificationPlan: null,
-      disclosures: [`stub_template(${templateId}): implementation pending`],
+      disclosures: [`template_unavailable(${templateId}): implementation pending`],
       traceId: `trace_${templateId}_${Date.now()}`,
       evidence: [{
         templateId,
         selectedAt: now,
-        reason: `Stub execution for ${templateId}`,
+        reason: `Template ${templateId} is registered for selection metadata only; execution is unavailable in this release`,
       }],
     };
   };

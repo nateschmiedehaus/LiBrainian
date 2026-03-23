@@ -120,6 +120,7 @@ import {
   globalEventBus,
   createContextPacksInvalidatedEvent,
   createEntityCreatedEvent,
+  createEntityDeletedEvent,
   createEntityUpdatedEvent,
   createUnderstandingInvalidatedEvent,
   createFeedbackReceivedEvent,
@@ -133,6 +134,7 @@ import type { RefactoringRecommendation } from '../recommendations/refactoring_a
 import { logWarning, logInfo } from '../telemetry/logger.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { safeJsonParse } from '../utils/safe_json.js';
+import { withProviderWorkspaceRoot } from '../utils/provider_failures.js';
 import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
 import {
   diagnoseConfiguration,
@@ -954,16 +956,18 @@ export class Librarian {
   private async runQueryWithEngines(query: LibrarianQuery): Promise<LibrarianResponse> {
     this.ensureReady();
     const governor = this.createGovernorContext('query');
-    const response = await executeQuery(
-      query,
-      this.storage!,
-      this.embeddingService ?? undefined,
-      governor,
-      undefined,
-      { evidenceLedger: this.evidenceLedger ?? undefined }
-    );
-    const engines = await this.buildEngineResults(query, response);
-    return sanitizeLibrarianResponse(engines ? { ...response, engines } : response);
+    return withProviderWorkspaceRoot(this.config.workspace, async () => {
+      const response = await executeQuery(
+        query,
+        this.storage!,
+        this.embeddingService ?? undefined,
+        governor,
+        undefined,
+        { evidenceLedger: this.evidenceLedger ?? undefined }
+      );
+      const engines = await this.buildEngineResults(query, response);
+      return sanitizeLibrarianResponse(engines ? { ...response, engines } : response);
+    });
   }
 
   async embedIntent(intent: string): Promise<Float32Array> {
@@ -972,14 +976,16 @@ export class Librarian {
       throw new Error('unverified_by_trace(provider_unavailable): embedding service not configured');
     }
     const governor = this.createGovernorContext('query');
-    const result = await this.embeddingService.generateEmbedding(
-      { text: intent, kind: 'query' },
-      { governorContext: governor }
-    );
-    if (!(result.embedding instanceof Float32Array)) {
-      throw new Error('unverified_by_trace(provider_invalid_output): embedding is not a Float32Array');
-    }
-    return result.embedding;
+    return withProviderWorkspaceRoot(this.config.workspace, async () => {
+      const result = await this.embeddingService!.generateEmbedding(
+        { text: intent, kind: 'query' },
+        { governorContext: governor }
+      );
+      if (!(result.embedding instanceof Float32Array)) {
+        throw new Error('unverified_by_trace(provider_invalid_output): embedding is not a Float32Array');
+      }
+      return result.embedding;
+    });
   }
 
   async assembleContext(
@@ -1209,6 +1215,7 @@ export class Librarian {
 
       const invalidationTargets = new Set<string>([...normalizedPaths, ...dependentPaths]);
       for (const target of invalidationTargets) {
+        await this.storage!.invalidateCache(target);
         const invalidated = await this.storage!.invalidateContextPacks(target);
         if (invalidated > 0) {
           void globalEventBus.emit(createContextPacksInvalidatedEvent(target, invalidated));
@@ -1331,6 +1338,59 @@ export class Librarian {
     }
   }
 
+  async retireDeletedFiles(filePaths: string[]): Promise<void> {
+    this.ensureReady();
+
+    const normalizedPaths = Array.from(
+      new Set(filePaths.map((filePath) => this.resolveWorkspacePath(filePath)))
+    );
+    if (!normalizedPaths.length) return;
+
+    const lockManager = new FileLockManager(this.config.workspace, {
+      timeoutMs: this.config.bootstrapTimeoutMs ?? 0,
+    });
+    const lockId = `retire-${process.pid}-${Date.now()}`;
+    const lockResult = await lockManager.acquireLock(lockId, normalizedPaths);
+    if (lockResult.timeout || lockResult.blocked.length > 0) {
+      await lockManager.releaseLock(lockId);
+      const blocked = lockResult.blocked.map((item) => item.path).join(', ');
+      throw new Error(`unverified_by_trace(lease_conflict): failed to acquire file locks (${blocked || 'unknown'})`);
+    }
+
+    try {
+      for (const filePath of normalizedPaths) {
+        await this.storage!.invalidateCache(filePath);
+        const invalidated = await this.storage!.invalidateContextPacks(filePath);
+        if (invalidated > 0) {
+          void globalEventBus.emit(createContextPacksInvalidatedEvent(filePath, invalidated));
+        }
+
+        await this.emitUnderstandingInvalidation(filePath, 'delete');
+        await this.storage!.deleteFunctionsByPath(filePath);
+
+        const module = await this.storage!.getModuleByPath(filePath);
+        if (module) {
+          await this.storage!.deleteModule(module.id);
+          void globalEventBus.emit(createEntityDeletedEvent('module', module.id, filePath));
+        }
+
+        const file = await this.storage!.getFileByPath(filePath);
+        if (file) {
+          await this.storage!.deleteFile(file.id);
+          void globalEventBus.emit(createEntityDeletedEvent('file', file.id, filePath));
+        } else {
+          await this.storage!.deleteFileByPath(filePath);
+        }
+
+        await this.storage!.deleteFileChecksum(filePath);
+        await this.storage!.deleteGraphEdgesForSource(filePath);
+        await this.storage!.deleteUniversalKnowledgeByFile(filePath);
+      }
+    } finally {
+      await lockManager.releaseLock(lockId);
+    }
+  }
+
   async forceRebootstrap(): Promise<BootstrapReport> {
     this.ensureReady();
 
@@ -1352,6 +1412,10 @@ export class Librarian {
   }
 
   async shutdown(): Promise<void> {
+    if (this.fileWatcher) {
+      await this.stopWatching();
+    }
+
     if (this.indexer) {
       await this.indexer.shutdown();
       this.indexer = null;

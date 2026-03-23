@@ -2,9 +2,17 @@ import { parseArgs } from 'node:util';
 import path from 'node:path';
 import { mkdir, readFile, readdir, stat, symlink, writeFile } from 'node:fs/promises';
 import { createASTFactExtractor } from '../src/evaluation/ast_fact_extractor.js';
-import { createGroundTruthGenerator } from '../src/evaluation/ground_truth_generator.js';
+import {
+  createGroundTruthGenerator,
+  type GroundTruthCoverage,
+  type StructuralGroundTruthCorpus,
+  type StructuralGroundTruthQuery,
+} from '../src/evaluation/ground_truth_generator.js';
 import { exportStructuralGroundTruth } from '../src/evaluation/ground_truth_export.js';
 
+// Diagnostic-only generator for external eval ground truth.
+// The output supports internal gating and refresh workflows, but it is not
+// release evidence while placeholder lexical evaluation remains in use.
 const SKIP_DIRS = new Set([
   '.git',
   'node_modules',
@@ -95,9 +103,86 @@ async function walkFiles(root: string, relative = ''): Promise<string[]> {
   return files;
 }
 
-async function countSourceFiles(repoRoot: string): Promise<number> {
-  const files = await walkFiles(repoRoot);
-  return files.length;
+function dedupeQueries(queries: StructuralGroundTruthQuery[]): StructuralGroundTruthQuery[] {
+  const seen = new Set<string>();
+  const deduped: StructuralGroundTruthQuery[] = [];
+  for (const query of queries) {
+    if (seen.has(query.id)) continue;
+    seen.add(query.id);
+    deduped.push(query);
+  }
+  return deduped;
+}
+
+function computeCoverage(facts: Array<{ type: string }>): GroundTruthCoverage {
+  return {
+    functions: facts.filter((fact) => fact.type === 'function_def').length,
+    classes: facts.filter((fact) => fact.type === 'class').length,
+    imports: facts.filter((fact) => fact.type === 'import').length,
+    exports: facts.filter((fact) => fact.type === 'export').length,
+  };
+}
+
+async function generateBoundedCorpusForRepo(
+  repoRoot: string,
+  repoName: string,
+  maxSourceFilesPerRepo: number,
+  maxQueriesPerRepo: number
+): Promise<{ corpus: StructuralGroundTruthCorpus; sampledFileCount: number }> {
+  const extractor = createASTFactExtractor({ includeExtensions: Array.from(SOURCE_EXTENSIONS) });
+  const generator = createGroundTruthGenerator(extractor);
+  const selectedFiles = await walkFiles(repoRoot, '', maxSourceFilesPerRepo);
+  const facts: Awaited<ReturnType<typeof extractor.extractFromFile>> = [];
+
+  for (const relativeFile of selectedFiles) {
+    const absoluteFile = path.join(repoRoot, relativeFile);
+    const extracted = await extractor.extractFromFile(absoluteFile);
+    if (extracted.length > 0) {
+      facts.push(...extracted);
+    }
+  }
+
+  if (facts.length === 0) {
+    return {
+      corpus: {
+        repoName,
+        repoPath: repoRoot,
+        generatedAt: new Date().toISOString(),
+        queries: [],
+        factCount: 0,
+        coverage: { functions: 0, classes: 0, imports: 0, exports: 0 },
+      },
+      sampledFileCount: selectedFiles.length,
+    };
+  }
+
+  const primaryQueries = [
+    ...generator.generateFunctionQueries(facts),
+    ...generator.generateImportQueries(facts),
+    ...generator.generateClassQueries(facts),
+    ...generator.generateCallGraphQueries(facts),
+  ];
+  const reservedUnanswerableCount = Math.max(1, Math.ceil(maxQueriesPerRepo * 0.2));
+  const unanswerableQueries = generator.generateUnanswerableQueries(facts, {
+    targetCount: reservedUnanswerableCount,
+  });
+  const primaryBudget = Math.max(0, maxQueriesPerRepo - unanswerableQueries.length);
+  const queries = dedupeQueries([
+    ...unanswerableQueries,
+    ...primaryQueries.slice(0, primaryBudget),
+  ]);
+
+  return {
+    corpus: {
+      repoName,
+      repoPath: repoRoot,
+      generatedAt: new Date().toISOString(),
+      queries,
+      factCount: facts.length,
+      coverage: computeCoverage(facts),
+    },
+    sampledFileCount: selectedFiles.length,
+  };
 }
 
 async function ensureSymlinkRoot(reposRoot: string): Promise<string> {
@@ -125,7 +210,10 @@ async function run(): Promise<void> {
     options: {
       reposRoot: { type: 'string' },
       manifest: { type: 'string' },
+      repoNames: { type: 'string' },
       maxRepos: { type: 'string' },
+      maxSourceFilesPerRepo: { type: 'string' },
+      maxQueriesPerRepo: { type: 'string' },
       version: { type: 'string' },
     },
     strict: false,
@@ -134,15 +222,20 @@ async function run(): Promise<void> {
   const reposRoot = values.reposRoot ?? path.join(process.cwd(), 'eval-corpus', 'external-repos');
   const manifestPath = values.manifest ?? path.join(reposRoot, 'manifest.json');
   const maxRepos = values.maxRepos ? Number(values.maxRepos) : undefined;
+  const maxSourceFilesPerRepo = values.maxSourceFilesPerRepo ? Number(values.maxSourceFilesPerRepo) : 50;
+  const maxQueriesPerRepo = values.maxQueriesPerRepo ? Number(values.maxQueriesPerRepo) : 50;
   const version = values.version ?? '0.1.0';
 
   const manifestRaw = await readFile(manifestPath, 'utf8');
   const manifest = JSON.parse(manifestRaw) as ExternalRepoManifest;
   const repos = Array.isArray(manifest.repos) ? manifest.repos : [];
-  const slice = typeof maxRepos === 'number' && maxRepos > 0 ? repos.slice(0, maxRepos) : repos;
-
-  const extractor = createASTFactExtractor({ includeExtensions: Array.from(SOURCE_EXTENSIONS) });
-  const generator = createGroundTruthGenerator(extractor);
+  const requestedNames = values.repoNames
+    ? values.repoNames.split(',').map((value) => value.trim()).filter(Boolean)
+    : [];
+  const filteredRepos = requestedNames.length > 0
+    ? repos.filter((repo) => requestedNames.includes(repo.name))
+    : repos;
+  const slice = typeof maxRepos === 'number' && maxRepos > 0 ? filteredRepos.slice(0, maxRepos) : filteredRepos;
   const linkRoot = await ensureSymlinkRoot(reposRoot);
 
   const results: Array<{ repo: string; queries: number; files: number; warnings?: string[] }> = [];
@@ -150,8 +243,12 @@ async function run(): Promise<void> {
   for (const repo of slice) {
     const repoRoot = path.join(reposRoot, repo.name);
     await stat(repoRoot);
-    const corpus = await generator.generateForRepo(repoRoot, repo.name);
-    const fileCount = await countSourceFiles(repoRoot);
+    const { corpus, sampledFileCount } = await generateBoundedCorpusForRepo(
+      repoRoot,
+      repo.name,
+      maxSourceFilesPerRepo,
+      maxQueriesPerRepo
+    );
     const language = normalizeLanguage(repo.language);
     const exportResult = exportStructuralGroundTruth({
       corpus,
@@ -160,7 +257,7 @@ async function run(): Promise<void> {
         name: repo.name,
         languages: language ? [language] : ['Unknown'],
         hasTests: repo.hasTests,
-        fileCount,
+        fileCount: sampledFileCount,
       },
       version,
       verifiedBy: 'librarian:external-ground-truth',
@@ -184,7 +281,7 @@ async function run(): Promise<void> {
     const warnings = exportResult.queries.length === 0
       ? ['no_ground_truth_generated']
       : undefined;
-    results.push({ repo: repo.name, queries: exportResult.queries.length, files: fileCount, warnings });
+    results.push({ repo: repo.name, queries: exportResult.queries.length, files: sampledFileCount, warnings });
   }
 
   console.log(JSON.stringify({ repos: results.length, results }, null, 2));

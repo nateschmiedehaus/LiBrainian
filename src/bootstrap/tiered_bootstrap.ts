@@ -1,13 +1,15 @@
 /**
- * @fileoverview Tiered Bootstrap System for Fast Startup
+ * @fileoverview Deferred tiered bootstrap helper for fast startup paths.
  *
- * Implements progressive bootstrap that provides immediate partial functionality
- * while full indexing completes in the background.
+ * This module exposes a progressive bootstrap handoff used by startup/runtime
+ * orchestration. Tier 0 and Tier 1 provide partial, usable indexing state.
+ * Tier 2 is intentionally a deferred handoff signal, not a standalone deep
+ * analysis engine or a finished public bootstrap product.
  *
  * Tiers:
  * - Tier 0 (IMMEDIATE, <5s): Directory scan, file classification, basic file index
  * - Tier 1 (FAST, <30s): Entry points, symbol extraction, import graph skeleton
- * - Tier 2 (FULL, unbounded): Deep analysis, patterns, relationships, full features
+ * - Tier 2 (FULL, deferred): Handoff signal for the main bootstrap path
  *
  * @packageDocumentation
  */
@@ -59,7 +61,7 @@ export enum BootstrapTier {
   IMMEDIATE = 1,
   /** Symbols, import graph skeleton - target < 30 seconds */
   FAST = 2,
-  /** Complete analysis, all features */
+  /** Deferred handoff / placeholder signal for main bootstrap */
   FULL = 3,
 }
 
@@ -646,19 +648,18 @@ export class TieredBootstrap {
   }
 
   /**
-   * Tier 2: Full - Deep analysis and complete feature set.
+   * Tier 2: Full - Deferred handoff signal only.
+   * This tier intentionally does not perform deep analysis itself.
    */
   private async runTier2(): Promise<void> {
     const startTime = Date.now();
 
     this.options.onProgress?.(BootstrapTier.FULL, 0);
 
-    // Full analysis is delegated to the main bootstrap system
-    // This tier primarily signals that we're ready for deep analysis
-    // In practice, the main bootstrap will continue from here
-
-    // For now, mark as complete with placeholder stats
-    // The actual full bootstrap will handle deep analysis
+    // This tier is intentionally a placeholder handoff.
+    // Deep analysis remains the responsibility of the main bootstrap path.
+    // Keep the signal lightweight so it cannot be mistaken for a finished
+    // full-analysis engine.
 
     this.options.onProgress?.(BootstrapTier.FULL, 1.0);
 

@@ -25,16 +25,21 @@ Rationale: MCP tool responses above ~5 seconds degrade agent interaction quality
 
 ## Runtime Diagnostics
 
-Use the CLI benchmark command to generate a machine-readable report:
+Public installs should use:
 
 ```bash
-librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json
-librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
+librainian status --json
+librainian doctor --json
 ```
 
-Report artifact:
+The deterministic `benchmark` command is currently a maintainer-only source-checkout
+diagnostic, not part of the first public CLI surface. It remains useful for CI and
+release qualification, but should not be presented as a supported end-user runtime
+command in `0.2.x`.
+
+When maintainers run the internal benchmark lane, it emits:
 - `PerformanceSLAReport.v1`
-- includes measurements, thresholds, and pass/alert/block assessments.
+- measurements, thresholds, and pass/alert/block assessments
 
 ## CI Enforcement Policy
 

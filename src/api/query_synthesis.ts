@@ -3,6 +3,7 @@ import type { LibrarianStorage } from '../storage/types.js';
 import { resolveLlmServiceAdapter } from '../adapters/llm_service.js';
 import { resolveLibrarianModelConfigWithDiscovery } from './llm_env.js';
 import { requireProviders } from './provider_check.js';
+import { extractReferencedFilePath } from './query_intent_targets.js';
 import { createHash } from 'crypto';
 import { generateStructuredWithRetries, type StructuredParseResult } from './structured_generation.js';
 
@@ -554,8 +555,11 @@ export function canAnswerFromSummaries(
     intent.startsWith('where are') ||
     /\b(where|defined|located)\b/.test(intent);
   const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
+  const isImplementationPlanning = isImplementationPlanningQuery(intent);
 
-  if (!isSimplePurposeQuery && !isBroadCodebaseQuery && !isLocationQuery && !isCallerQuery) return false;
+  if (!isSimplePurposeQuery && !isBroadCodebaseQuery && !isLocationQuery && !isCallerQuery && !isImplementationPlanning) {
+    return false;
+  }
   const informativePacks = packs.filter((pack) =>
     (typeof pack.summary === 'string' && pack.summary.trim().length >= 12)
     || (Array.isArray(pack.keyFacts) && pack.keyFacts.some((fact) => fact.trim().length >= 12))
@@ -575,6 +579,14 @@ export function canAnswerFromSummaries(
     );
     const moderatePacks = informativePacks.filter((pack) => pack.confidence >= 0.3);
     return broadFiles.size >= 2 && moderatePacks.length >= 2;
+  }
+
+  if (isImplementationPlanning) {
+    const files = collectPreferredDisplayFiles(informativePacks);
+    const referencedFile = extractReferencedFilePath(query.intent ?? '');
+    const anchoredFile = referencedFile ? findMatchingDisplayFile(files, referencedFile) : null;
+    const strongPacks = informativePacks.filter((pack) => pack.confidence >= 0.45);
+    return strongPacks.length >= 2 && files.length >= 2 && anchoredFile !== null;
   }
 
   const minConfidence = (isLocationQuery || isCallerQuery) ? 0.6 : 0.7;
@@ -620,6 +632,7 @@ export function createQuickAnswer(
   const isLocationQuery = intent.startsWith('where is') || intent.startsWith('where are');
   const isCallerQuery = /\b(callers?|called\s+by|who\s+calls?|what\s+calls?)\b/.test(intent);
   const isRecoveryQuery = isRecoveryGuidanceQuery(intent);
+  const isImplementationPlanning = isImplementationPlanningQuery(intent);
   const broadCodebaseMatch = query.intent?.match(
     /^(how|what)\s+(is|are)\s+(.+?)\s+(handled|implemented|organized|structured)\s+across\s+the\s+(?:codebase|project)\??$/i
   );
@@ -631,18 +644,32 @@ export function createQuickAnswer(
     throw new Error('No suitable pack for quick answer');
   }
 
-  const files = collectPreferredDisplayFiles(packs).slice(0, 3);
+  const referencedFile = extractReferencedFilePath(query.intent ?? '');
+  const planningPacks = isImplementationPlanning
+    ? rankImplementationPlanningPacks(query.intent ?? '', packs)
+    : packs;
+  const files = isImplementationPlanning
+    ? collectPreferredDisplayFilesInPackOrder(planningPacks).slice(0, 4)
+    : prioritizeDisplayFiles(
+      collectPreferredDisplayFiles(packs),
+      referencedFile
+    ).slice(0, 4);
   const locationSubjectMatch = query.intent?.match(/^where\s+(?:is|are)\s+(.+?)(?:\?|$)/i);
   const locationSubject = locationSubjectMatch?.[1]?.trim();
   const topFacts = Array.from(new Set(
-    extractHumanKeyFacts(packs, 3)
+    extractHumanKeyFacts(planningPacks, 3)
   )).slice(0, 3);
+  const pipelineStages = extractPipelineStagesFact(planningPacks);
 
   let quickAnswerText = topPack.summary;
   if (isLocationQuery && files.length > 0) {
     const subject = locationSubject && locationSubject.length > 0 ? locationSubject : 'the requested logic';
     const primaryFile = selectPrimaryLocationFile(query.intent ?? '', packs) ?? files[0];
-    quickAnswerText = `${subject} is primarily implemented in ${primaryFile}.`;
+    if (/\bstages?\b/i.test(query.intent ?? '') && pipelineStages) {
+      quickAnswerText = `${subject} is primarily implemented in ${primaryFile}. Pipeline stages: ${pipelineStages}.`;
+    } else {
+      quickAnswerText = `${subject} is primarily implemented in ${primaryFile}.`;
+    }
   } else if (isCallerQuery && files.length > 0) {
     quickAnswerText = `Caller relationships are primarily represented in ${files.join(', ')}.`;
   } else if (isRecoveryQuery) {
@@ -656,6 +683,35 @@ export function createQuickAnswer(
       quickAnswerText = `Agents should follow the structured recovery path in ${recoveryFiles.join(', ')}. Key signals: ${recoveryFacts.join('; ')}.`;
     } else if (recoveryFiles.length > 0) {
       quickAnswerText = `Agents should follow the structured recovery path in ${recoveryFiles.join(', ')}.`;
+    }
+  } else if (isImplementationPlanning && files.length > 0) {
+    const seamNames = extractPlanningSeams(query.intent ?? '');
+    const primaryFile = referencedFile
+      ? findMatchingDisplayFile(files, referencedFile) ?? files[0]
+      : files[0];
+    const primaryBasename = primaryFile.split('/').pop()?.toLowerCase() ?? primaryFile.toLowerCase();
+    const supportingCandidates = files.filter((file) => file !== primaryFile);
+    const dependencySupportingFiles = collectImplementationPlanningDependencyFiles(planningPacks)
+      .filter((file) => file !== primaryFile);
+    const supportingFiles = (
+      [...supportingCandidates, ...dependencySupportingFiles].filter((file, index, allFiles) =>
+        allFiles.indexOf(file) === index
+        && (file.split('/').pop()?.toLowerCase() ?? file.toLowerCase()) !== primaryBasename
+      )
+    ).slice(0, 3);
+    const effectiveSupportingFiles = supportingFiles.length > 0
+      ? supportingFiles
+      : [...supportingCandidates, ...dependencySupportingFiles].filter((file, index, allFiles) =>
+        file !== primaryFile && allFiles.indexOf(file) === index
+      ).slice(0, 3);
+    if (effectiveSupportingFiles.length > 0 && seamNames.length > 0 && topFacts.length > 0) {
+      quickAnswerText = `Start with ${primaryFile} as the orchestration seam for ${seamNames.join(', ')}. Supporting logic already lives in ${effectiveSupportingFiles.join(', ')}. Key signals: ${topFacts.join('; ')}.`;
+    } else if (effectiveSupportingFiles.length > 0 && seamNames.length > 0) {
+      quickAnswerText = `Start with ${primaryFile} as the orchestration seam for ${seamNames.join(', ')}. Supporting logic already lives in ${effectiveSupportingFiles.join(', ')}.`;
+    } else if (effectiveSupportingFiles.length > 0 && topFacts.length > 0) {
+      quickAnswerText = `Start with ${primaryFile}; adjacent responsibilities are already represented in ${effectiveSupportingFiles.join(', ')}. Key signals: ${topFacts.join('; ')}.`;
+    } else {
+      quickAnswerText = `Start with ${primaryFile} and follow the adjacent responsibilities surfaced in ${files.join(', ')}.`;
     }
   } else if (broadCodebaseMatch && files.length > 0 && topFacts.length > 0) {
     const [, , auxiliary, subject, verb] = broadCodebaseMatch;
@@ -711,6 +767,76 @@ function collectPreferredDisplayFiles(packs: ContextPack[]): string[] {
   return files;
 }
 
+function prioritizeDisplayFiles(files: string[], referencedFile: string | null | undefined): string[] {
+  if (!referencedFile) return files;
+  const matched = findMatchingDisplayFile(files, referencedFile);
+  if (!matched) return files;
+  return [matched, ...files.filter((file) => file !== matched)];
+}
+
+function findMatchingDisplayFile(files: string[], referencedFile: string): string | null {
+  const normalizedReference = extractDisplayFilePath(referencedFile) ?? referencedFile.replace(/\\/g, '/').trim();
+  if (!normalizedReference) return null;
+  const basename = normalizedReference.split('/').pop() ?? normalizedReference;
+  for (const file of files) {
+    if (file === normalizedReference || file.endsWith(`/${normalizedReference}`)) {
+      return file;
+    }
+  }
+  for (const file of files) {
+    if (file === basename || file.endsWith(`/${basename}`)) {
+      return file;
+    }
+  }
+  return null;
+}
+
+function rankImplementationPlanningPacks(intent: string, packs: ContextPack[]): ContextPack[] {
+  const referencedFile = extractReferencedFilePath(intent) ?? null;
+  return packs
+    .map((pack) => ({
+      pack,
+      score: scorePackForImplementationPlanning(intent, referencedFile, pack),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.pack);
+}
+
+function scorePackForImplementationPlanning(
+  intent: string,
+  referencedFile: string | null,
+  pack: ContextPack,
+): number {
+  const text = [
+    pack.targetId,
+    pack.summary,
+    ...(pack.keyFacts ?? []),
+    ...(pack.relatedFiles ?? []),
+    ...(pack.codeSnippets ?? []).map((snippet) => snippet.filePath),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  let score = pack.confidence * 0.6;
+  const displayFiles = collectPreferredDisplayFiles([pack]);
+  if (referencedFile && findMatchingDisplayFile(displayFiles, referencedFile)) {
+    score += 0.8;
+  }
+  for (const token of extractPlanningIntentTokens(intent)) {
+    if (text.includes(token)) {
+      score += token.length >= 7 ? 0.2 : 0.12;
+    }
+  }
+  if (/\b(orchestrat|pipeline|stage|routing|retrieval|synthesis|intent)\b/.test(text)) {
+    score += 0.18;
+  }
+  if (displayFiles.some((file) => /(^|\/)src\/api\//i.test(file))) {
+    score += 0.05;
+  }
+  return score;
+}
+
 function collectPreferredDisplayFilesInPackOrder(packs: ContextPack[]): string[] {
   const files: string[] = [];
   const seen = new Set<string>();
@@ -735,12 +861,93 @@ function collectPreferredDisplayFilesInPackOrder(packs: ContextPack[]): string[]
   return files;
 }
 
+function collectImplementationPlanningDependencyFiles(packs: ContextPack[]): string[] {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  const adjacentFiles: string[] = [];
+  const adjacentSeen = new Set<string>();
+  const add = (candidate: string | undefined) => {
+    if (!candidate) return;
+    const display = extractDisplayFilePath(candidate);
+    if (!display || seen.has(display)) return;
+    seen.add(display);
+    files.push(display);
+  };
+  const addAdjacent = (candidate: string | undefined) => {
+    if (!candidate) return;
+    const display = extractDisplayFilePath(candidate);
+    if (!display || adjacentSeen.has(display)) return;
+    adjacentSeen.add(display);
+    adjacentFiles.push(display);
+  };
+
+  for (const pack of packs) {
+    for (const fact of pack.keyFacts ?? []) {
+      const adjacentMatch = fact.match(/^Adjacent modules:\s+(.+)$/i);
+      if (adjacentMatch) {
+        for (const adjacent of adjacentMatch[1].split(',').map((entry) => entry.trim()).filter(Boolean)) {
+          addAdjacent(adjacent);
+        }
+      }
+      const match = fact.match(/^Dependencies:\s+(.+)$/i);
+      if (!match) continue;
+      for (const dependency of match[1].split(',').map((entry) => entry.trim()).filter(Boolean)) {
+        add(dependency);
+      }
+    }
+  }
+
+  return adjacentFiles.length > 0 ? adjacentFiles : files;
+}
+
+function extractPipelineStagesFact(packs: ContextPack[]): string | undefined {
+  for (const pack of packs) {
+    for (const fact of pack.keyFacts ?? []) {
+      const match = fact.match(/^Pipeline stages:\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+  }
+  return undefined;
+}
+
 function isRecoveryGuidanceQuery(intent: string): boolean {
   const normalized = intent.toLowerCase();
   if (!/\b(recover|recovery|retry|fallback|fail(?:ure|ures)?|timeout|timeouts|error|errors|unavailable|degraded|busy)\b/.test(normalized)) {
     return false;
   }
   return /\b(agent|agents|mcp|tool|tools|provider|providers|storage|sqlite)\b/.test(normalized);
+}
+
+function isImplementationPlanningQuery(intent: string): boolean {
+  if (isTestTargetingPlanningQuery(intent)) return false;
+  return /\bwhat\s+should\s+(?:i|we)\s+touch\b/i.test(intent)
+    || /\bsplit\b.*\binto\b.*\b(seams?|layers?|stages?|phases?|modules?)\b/i.test(intent)
+    || /\bextract\b.*\binto\b.*\b(seams?|layers?|stages?|phases?|modules?)\b/i.test(intent)
+    || /\b(refactor|decompose|separate)\b.*\b(seams?|layers?|stages?|phases?|modules?)\b/i.test(intent)
+    || (/\b(routing|retrieval|synthesis)\b/i.test(intent) && /\b(split|seams?|extract|separate)\b/i.test(intent));
+}
+
+function isTestTargetingPlanningQuery(intent: string): boolean {
+  const normalized = intent.toLowerCase();
+  return /\btests?\b/.test(normalized)
+    && /\b(what\s+tests?\s+should|which\s+tests?\s+should|update|change|touch|edit|cover|exercise)\b/.test(normalized);
+}
+
+function extractPlanningSeams(intent: string): string[] {
+  const seamKeywords = ['routing', 'retrieval', 'synthesis', 'ranking', 'scoring', 'intent'];
+  return seamKeywords.filter((keyword) => new RegExp(`\\b${keyword}\\b`, 'i').test(intent));
+}
+
+function extractPlanningIntentTokens(intent: string): string[] {
+  const stopWords = new Set([
+    'what', 'should', 'touch', 'split', 'into', 'seam', 'seams', 'layer', 'layers',
+    'stage', 'stages', 'phase', 'phases', 'module', 'modules', 'file', 'files',
+    'this', 'that', 'from', 'with', 'query', 'queryts',
+  ]);
+  return Array.from(new Set(
+    (intent.toLowerCase().match(/[a-z0-9_]+/g) ?? [])
+      .filter((token) => token.length >= 4 && !stopWords.has(token))
+  ));
 }
 
 function rankRecoveryGuidancePacks(intent: string, packs: ContextPack[]): ContextPack[] {

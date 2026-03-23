@@ -123,7 +123,7 @@ import type {
 } from '../types.js';
 import type { IngestionItem } from '../ingest/types.js';
 import { LIBRARIAN_VERSION } from '../index.js';
-import { applyMigrations } from '../api/migrations.js';
+import { applyMigrations } from '../api/schema_migrations.js';
 import { noResult } from '../api/empty_values.js';
 import { safeJsonParse, safeJsonParseOrNull, getResultErrorMessage } from '../utils/safe_json.js';
 import { attemptStorageRecovery, isRecoverableStorageError } from './storage_recovery.js';
@@ -202,6 +202,13 @@ interface ObservedStorageLockState {
   contentHashValid: boolean;
 }
 
+interface OwnedStorageLockEntry {
+  state: StorageProcessLockState;
+  refCount: number;
+}
+
+const ownedStorageLocks = new Map<string, OwnedStorageLockEntry>();
+
 function serializeStorageLockCore(core: StorageProcessLockCore): string {
   return JSON.stringify({
     pid: core.pid,
@@ -279,6 +286,39 @@ function isPidAlive(pid: number): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type StorageRuntimeErrorCode =
+  | 'storage_locked'
+  | 'storage_recovery_failed'
+  | 'storage_transaction_rollback_failed';
+
+class StorageRuntimeError extends Error {
+  readonly code: StorageRuntimeErrorCode;
+  readonly details?: string[];
+
+  constructor(
+    code: StorageRuntimeErrorCode,
+    message: string,
+    options: { cause?: unknown; details?: string[] } = {},
+  ) {
+    super(`${code}:${message}`);
+    this.name = 'StorageRuntimeError';
+    this.code = code;
+    this.details = options.details;
+    if (options.cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: options.cause,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
+function getStorageErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function normalizeLockDiagnosticValue(value: unknown): unknown {
@@ -593,6 +633,20 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private async releaseProcessLock(expected: StorageProcessLockState): Promise<void> {
+    const owned = ownedStorageLocks.get(this.lockPath);
+    if (
+      owned
+      && owned.state.pid === expected.pid
+      && owned.state.startedAt === expected.startedAt
+      && owned.state.token === expected.token
+    ) {
+      if (owned.refCount > 1) {
+        owned.refCount -= 1;
+        return;
+      }
+      ownedStorageLocks.delete(this.lockPath);
+    }
+
     const observed = await this.readObservedLockState();
     if (!observed) {
       return;
@@ -612,11 +666,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
   }
 
   private async acquireProcessLock(): Promise<void> {
+    const owned = ownedStorageLocks.get(this.lockPath);
+    if (owned) {
+      owned.refCount += 1;
+      this.releaseLock = async () => this.releaseProcessLock(owned.state);
+      return;
+    }
+
     const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
     while (Date.now() <= deadline) {
       const state = createStorageProcessLockState();
       try {
         await fs.writeFile(this.lockPath, JSON.stringify(state, null, 2), { encoding: 'utf8', flag: 'wx' });
+        ownedStorageLocks.set(this.lockPath, { state, refCount: 1 });
         this.releaseLock = async () => this.releaseProcessLock(state);
         return;
       } catch (error) {
@@ -690,8 +752,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             errors: [String(recoveryError)],
           }));
           if (!recovery.recovered) {
-            const message = error instanceof Error ? error.message : String(error);
-            throw new Error(`unverified_by_trace:storage_locked:${message}`);
+            throw new StorageRuntimeError(
+              'storage_locked',
+              getStorageErrorMessage(error),
+              { cause: error, details: recovery.errors }
+            );
           }
           logDedupedLockDiagnostic('Recovered storage lock state; retrying lock acquisition', {
             path: this.lockPath,
@@ -700,8 +765,11 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           try {
             await this.acquireProcessLock();
           } catch (retryError) {
-            const message = retryError instanceof Error ? retryError.message : String(retryError);
-            throw new Error(`unverified_by_trace:storage_locked:${message}`);
+            throw new StorageRuntimeError(
+              'storage_locked',
+              getStorageErrorMessage(retryError),
+              { cause: retryError }
+            );
           }
         }
       }
@@ -773,6 +841,12 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
             flushDedupedLockDiagnostics();
             continue;
           }
+          flushDedupedLockDiagnostics();
+          throw new StorageRuntimeError(
+            'storage_recovery_failed',
+            `recoverable storage initialization failed for ${this.dbPath}: ${getStorageErrorMessage(error)}`,
+            { cause: error, details: recovery.errors }
+          );
         }
 
         flushDedupedLockDiagnostics();
@@ -3216,7 +3290,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
     }
 
     if (options.excludeTests) {
-      const testPatterns = ['%/__tests__/%', '%.test.%', '%.spec.%', '%/test/%', '%/tests/%'];
+      const testPatterns = [
+        '%/__tests__/%',
+        '%.test.%',
+        '%.spec.%',
+        '%/test/%',
+        '%/tests/%',
+        'test/%',
+        'tests/%',
+        '%/fixtures/%',
+        'fixtures/%',
+        '%/__fixtures__/%',
+        '__fixtures__/%',
+      ];
       const clauses = testPatterns.map(() => `${relatedPathExpr} LIKE ?`).join(' OR ');
       sql += ` AND NOT EXISTS (SELECT 1 FROM json_each(librarian_context_packs.related_files) rf WHERE (${clauses}))`;
       params.push(...testPatterns);
@@ -4139,7 +4225,19 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       }
 
       if (filter?.excludeTests) {
-        const testPatterns = ['%/__tests__/%', '%.test.%', '%.spec.%', '%/test/%', '%/tests/%'];
+        const testPatterns = [
+          '%/__tests__/%',
+          '%.test.%',
+          '%.spec.%',
+          '%/test/%',
+          '%/tests/%',
+          'test/%',
+          'tests/%',
+          '%/fixtures/%',
+          'fixtures/%',
+          '%/__fixtures__/%',
+          '__fixtures__/%',
+        ];
         whereClauses.push(`NOT (${testPatterns.map(() => `${pathExpr} LIKE ?`).join(' OR ')})`);
         filterParams.push(...testPatterns);
       }
@@ -6607,6 +6705,7 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
       }
       return result;
     } catch (error) {
+      let rollbackFailure: unknown;
       try {
         const inTransactionState = (db as { inTransaction?: boolean | (() => boolean) }).inTransaction;
         const inTransaction = typeof inTransactionState === 'function'
@@ -6616,9 +6715,17 @@ export class SqliteLiBrainianStorage implements LiBrainianStorage {
           db.exec('ROLLBACK');
         }
       } catch (rollbackError) {
+        rollbackFailure = rollbackError;
         logWarning('SQLite rollback failed', { path: this.dbPath, error: rollbackError });
       }
       release();
+      if (rollbackFailure) {
+        throw new StorageRuntimeError(
+          'storage_transaction_rollback_failed',
+          `transaction failed and rollback did not complete cleanly (${getStorageErrorMessage(error)}; rollback: ${getStorageErrorMessage(rollbackFailure)})`,
+          { cause: rollbackFailure }
+        );
+      }
       throw error;
     }
   }
@@ -8932,10 +9039,11 @@ function parseVersionString(versionString: string): LiBrainianVersion {
     minor,
     patch,
     string: versionString,
-    qualityTier: 'full', // FULL tier required - no MVP shortcuts
-    indexedAt: new Date(),
-    indexerVersion: LIBRARIAN_VERSION.string,
-    features: [...LIBRARIAN_VERSION.features],
+    // Legacy rows only stored a version string; do not fabricate fresh full-tier provenance.
+    qualityTier: 'mvp',
+    indexedAt: new Date(0),
+    indexerVersion: `${LIBRARIAN_VERSION.string}-legacy-fallback`,
+    features: [],
   };
 }
 

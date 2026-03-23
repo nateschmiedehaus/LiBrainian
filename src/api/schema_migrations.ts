@@ -280,7 +280,7 @@ export async function applyMigrations(
     const baseMessage = error instanceof Error ? error.message : String(error);
     const backupHint = backupPath
       ? `Pre-migration backup preserved at ${backupPath}.`
-      : 'No backup was available; run `librarian bootstrap --force` to rebuild.';
+      : 'No backup was available; run `librainian bootstrap --force --mode fast` to rebuild.';
     throw new Error(`Schema migration failed: ${baseMessage}. ${backupHint}`);
   }
   if (!migrationWorkspaceRoot) return noResult();

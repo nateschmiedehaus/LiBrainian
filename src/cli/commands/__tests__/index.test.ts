@@ -69,6 +69,7 @@ describe('indexCommand', () => {
     initialize: Mock;
     getStatus: Mock;
     reindexFiles: Mock;
+    retireDeletedFiles: Mock;
     shutdown: Mock;
   };
 
@@ -91,6 +92,7 @@ describe('indexCommand', () => {
         },
       }),
       reindexFiles: vi.fn().mockResolvedValue(undefined),
+      retireDeletedFiles: vi.fn().mockResolvedValue(undefined),
       shutdown: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -197,6 +199,53 @@ describe('indexCommand', () => {
         path.resolve(mockWorkspace, 'src/new.ts'),
         path.resolve(mockWorkspace, 'src/changed.ts'),
       ]);
+      expect(mockLiBrainian.retireDeletedFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/deleted.ts'),
+      ]);
+    });
+
+    it('filters junk workspace artifacts from incremental git selection', async () => {
+      vi.mocked(getGitStatusChanges).mockResolvedValue({
+        added: [
+          '.claude/',
+          '.codex/',
+          '.librainian-manifest.json',
+          'CPU.20260306.222049.87671.0.001.cpuprofile',
+          'librainian-0.2.1.tgz',
+          '0',
+          'Dockerfile',
+          'tasks',
+          'tmp-claude',
+          '.mcp.json',
+          'src/api/schema_migrations.ts',
+        ],
+        modified: [],
+        deleted: [],
+        renamed: [],
+      });
+
+      vi.mocked(fs.existsSync).mockImplementation((target) => {
+        const value = String(target);
+        return !value.endsWith('.claude/') && !value.endsWith('.codex/');
+      });
+      vi.mocked(fs.statSync).mockImplementation((target) => ({
+        isFile: () => !String(target).endsWith('/tasks'),
+      }) as fs.Stats);
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+      };
+
+      await indexCommand(options);
+
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'Dockerfile'),
+        path.resolve(mockWorkspace, '.mcp.json'),
+        path.resolve(mockWorkspace, 'src/api/schema_migrations.ts'),
+      ]);
     });
 
     it('indexes staged files for --staged mode', async () => {
@@ -294,6 +343,29 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).resolves.toBeUndefined();
       expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
+      expect(mockLiBrainian.retireDeletedFiles).not.toHaveBeenCalled();
+    });
+
+    it('retires deleted files even when no existing files are selected', async () => {
+      vi.mocked(getGitStatusChanges).mockResolvedValue({
+        added: [],
+        modified: [],
+        deleted: ['src/deleted.ts'],
+        renamed: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        incremental: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLiBrainian.retireDeletedFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/deleted.ts'),
+      ]);
+      expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
     });
 
     it('auto-selects files from watch cursor drift for allowLockSkip update with no explicit files', async () => {
@@ -347,6 +419,65 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).resolves.toBeUndefined();
       expect(mockLiBrainian.reindexFiles).not.toHaveBeenCalled();
+      expect(updateWatchState).toHaveBeenCalled();
+    });
+
+    it('auto-selects untracked files from git status even when watch cursor already matches HEAD', async () => {
+      vi.mocked(getCurrentGitSha).mockReturnValue('abc123456789');
+      vi.mocked(getWatchState).mockResolvedValue({
+        schema_version: 1,
+        workspace_root: mockWorkspace,
+        needs_catchup: true,
+        cursor: { kind: 'git', lastIndexedCommitSha: 'abc123456789' },
+      });
+      vi.mocked(getGitStatusChanges).mockResolvedValue({
+        added: ['src/new.ts'],
+        modified: [],
+        deleted: [],
+        renamed: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/new.ts'),
+      ]);
+      expect(updateWatchState).toHaveBeenCalled();
+    });
+
+    it('auto-selects working-tree drift from git status when commit diff is empty', async () => {
+      vi.mocked(getCurrentGitSha).mockReturnValue('def456789abc');
+      vi.mocked(getWatchState).mockResolvedValue({
+        schema_version: 1,
+        workspace_root: mockWorkspace,
+        needs_catchup: true,
+        cursor: { kind: 'git', lastIndexedCommitSha: 'abc123456789' },
+      });
+      vi.mocked(getGitDiffNames).mockResolvedValue(null);
+      vi.mocked(getGitStatusChanges).mockResolvedValue({
+        added: [],
+        modified: ['src/local-change.ts'],
+        deleted: [],
+        renamed: [],
+      });
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [],
+        force: true,
+        allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(mockLiBrainian.reindexFiles).toHaveBeenCalledWith([
+        path.resolve(mockWorkspace, 'src/local-change.ts'),
+      ]);
       expect(updateWatchState).toHaveBeenCalled();
     });
   });
@@ -470,7 +601,7 @@ describe('indexCommand', () => {
 
       await expect(indexCommand(options)).rejects.toThrow(CliError);
       await expect(indexCommand(options)).rejects.toThrow('LiBrainian not bootstrapped');
-      await expect(indexCommand(options)).rejects.toThrow('Run "librarian bootstrap" first');
+      await expect(indexCommand(options)).rejects.toThrow('Run "librainian bootstrap" first');
       await expect(indexCommand(options)).rejects.toMatchObject({
         code: 'NOT_BOOTSTRAPPED',
       });
@@ -609,6 +740,26 @@ describe('indexCommand', () => {
         files: [mockFile1],
         force: true,
         allowLockSkip: true,
+      };
+
+      await expect(indexCommand(options)).resolves.toBeUndefined();
+      expect(LiBrainian).toHaveBeenCalledWith(
+        expect.objectContaining({
+          disableLlmDiscovery: true,
+          llmProvider: undefined,
+          llmModelId: undefined,
+        }),
+      );
+    });
+
+    it('forces structural-only indexing when no explicit LLM config is present', async () => {
+      delete process.env.LIBRARIAN_LLM_PROVIDER;
+      delete process.env.LIBRARIAN_LLM_MODEL;
+
+      const options: IndexCommandOptions = {
+        workspace: mockWorkspace,
+        files: [mockFile1],
+        force: true,
       };
 
       await expect(indexCommand(options)).resolves.toBeUndefined();

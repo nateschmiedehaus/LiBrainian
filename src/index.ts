@@ -1,32 +1,30 @@
 /**
- * @fileoverview Librarian Agent Swarm - Packageable Knowledge Indexing System
+ * @fileoverview Source-checkout superset export surface for LiBrainian internals
  *
- * This module provides a complete, self-contained librarian system that:
- * 1. MUST run to completion before any agent work in new projects
- * 2. Detects and upgrades older librarian work automatically
- * 3. Is designed as a standalone API for use in any project
+ * This file is intentionally broader than the published npm root. The stable
+ * package contract is defined in `src/public_api.ts`; this module exists for
+ * source checkouts, internal tooling, tests, and maintainer workflows that
+ * need deeper access to runtime components.
  *
- * ## Quick Start
+ * ## Published Package
  *
  * ```typescript
- * import { createLibrarian } from 'librainian';
+ * import { initializeLibrarian } from 'librainian';
  *
- * // Initialize librarian (blocks until ready)
- * const librarian = await createLibrarian({
- *   workspace: '/path/to/project',
- * });
+ * const session = await initializeLibrarian('/path/to/project');
  *
  * // Query for context
- * const context = await librarian.query({
- *   intent: 'How does authentication work?',
- *   depth: 'L1',
- * });
+ * const context = await session.query('How does authentication work?');
  * ```
  *
- * ## Integration
+ * The published npm root resolves to `src/public_api.ts`, not this broader
+ * source-checkout barrel. Import this module only from a source checkout when
+ * maintainer workflows genuinely need internal access.
+ *
+ * ## Source-Checkout Integration
  *
  * ```typescript
- * import { preOrchestrationHook, enrichTaskContext } from 'librainian';
+ * import { preOrchestrationHook, enrichTaskContext } from './src/index.js';
  *
  * // Before starting any agent work:
  * await preOrchestrationHook(workspace);
@@ -41,8 +39,13 @@
  * @packageDocumentation
  */
 
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const packageMetadata = require('../package.json') as { version?: string };
+
 // ============================================================================
-// PUBLIC API SURFACE
+// SOURCE-CHECKOUT SUPERSET SURFACE
 // ============================================================================
 
 // ============================================================================
@@ -85,7 +88,7 @@ export type {
 // ============================================================================
 
 // Core librarian interface
-export { Librarian, createLibrarian, createLibrarianSync } from './api/librarian.js';
+export { Librarian, createLibrarian } from './api/librarian.js';
 export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './api/librarian.js';
 
 // Query interface
@@ -215,25 +218,7 @@ export type { UpgradeReport } from './api/versioning.js';
 
 // Storage interface (for custom backends)
 export type { LibrarianStorage, StorageBackend, StorageCapabilities, StorageStats } from './storage/types.js';
-export { createSqliteStorage, createStorageFromBackend } from './storage/sqlite_storage.js';
-
-// Tiered Bootstrap (progressive initialization for fast startup)
-export {
-  TieredBootstrap,
-  createTieredBootstrap,
-  BootstrapTier,
-  FEATURES as BOOTSTRAP_FEATURES,
-  TIER_FEATURES,
-} from './bootstrap/index.js';
-export type {
-  TieredBootstrapOptions,
-  TierStats,
-  BootstrapStatus as TieredBootstrapStatus,
-  DiscoveredFile,
-  ExtractedSymbol,
-  ImportEdge,
-  FeatureId,
-} from './bootstrap/index.js';
+export { createSqliteStorage } from './storage/sqlite_storage.js';
 
 // Extension points
 export type {
@@ -801,7 +786,13 @@ export {
 // ============================================================================
 
 /**
- * Current librarian schema version.
+ * Public npm/package version for LiBrainian.
+ * This is the product version shown in package-facing CLI surfaces.
+ */
+export const LIBRAINIAN_PACKAGE_VERSION = packageMetadata.version ?? '0.0.0-dev';
+
+/**
+ * Internal schema/index version.
  * Increment MAJOR for breaking changes requiring full re-index.
  * Increment MINOR for backward-compatible additions.
  * Increment PATCH for bug fixes.

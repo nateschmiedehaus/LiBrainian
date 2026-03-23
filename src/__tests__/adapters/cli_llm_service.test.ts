@@ -1,7 +1,10 @@
+import os from 'node:os';
+import path from 'node:path';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execa } from 'execa';
 import { CliLlmService } from '../../adapters/cli_llm_service.js';
-import { getActiveProviderFailures, recordProviderFailure } from '../../utils/provider_failures.js';
+import { getActiveProviderFailures, recordProviderFailure, resolveProviderWorkspaceRoot } from '../../utils/provider_failures.js';
 
 vi.mock('execa', () => ({
   execa: vi.fn(),
@@ -12,7 +15,8 @@ vi.mock('../../utils/provider_failures.js', () => ({
   getActiveProviderFailures: vi.fn(async () => ({})),
   recordProviderFailure: vi.fn(async () => undefined),
   recordProviderSuccess: vi.fn(async () => undefined),
-  resolveProviderWorkspaceRoot: vi.fn(() => process.cwd()),
+  resolveProviderWorkspaceRoot: vi.fn(() => process.env.LIBRARIAN_WORKSPACE_ROOT ?? process.cwd()),
+  withProviderWorkspaceRoot: vi.fn((_workspaceRoot: string, fn: () => unknown) => fn()),
 }));
 
 const execaMock = vi.mocked(execa);
@@ -31,13 +35,18 @@ describe('CliLlmService provider routing', () => {
   const previousChaosMode = process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
   const previousChaosRate = process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
   const previousChaosSequence = process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
+  const previousCodexHome = process.env.CODEX_HOME;
+  const previousWorkspaceRoot = process.env.LIBRARIAN_WORKSPACE_ROOT;
   const previousFetch = globalThis.fetch;
+  let tempDir: string | null = null;
 
   beforeEach(() => {
     execaMock.mockReset();
     vi.mocked(getActiveProviderFailures).mockReset();
     vi.mocked(getActiveProviderFailures).mockResolvedValue({});
     vi.mocked(recordProviderFailure).mockReset();
+    vi.mocked(resolveProviderWorkspaceRoot).mockReset();
+    vi.mocked(resolveProviderWorkspaceRoot).mockImplementation(() => process.cwd());
     delete process.env.LIBRARIAN_LLM_PROVIDER;
     delete process.env.WAVE0_LLM_PROVIDER;
     delete process.env.LLM_PROVIDER;
@@ -51,7 +60,10 @@ describe('CliLlmService provider routing', () => {
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_MODE;
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_RATE;
     delete process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
+    delete process.env.CODEX_HOME;
+    delete process.env.LIBRARIAN_WORKSPACE_ROOT;
     globalThis.fetch = previousFetch;
+    tempDir = null;
   });
 
   afterEach(() => {
@@ -81,7 +93,16 @@ describe('CliLlmService provider routing', () => {
     else process.env.LIBRARIAN_PROVIDER_CHAOS_RATE = previousChaosRate;
     if (previousChaosSequence === undefined) delete process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE;
     else process.env.LIBRARIAN_PROVIDER_CHAOS_SEQUENCE = previousChaosSequence;
+    if (previousCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousCodexHome;
+    if (previousWorkspaceRoot === undefined) delete process.env.LIBRARIAN_WORKSPACE_ROOT;
+    else process.env.LIBRARIAN_WORKSPACE_ROOT = previousWorkspaceRoot;
     globalThis.fetch = previousFetch;
+    if (tempDir) {
+      return rm(tempDir, { recursive: true, force: true }).then(() => {
+        tempDir = null;
+      });
+    }
   });
 
   it('uses requested provider when no override is configured', async () => {
@@ -100,6 +121,43 @@ describe('CliLlmService provider routing', () => {
     expect(result.provider).toBe('claude');
     expect(execaMock).toHaveBeenCalledTimes(1);
     expect(execaMock.mock.calls[0]?.[0]).toBe('claude');
+  });
+
+  it('re-resolves provider workspace root when persisting failures after construction', async () => {
+    const service = new CliLlmService();
+    vi.mocked(resolveProviderWorkspaceRoot).mockReturnValue('/tmp/repo-b');
+
+    await (service as unknown as {
+      recordFailure(provider: 'codex', message: string, rawMessage?: string): Promise<void>;
+    }).recordFailure('codex', 'provider unavailable', 'provider unavailable');
+
+    expect(recordProviderFailure).toHaveBeenCalledWith(
+      '/tmp/repo-b',
+      expect.objectContaining({
+        provider: 'codex',
+        message: 'provider unavailable',
+      }),
+    );
+    expect(vi.mocked(resolveProviderWorkspaceRoot)).toHaveBeenLastCalledWith();
+  });
+
+  it('reads provider failure state from the current workspace context instead of constructor-time root', async () => {
+    vi.mocked(resolveProviderWorkspaceRoot)
+      .mockReturnValueOnce('/tmp/workspace-a')
+      .mockReturnValue('/tmp/workspace-b');
+    execaMock.mockResolvedValue({
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: '',
+    } as never);
+
+    const service = new CliLlmService();
+    await service.chat({
+      provider: 'claude',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+
+    expect(getActiveProviderFailures).toHaveBeenCalledWith('/tmp/workspace-b');
   });
 
   it('forces codex when LIBRARIAN_LLM_PROVIDER=codex', async () => {
@@ -239,6 +297,36 @@ describe('CliLlmService provider routing', () => {
     expect(options?.timeout).toBe(60_000);
   });
 
+  it('preserves a recently healthy codex provider when lightweight login-status parsing fails', async () => {
+    execaMock
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'codex 0.0.0',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
+      } as never);
+
+    const service = new CliLlmService();
+    (service as unknown as {
+      health: { codex: { provider: 'codex'; available: boolean; authenticated: boolean; lastCheck: number } };
+    }).health.codex = {
+      provider: 'codex',
+      available: true,
+      authenticated: true,
+      lastCheck: Date.now() - 61_000,
+    };
+
+    const health = await service.checkCodexHealth(false);
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(true);
+    expect(health.error).toBeUndefined();
+  });
+
   it('honors tighter per-request timeout budget for codex execution', async () => {
     process.env.LIBRARIAN_LLM_PROVIDER = 'codex';
     delete process.env.CODEX_TIMEOUT_MS;
@@ -282,6 +370,124 @@ describe('CliLlmService provider routing', () => {
     expect(args).toContain('--ephemeral');
     expect(options?.env?.CODEX_DISABLE_HISTORY).toBe('1');
     expect(options?.env?.CODEX_HOME).toBeTruthy();
+    expect(options?.env?.LIBRARIAN_MCP_PREWARM).toBe('0');
+    expect(options?.cwd).toBeTruthy();
+    expect(options?.cwd).not.toBe(process.cwd());
+  });
+
+  it('runs forced codex health probes inside an isolated CODEX_HOME', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'cli-llm-codex-health-'));
+    process.env.CODEX_HOME = path.join(tempDir, 'source-codex-home');
+    await mkdir(process.env.CODEX_HOME, { recursive: true });
+    await writeFile(path.join(process.env.CODEX_HOME, 'auth.json'), JSON.stringify({ token: 'test' }), 'utf8');
+
+    execaMock
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'OpenAI Codex v0.114.0',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'Authenticated',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'ok',
+        stderr: '',
+      } as never);
+
+    const service = new CliLlmService();
+    const health = await service.checkCodexHealth(true);
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(true);
+    const probeCall = execaMock.mock.calls.find((entry) => entry[0] === 'codex' && (entry[1] as string[]).includes('exec'));
+    expect(probeCall).toBeDefined();
+    const options = probeCall?.[2] as { env?: NodeJS.ProcessEnv; cwd?: string } | undefined;
+    expect(options?.env?.CODEX_DISABLE_HISTORY).toBe('1');
+    expect(options?.env?.CODEX_HOME).toBeTruthy();
+    expect(options?.env?.CODEX_HOME).not.toBe(process.env.CODEX_HOME);
+    expect(options?.env?.LIBRARIAN_MCP_PREWARM).toBe('0');
+    expect(options?.cwd).toBeTruthy();
+    expect(options?.cwd).not.toBe(process.cwd());
+  });
+
+  it('sanitizes transcript-heavy codex health probe failures into a compact diagnostic', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'cli-llm-codex-health-failure-'));
+    process.env.CODEX_HOME = path.join(tempDir, 'source-codex-home');
+    await mkdir(process.env.CODEX_HOME, { recursive: true });
+    await writeFile(path.join(process.env.CODEX_HOME, 'auth.json'), JSON.stringify({ token: 'test' }), 'utf8');
+
+    execaMock
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'OpenAI Codex v0.114.0',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'Authenticated',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: [
+          'OpenAI Codex v0.114.0',
+          'user',
+          'You are Librarian. Build a method pack for an agent.',
+          'thinking',
+          'Preparing response...',
+          'codex',
+          'I can help with that.',
+          'tokens used',
+          '4137',
+        ].join('\n'),
+        stderr: [
+          '2026-03-01T03:18:53.016962Z WARN codex_protocol::openai_models: Model personality requested but model_messages is missing, falling back to base instructions. model=gpt-5-codex personality=pragmatic',
+          '2026-03-01T03:18:53.116962Z WARN codex_state::runtime: failed to open state db at /tmp/state.sqlite: migration 19 was previously applied but is missing in the resolved migrations',
+        ].join('\n'),
+      } as never);
+
+    const service = new CliLlmService();
+    const health = await service.checkCodexHealth(true);
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(false);
+    expect(health.error).toContain('codex CLI failed without diagnostic output');
+    expect(health.error).not.toContain('You are Librarian');
+    expect(health.error).not.toContain('OpenAI Codex v0.114.0');
+  });
+
+  it('accepts codex login status with positive auth signal even when helper-path warnings make it nonzero', async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'cli-llm-codex-status-warning-'));
+    process.env.CODEX_HOME = path.join(tempDir, 'source-codex-home');
+    await mkdir(process.env.CODEX_HOME, { recursive: true });
+    await writeFile(path.join(process.env.CODEX_HOME, 'auth.json'), JSON.stringify({ token: 'test' }), 'utf8');
+
+    execaMock
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'OpenAI Codex v0.114.0',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: 'Logged in using ChatGPT',
+        stderr: 'WARNING: proceeding, even though we could not update PATH: Refusing to create helper binaries under temporary dir "/tmp/codex-home"',
+      } as never)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: 'Ready when you are.',
+        stderr: 'WARNING: proceeding, even though we could not update PATH: Refusing to create helper binaries under temporary dir "/tmp/codex-home"',
+      } as never);
+
+    const service = new CliLlmService();
+    const health = await service.checkCodexHealth(true);
+
+    expect(health.available).toBe(true);
+    expect(health.authenticated).toBe(true);
   });
 
   it('uses a latency-safe timeout budget for claude by default', async () => {

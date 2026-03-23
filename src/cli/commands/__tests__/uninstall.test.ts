@@ -40,7 +40,7 @@ describe('uninstallCommand', () => {
       name: 'fixture',
       version: '1.0.0',
       dependencies: {
-        librainian: '^0.2.1',
+        librainian: '^0.2.2',
       },
     });
     await mkdir(path.join(workspace, '.librarian'), { recursive: true });
@@ -49,7 +49,7 @@ describe('uninstallCommand', () => {
       kind: 'LibrainianInstallManifest.v1',
       schema_version: 1,
       generated_at: new Date().toISOString(),
-      package_version: '0.2.1',
+      package_version: '0.2.2',
       workspace: workspace,
       bootstrap_mode: 'full',
       files_modified: ['AGENTS.md'],
@@ -69,7 +69,7 @@ describe('uninstallCommand', () => {
     expect(output).toContain('"dryRun": true');
     expect(await readFile(docsPath, 'utf8')).toBe(docsBefore);
     const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8')) as { dependencies?: Record<string, string> };
-    expect(packageJson.dependencies?.librainian).toBe('^0.2.1');
+    expect(packageJson.dependencies?.librainian).toBe('^0.2.2');
   });
 
   it('removes docs injections, package dependency, manifest, and generated directories', async () => {
@@ -92,7 +92,7 @@ describe('uninstallCommand', () => {
       name: 'fixture',
       version: '1.0.0',
       dependencies: {
-        librainian: '^0.2.1',
+        librainian: '^0.2.2',
       },
     });
     await mkdir(path.join(workspace, '.librarian', 'locks'), { recursive: true });
@@ -101,7 +101,7 @@ describe('uninstallCommand', () => {
       kind: 'LibrainianInstallManifest.v1',
       schema_version: 1,
       generated_at: new Date().toISOString(),
-      package_version: '0.2.1',
+      package_version: '0.2.2',
       workspace: workspace,
       bootstrap_mode: 'full',
       files_modified: ['CLAUDE.md'],

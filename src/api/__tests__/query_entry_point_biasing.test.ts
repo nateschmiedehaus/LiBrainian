@@ -53,4 +53,18 @@ describe('query_entry_point_biasing', () => {
     const ranked = applyEntryPointBias(input, 0.05);
     expect(ranked).toEqual(input);
   });
+
+  it('caps the entry-point multiplier at 2x baseline score', () => {
+    const input: SimilarityResult[] = [
+      result('func:src/index.ts::main', 'function', 0.2),
+      result('func:src/core/engine.ts::run', 'function', 0.3),
+    ];
+
+    const ranked = applyEntryPointBias(input, 5, new Map([
+      ['func:src/index.ts::main', 'main'],
+    ]));
+
+    const boosted = ranked.find((entry) => entry.entityId === 'func:src/index.ts::main');
+    expect(boosted?.similarity).toBeCloseTo(0.4, 10);
+  });
 });

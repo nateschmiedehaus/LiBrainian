@@ -361,9 +361,15 @@ export const UNIVERSAL_EXCLUDES = [
   '**/.tmp/**',
   '**/tmp/**',
   '**/.patrol-tmp/**',
+  '**/.claude/**',
+  '**/.codex/**',
   '**/.librarian/**',
+  '.librainian-manifest.json',
+  '**/.librainian-manifest.json',
   '**/.librarian.backup*/**',
   '**/state/**',
+  '**/*.cpuprofile',
+  '**/*.tgz',
 
   // Eval corpus and external test fixtures (should not pollute query results)
   '**/eval-corpus/**',
@@ -425,13 +431,15 @@ export function getAllIncludePatterns(): string[] {
  * Determine the category of a file based on its path.
  */
 export function getFileCategory(path: string): FileCategory {
+  const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
+
   // Tests first (more specific)
-  if (/\.(test|spec)\.[^.]+$/.test(path) || path.includes('__tests__') || /test_[^/]+$/.test(path)) {
+  if (/\.(test|spec)\.[^.]+$/.test(normalizedPath) || normalizedPath.includes('__tests__') || /test_[^/]+$/.test(normalizedPath)) {
     return 'tests';
   }
 
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  const fileName = path.split('/').pop()?.toLowerCase() ?? '';
+  const ext = normalizedPath.split('.').pop()?.toLowerCase() ?? '';
+  const fileName = normalizedPath.split('/').pop()?.toLowerCase() ?? '';
 
   // Code
   if ([
@@ -459,7 +467,7 @@ export function getFileCategory(path: string): FileCategory {
   }
 
   // Docs
-  if (['md', 'mdx', 'txt', 'rst', 'adoc'].includes(ext) || fileName.startsWith('readme') || fileName.startsWith('changelog') || path.includes('/docs/') || path.includes('/documentation/')) {
+  if (['md', 'mdx', 'txt', 'rst', 'adoc'].includes(ext) || fileName.startsWith('readme') || fileName.startsWith('changelog') || normalizedPath.includes('/docs/') || normalizedPath.includes('/documentation/')) {
     return 'docs';
   }
 
@@ -474,12 +482,12 @@ export function getFileCategory(path: string): FileCategory {
   }
 
   // Infra
-  if (path.includes('docker') || ext === 'tf' || path.includes('kubernetes') || path.includes('k8s')) {
+  if (normalizedPath.includes('docker') || ext === 'tf' || normalizedPath.includes('kubernetes') || normalizedPath.includes('k8s')) {
     return 'infra';
   }
 
   // CI
-  if (path.includes('.github') || path.includes('.gitlab') || path.includes('jenkins') || path.includes('.circleci')) {
+  if (normalizedPath.includes('.github') || normalizedPath.includes('.gitlab') || normalizedPath.includes('jenkins') || normalizedPath.includes('.circleci')) {
     return 'ci';
   }
 
@@ -499,7 +507,7 @@ export function getFileCategory(path: string): FileCategory {
   }
 
   // Data
-  if (['csv', 'tsv', 'xml'].includes(ext) || path.includes('fixtures') || path.includes('seeds') || path.includes('seed')) {
+  if (['csv', 'tsv', 'xml'].includes(ext) || normalizedPath.includes('fixtures') || normalizedPath.includes('seeds') || normalizedPath.includes('seed')) {
     return 'data';
   }
 

@@ -32,6 +32,7 @@ describe('query intent target extractors', () => {
     expect(extractFeatureTarget('where is authentication implemented')).toBe('authentication');
     expect(extractFeatureTarget('find the login feature')).toBe('login');
     expect(extractFeatureTarget('where is the query pipeline implemented')).toBe('query pipeline');
+    expect(extractFeatureTarget('where does auth routing live')).toBe('auth routing');
     expect(extractFeatureTarget('show me architecture overview')).toBeUndefined();
   });
 
@@ -44,6 +45,7 @@ describe('query intent target extractors', () => {
   it('extracts file-path mentions from generic intents', () => {
     expect(extractReferencedFilePath('What does reccmp/compare/core.py do?')).toBe('reccmp/compare/core.py');
     expect(extractReferencedFilePath('inspect `src/api/query.ts` and summarize')).toBe('src/api/query.ts');
+    expect(extractReferencedFilePath('What should I touch to split query.ts into seams?')).toBe('query.ts');
     expect(extractReferencedFilePath('why use sqlite')).toBeUndefined();
   });
 
@@ -55,7 +57,21 @@ describe('query intent target extractors', () => {
       'src/cli/commands/mcp.ts',
       'src/cli/errors.ts',
     ]);
-    expect(extractIntentAnchorPaths('Where is the query pipeline implemented?')).toEqual([]);
+    expect(
+      extractIntentAnchorPaths(
+        'Where do bootstrap semantic_indexing, storage initialization, and fatal postcondition validation live?'
+      )
+    ).toEqual([
+      'src/api/bootstrap.ts',
+      'src/preflight/validation_gates.ts',
+      'src/storage/sqlite_storage.ts',
+      'src/cli/commands/bootstrap.ts',
+    ]);
+    expect(extractIntentAnchorPaths('Where is the query pipeline implemented?')).toEqual([
+      'src/api/query.ts',
+      'src/api/query_synthesis.ts',
+      'src/api/query_intent.ts',
+    ]);
   });
 
   it('extracts why-query topics and comparison targets', () => {

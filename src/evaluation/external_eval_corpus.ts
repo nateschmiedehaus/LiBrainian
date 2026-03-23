@@ -56,10 +56,15 @@ const METRIC_TARGETS = {
   faithfulness: 0.85,
   answerRelevancy: 0.75,
 } as const;
+// This lane is diagnostic-only release-truth plumbing until the real
+// product-path evaluator replaces the lexical placeholder scorer. Keep it
+// fail-closed and out of release decisions.
+const EVALUATION_MODE = 'lexical_placeholder' as const;
 
 const DEFAULT_MAX_RESULTS = 10;
 const DEFAULT_MAX_SOURCE_FILES_PER_REPO = 400;
 const DEFAULT_MAX_QUERIES_PER_REPO = 250;
+const MIN_UNANSWERABLE_RATIO = 0.2;
 
 type ExternalRepoEntry = {
   name: string;
@@ -93,6 +98,10 @@ export type MeasuredMetric = {
 
 export type ExternalEvalMetricsReport = {
   timestamp: string;
+  diagnostic_mode: 'lexical_placeholder' | 'real_product_path';
+  diagnostic_only: boolean;
+  release_evidence_eligible: false;
+  release_evidence_block_reason: string;
   corpus_size: number;
   metrics: {
     retrieval_recall_at_5: MeasuredMetric;
@@ -124,6 +133,10 @@ export type ExternalEvalRefreshResult = {
   selectedRepos: string[];
   totalQueries: number;
   unanswerableQueries: number;
+  unanswerableRatio: number;
+  evaluationMode: 'lexical_placeholder' | 'real_product_path';
+  releaseQualified: boolean;
+  releaseQualificationReason: string;
   reportPath: string;
   evalOutputPath: string;
   gatesPath: string;
@@ -165,8 +178,14 @@ export async function runExternalEvalCorpusRefresh(
   if (generation.totalQueries === 0) {
     throw new Error('Ground-truth generation produced 0 queries; cannot evaluate external corpus.');
   }
+  const unanswerableRatio = generation.unanswerableQueries / generation.totalQueries;
   if (generation.unanswerableQueries === 0) {
     throw new Error('Ground-truth generation produced 0 unanswerable queries; calibration coverage is missing.');
+  }
+  if (unanswerableRatio < MIN_UNANSWERABLE_RATIO) {
+    throw new Error(
+      `Ground-truth generation produced ${(unanswerableRatio * 100).toFixed(1)}% unanswerable queries; minimum required is ${(MIN_UNANSWERABLE_RATIO * 100).toFixed(0)}%.`
+    );
   }
 
   const subsetCorpusRoot = await prepareSubsetCorpusRoot(
@@ -188,6 +207,10 @@ export async function runExternalEvalCorpusRefresh(
     selectedRepos: scopedSelected.map((repo) => repo.name),
     totalQueries: generation.totalQueries,
     unanswerableQueries: generation.unanswerableQueries,
+    unanswerableRatio,
+    evaluationMode: metrics.diagnostic_mode,
+    releaseQualified: false,
+    releaseQualificationReason: metrics.release_evidence_block_reason,
     reportPath: ctx.reportPath,
     evalOutputPath: ctx.evalOutputPath,
     gatesPath: ctx.gatesPath,
@@ -353,8 +376,15 @@ async function generateBoundedCorpusForRepo(
     ...generator.generateClassQueries(facts),
     ...generator.generateCallGraphQueries(facts),
   ];
-  const unanswerableQueries = generator.generateUnanswerableQueries(facts);
-  const queries = dedupeQueries([...unanswerableQueries, ...primaryQueries]).slice(0, maxQueriesPerRepo);
+  const reservedUnanswerableCount = Math.max(1, Math.ceil(maxQueriesPerRepo * MIN_UNANSWERABLE_RATIO));
+  const unanswerableQueries = generator.generateUnanswerableQueries(facts, {
+    targetCount: reservedUnanswerableCount,
+  });
+  const primaryBudget = Math.max(0, maxQueriesPerRepo - unanswerableQueries.length);
+  const queries = dedupeQueries([
+    ...unanswerableQueries,
+    ...primaryQueries.slice(0, primaryBudget),
+  ]);
 
   return {
     corpus: {
@@ -532,6 +562,10 @@ function mapEvalReportToMetrics(report: EvalReport): ExternalEvalMetricsReport {
   const hallucination = report.metrics.hallucination.hallucinationRate;
   const faithfulness = report.metrics.synthesis.factPrecision;
   const answerRelevancy = report.metrics.synthesis.summaryAccuracy;
+  const releaseQualified = false;
+  const releaseQualificationReason = releaseQualified
+    ? 'Release-qualified external evaluation.'
+    : 'Fail closed: diagnostic-only placeholder lexical evaluation; not release-qualified and not the real product path.';
 
   const metrics: ExternalEvalMetricsReport['metrics'] = {
     retrieval_recall_at_5: createMeasuredMetric(recall, METRIC_TARGETS.retrievalRecallAt5),
@@ -544,14 +578,19 @@ function mapEvalReportToMetrics(report: EvalReport): ExternalEvalMetricsReport {
   const targetsMet = Object.values(metrics).every((metric) => metric.met);
   return {
     timestamp: new Date().toISOString(),
+    diagnostic_mode: EVALUATION_MODE,
+    diagnostic_only: true,
+    release_evidence_eligible: false,
+    release_evidence_block_reason: releaseQualificationReason,
     corpus_size: report.queryCount,
     metrics,
     targets_met: targetsMet,
     summary: [
-      `Evaluated ${report.queryCount} queries from external repos with AST-generated ground truth.`,
+      `Diagnostic-only evaluation over ${report.queryCount} queries from external repos with AST-generated ground truth.`,
       targetsMet
         ? 'All RAGAS-style targets are currently met.'
         : 'One or more RAGAS-style targets are currently below threshold.',
+      releaseQualificationReason,
     ],
   };
 }
@@ -577,18 +616,30 @@ async function updateLayer5Gates(
   const tasks = gates.tasks ?? {};
   const now = metrics.timestamp;
   const day = now.slice(0, 10);
-  const corpusPass = repos.length >= minRepos && generation.unanswerableQueries > 0;
+  const unanswerableRatio = generation.totalQueries > 0
+    ? generation.unanswerableQueries / generation.totalQueries
+    : 0;
+  const corpusPass = repos.length >= minRepos &&
+    unanswerableRatio >= MIN_UNANSWERABLE_RATIO &&
+    metrics.targets_met &&
+    metrics.release_evidence_eligible &&
+    metrics.diagnostic_mode === EVALUATION_MODE;
 
   upsertTask(tasks, 'layer5.evalCorpus', {
     status: corpusPass ? 'pass' : 'fail',
     lastRun: day,
-    note: `Measured on ${repos.length} real external repos with AST-only ground truth and ${generation.unanswerableQueries} unanswerable queries.`,
+    note: `${metrics.release_evidence_block_reason} Measured on ${repos.length} real external repos with AST-only ground truth and ${generation.unanswerableQueries} unanswerable queries (${(unanswerableRatio * 100).toFixed(1)}%).`,
     blocking: !corpusPass,
-    currentState: `${repos.length} real repos, ${generation.totalQueries} queries, ${generation.unanswerableQueries} unanswerable`,
+    currentState: `${repos.length} real repos, ${generation.totalQueries} queries, ${generation.unanswerableQueries} unanswerable (${(unanswerableRatio * 100).toFixed(1)}%), diagnostic-only ${metrics.diagnostic_mode}, not release evidence`,
     measured: {
       repos: repos.length,
       totalQueries: generation.totalQueries,
       unanswerableQueries: generation.unanswerableQueries,
+      unanswerableRatio,
+      diagnosticMode: metrics.diagnostic_mode,
+      diagnosticOnly: metrics.diagnostic_only,
+      releaseEvidenceEligible: metrics.release_evidence_eligible,
+      releaseEvidenceBlockReason: metrics.release_evidence_block_reason,
       metricsPath: 'eval-results/metrics-report.json',
     },
   });

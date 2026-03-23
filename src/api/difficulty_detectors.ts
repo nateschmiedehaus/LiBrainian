@@ -445,7 +445,7 @@ const DETECTORS: DifficultyDetector[] = [
     remediationCompositionIds: ['tc_release_readiness'],
     adequacySpecRef: 'adequacy_release',
     minimumEvidence: ['Build + typecheck green'],
-    evidenceCommands: ['npm run build', 'npm run test:tier0'],
+    evidenceCommands: ['npm run build', 'npm test'],
   },
   {
     id: 'dd_flaky_ci',

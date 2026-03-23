@@ -12,11 +12,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6+-3178c6.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
 
-<img src="docs/assets/librainian-repo-artwork.png" alt="LiBrainian character artwork" width="320" />
+<img src="https://raw.githubusercontent.com/nateschmiedehaus/LiBrainian/main/docs/assets/librainian-repo-artwork.png" alt="LiBrainian character artwork" width="320" />
 
-**Auto-bootstrap. Auto-heal. Auto-query. Zero setup for day-one usefulness.**
+**Fast local onboarding. Cited code context. Honest health checks.**
 
-[Quick Start](#quick-start) · [CLI](#cli-command-map) · [Examples](#examples) · [Docs](#documentation-map) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) · [CLI](#cli-command-map) · [Examples](#examples) · [Docs](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/README.md) · [Contributing](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md)
 
 </div>
 
@@ -34,13 +34,15 @@
 
 ## Overview
 
-LiBrainian is a codebase intelligence system for coding agents and agent operators. It combines AST extraction, embeddings, graph signals, and provider-assisted synthesis to return context that is actionable, cited, and confidence-calibrated.
+LiBrainian is a codebase intelligence tool for coding agents and developers. It indexes a repository, builds structural and semantic context, and answers questions with ranked files, evidence, and explicit health signals.
+
+Use it when you want a better first pass than grep alone, but still want answers you can inspect and debug.
 
 Core outcomes:
-- Better retrieval than plain grep/vector search
-- Better planning via architectural and dependency context
-- Better execution through explicit confidence and evidence trails
-- Better reliability with strict publish/eval gates
+- Faster orientation in unfamiliar codebases
+- Better refactor and blast-radius planning
+- Better retrieval than plain grep or naive vector search
+- More honest failure and freshness reporting than "works until it doesn't"
 
 ## Installation
 
@@ -52,59 +54,95 @@ CLI binaries:
 - `librainian` (primary)
 - `librarian` (compatibility alias)
 
-## Dogfood (Safe Sandbox)
-
-Run the packaged CLI in an isolated temp sandbox (no self-install into this repo):
+From a GitHub source checkout, build before running the CLI:
 
 ```bash
-# default command: status --format json
-npm run dogfood
-
-# pass any CLI command after --
-npm run dogfood -- query "Where is auth enforced?"
-```
-
-## GitHub → First Win (2-Minute Flow)
-
-```bash
-git clone https://github.com/nateschmiedehaus/LiBrainian.git
-cd LiBrainian
 npm install
-npx librainian quickstart
-npx librainian query "What are the core modules and how do they connect?"
+npm run build
 ```
 
-If this query returns a summary + files + confidence, your install is healthy.
+## Recommended Path Today
+
+| Surface | Maturity | Recommended for |
+| --- | --- | --- |
+| CLI | Stable | First run, CI, local debugging, fallback path |
+| MCP | Stable | Claude Code, Cursor, Windsurf, VS Code, Gemini CLI |
+| TypeScript API | Beta | Node-based agents and custom automation |
+| Adapter previews (REST / UTCP / A2A / Python) | Source-only | Deferred from the first public release |
+
+If you are new to LiBrainian, start with the CLI first. It is the most direct way to verify that indexing, retrieval, and diagnostics are healthy in your workspace.
+
+## Requirements And Modes
+
+- Node.js `18+`
+- npm `9+`
+- A repository you want to index
+- Provider API keys are optional:
+  - without keys, LiBrainian still supports indexing, repo maps, structural retrieval, and diagnostics
+  - with keys, queries can use richer synthesis and provider-backed ranking paths
+- Local-only modes:
+  - `--offline` disables remote provider calls
+  - `--local-only` forces fully local behavior
+
+Healthy first-run signs:
+- `quickstart` finishes without bootstrap failure
+- `query` returns a summary, ranked files, and confidence metadata
+- `status` and `doctor` agree on workspace state
+
+If the workspace is stale or partially indexed, prefer fixing that first with `librainian doctor` or `librainian bootstrap --force --mode fast`.
 
 ## Quick Start
 
-### CLI (fastest path)
+This is the recommended first-run path:
 
 ```bash
-# 1) Bootstrap + heal + baseline in one pass
+# 1) Build an index and repair obvious setup problems
 npx librainian quickstart
-# setup/init aliases (same flow, setup-oriented naming)
-npx librainian setup --depth quick
 
-# 2) Ask for context
-npx librainian query "Where is authentication enforced?"
+# 2) Ask a real repo question
+npx librainian query "What are the core modules and how do they connect?"
 
-# 3) Verify health/readiness
-npx librainian status --format json
-npx librainian health --format json
+# 3) Inspect readiness and diagnostics
+npx librainian status --json
+npx librainian doctor --json
 ```
 
-### MCP (agent clients)
+Healthy output includes:
+- a non-empty answer or summary
+- relevant file paths
+- confidence or quality metadata
+- no contradiction between `status` and `doctor`
 
-For Claude Code/Cursor/VS Code/Windsurf/Gemini client wiring, run:
+More guided onboarding:
+- [Start Here](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/START_HERE.md)
+- [Documentation Index](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/README.md)
+- [MCP Setup](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/mcp-setup.md)
+
+## MCP (Recommended Agent Integration)
+
+For Claude Code, Cursor, Windsurf, VS Code, or Gemini CLI:
 
 ```bash
 npx librainian mcp --print-config
 ```
 
-Then follow the full setup guide at `docs/mcp-setup.md`.
+Then follow the client-specific guide in [docs/mcp-setup.md](docs/mcp-setup.md).
 
-### Programmatic (recommended for agents)
+Recommended MCP flow:
+1. Run `quickstart` in the target repo first.
+2. Confirm `status` or `doctor` is healthy.
+3. Register the MCP server with your client.
+4. Use `query`, `get_context_pack`, `find_symbol`, and `find_usages` as the default tool path.
+
+## Source Checkout Workflows
+
+Contributor-only validation, dogfood, and release scripts live in a source
+checkout. They are not part of the shipped npm package contract.
+
+Use [CONTRIBUTING.md](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md)
+for contributor setup, maintainer validation, and release qualification.
+
+## Programmatic (Node / TypeScript)
 
 ```typescript
 import { initializeLibrarian } from 'librainian';
@@ -120,10 +158,10 @@ console.log(context.confidence);
 Compatibility API:
 
 ```typescript
-import { createLibrarian } from 'librainian';
+import { initializeLibrarian } from 'librainian';
 
-const librarian = await createLibrarian({ workspace: process.cwd() });
-const result = await librarian.query({ intent: 'Explain the deployment pipeline' });
+const session = await initializeLibrarian(process.cwd());
+const result = await session.query('Explain the deployment pipeline');
 ```
 
 ## Integration Decision Tree
@@ -134,17 +172,15 @@ Choose the path that matches your runtime:
   - `docs/integrations/mcp.md`
 - Shell automation or CI/CD
   - `docs/integrations/cli.md`
-- OpenAPI-aware or raw HTTP toolchains
-  - `docs/integrations/rest-api.md`
-- UTCP tool bus integrations
-  - `docs/integrations/utcp.md`
-- A2A orchestration integrations
-  - `docs/integrations/a2a.md`
-- Python scripts and notebooks
-  - `docs/integrations/python-sdk.md`
+- Node / TypeScript application code
+  - import from `librainian`
 
-Universal integration hub:
-- `docs/integrations/README.md`
+Recommended integration docs:
+- [Universal integration guide](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/integrations/README.md)
+- [CLI integration guide](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/integrations/cli.md)
+- [MCP integration guide](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/integrations/mcp.md)
+
+Preview adapter notes remain in the GitHub source tree, but they are not part of the shipped npm surface for the first public release.
 
 ## Why LiBrainian
 
@@ -153,7 +189,7 @@ Universal integration hub:
 | Context assembly | ad-hoc file search | semantic + structural + graph retrieval |
 | Confidence handling | implicit certainty | explicit calibrated confidence + uncertainty |
 | Architectural reasoning | scattered inferences | linked imports/calls/docs/tests evidence |
-| Release discipline | mostly manual | strict publish-gate + evidence workflows |
+| Release discipline | mostly manual | strict evidence-backed qualification |
 | Onboarding new repos | repeated setup friction | quickstart with self-healing bootstrap |
 
 ## What You Get From `query(...)`
@@ -163,21 +199,6 @@ Universal integration hub:
 - Confidence score and uncertainty metadata
 - Evidence anchors for auditability
 - Context suitable for downstream planning/edit loops
-
-## Constructables and Composition
-
-LiBrainian supports composable reasoning/build blocks for agent workflows (investigation, planning, dependency tracing, performance analysis, release checks).
-
-```bash
-npx librainian compose "Plan a safe refactor of auth token refresh"
-npx librainian compose "Debug flaky tests in CI" --include-primitives
-```
-
-This enables reusable patterns instead of one-off prompting.
-
-Construction docs:
-- [Construction Quickstart](docs/constructions/quickstart.md)
-- [Construction Cookbook (10 end-to-end pipelines)](docs/constructions/cookbook.md)
 
 ## Language Coverage
 
@@ -198,16 +219,10 @@ LiBrainian tracks explicit SLA targets for query latency, indexing throughput, a
 - Incremental indexing target: `10 changed files < 10s`
 - Runtime memory target: `< 512MB RSS`
 
-Run local diagnostics:
-
-```bash
-npx librainian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json
-# compatibility alias
-librarian benchmark --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
-```
+Maintainer-only performance diagnostics remain available in a source checkout, but they are not part of the first public CLI surface.
 
 SLA reference:
-- `docs/performance-sla.md`
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/performance-sla.md`
 
 ## MCP Tool Trigger Compliance
 
@@ -232,43 +247,25 @@ npm test -- --run src/mcp/__tests__/tool_triggering_compliance.test.ts
 
 ```bash
 # Day 0 / onboarding
-npx librainian setup --depth quick
 npx librainian quickstart
-npx librainian bootstrap .
+npx librainian bootstrap --mode fast
 npx librainian uninstall --dry-run
 npx librainian doctor --heal
+npx librainian check-providers --json
 
 # Day 1 / normal work
 npx librainian query "How is auth wired across API and middleware?"
 npx librainian status
-npx librainian watch
-npx librainian compose "Create rollout plan for feature flags"
-
-# Hard mode / reliability and evaluation
-npx librainian smoke --json
-npx librainian journey --strict-objective --json
-npx librainian live-fire --profile baseline --json
-npx librainian publish-gate --profile release --json
+npx librainian index --force --incremental
+npx librainian repo-map --json
 ```
 
 ## Editing Experience (Contributor Loop)
 
-```bash
-# day-to-day loop (changed files + public-surface checks)
-npm run validate:fast
-
-# optional focused test while iterating
-npm test -- --run src/path/to/changed.test.ts
-
-# before merge (deterministic full gate)
-npm run validate:full
-
-# release qualification (real-agent strict gate)
-npm run test:agentic:strict
-```
-
-`validate:fast` is the default developer path and CI path for pull requests.
-`validate:full` and `test:agentic:strict` are required for release-grade confidence.
+If you are working from a source checkout, follow the contributor loop in
+[CONTRIBUTING.md](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md).
+The shipped package supports runtime usage; contributor validation and release
+qualification remain source-checkout workflows.
 
 ## CI / Non-Interactive Mode
 
@@ -298,8 +295,8 @@ GitHub Actions example:
 - name: Refresh index non-interactively
   run: npx librainian index --force --incremental --yes --quiet
 
-- name: Audit redaction totals
-  run: npx librainian scan --secrets --json | jq '.redactions'
+- name: Run health diagnostics
+  run: npx librainian doctor --json --quiet | jq -e '.summary.status != "ERROR"'
 ```
 
 ## Pre-Commit Hook Integration
@@ -308,46 +305,29 @@ LiBrainian supports staged-file incremental indexing for commit-time freshness:
 
 ```bash
 # index only staged files
-npx librainian update --staged
+npx librainian index --force --staged
 
 # index explicit changed files (lint-staged style)
-npx librainian update src/api/query.ts src/cli/index.ts
+npx librainian index --force src/api/query.ts src/cli/index.ts
 ```
 
 Built-in integration options:
 
-- `lint-staged` (already configured in `package.json`): runs `librainian update` with staged filenames
-- `lefthook` (already configured in `lefthook.yml`): runs `librainian update {staged_files}`
+- `lint-staged` (already configured in `package.json`): runs `librainian index --force --staged` with staged filenames
+- `lefthook` (already configured in `lefthook.yml`): runs `librainian index --force --staged {staged_files}`
 - Python `pre-commit` users: use the repo-level `.pre-commit-hooks.yaml` hook `librainian-update-staged`
 
 These hook integrations are best-effort and non-blocking for known setup failures (for example, repo not bootstrapped yet).
 
 ## Development and Validation
 
-```bash
-npm install
-npm run build
+Development and release validation commands are intentionally documented in the
+source-checkout contributor guide, not as part of the runtime package contract.
 
-# PR and everyday edits
-npm run validate:fast
-
-# full deterministic validation
-npm run validate:full
-
-# strict publish qualification
-npm run test:agentic:strict
-npm run eval:publish-gate -- --json
-```
-
-Equivalent explicit full deterministic command chain:
-
-```bash
-npm test -- --run
-npm run typecheck
-npm run repo:audit
-npm run package:assert-identity
-npm run package:install-smoke
-```
+- Contributor setup and local validation:
+  [CONTRIBUTING.md](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md)
+- Package-shipped runtime docs:
+  [docs/START_HERE.md](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/START_HERE.md)
 
 ## GitHub Action (CI Index Refresh)
 
@@ -371,72 +351,36 @@ This repository dogfoods the action in `.github/workflows/librainian-action-dogf
 
 ## Release Provenance
 
-LiBrainian enforces publish provenance before release:
+Public runtime trust surfaces:
+- `npx librainian status --json` includes provenance and readiness summaries
+- `npx librainian doctor --json` is the supported public diagnostic surface
 
-```bash
-npm run package:assert-release-provenance
-```
-
-This guard verifies:
-- `package.json` version is valid semver and newer than npm's latest published version
-- matching git tag (`v<version>`) exists locally
-- matching git tag points to `HEAD`
-
-Runtime trust/provenance visibility:
-- `npx librainian status --format json` includes verification provenance summary fields
-- `npx librainian health --format json` includes provenance status for release-evidence readiness
-- generated evidence artifacts:
-  - `state/audits/LiBrainian/manifest.json`
-  - `docs/LiBrainian/STATUS.md`
-  - `docs/LiBrainian/GATES.json`
-
-Canonical release sequence:
-
-```bash
-npm version <patch|minor|major>
-git push --follow-tags
-npm publish --provenance --access public
-```
-
-PR process is in `CONTRIBUTING.md`.
+Publish provenance checks, tagged releases, and strict qualification remain
+maintainer-only source-checkout workflows documented in
+[CONTRIBUTING.md](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md).
 
 ## Examples
 
-Live examples are in `/examples`:
+Examples are GitHub-only source references, not part of the published npm tarball:
 
-- `examples/quickstart_programmatic.ts`
-- `examples/agentic_task_loop.ts`
-- `examples/feedback_loop_example.ts`
-
-Run locally:
-
-```bash
-npx tsx examples/quickstart_programmatic.ts
-npx tsx examples/agentic_task_loop.ts
-npx tsx examples/feedback_loop_example.ts
-```
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/examples/quickstart_programmatic.ts`
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/examples/agentic_task_loop.ts`
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/examples/feedback_loop_example.ts`
 
 ## Documentation Map
 
 - Fast onboarding: `docs/START_HERE.md`
 - Docs index: `docs/README.md`
-- Construction quickstart: `docs/constructions/quickstart.md`
-- Construction cookbook: `docs/constructions/cookbook.md`
-- Construction operator guide: `docs/constructions/operators.md`
-- Construction testing guide: `docs/constructions/testing.md`
-- Construction migration guide: `docs/constructions/migration.md`
-- Core docs: `docs/librarian/README.md`
-- M1 release charter: `docs/librarian/releases/m1-release-charter.md`
-- Versioning policy: `docs/librarian/releases/versioning-policy.md`
-- Latest M1 dry-run bundle: `docs/librarian/releases/dry-runs/m1-release-dry-run-2026-02-26.md`
+- Core docs (GitHub/source checkout): `docs/librarian/README.md`
+- Milestone brief (GitHub/source checkout): `docs/librarian/MILESTONE_BRIEF.md`
 - Universal integration guide: `docs/integrations/README.md`
 - MCP setup: `docs/mcp-setup.md`
 - MCP design principles: `docs/mcp-design-principles.md`
-- Query guide: `docs/librarian/query-guide.md`
-- Specifications: `docs/librarian/specs/README.md`
-- Architecture notes: `ARCHITECTURE.md`
-- Contribution workflow: `CONTRIBUTING.md`
-- Troubleshooting and health checks: `docs/CRASH_DIAGNOSIS.md`
+- Package-shipped docs: `docs/START_HERE.md`, `docs/README.md`, `docs/mcp-setup.md`, `docs/mcp-design-principles.md`, `docs/integrations/README.md`, `docs/integrations/cli.md`, `docs/integrations/mcp.md`
+- GitHub-only deep reference: `https://github.com/nateschmiedehaus/LiBrainian/tree/main/docs/librarian`
+- Architecture notes: `https://github.com/nateschmiedehaus/LiBrainian/blob/main/ARCHITECTURE.md`
+- Contribution workflow: `https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md`
+- Troubleshooting and health checks: `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/CRASH_DIAGNOSIS.md`
 
 ## Support and Feedback
 
@@ -446,16 +390,16 @@ npx tsx examples/feedback_loop_example.ts
 
 ## Community Standards
 
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
-- [Security Threat Model](docs/security.md)
-- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CODE_OF_CONDUCT.md)
+- [Security Policy](https://github.com/nateschmiedehaus/LiBrainian/blob/main/SECURITY.md)
+- [Security Threat Model](https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/security.md)
+- [Contributing Guide](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md)
 
 ## Roadmap Focus
 
-- Hardened live-fire evaluation on real external repos
-- Improved provider orchestration for deep-cognition tasks
-- Stronger composition utility scoring for constructable selection
+- Public-release doc and help consistency
+- Stronger query/result trust for first-run dogfooding
+- Clearer separation of public surface vs maintainer-only workflows
 - Continued UX improvements for CLI and npm onboarding
 
 ## License

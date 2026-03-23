@@ -538,6 +538,29 @@ describe('BugInvestigationAssistant', () => {
       // Should complete in under 5 seconds (generous for mocked)
       expect(result.investigationTimeMs).toBeLessThan(5000);
     });
+
+    it('uses bounded LLM-disabled query settings for structural bug investigation passes', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const boundedAssistant = new BugInvestigationAssistant({
+        queryOptional,
+        queryRequired: queryOptional,
+        query: queryOptional,
+      } as unknown as Librarian);
+
+      await boundedAssistant.investigate({
+        description: 'Function throws error on empty input',
+        errorMessage: 'Cannot read property length of undefined',
+        stackTrace: `Error: Cannot read property length of undefined
+    at testFunction (src/test.ts:11:23)
+    at processInput (src/processor.ts:45:12)`,
+      });
+
+      expect(queryOptional).toHaveBeenCalled();
+      for (const [request] of queryOptional.mock.calls) {
+        expect(request.llmRequirement).toBe('disabled');
+        expect(request.timeoutMs).toBe(20_000);
+      }
+    });
   });
 });
 
@@ -726,6 +749,71 @@ describe('CodeQualityReporter', () => {
 
       expect(result.analysisTimeMs).toBeLessThan(5000);
     });
+
+    it('uses bounded LLM-disabled query settings for structural analysis', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const boundedReporter = new CodeQualityReporter({
+        queryOptional,
+        queryRequired: queryOptional,
+        query: queryOptional,
+      } as unknown as Librarian);
+
+      await boundedReporter.analyze({
+        files: ['src/test.ts'],
+        aspects: ['complexity', 'duplication', 'testability'],
+      });
+
+      expect(queryOptional).toHaveBeenCalled();
+      for (const [request] of queryOptional.mock.calls) {
+        expect(request.llmRequirement).toBe('disabled');
+        expect(request.timeoutMs).toBe(20_000);
+      }
+    });
+
+    it('ignores out-of-scope packs and reports zero analyzed files when no requested file matches', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({
+        packs: [
+          {
+            packId: 'unrelated-pack',
+            packType: 'function_context',
+            targetId: 'unrelatedFunction',
+            summary: 'Unrelated function',
+            keyFacts: [],
+            codeSnippets: [
+              {
+                filePath: 'src/unrelated.ts',
+                content: `function unrelated() {\n${'if (x) {\n'.repeat(10)}return 1;\n${'}\n'.repeat(10)}}`,
+                startLine: 1,
+                endLine: 25,
+                language: 'typescript',
+              },
+            ],
+            confidence: 0.9,
+            createdAt: new Date(),
+            accessCount: 1,
+            lastOutcome: 'success',
+            successCount: 1,
+            failureCount: 0,
+            relatedFiles: ['src/unrelated.ts'],
+            invalidationTriggers: ['src/unrelated.ts'],
+          },
+        ],
+      });
+      const scopedReporter = new CodeQualityReporter({
+        queryOptional,
+        queryRequired: queryOptional,
+        query: queryOptional,
+      } as unknown as Librarian);
+
+      const result = await scopedReporter.analyze({
+        files: ['src/target.ts'],
+        aspects: ['complexity'],
+      });
+
+      expect(result.analyzedFiles).toBe(0);
+      expect(result.issues).toHaveLength(0);
+      expect(result.confidence.type).toBe('absent');
+    });
   });
 });
 
@@ -800,6 +888,30 @@ describe('ArchitectureVerifier', () => {
       });
 
       expect(result.verificationTimeMs).toBeLessThan(5000);
+    });
+
+    it('uses bounded LLM-disabled query settings for structural verification passes', async () => {
+      const queryOptional = vi.fn().mockResolvedValue({ packs: [] });
+      const boundedVerifier = new ArchitectureVerifier({
+        queryOptional,
+        queryRequired: queryOptional,
+        query: queryOptional,
+      } as unknown as Librarian);
+
+      await boundedVerifier.verify({
+        layers: [{ name: 'api', patterns: ['src/api/**'], allowedDependencies: [] }],
+        boundaries: [{ name: 'api-boundary', description: 'Keep api isolated', inside: ['src/api'], outside: ['src/cli'] }],
+        rules: [
+          { id: 'no-circular', description: 'No cycles', type: 'no-circular', severity: 'error' },
+          { id: 'naming', description: 'Naming', type: 'naming', severity: 'warning' },
+        ],
+      });
+
+      expect(queryOptional).toHaveBeenCalled();
+      for (const [request] of queryOptional.mock.calls) {
+        expect(request.llmRequirement).toBe('disabled');
+        expect(request.timeoutMs).toBe(20_000);
+      }
     });
   });
 });

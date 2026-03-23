@@ -21,6 +21,50 @@ export class TransactionConflictError extends Error {
   }
 }
 
+export class TransactionMergeUnimplementedError extends Error {
+  readonly code = 'transaction_merge_unimplemented';
+  readonly attempt: number;
+
+  constructor(options: { attempt: number; cause?: unknown }) {
+    super(`transaction merge strategy is not implemented (attempt ${options.attempt})`);
+    this.name = 'TransactionMergeUnimplementedError';
+    this.attempt = options.attempt;
+    if (options.cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: options.cause,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
+export class TransactionRetryExhaustedError extends Error {
+  readonly code = 'transaction_retry_exhausted';
+  readonly attempts: number;
+  readonly contract: ConcurrencyContract;
+
+  constructor(options: {
+    attempts: number;
+    contract: ConcurrencyContract;
+    cause?: unknown;
+  }) {
+    super(`transaction retries exhausted after ${options.attempts} attempt(s)`);
+    this.name = 'TransactionRetryExhaustedError';
+    this.attempts = options.attempts;
+    this.contract = options.contract;
+    if (options.cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: options.cause,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
 export function isTransactionConflictError(error: unknown): boolean {
   if (!error) return false;
   if (error instanceof TransactionConflictError) return true;
@@ -69,12 +113,22 @@ export async function withinTransaction<T>(
         continue;
       }
       if (strategy === 'merge') {
-        throw new Error('unverified_by_trace(transaction_merge_unimplemented)');
+        throw new TransactionMergeUnimplementedError({ attempt, cause: error });
+      }
+      if (strategy === 'retry') {
+        throw new TransactionRetryExhaustedError({
+          attempts: attempt,
+          contract,
+          cause: error,
+        });
       }
       throw error;
     }
   }
-  throw new Error('unverified_by_trace(transaction_retry_exhausted)');
+  throw new TransactionRetryExhaustedError({
+    attempts: maxAttempts,
+    contract,
+  });
 }
 
 function resolveConcurrencyContract(

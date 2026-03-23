@@ -31,6 +31,19 @@ describe('patrol fix verify pipeline', () => {
     expect(result.value.patrol?.findings[0]?.title).toContain('Known bug');
   });
 
+  it('fails patrol scan closed when the real command exits non-zero', async () => {
+    const step = createPatrolScanConstruction();
+    await expect(
+      step.execute(makeState({
+        patrolScan: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'process.exit(1)'],
+        },
+      }))
+    ).rejects.toThrow('failed with exit code 1');
+  });
+
   it('issue filer step emits issue URL in dry-run mode', async () => {
     const step = createIssueFilerConstruction();
     const result = await step.execute({
@@ -99,7 +112,7 @@ describe('patrol fix verify pipeline', () => {
     expect(result.value.verifier?.passed).toBe(false);
   });
 
-  it('runs end-to-end and outputs issue URL, PR URL, and test results', async () => {
+  it('fails closed when any step is synthetic or dry-run', async () => {
     const pipeline = createPatrolFixVerifyProcessConstruction();
     const result = await pipeline.execute({
       trigger: 'manual',
@@ -111,15 +124,10 @@ describe('patrol fix verify pipeline', () => {
       fixVerifier: { dryRun: true },
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.kind).toBe('PatrolFixVerifyResult.v1');
-    expect(result.value.trigger).toBe('manual');
-    expect(result.value.issueUrl).toContain('/issues/');
-    expect(result.value.fixPrUrl).toContain('/pull/');
-    expect(result.value.regressionTest.passed).toBe(true);
-    expect(result.value.verification.passed).toBe(true);
-    expect(result.value.exitReason).toBe('completed');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain('requires real commands');
+    expect(result.error.message).toContain('patrolScan');
   });
 
   it('accepts scheduled trigger mode', async () => {
@@ -133,9 +141,66 @@ describe('patrol fix verify pipeline', () => {
       fixVerifier: { dryRun: true },
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.trigger).toBe('schedule');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain('requires real commands');
+  });
+
+  it('fails the outcome channel when the closed-loop verification does not pass', async () => {
+    const pipeline = createPatrolFixVerifyProcessConstruction();
+    const patrolScript = [
+      'console.log("PATROL_OBSERVATION_JSON_START");',
+      'console.log(JSON.stringify({',
+      '  overallVerdict: { npsScore: 3, wouldRecommend: false },',
+      '  negativeFindingsMandatory: [',
+      '    { category: "api", severity: "high", title: "Known bug reproduced", detail: "verification failure loop finding" }',
+      '  ]',
+      '}));',
+      'console.log("PATROL_OBSERVATION_JSON_END");',
+    ].join(' ');
+    const result = await pipeline.execute({
+      trigger: 'manual',
+      patrolScan: { dryRun: false, command: process.execPath, args: ['-e', patrolScript] },
+      issueFiler: {
+        dryRun: false,
+        command: process.execPath,
+        args: ['-e', 'console.log("https://github.com/example/LiBrainian/issues/4242")'],
+      },
+      fixGenerator: {
+        dryRun: false,
+        command: process.execPath,
+        args: ['-e', 'console.log("https://github.com/example/LiBrainian/pull/9898")'],
+      },
+      regressionTest: {
+        dryRun: false,
+        command: process.execPath,
+        args: ['-e', 'console.log("GENERATED_TEST: src/__tests__/regressions/failing_verifier.test.ts")'],
+      },
+      fixVerifier: {
+        dryRun: false,
+        command: process.execPath,
+        args: ['-e', 'console.log("VERIFY_FAILED"); process.exit(1);'],
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.partial?.kind).toBe('PatrolFixVerifyResult.v1');
+    expect(result.partial?.verification?.passed).toBe(false);
+    expect(result.partial?.exitReason).toBe('failed');
+  });
+
+  it('fails patrol scan closed when real output has no parseable findings', async () => {
+    const step = createPatrolScanConstruction();
+    await expect(
+      step.execute(makeState({
+        patrolScan: {
+          dryRun: false,
+          command: process.execPath,
+          args: ['-e', 'console.log("no findings here")'],
+        },
+      }))
+    ).rejects.toThrow('without parseable findings');
   });
 
   it('produces machine-verifiable operational proof for a non-dry-run patrol loop', async () => {

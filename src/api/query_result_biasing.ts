@@ -1,5 +1,8 @@
 import type { SimilarityResult } from '../storage/types.js';
 
+export const LOW_RELEVANCE_SCORE_THRESHOLD = 0.6;
+export const LOW_RELEVANCE_CONFIDENCE = 0.35;
+
 /**
  * Re-ranks similarity results to boost documents for meta-queries.
  */
@@ -127,4 +130,27 @@ export function applyDefinitionBias(
 
     return result;
   }).sort((a, b) => b.similarity - a.similarity);
+}
+
+export function applyLowRelevanceConfidenceGuardrail(
+  totalConfidence: number,
+  topRelevanceScore: number | undefined
+): {
+  totalConfidence: number;
+  triggered: boolean;
+  reason?: string;
+} {
+  if (typeof topRelevanceScore !== 'number' || Number.isNaN(topRelevanceScore)) {
+    return { totalConfidence, triggered: false };
+  }
+
+  if (topRelevanceScore >= LOW_RELEVANCE_SCORE_THRESHOLD) {
+    return { totalConfidence, triggered: false };
+  }
+
+  return {
+    totalConfidence: Math.min(totalConfidence, LOW_RELEVANCE_CONFIDENCE),
+    triggered: true,
+    reason: `Top relevance score ${topRelevanceScore.toFixed(2)} below ${LOW_RELEVANCE_SCORE_THRESHOLD.toFixed(2)} threshold.`,
+  };
 }

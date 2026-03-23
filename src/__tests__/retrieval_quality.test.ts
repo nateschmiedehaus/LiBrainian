@@ -10,12 +10,16 @@
  * Uses ground-truth benchmark queries specific to the librarian codebase.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createSqliteStorage } from '../storage/sqlite_storage.js';
 import { queryLibrarian } from '../api/query.js';
 import type { LibrarianStorage } from '../storage/types.js';
 import type { LibrarianQuery, ContextPack } from '../types.js';
+
+const IS_UNIT_MODE = (process.env.LIBRARIAN_TEST_MODE ?? 'unit') === 'unit';
+const describeIndexedBenchmark = IS_UNIT_MODE ? describe.skip : describe;
 
 // Benchmark query definition
 interface BenchmarkQuery {
@@ -249,14 +253,37 @@ function extractFilePaths(packs: ContextPack[]): string[] {
   return Array.from(pathSet);
 }
 
-describe('Retrieval Quality Benchmarks', () => {
+describeIndexedBenchmark('Retrieval Quality Benchmarks', () => {
   let storage: LibrarianStorage;
   let hasIndex = false;
   const workspaceRoot = path.resolve(__dirname, '../../');
-  const dbPath = path.join(workspaceRoot, '.librarian', 'librarian.db');
 
   beforeAll(async () => {
-    storage = createSqliteStorage(dbPath, workspaceRoot);
+    const librarianDir = path.join(workspaceRoot, '.librarian');
+    try {
+      await fs.access(librarianDir);
+    } catch {
+      console.warn('SKIP: No .librarian/ directory found; retrieval benchmarks are skipped.');
+      return;
+    }
+
+    const sqlitePath = path.join(librarianDir, 'librarian.sqlite');
+    const legacyDbPath = path.join(librarianDir, 'librarian.db');
+    let resolvedDbPath: string;
+    try {
+      await fs.access(sqlitePath);
+      resolvedDbPath = sqlitePath;
+    } catch {
+      try {
+        await fs.access(legacyDbPath);
+        resolvedDbPath = legacyDbPath;
+      } catch {
+        console.warn('SKIP: No retrieval benchmark database found; retrieval benchmarks are skipped.');
+        return;
+      }
+    }
+
+    storage = createSqliteStorage(resolvedDbPath, workspaceRoot, { useProcessLock: false });
     await storage.initialize();
     const stats = await storage.getStats();
     hasIndex = stats.totalFunctions + stats.totalModules > 0;
@@ -264,6 +291,10 @@ describe('Retrieval Quality Benchmarks', () => {
       console.warn('SKIP: Storage not initialized or empty; retrieval benchmarks are skipped.');
     }
   }, 30_000);
+
+  afterAll(() => {
+    storage?.close?.();
+  });
 
   describe('Individual Benchmark Queries (Diagnostic)', () => {
     // These tests are diagnostic - they log performance per query but don't fail.

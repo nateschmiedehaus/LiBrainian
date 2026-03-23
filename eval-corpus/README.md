@@ -1,8 +1,9 @@
 # LiBrainian Evaluation Corpus
 
-This folder holds the ground-truth evaluation corpus used by the evaluation
-harness. It is intentionally scaffolded first so future work can populate real
-repositories, annotations, and query/answer pairs.
+This folder holds the diagnostic-only ground-truth evaluation corpus used by
+the evaluation harness. It is intentionally scaffolded first so future work can
+populate real repositories, annotations, and query/answer pairs without making
+placeholder lexical evaluation look like release evidence.
 
 ## Structure
 
@@ -19,14 +20,15 @@ repositories, annotations, and query/answer pairs.
   `docs/librarian/EXTERNAL_REPO_ALIAS_MAPPING.md`
   Note: AST ground-truth generation is TypeScript-first today; non-TS repos may
   produce zero queries and will be flagged in the script output.
-- `ab-harness/tasks.json`: Deterministic baseline A/B tasks.
-- `ab-harness/tasks.agentic.json`: Agent-command taskpack for autonomous
-  treatment/control benchmarking with strict gate support.
 
 ## Current Status
 
-This corpus contains active harness assets (`ab-harness/*.json`) and external
-repo manifests (`external-repos/manifest.json`) used by live evaluation runs.
+This corpus contains active external-repo manifests (`external-repos/manifest.json`)
+used by diagnostic refresh runs and internal gating.
+
+The current external evaluation lane is fail-closed and not release-qualified:
+placeholder lexical evaluation is still in use until the real product-path
+evaluator replaces it.
 
 Some query sets remain sparse or intentionally narrow and should continue to be
 expanded with machine-verifiable fixtures as evaluation coverage grows.

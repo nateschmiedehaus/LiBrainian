@@ -350,7 +350,7 @@ export async function initializeLibrarian(
     includePatterns,
     excludePatterns,
     bootstrapTimeoutMs = 0,
-    allowDegradedEmbeddings = true,
+    allowDegradedEmbeddings = false,
   } = options;
 
   if (!silent) {

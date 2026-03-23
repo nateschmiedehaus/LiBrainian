@@ -22,7 +22,7 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 
 | Document | Purpose |
 |----------|---------|
-| `docs/librarian/STATUS.md` | Machine-verified project status |
+| `docs/librarian/STATUS.md` | Advisory status snapshot; regenerate before trusting |
 | `docs/librarian/GATES.json` | Machine-readable gate metrics |
 | `docs/librarian/CONVERSATION_INSIGHTS.md` | Strategy tracker (required at release checkpoints) |
 | `docs/librarian/DIAGNOSIS_AND_PLAN.md` | Recovery plan |
@@ -37,7 +37,8 @@ and humans, with calibrated confidence, defeaters, and explicit traces.
 - `PERFECT_RELEASE_EVIDENCE_ONLY`: launch evidence is accepted only when strict gates pass with zero strict-failure markers.
 
 ## How to Interpret Docs
-- `STATUS.md` is reality with evidence; treat it as truth.
+- Live CLI output and current GitHub issue state are authoritative.
+- `STATUS.md` is advisory unless it was freshly regenerated from live evidence.
 - `ROADMAP.md` is forward-looking; treat it as intent until verified.
 - `docs/archive/` contains historical docs; do not treat as current guidance.
 

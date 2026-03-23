@@ -820,6 +820,7 @@ export function generateHypothesesWithLogs(
 // ============================================================================
 
 export class BugInvestigationAssistant implements CalibratedConstruction {
+  private static readonly STRUCTURAL_QUERY_TIMEOUT_MS = 20_000;
   private librarian: Librarian;
   private astExtractor?: AstExtractorLike;
   private calibrationTracker?: ConstructionCalibrationTracker;
@@ -836,6 +837,16 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
   constructor(librarian: Librarian) {
     this.librarian = librarian;
+  }
+
+  private queryStructurally(
+    request: Parameters<Librarian['queryOptional']>[0],
+  ) {
+    return this.librarian.queryOptional({
+      ...request,
+      llmRequirement: 'disabled',
+      timeoutMs: BugInvestigationAssistant.STRUCTURAL_QUERY_TIMEOUT_MS,
+    });
   }
 
   /**
@@ -974,7 +985,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     }
 
     // Query librarian for context around the frame
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.queryStructurally({
       intent: `Get context around ${userFrame.file}:${userFrame.line}`,
       affectedFiles: [userFrame.file],
       depth: 'L1',
@@ -1160,7 +1171,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     bugReport: BugReport
   ): Promise<Hypothesis | null> {
     // Query librarian for semantic understanding
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.queryStructurally({
       intent: `What could cause an error at ${suspect.file}:${suspect.line}? The error is: ${bugReport.errorMessage || bugReport.description}`,
       affectedFiles: [suspect.file],
       depth: 'L2',
@@ -1352,7 +1363,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     const similarBugs: SimilarBug[] = [];
 
     // Query for similar patterns based on description
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.queryStructurally({
       intent: `Find code similar to this bug pattern: ${bugReport.description}`,
       depth: 'L1',
       taskType: 'understand',
@@ -1373,7 +1384,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     // If we have error message, query specifically for error patterns
     if (bugReport.errorMessage) {
-      const errorQueryResult = await this.librarian.queryOptional({
+      const errorQueryResult = await this.queryStructurally({
         intent: `Find code that handles or produces errors like: ${bugReport.errorMessage}`,
         depth: 'L1',
         taskType: 'debug',
@@ -1493,7 +1504,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     }
 
     // Query for code with similar patterns
-    const queryResult = await this.librarian.queryOptional({
+    const queryResult = await this.queryStructurally({
       intent: `Find files with similar code patterns: ${patterns.join(', ')}`,
       depth: 'L1',
       taskType: 'understand',
@@ -1727,7 +1738,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
 
     // Query for code handling same error type
     if (signature.errorType) {
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.queryStructurally({
         intent: `Find code that handles or throws ${signature.errorType} errors`,
         depth: 'L1',
         taskType: 'debug',
@@ -1751,7 +1762,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     // Query for code in same modules
     if (signature.affectedModules.length > 0) {
       const moduleQuery = signature.affectedModules.slice(0, 3).join(', ');
-      const queryResult = await this.librarian.queryOptional({
+      const queryResult = await this.queryStructurally({
         intent: `Find error handling code related to modules: ${moduleQuery}`,
         affectedFiles: signature.affectedModules,
         depth: 'L1',
@@ -1824,7 +1835,7 @@ export class BugInvestigationAssistant implements CalibratedConstruction {
     // Query librarian for relationship
     if (primarySuspectFile && candidateFile !== primarySuspectFile) {
       try {
-        const queryResult = await this.librarian.queryOptional({
+        const queryResult = await this.queryStructurally({
           intent: `What is the relationship between ${candidateFile} and ${primarySuspectFile}?`,
           affectedFiles: [candidateFile, primarySuspectFile],
           depth: 'L1',

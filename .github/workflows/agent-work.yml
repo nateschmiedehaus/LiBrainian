@@ -471,212 +471,8 @@ jobs:
       - name: Self-heal management ticket coverage
         if: steps.breaker.outputs.open != 'true' && inputs.dry_run != true && inputs.dry_run != 'true'
         run: |
-          MAX_REPAIR_PER_RUN=12
-          if [ "${{ steps.throughput.outputs.source_starved || 'false' }}" = "true" ]; then
-            MAX_REPAIR_PER_RUN=6
-          fi
-          PROCESSED=0
-          RELABELED=0
-          CREATED=0
-          HAS_CODEX=false
-          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
-            HAS_CODEX=true
-          fi
-          GLOBAL_AUTH_GATE_OPEN="${{ steps.provider-auth-gate.outputs.open || 'false' }}"
-          ACTIVE_MILESTONE="${{ steps.throughput.outputs.active_milestone || 'none' }}"
-          META_BUDGET_EXCEEDED="${{ steps.throughput.outputs.meta_budget_exceeded || 'false' }}"
-          RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
-
-          has_label() {
-            local labels="$1"
-            local label="$2"
-            echo "$labels" | grep -Fxq "$label"
-          }
-
-          CANDIDATES=$(gh issue list -R "$REPO" --state open \
-            --label "agent:management-needed" \
-            --limit 200 \
-            --json number,title,labels \
-            --jq '.[] | @base64')
-
-          if [ -z "$CANDIDATES" ]; then
-            echo "Management ticket heal: no management-needed issues."
-            exit 0
-          fi
-
-          for ROW in $CANDIDATES; do
-            if [ "$PROCESSED" -ge "$MAX_REPAIR_PER_RUN" ]; then
-              break
-            fi
-            PROCESSED=$((PROCESSED + 1))
-
-            ITEM=$(echo "$ROW" | base64 --decode)
-            NUM=$(echo "$ITEM" | jq -r '.number')
-            TITLE=$(echo "$ITEM" | jq -r '.title // ""')
-            LABELS=$(echo "$ITEM" | jq -r '.labels[].name')
-
-            # If source issue is already runnable, remove stale management-needed
-            # instead of spawning another management ticket.
-            if ! has_label "$LABELS" "agent:management-ticket"; then
-              if has_label "$LABELS" "agent:actionable" &&
-                 has_label "$LABELS" "triage/ready" &&
-                 ! has_label "$LABELS" "triage/missing-essentials" &&
-                 ! has_label "$LABELS" "agent:needs-decomposition" &&
-                 ! has_label "$LABELS" "agent:manual-review-needed" &&
-                 ! has_label "$LABELS" "agent:needs-recovery" &&
-                 ! has_label "$LABELS" "agent:infra-blocked" &&
-                 ! has_label "$LABELS" "verify:manual-needed" &&
-                 ! has_label "$LABELS" "verify:pending"; then
-                gh issue edit "$NUM" -R "$REPO" \
-                  --remove-label "agent:management-needed" || true
-                RELABELED=$((RELABELED + 1))
-                continue
-              fi
-            fi
-
-            if has_label "$LABELS" "agent:management-ticket"; then
-              if [ "$GLOBAL_AUTH_GATE_OPEN" = "true" ] && [ "$HAS_CODEX" != "true" ]; then
-                if has_label "$LABELS" "agent:actionable"; then
-                  gh issue edit "$NUM" -R "$REPO" \
-                    --remove-label "agent:actionable" \
-                    --add-label "triage/ready" || true
-                  RELABELED=$((RELABELED + 1))
-                fi
-                continue
-              fi
-              if has_label "$LABELS" "agent:needs-recovery"; then
-                gh issue edit "$NUM" -R "$REPO" \
-                  --remove-label "agent:needs-recovery" \
-                  --remove-label "triage/missing-essentials" \
-                  --add-label "triage/ready" || true
-                RELABELED=$((RELABELED + 1))
-              fi
-              if has_label "$LABELS" "agent:infra-blocked"; then
-                if has_label "$LABELS" "agent:actionable" || ! has_label "$LABELS" "triage/ready"; then
-                  gh issue edit "$NUM" -R "$REPO" \
-                    --remove-label "agent:actionable" \
-                    --add-label "triage/ready" || true
-                  RELABELED=$((RELABELED + 1))
-                fi
-              elif ! has_label "$LABELS" "agent:actionable"; then
-                gh issue edit "$NUM" -R "$REPO" \
-                  --add-label "agent:actionable" \
-                  --add-label "triage/ready" || true
-                RELABELED=$((RELABELED + 1))
-              fi
-              continue
-            fi
-
-            if echo "$TITLE" | grep -Eiq '^meta:\s*(manage|verify)\s*issue\s*#[0-9]+'; then
-              gh issue edit "$NUM" -R "$REPO" --add-label "agent:management-ticket" || true
-              RELABELED=$((RELABELED + 1))
-              continue
-            fi
-
-            SRC="$NUM"
-            EXISTING=$(gh issue list -R "$REPO" --state open \
-              --label "agent:management-ticket" \
-              --limit 200 \
-              --json number,title,body | jq -r --arg src "$SRC" '
-                def src:
-                  ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
-                   // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
-                   // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
-                   // "");
-                def queue:
-                  ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
-                   // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
-                .[] | select((src == $src) and (queue == "work")) | .number
-              ' | head -n1)
-            if [ -n "$EXISTING" ]; then
-              continue
-            fi
-
-            if [ "$META_BUDGET_EXCEEDED" = "true" ] && [ "$RUNNABLE_SOURCE" -gt 0 ] && [ "$ACTIVE_MILESTONE" = "$MILESTONE" ]; then
-              echo "Suppressing new management ticket for source issue #$SRC because meta budget is exceeded in $MILESTONE while runnable source work exists."
-              continue
-            fi
-
-            REASON="management_repair"
-            if has_label "$LABELS" "agent:infra-blocked"; then
-              REASON="provider_or_infra_failure"
-            elif has_label "$LABELS" "agent:needs-decomposition"; then
-              REASON="retry_exhausted"
-            elif has_label "$LABELS" "verify:manual-needed"; then
-              REASON="verify_retry_exhausted"
-            elif has_label "$LABELS" "agent:needs-recovery"; then
-              REASON="readiness_gap"
-            fi
-
-            MILESTONE=$(gh issue view "$SRC" -R "$REPO" --json milestone --jq '.milestone.title // "none"' 2>/dev/null || echo "none")
-            TITLE_FLAT=$(printf '%s' "$TITLE" | tr '\n' ' ' | tr '\r' ' ')
-            TITLE_CLEAN=${TITLE_FLAT//\"/\'}
-
-            cat > .management-heal-body.md <<EOF
-          ## Automated Management Queue Item
-          <!-- management_ticket:v1 source_issue=$SRC queue=work reason=$REASON -->
-
-          Source issue: #$SRC
-          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          Escalation reason: $REASON
-          Milestone: $MILESTONE
-
-          ### Required management actions
-          1. Diagnose why automation did not converge and choose one path: requirements patch, scope split, or infra repair.
-          2. Update source issue #$SRC with concrete acceptance criteria and explicit file-level plan.
-          3. Remove \`agent:manual-review-needed\` and re-add \`agent:actionable\` only when the issue is truly runnable.
-          4. Close this management ticket once #$SRC is unblocked and re-queued.
-          EOF
-
-            CREATE_ARGS=()
-            if [ "$MILESTONE" != "none" ] && [ -n "$MILESTONE" ]; then
-              CREATE_ARGS+=(--milestone "$MILESTONE")
-            fi
-            PARK_TICKET=false
-            if [ "$GLOBAL_AUTH_GATE_OPEN" = "true" ] && [ "$HAS_CODEX" != "true" ]; then
-              PARK_TICKET=true
-            fi
-            if has_label "$LABELS" "agent:infra-blocked" || [ "$REASON" = "provider_or_infra_failure" ]; then
-              CREATE_ARGS+=(--label "agent:infra-blocked")
-              CREATE_ARGS+=(--label "agent:manual-review-needed")
-              if [ "$HAS_CODEX" != "true" ]; then
-                PARK_TICKET=true
-              fi
-            fi
-            if has_label "$LABELS" "agent:provider-auth-failure"; then
-              CREATE_ARGS+=(--label "agent:provider-auth-failure")
-              CREATE_ARGS+=(--label "agent:manual-review-needed")
-              if [ "$HAS_CODEX" != "true" ]; then
-                PARK_TICKET=true
-              fi
-            fi
-            if [ "$PARK_TICKET" != "true" ]; then
-              CREATE_ARGS+=(--label "agent:actionable")
-            fi
-            MURL=$(gh issue create -R "$REPO" \
-              --title "meta: manage issue #$SRC — $TITLE_CLEAN" \
-              --body-file .management-heal-body.md \
-              --label "agent:management-ticket" \
-              --label "agent:management-needed" \
-              --label "triage/ready" \
-              "${CREATE_ARGS[@]}")
-            rm -f .management-heal-body.md
-
-            MNUM=$(echo "$MURL" | grep -oE '[0-9]+$')
-            {
-              echo "**Workflow management routing**"
-              echo ""
-              echo "- Escalation reason: \`$REASON\`"
-              echo "- Management item: #$MNUM"
-              echo ""
-              echo "This was generated automatically by management self-heal."
-            } > .management-heal-link-comment.md
-            gh issue comment "$SRC" -R "$REPO" --body-file .management-heal-link-comment.md
-            rm -f .management-heal-link-comment.md
-            CREATED=$((CREATED + 1))
-          done
-
-          echo "Management ticket heal summary: processed=$PROCESSED relabeled=$RELABELED created=$CREATED"
+          echo "Management ticket self-heal is disabled in reduced control-plane mode."
+          echo "Source issues remain the only execution queue; wrapper ticket creation is suppressed."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -1272,11 +1068,6 @@ jobs:
         if: steps.breaker.outputs.open != 'true' && steps.parallel-capacity.outputs.open != 'true' && steps.infra-gate.outputs.open != 'true' && steps.provider-auth-gate.outputs.open != 'true'
         id: find
         run: |
-          HAS_CODEX=false
-          if [ -n "${OPENAI_KEY:-}" ] || [ -n "${CODEX_AUTH_JSON:-}" ]; then
-            HAS_CODEX=true
-          fi
-
           if [ -n "${{ inputs.issue_number }}" ]; then
             # Manual override — work on specific issue
             NUM="${{ inputs.issue_number }}"
@@ -1291,108 +1082,24 @@ jobs:
             exit 0
           fi
 
-          # Auto-select: find issues that are ready + actionable + not claimed.
-          # Active milestone is computed by the shared portfolio-control ledger.
-          ACTIVE_MILESTONE="${{ steps.throughput.outputs.active_milestone || 'none' }}"
-          echo "active_milestone=$ACTIVE_MILESTONE" >> "$GITHUB_OUTPUT"
+          node scripts/portfolio-control.mjs select-work \
+            --repo "$REPO" \
+            --github-output "$GITHUB_OUTPUT" >/tmp/portfolio-select-work.log
 
-          if [ "$ACTIVE_MILESTONE" = "none" ]; then
-            echo "No active milestone found among open source issues."
-            echo "issue_number=" >> "$GITHUB_OUTPUT"
+          NUM=$(grep '^issue_number=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2-)
+          TITLE=$(grep '^issue_title=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2-)
+          MILESTONE=$(grep '^issue_milestone=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2-)
+
+          if [ -z "$NUM" ]; then
+            echo "No runnable source issue in the active milestone. Holding worker selection."
             exit 0
           fi
 
-          SOURCE_STARVED="${{ steps.throughput.outputs.source_starved || 'false' }}"
-          RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
-          CLOSED_SOURCE_24H="${{ steps.throughput.outputs.closed_source_24h || '0' }}"
-          OPEN_META="${{ steps.throughput.outputs.open_meta || '0' }}"
-          META_BUDGET="${{ steps.throughput.outputs.meta_budget || '0' }}"
-          META_BUDGET_EXCEEDED="${{ steps.throughput.outputs.meta_budget_exceeded || 'false' }}"
-          echo "Objective function: source_throughput_primary=$SOURCE_STARVED runnable_source=$RUNNABLE_SOURCE closed_source_24h=$CLOSED_SOURCE_24H open_meta=$OPEN_META meta_budget=$META_BUDGET meta_budget_exceeded=$META_BUDGET_EXCEEDED"
-
-          ISSUES=$(gh issue list -R "$REPO" --state open \
-            --label "triage/ready" --label "agent:actionable" \
-            --limit 200 \
-            --json number,title,labels,milestone | jq --arg has_codex "$HAS_CODEX" --arg active_milestone "$ACTIVE_MILESTONE" --arg source_starved "$SOURCE_STARVED" --arg runnable_source "$RUNNABLE_SOURCE" '
-              [.[] |
-                select((.milestone.title // "none") == $active_milestone) |
-                select(.labels | map(.name) |
-                  (contains(["agent:claimed"]) | not) and
-                  (contains(["lifecycle/frozen"]) | not) and
-                  (contains(["triage/missing-essentials"]) | not) and
-                  (contains(["agent:needs-recovery"]) | not) and
-                  (contains(["verify:pending"]) | not) and
-                  (
-                    (contains(["agent:infra-blocked"]) | not) or
-                    (
-                      contains(["agent:management-ticket"]) and
-                      (contains(["agent:provider-auth-failure"]) | not)
-                    )
-                  )
-                ) |
-                select(
-                  if $runnable_source != "0" then
-                    (.labels | map(.name) | contains(["agent:management-ticket"]) | not)
-                  else
-                    true
-                  end
-                ) |
-                {
-                  number,
-                  title,
-                  milestone: (.milestone.title // "none"),
-                  is_management: (.labels | map(.name) | contains(["agent:management-ticket"])),
-                  bundle_rank: (
-                    if $active_milestone == "M0: Dogfood-Ready" then
-                      (if (.labels | map(.name) | contains(["m0:bundle-b"])) then 0
-                       elif (.labels | map(.name) | contains(["m0:bundle-a"])) then 1
-                       elif (.labels | map(.name) | contains(["m0:bundle-c"])) then 2
-                       elif (.labels | map(.name) | contains(["m0:bundle-d"])) then 3
-                       elif (.labels | map(.name) | contains(["agent:management-ticket"])) then 9
-                       else 8 end)
-                    else
-                      0
-                    end
-                  ),
-                  objective_bucket: (
-                    if (.labels | map(.name) | contains(["agent:management-ticket"])) then
-                      (if $source_starved == "true" then 3 else 2 end)
-                    elif (.labels | map(.name) | contains(["agent:management-needed"])) then
-                      1
-                    else
-                      0
-                    end
-                  )
-                }
-              ] |
-              map(
-                if $active_milestone == "M0: Dogfood-Ready" then
-                  select(
-                    .is_management or
-                    .bundle_rank < 8
-                  )
-                else
-                  .
-                end
-              ) |
-              sort_by(.objective_bucket, .bundle_rank, .number) | first
-            ')
-
-          if [ -z "$ISSUES" ] || [ "$ISSUES" = "null" ]; then
-            echo "No runnable issue in active milestone $ACTIVE_MILESTONE. Holding worker selection."
-            echo "issue_number=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          NUM=$(echo "$ISSUES" | jq -r '.number')
-          TITLE=$(echo "$ISSUES" | jq -r '.title')
-          MILESTONE=$(echo "$ISSUES" | jq -r '.milestone // "none"')
-          IS_MANAGEMENT=$(echo "$ISSUES" | jq -r '.is_management // false')
           echo "issue_number=$NUM" >> "$GITHUB_OUTPUT"
           echo "issue_title=$TITLE" >> "$GITHUB_OUTPUT"
           echo "issue_milestone=$MILESTONE" >> "$GITHUB_OUTPUT"
-          echo "issue_is_management=$IS_MANAGEMENT" >> "$GITHUB_OUTPUT"
-          echo "Selected (auto): #$NUM — $TITLE"
+          echo "issue_is_management=false" >> "$GITHUB_OUTPUT"
+          echo "Selected (auto, source queue): #$NUM — $TITLE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -3795,6 +3502,16 @@ jobs:
           TITLE=$(echo "${{ steps.find.outputs.issue_title }}" | tr '\n' ' ' | tr '\r' ' ')
           TITLE_CLEAN=${TITLE//\"/\'}
           REASON=${{ steps.outcome.outputs.escalation_reason }}
+          {
+            echo "**Workflow escalation (source issue retained)**"
+            echo ""
+            echo "- Escalation reason: \`$REASON\`"
+            echo "- Reduced control-plane mode suppresses wrapper issue creation."
+            echo "- The source issue remains the execution and recovery unit."
+          } > .management-link-comment.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .management-link-comment.md
+          rm -f .management-link-comment.md
+          exit 0
           MILESTONE="${{ steps.find.outputs.issue_milestone || 'none' }}"
           HAS_CODEX_AVAILABLE=${{ steps.provider.outputs.has_codex || 'false' }}
           RUNNABLE_SOURCE="${{ steps.throughput.outputs.runnable_source || '0' }}"
@@ -3966,31 +3683,7 @@ jobs:
       - name: Close resolved management queue items
         if: steps.outcome.outputs.result == 'success' && steps.find.outputs.issue_number
         run: |
-          NUM=${{ steps.find.outputs.issue_number }}
-          MGMT_IDS=$(gh issue list -R "$REPO" --state open \
-            --label "agent:management-ticket" \
-            --limit 200 \
-            --json number,title,body | jq -r --arg src "$NUM" '
-              def src:
-                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
-                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
-                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
-                 // "");
-              def queue:
-                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
-                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
-              .[] | select((src == $src) and (queue == "work")) | .number
-            ')
-          if [ -z "$MGMT_IDS" ]; then
-            exit 0
-          fi
-          for MID in $MGMT_IDS; do
-            if [ "$MID" = "$NUM" ]; then
-              continue
-            fi
-            gh issue close "$MID" -R "$REPO" \
-              --comment "Auto-closing management ticket: source issue #$NUM produced a PR in run ${{ github.run_id }}."
-          done
+          echo "No-op in reduced control-plane mode: wrapper management issues are not part of the success path."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

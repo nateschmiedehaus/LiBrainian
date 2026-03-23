@@ -176,6 +176,23 @@ function hasFailureSummaryInTail() {
   return failureSummaryPatterns.some((pattern) => pattern.test(joined));
 }
 
+function isNativeCleanupCrashSuccess(exitCode) {
+  if (exitCode !== 134) return false;
+  const joined = outputTail.join('\n');
+  if (joined.length === 0) return false;
+
+  const hasExplicitCompletionMarker =
+    joined.includes('[external-repo-smoke] completed successfully')
+    || /\bcompleted successfully\b/i.test(joined);
+  if (hasExplicitCompletionMarker) {
+    return true;
+  }
+
+  const hasNativeAbortSignature = /libc\+\+abi|mutex lock failed|std::__1::system_error/i.test(joined);
+  const hasStructuredZeroFailureSummary = /"failures"\s*:\s*0\b/.test(joined);
+  return hasNativeAbortSignature && hasStructuredZeroFailureSummary;
+}
+
 function emitNonZeroWithoutSummary(exitCode, signal) {
   const tailText = outputTail.join(' | ').replace(/\s+/g, ' ').trim();
   const truncatedTail = tailText.length > 320 ? `${tailText.slice(0, 320)}...` : tailText;
@@ -243,9 +260,7 @@ child.on('close', (code, signal) => {
     // onnxruntime/transformers.js crashes on process exit with SIGABRT (exit 134)
     // due to a C++ mutex cleanup bug. If the command completed successfully
     // before the crash, treat it as success.
-    const isOnnxCleanupCrash = code === 134 &&
-      outputTail.some(line => /\bsuccessful\b/i.test(line) || /\bcomplete\b/i.test(line));
-    if (isOnnxCleanupCrash) {
+    if (isNativeCleanupCrashSuccess(code)) {
       finalizeWith(0);
       return;
     }

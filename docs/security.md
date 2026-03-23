@@ -72,7 +72,7 @@ Mitigations:
 - Prefer deterministic/offline retrieval for sensitive workflows (`--offline` or `--local-only`).
 - Require human review for high-impact actions.
 - Keep prompt templates explicit that repository content is untrusted input.
-- Use `librarian scan --secrets` before sharing context externally.
+- Run your repository's existing secret scanner before sharing retrieved context externally.
 
 ### MCP Exposure
 

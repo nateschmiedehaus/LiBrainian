@@ -110,6 +110,8 @@ export interface StructuralGroundTruthCorpus {
  */
 export class GroundTruthGenerator {
   private extractor: ASTFactExtractor;
+  private static readonly MIN_UNANSWERABLE_QUERIES = 3;
+  private static readonly MIN_UNANSWERABLE_RATIO = 0.2;
 
   constructor(extractor?: ASTFactExtractor) {
     this.extractor = extractor ?? createASTFactExtractor();
@@ -139,12 +141,17 @@ export class GroundTruthGenerator {
       };
     }
 
-    const queries: StructuralGroundTruthQuery[] = [
+    const primaryQueries: StructuralGroundTruthQuery[] = [
       ...this.generateFunctionQueries(facts),
       ...this.generateImportQueries(facts),
       ...this.generateClassQueries(facts),
       ...this.generateCallGraphQueries(facts),
-      ...this.generateUnanswerableQueries(facts),
+    ];
+    const queries: StructuralGroundTruthQuery[] = [
+      ...primaryQueries,
+      ...this.generateUnanswerableQueries(facts, {
+        targetCount: this.computeUnanswerableTargetCount(primaryQueries.length),
+      }),
     ];
 
     const coverage = this.computeCoverage(facts);
@@ -608,7 +615,10 @@ export class GroundTruthGenerator {
   /**
    * Generate deterministic unanswerable queries to test calibration.
    */
-  generateUnanswerableQueries(facts: ASTFact[]): StructuralGroundTruthQuery[] {
+  generateUnanswerableQueries(
+    facts: ASTFact[],
+    options: { targetCount?: number } = {}
+  ): StructuralGroundTruthQuery[] {
     const functionFacts = facts
       .filter((fact) => fact.type === 'function_def' && typeof fact.identifier === 'string' && fact.identifier.length > 0)
       .slice(0, 20);
@@ -620,15 +630,26 @@ export class GroundTruthGenerator {
     const existingNames = new Set(
       functionFacts.map((fact) => fact.identifier).filter((value): value is string => typeof value === 'string')
     );
-    const seedNames = Array.from(existingNames).sort().slice(0, 3);
+    const seedNames = Array.from(existingNames).sort();
+    const targetCount = Math.max(
+      1,
+      Math.floor(options.targetCount ?? GroundTruthGenerator.MIN_UNANSWERABLE_QUERIES)
+    );
     const evidence = functionFacts.slice(0, Math.min(3, functionFacts.length));
     const queries: StructuralGroundTruthQuery[] = [];
+    const claimedCandidates = new Set<string>();
 
-    for (const seed of seedNames) {
+    for (let index = 0; index < targetCount; index++) {
+      const seed = seedNames[index % seedNames.length];
+      const cycle = Math.floor(index / seedNames.length);
       let candidate = `__librainian_absent_${seed}`;
-      while (existingNames.has(candidate)) {
+      if (cycle > 0) {
+        candidate = `${candidate}_${cycle + 1}`;
+      }
+      while (existingNames.has(candidate) || claimedCandidates.has(candidate)) {
         candidate = `${candidate}_x`;
       }
+      claimedCandidates.add(candidate);
       queries.push({
         id: this.generateId('func-absent', candidate),
         query: `Does function ${candidate} exist in this codebase?`,
@@ -657,6 +678,16 @@ export class GroundTruthGenerator {
       imports: facts.filter((f) => f.type === 'import').length,
       exports: facts.filter((f) => f.type === 'export').length,
     };
+  }
+
+  private computeUnanswerableTargetCount(primaryQueryCount: number): number {
+    if (primaryQueryCount <= 0) {
+      return GroundTruthGenerator.MIN_UNANSWERABLE_QUERIES;
+    }
+    const minimumForRatio = Math.ceil(
+      primaryQueryCount * (GroundTruthGenerator.MIN_UNANSWERABLE_RATIO / (1 - GroundTruthGenerator.MIN_UNANSWERABLE_RATIO))
+    );
+    return Math.max(GroundTruthGenerator.MIN_UNANSWERABLE_QUERIES, minimumForRatio);
   }
 
   private groupByFile(facts: ASTFact[]): Record<string, ASTFact[]> {

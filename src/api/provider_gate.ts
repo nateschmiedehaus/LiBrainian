@@ -20,7 +20,7 @@ import * as llmEnv from './llm_env.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId } from '../epistemics/evidence_ledger.js';
 import { createHash } from 'node:crypto';
-import { getActiveProviderFailures, recordProviderSuccess } from '../utils/provider_failures.js';
+import { getActiveProviderFailures, recordProviderSuccess, withProviderWorkspaceRoot } from '../utils/provider_failures.js';
 import { isNetworkAccessDisabled, isPrivacyModeStrict } from '../utils/runtime_controls.js';
 import { appendPrivacyAuditEvent } from '../security/privacy_audit.js';
 
@@ -143,6 +143,7 @@ export async function runProviderReadinessGate(
   workspaceRoot: string,
   options: ProviderGateOptions = {}
 ): Promise<ProviderGateResult> {
+  return withProviderWorkspaceRoot(workspaceRoot, async () => {
   const startedAt = Date.now();
   const authChecker = options.authChecker ?? new AuthChecker(workspaceRoot);
   const authStatus = await authChecker.checkAll();
@@ -272,38 +273,6 @@ export async function runProviderReadinessGate(
       source: codexAuth?.source,
     },
   ];
-
-  if (!networkDisabled && llmService && !forceProbe) {
-    const claudeProvider = providers.find((entry) => entry.provider === 'claude');
-    const codexProvider = providers.find((entry) => entry.provider === 'codex');
-    const claudeUnavailable = !claudeProvider?.available || !claudeProvider?.authenticated;
-    const codexCandidate = Boolean(codexProvider?.available && codexProvider?.authenticated);
-    if (claudeUnavailable && codexCandidate && codexProvider) {
-      try {
-        const codexProbe = await llmService.checkCodexHealth(true);
-        if (!codexProbe.available || !codexProbe.authenticated) {
-          codexProvider.available = false;
-          codexProvider.authenticated = codexProbe.authenticated;
-          codexProvider.lastCheck = codexProbe.lastCheck;
-          codexProvider.error = codexProbe.error;
-          const codexError = (codexProbe.error ?? '').toLowerCase();
-          if (codexError.includes('state db') && codexError.includes('migration')) {
-            remediationSteps.push(
-              'Codex state DB migration mismatch detected. Run `codex login` (or reset CODEX_HOME state) before retrying synthesis.'
-            );
-          } else {
-            remediationSteps.push(
-              'Codex deep probe failed while selected as sole provider. Run `codex login` and retry.'
-            );
-          }
-        }
-      } catch (error) {
-        codexProvider.available = false;
-        codexProvider.error = toSingleLineMessage(error);
-        remediationSteps.push('Codex deep probe failed while selected as sole provider. Run `codex login` and retry.');
-      }
-    }
-  }
 
   if (!networkDisabled) {
     const recentFailures = await getActiveProviderFailures(workspaceRoot, now);
@@ -457,6 +426,7 @@ export async function runProviderReadinessGate(
     });
   }
   return result;
+  });
 }
 
 async function appendProviderGateEvidence(

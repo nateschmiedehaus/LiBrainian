@@ -2,18 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { getCommandHelp } from '../help.js';
 
 describe('constructions help', () => {
-  it('documents constructions in main help', () => {
+  it('hides constructions from the public help surface', () => {
     const help = getCommandHelp('main');
-    expect(help).toContain('constructions');
+    expect(help).not.toContain('constructions');
   });
 
-  it('documents constructions subcommands', () => {
+  it('gates constructions command help behind maintainer mode', () => {
     const help = getCommandHelp('constructions');
-    expect(help).toContain('librarian constructions');
-    expect(help).toContain('list');
-    expect(help).toContain('search');
-    expect(help).toContain('describe');
-    expect(help).toContain('install');
-    expect(help).toContain('validate');
+    expect(help).toContain('Command unavailable in the public release surface: constructions');
   });
 });

@@ -9,6 +9,11 @@ const TOTAL_BUDGET_MS = 10 * 60 * 1000;
 const MAX_PARALLEL = 4;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_REPO = path.resolve(__dirname, '../../../test/fixtures/librarian_usecase');
+const DOGFOOD_RUN_DIR = path.resolve(__dirname, '../../../state/dogfood/dev-loop');
+const SPECIAL_FIXTURE_SMOKE_EXCLUSIONS = new Set<string>([
+  // Requires a dedicated git-history fixture; covered by diff_semantic_summarizer.test.ts.
+  'librainian:diff-semantic-summarizer',
+]);
 
 type SmokeResult = {
   id: string;
@@ -17,6 +22,7 @@ type SmokeResult = {
   parseable: boolean;
   confidencePresent: boolean;
   timedOut: boolean;
+  truthfulnessProblems: string[];
   error?: string;
 };
 
@@ -137,25 +143,55 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
     input[key] = 'smoke';
   }
 
+  if (
+    Object.prototype.hasOwnProperty.call(manifest.outputSchema.properties ?? {}, 'executed')
+    || Object.prototype.hasOwnProperty.call(properties, 'command')
+  ) {
+    input.dryRun = false;
+    input.command = process.execPath;
+    input.args = ['-e', 'process.stdout.write("PATROL_OBS: {\\"type\\":\\"smoke\\",\\"ok\\":true}\\n")'];
+  }
+
   if (manifest.id === 'librainian:architecture-verifier') {
     input.layers = [
       {
-        name: 'service',
-        patterns: ['src/service/**'],
-        allowedDependencies: ['data'],
+        name: 'index',
+        patterns: ['src/index.js'],
+        allowedDependencies: ['auth', 'user', 'config', 'db'],
       },
       {
-        name: 'data',
-        patterns: ['src/data/**'],
+        name: 'auth',
+        patterns: ['src/auth/**'],
+        allowedDependencies: ['user', 'config', 'utils'],
+      },
+      {
+        name: 'user',
+        patterns: ['src/user/**'],
+        allowedDependencies: ['db', 'utils'],
+      },
+      {
+        name: 'db',
+        patterns: ['src/db/**'],
+        allowedDependencies: ['config'],
+      },
+      {
+        name: 'config',
+        patterns: ['src/config/**', 'src/utils/**'],
         allowedDependencies: [],
       },
     ];
     input.boundaries = [
       {
-        name: 'service-data',
-        description: 'service should access data through stable boundaries',
-        inside: ['src/service'],
-        outside: ['src/data'],
+        name: 'auth-user',
+        description: 'auth should depend on user only through exported service helpers',
+        inside: ['src/auth'],
+        outside: ['src/user'],
+      },
+      {
+        name: 'user-db',
+        description: 'user should reach persistence through db client helpers',
+        inside: ['src/user'],
+        outside: ['src/db'],
       },
     ];
     input.rules = [
@@ -169,12 +205,74 @@ function buildGenericInput(manifest: ConstructionManifest): Record<string, unkno
   }
 
   if (manifest.id === 'librainian:bug-investigation-assistant') {
-    input.description = 'User profile page crashes during request handling';
-    input.errorMessage = "TypeError: Cannot read properties of undefined (reading 'id')";
+    input.description = 'User fetch route crashes during request handling';
+    input.errorMessage = "TypeError: Cannot read properties of undefined (reading 'created_at')";
     input.stackTrace =
-      "TypeError: Cannot read properties of undefined (reading 'id')\n" +
-      '    at getUser (src/service/user.ts:42:13)\n' +
-      '    at handleRequest (src/api/handler.ts:10:5)';
+      "TypeError: Cannot read properties of undefined (reading 'created_at')\n" +
+      '    at getUserById (src/user/user_service.js:65:30)\n' +
+      '    at app.get (src/index.js:42:18)';
+  }
+
+  if (manifest.id === 'librainian:comprehensive-quality-construction') {
+    input.files = ['src/user/user_service.js', 'src/auth/authenticate.js'];
+    input.architectureSpec = {
+      layers: [
+        { name: 'index', patterns: ['src/index.js'], allowedDependencies: ['auth', 'user', 'config', 'db'] },
+        { name: 'auth', patterns: ['src/auth/**'], allowedDependencies: ['user', 'config', 'utils'] },
+        { name: 'user', patterns: ['src/user/**'], allowedDependencies: ['db', 'utils'] },
+        { name: 'db', patterns: ['src/db/**'], allowedDependencies: ['config'] },
+        { name: 'config', patterns: ['src/config/**', 'src/utils/**'], allowedDependencies: [] },
+      ],
+      boundaries: [
+        {
+          name: 'auth-user',
+          description: 'auth should depend on user only through exported service helpers',
+          inside: ['src/auth'],
+          outside: ['src/user'],
+        },
+        {
+          name: 'user-db',
+          description: 'user should reach persistence through db client helpers',
+          inside: ['src/user'],
+          outside: ['src/db'],
+        },
+      ],
+      rules: [
+        {
+          id: 'no-circular',
+          description: 'prevent circular imports',
+          type: 'no-circular',
+          severity: 'error',
+        },
+      ],
+    };
+    input.securityScope = {
+      files: ['src/auth/authenticate.js', 'src/user/user_service.js'],
+      checkTypes: ['injection'],
+      workspace: FIXTURE_REPO,
+    };
+  }
+
+  if (manifest.id === 'librainian:refactoring-safety-checker') {
+    input.entityId = 'getUserById';
+    input.refactoringType = 'rename-function';
+  }
+
+  if (manifest.id === 'librainian:diff-semantic-summarizer') {
+    input.diff = [
+      'diff --git a/src/user/user_service.js b/src/user/user_service.js',
+      '--- a/src/user/user_service.js',
+      '+++ b/src/user/user_service.js',
+      '@@ -55,7 +55,7 @@',
+      '-async function getUserById(id) {',
+      '+async function getUserById(userId) {',
+      '-  const result = await query(\'SELECT * FROM users WHERE id = $1\', [id]);',
+      '+  const result = await query(\'SELECT * FROM users WHERE id = $1\', [userId]);',
+    ].join('\n');
+  }
+
+  if (manifest.id === 'librainian:dogfood-autolearner') {
+    input.runDir = DOGFOOD_RUN_DIR;
   }
 
   return input;
@@ -186,16 +284,28 @@ function createLibrarianStub(): Record<string, unknown> {
     rootDir: FIXTURE_REPO,
   };
   const mockPack = {
-    relatedFiles: ['src/service/user.ts', 'src/data/user_repo.ts'],
+    relatedFiles: ['src/user/user_service.js', 'src/auth/authenticate.js', 'src/index.js'],
     codeSnippets: [
       {
         content:
-          "import { getUserRecord } from '../data/user_repo';\n" +
-          'export function getUser(id: string) {\n' +
-          '  return getUserRecord(id);\n' +
+          "async function getUserById(id) {\n" +
+          "  const result = await query('SELECT * FROM users WHERE id = $1', [id]);\n" +
+          '  if (result.rows.length === 0) {\n' +
+          '    return null;\n' +
+          '  }\n' +
+          '  return result.rows[0];\n' +
           '}',
         startLine: 1,
-        endLine: 4,
+        endLine: 6,
+      },
+      {
+        content:
+          "app.get('/users/:id', async (req, res) => {\n" +
+          '  const user = await getUserById(req.params.id);\n' +
+          '  res.json(user);\n' +
+          '});',
+        startLine: 36,
+        endLine: 39,
       },
     ],
   };
@@ -204,7 +314,10 @@ function createLibrarianStub(): Record<string, unknown> {
     get(target, prop: string | symbol): unknown {
       if (typeof prop !== 'string') return undefined;
       if (prop in target) return target[prop];
-      if (prop === 'query' || prop === 'queryOptional') {
+      if (prop === 'getStorage') {
+        return undefined;
+      }
+      if (prop === 'query' || prop === 'queryOptional' || prop === 'queryRequired') {
         return async () => ({
           packs: [mockPack],
           contextPacks: [],
@@ -229,6 +342,101 @@ function isParseableOutput(output: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+function getSmokePayload(output: unknown): Record<string, unknown> | null {
+  if (!output || typeof output !== 'object') return null;
+  const record = output as Record<string, unknown>;
+  if (record.ok === true && record.value && typeof record.value === 'object') {
+    return record.value as Record<string, unknown>;
+  }
+  if (record.result && typeof record.result === 'object') {
+    return record.result as Record<string, unknown>;
+  }
+  return record;
+}
+
+function readNumericField(record: Record<string, unknown> | null, key: string): number | null {
+  if (!record) return null;
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readObjectField(record: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+  if (!record) return null;
+  const value = record[key];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readStringArrayField(record: Record<string, unknown> | null, key: string): string[] {
+  if (!record) return [];
+  const value = record[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeSmokeFailure(output: unknown): string | undefined {
+  if (!output || typeof output !== 'object') return undefined;
+  const record = output as Record<string, unknown>;
+  if (record.ok !== false) return undefined;
+  const error = record.error;
+  if (error && typeof error === 'object') {
+    const message = (error as Record<string, unknown>).message;
+    if (typeof message === 'string' && message.length > 0) {
+      return message;
+    }
+  }
+  return 'construction returned ok:false';
+}
+
+function collectTruthfulnessProblems(manifest: ConstructionManifest, output: unknown): string[] {
+  const failure = normalizeSmokeFailure(output);
+  if (failure) {
+    return [failure];
+  }
+
+  const payload = getSmokePayload(output);
+  if (!payload) return ['output payload missing'];
+  const problems: string[] = [];
+
+  if (payload.executed === false) {
+    problems.push('reported executed=false');
+  }
+
+  if (manifest.id === 'librainian:comprehensive-quality-construction') {
+    const architecture = readObjectField(payload, 'architecture');
+    const security = readObjectField(payload, 'security');
+    const filesChecked = readNumericField(architecture, 'filesChecked');
+    const filesAudited = readNumericField(security, 'filesAudited');
+    const overallScore = readNumericField(payload, 'overallScore');
+    if (filesChecked !== null && filesChecked <= 0) {
+      problems.push('architecture checked 0 files');
+    }
+    if (filesAudited !== null && filesAudited <= 0) {
+      problems.push('security audited 0 files');
+    }
+    if ((overallScore ?? 0) >= 85 && (filesChecked ?? 0) <= 0 && (filesAudited ?? 0) <= 0) {
+      problems.push('high overall score without architecture/security evidence');
+    }
+  }
+
+  if (manifest.id === 'librainian:refactoring-safety-checker') {
+    const usageCount = readNumericField(payload, 'usageCount');
+    const riskScore = readNumericField(payload, 'riskScore');
+    const safe = payload.safe;
+    const risks = readStringArrayField(payload, 'risks');
+    if (
+      safe === true
+      && usageCount === 0
+      && riskScore === 0
+      && risks.some((risk) => risk.includes('Low analysis confidence') || risk.includes('caller traversal failed'))
+    ) {
+      problems.push('safe=true despite zero usages and degraded caller coverage');
+    }
+  }
+
+  return problems;
 }
 
 function hasConfidenceSignal(
@@ -279,8 +487,14 @@ async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult
     );
     const parseable = isParseableOutput(output);
     const confidencePresent = hasConfidenceSignal(output);
+    const truthfulnessProblems = collectTruthfulnessProblems(manifest, output);
     const confidenceRequired = requiresConfidenceSignal(manifest);
-    const status = parseable && (!confidenceRequired || confidencePresent) ? 'pass' : 'fail';
+    const status =
+      parseable
+      && (!confidenceRequired || confidencePresent)
+      && truthfulnessProblems.length === 0
+        ? 'pass'
+        : 'fail';
     return {
       id: manifest.id,
       status,
@@ -288,6 +502,7 @@ async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult
       parseable,
       confidencePresent,
       timedOut: false,
+      truthfulnessProblems,
     };
   } catch (error) {
     const message = toSingleLineError(error);
@@ -298,6 +513,7 @@ async function runSmokeCase(manifest: ConstructionManifest): Promise<SmokeResult
       parseable: false,
       confidencePresent: false,
       timedOut: message.includes('construction_timeout:'),
+      truthfulnessProblems: [],
       error: message,
     };
   }
@@ -348,7 +564,10 @@ describe('Construction Smoke Gate', () => {
   it('runs every registered construction with timeout guard and reports pass/fail coverage', async () => {
     const startedAt = Date.now();
     const manifests = listConstructions();
-    const executableManifests = listConstructions({ availableOnly: true });
+    const specialFixtureExcluded = listConstructions({ availableOnly: true })
+      .filter((manifest) => SPECIAL_FIXTURE_SMOKE_EXCLUSIONS.has(manifest.id));
+    const executableManifests = listConstructions({ availableOnly: true })
+      .filter((manifest) => !SPECIAL_FIXTURE_SMOKE_EXCLUSIONS.has(manifest.id));
     const unavailableCatalogManifests = manifests.filter((manifest) => manifest.available === false);
     expect(manifests.length).toBeGreaterThan(0);
     expect(executableManifests.length).toBeGreaterThan(0);
@@ -368,7 +587,9 @@ describe('Construction Smoke Gate', () => {
         implemented: executableManifests.length,
         total: manifests.length,
         unavailable: unavailableCatalogManifests.length,
+        specialFixtureExcluded: specialFixtureExcluded.length,
       },
+      specialFixtureExcluded: specialFixtureExcluded.map((manifest) => manifest.id),
       passed: passed.map((result) => result.id),
       failed: failed.map((result) => ({
         id: result.id,
@@ -376,13 +597,14 @@ describe('Construction Smoke Gate', () => {
         parseable: result.parseable,
         confidencePresent: result.confidencePresent,
         timedOut: result.timedOut,
+        truthfulnessProblems: result.truthfulnessProblems,
       })),
     };
     console.info('[Construction Smoke Gate] report', JSON.stringify(report));
 
     expect(results).toHaveLength(executableManifests.length);
     expect(failed).toHaveLength(0);
-    expect(executableManifests.length + unavailableCatalogManifests.length).toBe(manifests.length);
+    expect(executableManifests.length + unavailableCatalogManifests.length + specialFixtureExcluded.length).toBe(manifests.length);
     expect(timedOut).toHaveLength(0);
     expect(Date.now() - startedAt).toBeLessThan(TOTAL_BUDGET_MS);
   }, TOTAL_BUDGET_MS + 15_000);

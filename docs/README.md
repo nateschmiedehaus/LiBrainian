@@ -4,39 +4,33 @@ Start here for the fastest path:
 
 - `/docs/START_HERE.md` — install, first query, contributor loop
 
-Public docs (user-facing):
+Package-shipped docs (available from the published tarball):
 
-- `/docs/librarian/README.md` — canonical docs entry
-- `/docs/integrations/README.md` — universal integration decision tree (MCP, CLI, OpenAPI/REST, UTCP, A2A, Python SDK)
-- `/docs/librarian/API.md` — API reference
-- `/docs/librarian/AGENT_INTEGRATION.md` — integration patterns
-- `/docs/librarian/MCP_SERVER.md` — MCP usage
-- `/docs/constructions/quickstart.md` — construction zero-to-working tutorial
-- `/docs/constructions/operators.md` — operator decision guide
-- `/docs/constructions/cookbook.md` — end-to-end construction recipes
-- `/docs/constructions/testing.md` — deterministic construction testing guide
-- `/docs/constructions/migration.md` — class-style to operator-style migration
+- `/docs/README.md` — this index
+- `/docs/integrations/README.md` — integration decision tree (CLI, MCP, TypeScript API)
 - `/docs/mcp-setup.md` — end-to-end MCP client setup
 - `/docs/mcp-design-principles.md` — MCP tool design standards
-- `/docs/librarian/validation.md` — validation and gates
+- `/docs/integrations/cli.md` — shell and CI usage
+- `/docs/integrations/mcp.md` — IDE and MCP client usage
+
+GitHub reference docs (not shipped in the npm tarball by default):
+
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/librarian/README.md` — canonical docs entry
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/librarian/API.md` — API reference
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/librarian/REALITY_VERIFICATION.md` — release-evidence and reality-verification expectations
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/librarian/GATING_POLICY.md` — milestone and gate policy
+
+Source checkout only docs for maintainers and experimental constructions remain in the GitHub repository and are outside the first public release contract.
 
 Project docs:
 
-- `/CONTRIBUTING.md` — contributor workflow
-- `/ARCHITECTURE.md` — architecture overview
-- `/SECURITY.md` — security policy
-- `/docs/security.md` — data-flow threat model and network call controls
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md` — contributor workflow
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/ARCHITECTURE.md` — architecture overview
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/SECURITY.md` — security policy
+- `https://github.com/nateschmiedehaus/LiBrainian/blob/main/docs/security.md` — data-flow threat model and network call controls
 
-Maintainer-only historical planning docs:
-
-- `/docs/internal/README.md` — internal/archive boundary and references
-
-If you are evaluating production readiness, run:
-
-```bash
-npm test -- --run
-npm run typecheck
-npm run package:assert-identity
-npm run package:install-smoke
-npm run eval:publish-gate -- --json
-```
+If you are working from a source checkout and need contributor or maintainer
+validation flows, use
+[`CONTRIBUTING.md`](https://github.com/nateschmiedehaus/LiBrainian/blob/main/CONTRIBUTING.md).
+Those commands are intentionally outside the shipped npm package contract.
+Maintainer-only release qualification stays in the source checkout.

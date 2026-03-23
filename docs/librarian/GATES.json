@@ -3,7 +3,7 @@
   "version": "2.2.0",
   "lastUpdated": "2026-02-22T02:29:10.000Z",
   "updatedBy": "orchestrator",
-  "description": "Machine-readable gate status with tiered testing architecture (evidence reconciled).",
+  "description": "Historical February 2026 gate snapshot only. Current publish-grade evidence lives in eval-results/agentic-use-case-review.json and state/eval/* release artifacts; do not treat this file as the live launch gate.",
   "tasks": {
     "layer0.typecheck": {
       "name": "Package Typecheck",
@@ -601,46 +601,47 @@
       "dependsOn": [
         "layer4.verification"
       ],
-      "note": "Measured on 10 real external repos with AST-only ground truth and 22 unanswerable queries.",
+      "note": "Measured on 10 real external repos with AST-only ground truth and 80 unanswerable queries (20.0%).",
       "blocking": false,
-      "currentState": "10 real repos, 400 queries, 22 unanswerable",
+      "currentState": "10 real repos, 400 queries, 80 unanswerable (20.0%)",
       "requiredFix": "Clone real GitHub repos post-2024, extract facts via AST, do NOT use AI-generated repos",
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-03-14",
       "measured": {
         "repos": 10,
         "totalQueries": 400,
-        "unanswerableQueries": 22,
+        "unanswerableQueries": 80,
+        "unanswerableRatio": 0.2,
         "metricsPath": "eval-results/metrics-report.json"
       }
     },
     "layer5.externalRepos": {
       "name": "External Real Repos",
       "layer": 5,
-      "status": "fail",
+      "status": "pass",
       "target": "5+ real GitHub repos (not AI-generated, post-2024 or obscure)",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.scientificLoop"
       ],
       "queuedWorkUnit": "WU-801-REAL (after WU-1001-1003)",
-      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "note": "Backed by eval-corpus/external-repos/manifest.json plus checked-out git remotes for the authoritative external corpus set.",
       "verification": "Each repo must have: git remote -v showing real origin",
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-03-14",
       "measured": 10,
       "verified": true
     },
     "layer5.astFactExtractor": {
       "name": "AST Fact Extractor",
       "layer": 5,
-      "status": "fail",
+      "status": "pass",
       "target": "Extract function defs, imports, call graphs, types from any codebase",
       "spec": "specs/track-eval-machine-verifiable.md",
       "dependsOn": [
         "layer5.externalRepos"
       ],
-      "lastRun": "2026-02-21",
+      "lastRun": "2026-03-14",
       "measured": 400,
-      "note": "fail (missing_evidence_links): Status is not backed by evidence manifest paths.",
+      "note": "Ground truth is generated directly from AST facts in eval-corpus/external-repos/*/.librarian-eval/ground-truth.json.",
       "verified": true
     },
     "layer5.citationVerifier": {

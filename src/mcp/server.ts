@@ -30,6 +30,8 @@ import {
 
 import {
   MCP_SCHEMA_VERSION,
+  MCP_GOLDEN_PATH_TOOLS,
+  DEFAULT_MCP_SERVER_INSTRUCTIONS,
   DEFAULT_MCP_SERVER_CONFIG,
   TOOL_AUTHORIZATION,
   type LiBrainianMCPServerConfig,
@@ -701,6 +703,91 @@ function enrichSchemaDescriptions(toolName: string, schemaNode: MutableToolSchem
   }
 }
 
+const ADVERTISED_TOOL_DESCRIPTIONS: Record<string, string> = {
+  query: 'Use when you need cross-file understanding, architecture flow, or impact reasoning in unfamiliar code. Provide a goal-oriented question and any scope hints. Returns ranked context packs, related files, and confidence guidance. Not for direct file reads when you already know the exact path.',
+  get_context_pack: 'Use when you are about to edit multiple files and need a token-budgeted working set first. Provide the task intent and optional file hints. Returns an intent-shaped context bundle sized for the current task. Not for open-ended exploration when query should route retrieval.',
+  find_symbol: 'Use when you know or suspect an exact symbol name and need the defining files or matches quickly. Provide the symbol name and optional kind or workspace. Returns precise symbol matches with locations and metadata. Not for fuzzy semantic discovery when names are unknown.',
+  get_change_impact: 'Use when you are about to modify, move, rename, or delete code and need downstream impact first. Provide the target identifier and optional change shape. Returns impacted dependents, tests, and risk signals. Not for semantic code discovery. Also known as blast_radius.',
+  explain_function: 'Use when you already know the function or symbol you want explained in detail. Provide the function identifier or target symbol context. Returns a focused explanation of behavior, dependencies, and surrounding logic. Not for repository-wide search when the target is still unknown.',
+  find_usages: 'Use when you need concrete call sites or references before changing a symbol or API. Provide the symbol or identifier you want traced. Returns usage locations and surrounding context for safe edits. Not for fuzzy retrieval when you do not know the symbol name yet.',
+  get_repo_map: 'Use when you need fast codebase orientation before diving into modules or edits. Provide optional focus paths or token budget constraints. Returns a compact ranked repository map for navigation. Not for detailed behavioral questions that query should answer.',
+  semantic_search: 'Use when you need files or symbols by meaning and do not know the exact name yet. Provide a short localization query and optional retrieval filters. Returns semantically similar files, symbols, and related evidence. Not for architecture questions where query should synthesize relationships.',
+  describe_capabilities: 'Use when you want a concise capability and provenance summary for the current workspace. Provide the workspace when you need a specific target. Returns system-level capability and provenance details. Not for health diagnostics or code search.',
+  run_health_check: 'Use when you want LiBrainian to inspect its own self-knowledge and drift indicators for a workspace. Provide the workspace if you need a specific target. Returns health-style diagnostics about self-knowledge quality. Not for general status or capability summaries.',
+  query_codebase: 'Use when you want a technique-composition template compiled into an executable work shape. Provide the composition identifier and optional workspace. Returns a compiled work template with gaps and composition metadata. Not for semantic code search or direct repository questions.',
+};
+const ADVERTISED_TOOL_RENAMES: Record<string, string> = {
+  system_contract: 'describe_capabilities',
+  diagnose_self: 'run_health_check',
+  compile_technique_composition: 'query_codebase',
+};
+const TOOL_CALL_ALIASES: Record<string, string> = {
+  describe_capabilities: 'system_contract',
+  run_health_check: 'diagnose_self',
+  query_codebase: 'compile_technique_composition',
+};
+
+function compactAdvertisedDescription(description: string): string {
+  return description
+    .replace(/\s*Format:[^.]+\./g, '')
+    .replace(/\s*Use a non-default value when[^.]+\./g, '')
+    .replace(/\s*Set this explicitly when[^.]+\./g, '')
+    .replace(/\s*Example:[^.]+\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildFallbackAdvertisedToolDescription(tool: Tool): string {
+  const baseDescription = compactAdvertisedDescription(String(tool.description ?? ''))
+    .split(/[.!?]/)[0]
+    ?.trim() || tool.name.replace(/_/g, ' ');
+  const normalizedBase = baseDescription.charAt(0).toLowerCase() + baseDescription.slice(1);
+  return `Use this when you want to ${normalizedBase}. Provide the required identifiers, workspace hints, and scope controls for this operation. Returns structured results with relevant metadata and diagnostics when available. Not for a different task when another specialized LiBrainian tool is a more direct match.`;
+}
+
+function getAdvertisedToolName(name: string): string {
+  return ADVERTISED_TOOL_RENAMES[name] ?? name;
+}
+
+function sanitizeAdvertisedSchemaDescriptions(schemaNode: MutableToolSchemaNode): void {
+  if (!schemaNode || typeof schemaNode !== 'object') {
+    return;
+  }
+
+  if (typeof schemaNode.description === 'string') {
+    schemaNode.description = compactAdvertisedDescription(schemaNode.description);
+  }
+
+  if (schemaNode.properties) {
+    for (const child of Object.values(schemaNode.properties)) {
+      sanitizeAdvertisedSchemaDescriptions(child);
+    }
+  }
+
+  if (Array.isArray(schemaNode.items)) {
+    for (const child of schemaNode.items) {
+      sanitizeAdvertisedSchemaDescriptions(child);
+    }
+  } else if (schemaNode.items && typeof schemaNode.items === 'object') {
+    sanitizeAdvertisedSchemaDescriptions(schemaNode.items);
+  }
+}
+
+function cloneTool(tool: Tool): Tool {
+  return JSON.parse(JSON.stringify(tool)) as Tool;
+}
+
+function parseEnabledToolsEnv(value: string | undefined): string[] | undefined {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return undefined;
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 interface BootstrapRunStatsSnapshot {
   filesProcessed: number;
   functionsIndexed: number;
@@ -720,6 +807,7 @@ interface BootstrapRunRecord {
 }
 
 type SessionEpisodeEventType = 'query' | 'symbol_access' | 'pack_assembled';
+type StandardizedToolDataQuality = 'semantic' | 'heuristic' | 'degraded';
 
 interface SessionEpisodeRecord {
   episodeId: string;
@@ -864,23 +952,23 @@ function buildQueryFixCommands(code: string | undefined, workspace: string | und
   const workspaceArg = workspace?.trim() ? workspace.trim() : '<workspace>';
   switch (code) {
     case 'workspace_unavailable':
-      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
+      return [`Run \`librainian bootstrap --workspace ${workspaceArg}\` to register and index this workspace.`];
     case 'bootstrap_required':
-      return [`Run \`librarian bootstrap --workspace ${workspaceArg}\` before running query.`];
+      return [`Run \`librainian bootstrap --workspace ${workspaceArg}\` before running query.`];
     case 'provider_unavailable':
-      return ['Run `librarian check-providers` to diagnose provider setup and authentication.'];
+      return ['Run `librainian check-providers` to diagnose provider setup and authentication.'];
     case 'insufficient_embedding_coverage':
       return [
-        'Run `librarian embed --fix` to backfill missing embeddings.',
-        'Run `librarian status --format json` to confirm embedding coverage is at least 80%.',
+        'Run `librainian embed --fix` to backfill missing embeddings.',
+        'Run `librainian status --format json` to confirm embedding coverage is at least 80%.',
       ];
     case 'query_failed':
       return [
-        'Run `librarian doctor` to diagnose storage/workspace issues.',
+        'Run `librainian doctor` to diagnose storage/workspace issues.',
         'Retry with a narrower intent after confirming providers are healthy.',
       ];
     default:
-      return ['Run `librarian doctor` to diagnose this query failure.'];
+      return ['Run `librainian doctor` to diagnose this query failure.'];
   }
 }
 
@@ -1133,7 +1221,7 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
     case 'provider_unavailable':
       return {
         nextSteps: [
-          'Run `librarian check-providers --format json` and confirm embedding provider availability.',
+          'Run `librainian check-providers --format json` and confirm embedding provider availability.',
           `Retry ${toolName} after provider configuration is restored.`,
         ],
       };
@@ -1154,7 +1242,7 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
     case 'storage_corrupt':
       return {
         nextSteps: [
-          `Run bootstrap({ workspace: "${workspaceArg}" }) or \`librarian bootstrap --force --workspace ${workspaceArg}\` to rebuild corrupted storage.`,
+          `Run bootstrap({ workspace: "${workspaceArg}" }) or \`librainian bootstrap --force --workspace ${workspaceArg}\` to rebuild corrupted storage.`,
           `Retry ${toolName} only after doctor/status confirms the workspace is healthy.`,
         ],
         recoverWith: workspace ? { tool: 'bootstrap', args: { workspace } } : undefined,
@@ -1186,7 +1274,7 @@ function buildAgentNextSteps(code: string, toolName: string, workspace: string |
       return {
         nextSteps: [
           'Retry the tool call once to rule out transient errors.',
-          'If the error persists, run `librarian doctor --json` and apply suggested fixes.',
+          'If the error persists, run `librainian doctor --json` and apply suggested fixes.',
         ],
       };
   }
@@ -1538,7 +1626,7 @@ export class LiBrainianMCPServer {
   private registerHandlers(): void {
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async (): Promise<ListToolsResult> => {
-      return { tools: this.getAvailableTools() };
+      return { tools: this.getAdvertisedTools() };
     });
 
     // List available resources
@@ -1563,6 +1651,7 @@ export class LiBrainianMCPServer {
    * Get list of available tools.
    */
   private getAvailableTools(): Tool[] {
+    const exposeInternalSurface = this.canExposeInternalCapabilitySurface();
     const tools: Tool[] = [
       {
         name: 'bootstrap',
@@ -1759,7 +1848,7 @@ export class LiBrainianMCPServer {
       },
       {
         name: 'semantic_search',
-        description: `Primary semantic code localization tool for finding relevant files/symbols by meaning. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
+        description: `Primary semantic code localization tool for finding relevant files or symbols by meaning when you do not know the exact name yet. Prefer query for architecture or relationship questions. ${CONFIDENCE_BEHAVIOR_CONTRACT}`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -2078,11 +2167,16 @@ export class LiBrainianMCPServer {
       },
       {
         name: 'list_capabilities',
-        description: 'Return versioned capability inventory spanning MCP tools, constructions, and technique compositions',
+        description: exposeInternalSurface
+          ? 'Return versioned capability inventory for the stable public surface or the full internal inventory'
+          : 'Return versioned capability inventory for the stable public surface',
         inputSchema: {
           type: 'object',
           properties: {
             workspace: { type: 'string', description: 'Workspace path used to resolve workspace-scoped compositions' },
+            surface: exposeInternalSurface
+              ? { type: 'string', enum: ['public', 'full'], description: 'Capability inventory surface (default public)' }
+              : { type: 'string', enum: ['public'], description: 'Capability inventory surface (stable public release only)' },
           },
           required: [],
         },
@@ -2162,7 +2256,7 @@ export class LiBrainianMCPServer {
       },
       {
         name: 'get_change_impact',
-        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk)',
+        description: 'Rank blast-radius impact for a proposed code change (dependents, tests, co-change signals, and risk). Also known as blast_radius.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -2542,6 +2636,340 @@ export class LiBrainianMCPServer {
       .map((tool) => this.withToolHints(tool));
   }
 
+  private getAdvertisedTools(): Tool[] {
+    const enabledTools = new Set(
+      (this.config.enabledTools ?? []).map((tool) => tool.trim()).filter((tool) => tool.length > 0)
+    );
+    const exposeInternalSurface = this.canExposeInternalCapabilitySurface();
+    const publicToolNames = new Set<string>(MCP_GOLDEN_PATH_TOOLS);
+
+    const tools = this.getAvailableTools()
+      .filter((tool) => exposeInternalSurface || publicToolNames.has(getAdvertisedToolName(tool.name)))
+      .map((tool) => this.toAdvertisedTool(tool));
+
+    return tools
+      .filter((tool) => enabledTools.size === 0 || enabledTools.has(tool.name));
+  }
+
+  public getAdvertisedToolsForInventory(): Tool[] {
+    return this.getAdvertisedTools();
+  }
+
+  private canExposeInternalCapabilitySurface(): boolean {
+    return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+  }
+
+  private toAdvertisedTool(tool: Tool): Tool {
+    const advertisedTool = cloneTool(tool);
+    advertisedTool.name = getAdvertisedToolName(advertisedTool.name);
+    advertisedTool.description = ADVERTISED_TOOL_DESCRIPTIONS[advertisedTool.name]
+      ?? buildFallbackAdvertisedToolDescription(advertisedTool);
+
+    const schema = advertisedTool.inputSchema as MutableToolSchemaNode | undefined;
+    if (schema && typeof schema === 'object') {
+      sanitizeAdvertisedSchemaDescriptions(schema);
+      if (advertisedTool.name === 'query' && schema.properties) {
+        delete schema.properties.context_hints;
+        delete schema.properties.recency_weight;
+        delete schema.properties.explain_misses;
+      }
+    }
+
+    return advertisedTool;
+  }
+
+  private isGoldenPathTool(name: string): name is (typeof MCP_GOLDEN_PATH_TOOLS)[number] {
+    return (MCP_GOLDEN_PATH_TOOLS as readonly string[]).includes(name);
+  }
+
+  private wrapGoldenPathToolResult(name: string, result: unknown): unknown {
+    if (!this.isGoldenPathTool(name) || !result || typeof result !== 'object' || Array.isArray(result)) {
+      return result;
+    }
+
+    const payload = result as Record<string, unknown>;
+    const warnings = this.extractGoldenPathWarnings(name, payload);
+    const confidence = this.computeGoldenPathConfidence(name, payload, warnings);
+    const dataQuality = this.computeGoldenPathDataQuality(name, payload, warnings);
+    const followUp = this.computeGoldenPathFollowUp(name, payload);
+    const summary = this.computeGoldenPathSummary(name, payload, confidence, dataQuality);
+
+    return {
+      tool: name,
+      summary,
+      confidence,
+      dataQuality,
+      warnings,
+      followUp,
+      result: payload,
+    };
+  }
+
+  private extractGoldenPathWarnings(name: string, payload: Record<string, unknown>): string[] {
+    const warnings = new Set<string>();
+    const disclosures = Array.isArray(payload.disclosures)
+      ? payload.disclosures.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+    const rawWarnings = Array.isArray(payload.warnings)
+      ? payload.warnings.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+
+    for (const warning of [...disclosures, ...rawWarnings]) {
+      warnings.add(warning);
+    }
+
+    if (typeof payload.error === 'string' && payload.error.trim().length > 0) {
+      warnings.add(payload.error.trim());
+    }
+    if (typeof payload.stalenessWarning === 'string' && payload.stalenessWarning.trim().length > 0) {
+      warnings.add(payload.stalenessWarning.trim());
+    }
+    if (payload.success === false) {
+      warnings.add(`${name} returned an unsuccessful result.`);
+    }
+    if (payload.found === false) {
+      warnings.add(`${name} did not find a matching target.`);
+    }
+    if (payload.timedOut === true || payload.timed_out === true) {
+      warnings.add(`${name} timed out before completing.`);
+    }
+    if (payload.retrievalInsufficient === true || payload.retrieval_insufficient === true) {
+      warnings.add('Retrieval quality was marked insufficient.');
+    }
+    if (name === 'get_context_pack' && payload.staleness && payload.staleness !== 'fresh') {
+      warnings.add(`Context pack uses ${String(payload.staleness)} workspace state.`);
+    }
+    if (name === 'find_symbol' && Number(payload.totalMatches ?? 0) === 0) {
+      warnings.add('No symbol matches were returned.');
+    }
+
+    return Array.from(warnings);
+  }
+
+  private computeGoldenPathConfidence(
+    name: (typeof MCP_GOLDEN_PATH_TOOLS)[number],
+    payload: Record<string, unknown>,
+    warnings: string[],
+  ): number {
+    if (name === 'query') {
+      const totalConfidence = typeof payload.totalConfidence === 'number' ? payload.totalConfidence : undefined;
+      if (typeof totalConfidence === 'number' && Number.isFinite(totalConfidence)) {
+        return Math.max(0, Math.min(1, Number(totalConfidence.toFixed(4))));
+      }
+    }
+
+    if (name === 'get_context_pack') {
+      const confidenceInIntent = typeof payload.confidenceInIntent === 'number' ? payload.confidenceInIntent : undefined;
+      if (typeof confidenceInIntent === 'number' && Number.isFinite(confidenceInIntent)) {
+        return Math.max(0, Math.min(1, Number(confidenceInIntent.toFixed(4))));
+      }
+    }
+
+    if (name === 'find_symbol') {
+      const matches = Array.isArray(payload.matches) ? payload.matches as Array<Record<string, unknown>> : [];
+      const topScore = typeof matches[0]?.score === 'number' ? matches[0].score as number : undefined;
+      if (typeof topScore === 'number' && Number.isFinite(topScore)) {
+        return Math.max(0, Math.min(1, Number(topScore.toFixed(4))));
+      }
+    }
+
+    if (name === 'get_change_impact') {
+      const summary = payload.summary && typeof payload.summary === 'object'
+        ? payload.summary as Record<string, unknown>
+        : undefined;
+      const riskLevel = String(summary?.riskLevel ?? '').toLowerCase();
+      const riskConfidence = riskLevel === 'critical' || riskLevel === 'high'
+        ? 0.82
+        : riskLevel === 'medium'
+          ? 0.74
+          : 0.68;
+      return warnings.length > 0 ? Math.max(0.25, riskConfidence - 0.18) : riskConfidence;
+    }
+
+    if (name === 'explain_function') {
+      const fn = payload.function && typeof payload.function === 'object'
+        ? payload.function as Record<string, unknown>
+        : undefined;
+      const fnConfidence = typeof fn?.confidence === 'number' ? fn.confidence : undefined;
+      if (typeof fnConfidence === 'number' && Number.isFinite(fnConfidence)) {
+        return Math.max(0, Math.min(1, Number(fnConfidence.toFixed(4))));
+      }
+    }
+
+    if (name === 'find_usages') {
+      const totalMatches = Number(payload.totalMatches ?? 0);
+      const baseline = totalMatches > 0 ? 0.76 : 0.32;
+      return warnings.length > 0 ? Math.max(0.2, baseline - 0.14) : baseline;
+    }
+
+    if (name === 'get_repo_map') {
+      const entryCount = Array.isArray(payload.entries) ? payload.entries.length : 0;
+      const baseline = entryCount > 0 ? 0.78 : 0.35;
+      return warnings.length > 0 ? Math.max(0.2, baseline - 0.14) : baseline;
+    }
+
+    return warnings.length > 0 ? 0.45 : 0.72;
+  }
+
+  private computeGoldenPathDataQuality(
+    name: (typeof MCP_GOLDEN_PATH_TOOLS)[number],
+    payload: Record<string, unknown>,
+    warnings: string[],
+  ): StandardizedToolDataQuality {
+    if (
+      payload.success === false
+      || payload.found === false
+      || warnings.some((warning) => /fallback|degraded|stale|timeout|blocked|insufficient|error/i.test(warning))
+    ) {
+      return 'degraded';
+    }
+
+    return name === 'query' || name === 'get_context_pack'
+      ? 'semantic'
+      : 'heuristic';
+  }
+
+  private computeGoldenPathFollowUp(
+    name: (typeof MCP_GOLDEN_PATH_TOOLS)[number],
+    payload: Record<string, unknown>,
+  ): Array<{ tool: string; rationale: string }> {
+    const fromStrings = (values: unknown, rationale: string) =>
+      Array.isArray(values)
+        ? values
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+          .map((tool) => ({ tool, rationale }))
+        : [];
+
+    if (name === 'query') {
+      const followUp = [
+        ...fromStrings((payload.humanReviewRecommendation as { recoverWith?: { tool?: string } } | undefined)?.recoverWith?.tool ? [((payload.humanReviewRecommendation as { recoverWith?: { tool?: string } }).recoverWith?.tool as string)] : [], 'Recover from the query recommendation when confidence is too low for direct action.'),
+        { tool: 'find_symbol', rationale: 'Drill into a specific symbol surfaced by the query results.' },
+        { tool: 'get_context_pack', rationale: 'Assemble an edit-ready context bundle before changing multiple files.' },
+      ];
+      return followUp;
+    }
+
+    if (name === 'get_context_pack') {
+      return [
+        { tool: 'query', rationale: 'Refine the request if the current context pack is still too broad.' },
+        { tool: 'synthesize_plan', rationale: 'Convert the selected context into an explicit implementation plan.' },
+      ];
+    }
+
+    if (name === 'find_symbol') {
+      return [
+        { tool: 'explain_function', rationale: 'Explain the most relevant symbol before editing or debugging it.' },
+        { tool: 'find_usages', rationale: 'Trace where the selected symbol is used before changing it.' },
+      ];
+    }
+
+    if (name === 'get_change_impact') {
+      const summary = payload.summary && typeof payload.summary === 'object'
+        ? payload.summary as Record<string, unknown>
+        : undefined;
+      const riskLevel = String(summary?.riskLevel ?? '').toLowerCase();
+      if (riskLevel === 'critical' || riskLevel === 'high') {
+        return [
+          { tool: 'request_human_review', rationale: 'High-risk impact should be reviewed before the change proceeds.' },
+          { tool: 'synthesize_plan', rationale: 'Capture mitigation steps and rollback thinking before editing.' },
+        ];
+      }
+      return [
+        { tool: 'query', rationale: 'Gather architectural context for the impacted areas before editing.' },
+        { tool: 'synthesize_plan', rationale: 'Turn the impact findings into an explicit execution plan.' },
+      ];
+    }
+
+    if (name === 'explain_function') {
+      return [
+        { tool: 'find_usages', rationale: 'Trace call sites before modifying the explained function.' },
+        { tool: 'get_change_impact', rationale: 'Estimate downstream impact before changing the explained function.' },
+      ];
+    }
+
+    if (name === 'find_usages') {
+      return [
+        { tool: 'explain_function', rationale: 'Explain the symbol or one of its callers before editing behavior.' },
+        { tool: 'get_change_impact', rationale: 'Estimate downstream risk once the important usages are identified.' },
+      ];
+    }
+
+    if (name === 'get_repo_map') {
+      return [
+        { tool: 'query', rationale: 'Ask an architectural question once the repo map shows where to look.' },
+        { tool: 'find_symbol', rationale: 'Jump from broad orientation to exact symbol lookup.' },
+      ];
+    }
+
+    return [{ tool: 'query', rationale: 'Gather broader context before taking action.' }];
+  }
+
+  private computeGoldenPathSummary(
+    name: (typeof MCP_GOLDEN_PATH_TOOLS)[number],
+    payload: Record<string, unknown>,
+    confidence: number,
+    dataQuality: StandardizedToolDataQuality,
+  ): string {
+    if (name === 'query') {
+      const packCount = Array.isArray(payload.packs) ? payload.packs.length : 0;
+      const intent = typeof payload.intent === 'string' ? payload.intent : 'the requested topic';
+      const aggregateConfidence = payload.aggregateConfidence && typeof payload.aggregateConfidence === 'object'
+        ? payload.aggregateConfidence as Record<string, unknown>
+        : undefined;
+      const tier = typeof aggregateConfidence?.tier === 'string' ? aggregateConfidence.tier : 'uncertain';
+      return `Query returned ${packCount} context pack${packCount === 1 ? '' : 's'} for "${intent}" with ${tier} confidence and ${dataQuality} data quality.`;
+    }
+
+    if (name === 'get_context_pack') {
+      const composition = payload.contextComposition && typeof payload.contextComposition === 'object'
+        ? payload.contextComposition as Record<string, unknown>
+        : undefined;
+      const selectedCount = Number(composition?.selectedPackCount ?? 0);
+      const tokenCount = Number(payload.tokenCount ?? payload.tokensUsed ?? 0);
+      const intent = typeof payload.intent === 'string' ? payload.intent : 'the requested task';
+      return `Context pack assembled ${selectedCount} selected pack${selectedCount === 1 ? '' : 's'} for "${intent}" using about ${tokenCount} tokens with ${dataQuality} data quality.`;
+    }
+
+    if (name === 'find_symbol') {
+      const matches = Array.isArray(payload.matches) ? payload.matches as Array<Record<string, unknown>> : [];
+      const top = matches[0];
+      const topName = typeof top?.name === 'string' ? top.name : 'the best available match';
+      const topFile = typeof top?.filePath === 'string' ? top.filePath : 'an unknown file';
+      return `Find symbol returned ${matches.length} match${matches.length === 1 ? '' : 'es'}; the top candidate is ${topName} in ${topFile} at confidence ${confidence.toFixed(2)}.`;
+    }
+
+    if (name === 'get_change_impact') {
+      const summary = payload.summary && typeof payload.summary === 'object'
+        ? payload.summary as Record<string, unknown>
+        : undefined;
+      const riskLevel = String(summary?.riskLevel ?? 'unknown');
+      const impactedCount = Number(summary?.totalImpacted ?? (Array.isArray(payload.impacted) ? payload.impacted.length : 0));
+      return `Change impact analysis found ${impactedCount} impacted target${impactedCount === 1 ? '' : 's'} with ${riskLevel} risk and ${dataQuality} data quality.`;
+    }
+
+    if (name === 'explain_function') {
+      const fn = payload.function && typeof payload.function === 'object'
+        ? payload.function as Record<string, unknown>
+        : undefined;
+      const callerCount = Array.isArray(fn?.callers) ? fn.callers.length : 0;
+      const calleeCount = Array.isArray(fn?.callees) ? fn.callees.length : 0;
+      return `Function explanation resolved ${String(fn?.name ?? 'the requested function')} with ${callerCount} caller${callerCount === 1 ? '' : 's'} and ${calleeCount} callee${calleeCount === 1 ? '' : 's'}.`;
+    }
+
+    if (name === 'find_usages') {
+      const totalMatches = Number(payload.totalMatches ?? 0);
+      const symbol = typeof payload.symbol === 'string' ? payload.symbol : 'the requested symbol';
+      return `Find usages returned ${totalMatches} usage match${totalMatches === 1 ? '' : 'es'} for ${symbol} with ${dataQuality} data quality.`;
+    }
+
+    if (name === 'get_repo_map') {
+      const entryCount = Array.isArray(payload.entries) ? payload.entries.length : 0;
+      return `Repo map generated ${entryCount} ranked entr${entryCount === 1 ? 'y' : 'ies'} for fast orientation with ${dataQuality} data quality.`;
+    }
+
+    return `LiBrainian returned a ${name} result with confidence ${confidence.toFixed(2)} and ${dataQuality} data quality.`;
+  }
+
   private withToolHints(tool: Tool): Tool {
     const hints = TOOL_HINTS[tool.name] ?? {
       readOnlyHint: true,
@@ -2712,6 +3140,7 @@ export class LiBrainianMCPServer {
     const entryId = this.generateId();
     const invocation = this.extractToolInvocationContext(args);
     const executionContext: ToolExecutionContext = {};
+    const canonicalName = TOOL_CALL_ALIASES[name] ?? name;
 
     try {
       if (invocation.authTokenError) {
@@ -2719,7 +3148,7 @@ export class LiBrainianMCPServer {
       }
 
       // Validate input
-      const validation = validateToolInput(name, invocation.toolArgs);
+      const validation = validateToolInput(canonicalName, invocation.toolArgs);
       if (!validation.valid) {
         throw new Error(`Invalid input: ${validation.errors.map((e) => e.message).join(', ')}`);
       }
@@ -2727,7 +3156,7 @@ export class LiBrainianMCPServer {
       const workspace = workspaceHint ? path.resolve(workspaceHint) : undefined;
 
       // Check authorization
-      const auth = TOOL_AUTHORIZATION[name];
+      const auth = TOOL_AUTHORIZATION[canonicalName];
       if (auth) {
         const authorized = auth.requiredScopes.every((scope) =>
           this.config.authorization.enabledScopes.includes(scope)
@@ -2747,7 +3176,7 @@ export class LiBrainianMCPServer {
       }
 
       if (invocation.authToken) {
-        const authorization = this.authorizeToolCall(invocation.authToken, name, workspace);
+        const authorization = this.authorizeToolCall(invocation.authToken, canonicalName, workspace);
         if (authorization.sessionId) {
           executionContext.sessionId = authorization.sessionId;
         }
@@ -2817,24 +3246,24 @@ export class LiBrainianMCPServer {
       this.inFlightToolCalls += 1;
 
       // Execute tool
-      const hint = TOOL_HINTS[name];
+      const hint = TOOL_HINTS[canonicalName];
       const shouldPersistInstrumentation = !(hint?.readOnlyHint ?? false);
       const instrumentation = shouldPersistInstrumentation
         ? await this.ensureWorkspaceInstrumentation(workspace)
         : this.getWorkspaceStateForTool(workspace, { registerIfMissing: true });
       const executionPromise = instrumentation?.toolAdapter
         ? instrumentation.toolAdapter.call(
-            { operation: name, input: inputRecord, workspace },
-            () => this.executeTool(name, validation.data, executionContext)
+            { operation: canonicalName, input: inputRecord, workspace },
+            () => this.executeTool(canonicalName, validation.data, executionContext)
           )
-        : this.executeTool(name, validation.data, executionContext);
+        : this.executeTool(canonicalName, validation.data, executionContext);
       const baseTimeoutMs = Math.max(1, Number(this.config.performance.timeoutMs ?? 30000));
-      const timeoutMs = name === 'query'
+      const timeoutMs = canonicalName === 'query'
         ? baseTimeoutMs + 100
         : baseTimeoutMs;
-      const result = await this.executeWithTimeout(executionPromise, timeoutMs, name);
+      const rawResult = await this.executeWithTimeout(executionPromise, timeoutMs, canonicalName);
 
-      const normalizedError = normalizeToolErrorResult(name, validation.data, result);
+      const normalizedError = normalizeToolErrorResult(canonicalName, validation.data, rawResult);
       if (normalizedError) {
         this.logAudit({
           id: entryId,
@@ -2857,6 +3286,8 @@ export class LiBrainianMCPServer {
           isError: true,
         };
       }
+
+      const result = this.wrapGoldenPathToolResult(canonicalName, rawResult);
 
       // Log success
       this.logAudit({
@@ -4741,7 +5172,7 @@ export class LiBrainianMCPServer {
         ?? this.buildAnonymousSessionId(workspacePath ?? process.cwd());
       const session = this.state.sessions.get(sessionId);
       const includeConstructions = input.includeConstructions ?? true;
-      const availableTools = this.getAvailableTools().map((tool) => tool.name);
+      const availableTools = this.getAdvertisedTools().map((tool) => tool.name);
       const recentPlans = (session?.planHistory ?? []).slice(-5).map((record) => this.toPlanView(record));
 
       const recommendedActions: Array<{ tool: string; rationale: string }> = [];
@@ -6599,7 +7030,7 @@ export class LiBrainianMCPServer {
         workspace: workspacePath,
         error: `Semantic search blocked: embedding coverage is ${embeddingCoverage.coverage_pct.toFixed(1)}%. `
           + `Minimum required coverage is ${SEMANTIC_EMBEDDING_COVERAGE_MIN_PCT}%. `
-          + 'Run `librarian embed --fix` and retry.',
+          + 'Run `librainian embed --fix` and retry.',
         embeddingCoverage,
         embedding_coverage: embeddingCoverage,
         fix: buildQueryFixCommands('insufficient_embedding_coverage', workspacePath ?? input.workspace),
@@ -7347,13 +7778,19 @@ export class LiBrainianMCPServer {
   }
 
   private async executeListCapabilities(_input: ListCapabilitiesToolInput): Promise<unknown> {
-    const mcpTools = this.getAvailableTools().map((tool) => ({
+    const surface = _input.surface === 'full' ? 'full' : 'public';
+    if (surface === 'full' && !this.canExposeInternalCapabilitySurface()) {
+      throw new Error('The full capability inventory is unavailable in the public release surface.');
+    }
+
+    const sourceTools = surface === 'full' ? this.getAvailableTools() : this.getAdvertisedTools();
+    const mcpTools = sourceTools.map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
     }));
 
-    const inventory = buildCapabilityInventory({ mcpTools });
+    const inventory = buildCapabilityInventory({ mcpTools, surface });
     return {
       ...inventory,
       hint: 'Use inventoryVersion to detect capability changes between sessions.',
@@ -12326,9 +12763,10 @@ export class LiBrainianMCPServer {
     }
 
     const startedAt = Date.now();
+    const rerankerEnabled = this.isCrossEncoderPrewarmEnabled();
     this.startupPrewarmPromise = Promise.allSettled([
       preloadEmbeddingModel(),
-      preloadReranker(),
+      rerankerEnabled ? preloadReranker() : Promise.resolve('reranker disabled'),
     ])
       .then((results) => {
         const [embeddingResult, rerankerResult] = results;
@@ -12347,7 +12785,9 @@ export class LiBrainianMCPServer {
         }
 
         const embeddingMessage = embeddingResult?.status === 'fulfilled' ? 'embedding=ok' : 'embedding=skip';
-        const rerankerMessage = rerankerResult?.status === 'fulfilled' ? 'reranker=ok' : 'reranker=skip';
+        const rerankerMessage = rerankerEnabled
+          ? (rerankerResult?.status === 'fulfilled' ? 'reranker=ok' : 'reranker=skip')
+          : 'reranker=skip(disabled)';
         console.error(`[MCP] Model prewarm complete in ${elapsedMs}ms (${embeddingMessage}, ${rerankerMessage})`);
       })
       .catch((error: unknown) => {
@@ -12357,6 +12797,11 @@ export class LiBrainianMCPServer {
       .finally(() => {
         this.startupPrewarmPromise = null;
       });
+  }
+
+  private isCrossEncoderPrewarmEnabled(): boolean {
+    const flag = process.env.LIBRARIAN_CROSS_ENCODER?.trim().toLowerCase();
+    return flag === '1' || flag === 'true' || flag === 'on' || flag === 'yes';
   }
 
   /**
@@ -12607,11 +13052,15 @@ export async function startStdioServer(
  */
 export async function main(): Promise<void> {
   const writeEnabled = process.argv.includes('--write');
+  const enabledTools = parseEnabledToolsEnv(process.env.LIBRAINIAN_MCP_ENABLED_TOOLS);
+  const serverInstructions = process.env.LIBRAINIAN_MCP_SERVER_INSTRUCTIONS?.trim() || DEFAULT_MCP_SERVER_INSTRUCTIONS;
   const config: Partial<LiBrainianMCPServerConfig> = {
     authorization: {
       enabledScopes: writeEnabled ? ['read', 'write'] : ['read'],
       requireConsent: true,
     },
+    enabledTools,
+    serverInstructions,
   };
 
   const server = await startStdioServer(config);

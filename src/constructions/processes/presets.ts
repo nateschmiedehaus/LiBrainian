@@ -1,4 +1,4 @@
-import { ok, unwrapConstructionExecutionResult, type Construction } from '../types.js';
+import { fail, ok, unwrapConstructionExecutionResult, type Construction } from '../types.js';
 import { ConstructionError } from '../base/construction_base.js';
 import { createAgentDispatchConstruction } from './agent_dispatch_construction.js';
 import { createObservationExtractionConstruction } from './observation_extraction_construction.js';
@@ -72,6 +72,32 @@ function createPresetConstruction(definition: {
         env: input.env,
         timeoutMs: input.timeoutMs,
       }));
+      const execution = {
+        commandLine: dispatch.commandLine,
+        exitCode: dispatch.exitCode,
+        timedOut: dispatch.timedOut,
+        durationMs: dispatch.durationMs,
+        observationCount: 0,
+      };
+      if (dispatch.timedOut || dispatch.exitCode !== 0) {
+        return fail<PresetProcessOutput, ConstructionError>(
+          new ConstructionError(
+            dispatch.timedOut
+              ? `Preset ${definition.id} timed out while executing ${dispatch.commandLine}`
+              : `Preset ${definition.id} failed with exit code ${dispatch.exitCode} while executing ${dispatch.commandLine}`,
+            definition.id,
+          ),
+          {
+            preset: definition.id,
+            pattern: definition.pattern,
+            stages: definition.stages,
+            costEstimateUsd: definition.costEstimateUsd,
+            executed: true,
+            execution,
+          },
+        );
+      }
+
       const extraction = unwrapConstructionExecutionResult(
         await extractionConstruction.execute({ output: dispatch.stdout }),
       );
@@ -85,25 +111,33 @@ function createPresetConstruction(definition: {
           durationMs: dispatch.durationMs,
         },
       }));
-
-      return ok<PresetProcessOutput, ConstructionError>({
+      const output: PresetProcessOutput = {
         preset: definition.id,
         pattern: definition.pattern,
         stages: definition.stages,
         costEstimateUsd: definition.costEstimateUsd,
         executed: true,
         execution: {
-          commandLine: dispatch.commandLine,
-          exitCode: dispatch.exitCode,
-          timedOut: dispatch.timedOut,
-          durationMs: dispatch.durationMs,
+          ...execution,
           observationCount: extraction.incrementalObservations.length,
         },
         budget: {
           allowed: budget.allowed,
           breaches: budget.breaches,
         },
-      });
+      };
+
+      if (!budget.allowed) {
+        return fail<PresetProcessOutput, ConstructionError>(
+          new ConstructionError(
+            `Preset ${definition.id} exceeded configured budget: ${budget.breaches.join(', ') || 'budget_denied'}`,
+            definition.id,
+          ),
+          output,
+        );
+      }
+
+      return ok<PresetProcessOutput, ConstructionError>(output);
     },
   };
 }

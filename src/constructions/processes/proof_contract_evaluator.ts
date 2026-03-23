@@ -1,8 +1,8 @@
 import { access } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import type { Construction } from '../types.js';
-import { ok } from '../types.js';
-import type { ConstructionError } from '../base/construction_base.js';
+import { fail, ok } from '../types.js';
+import { ConstructionError } from '../base/construction_base.js';
 import type { ProcessInput, ProcessOutput } from './process_base.js';
 
 export interface ProofContractEvaluationInput extends ProcessInput {
@@ -75,8 +75,7 @@ export function createProofContractEvaluatorConstruction(): Construction<
         && !input.timedOut
         && missingOutputSubstrings.length === 0
         && missingFilePaths.length === 0;
-
-      return ok({
+      const output: ProofContractEvaluationOutput = {
         kind: 'ProofContractEvaluationResult.v1',
         id: input.id,
         description: input.description,
@@ -98,7 +97,25 @@ export function createProofContractEvaluatorConstruction(): Construction<
         },
         exitReason: passed ? 'completed' : 'failed',
         events: [],
-      });
+      };
+
+      if (passed) {
+        return ok(output);
+      }
+
+      const reasons: string[] = [];
+      if (input.exitCode !== 0) reasons.push(`exit_code=${input.exitCode}`);
+      if (input.timedOut) reasons.push('timed_out');
+      if (missingOutputSubstrings.length > 0) reasons.push(`missing_output=${missingOutputSubstrings.join(',')}`);
+      if (missingFilePaths.length > 0) reasons.push(`missing_files=${missingFilePaths.join(',')}`);
+      return fail(
+        new ConstructionError(
+          `Proof contract failed: ${reasons.join('; ') || 'unsatisfied_predicates'}`,
+          'proof-contract-evaluator',
+        ),
+        output,
+        input.id,
+      );
     },
   };
 }

@@ -49,6 +49,28 @@ export interface SymbolStorageStats {
   lastUpdated: string | null;
 }
 
+class SymbolStorageRecoveryError extends Error {
+  readonly code = 'storage_recovery_failed';
+  readonly recoveryErrors: string[];
+
+  constructor(dbPath: string, recoveryErrors: string[], cause?: unknown) {
+    const suffix = recoveryErrors.length > 0
+      ? ` (${recoveryErrors.join('; ')})`
+      : '';
+    super(`storage_recovery_failed:symbol storage recovery did not succeed for ${dbPath}${suffix}`);
+    this.name = 'SymbolStorageRecoveryError';
+    this.recoveryErrors = recoveryErrors;
+    if (cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: cause,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
 // ============================================================================
 // SYMBOL STORAGE CLASS
 // ============================================================================
@@ -85,7 +107,10 @@ export class SymbolStorage {
         throw error;
       }
 
-      await attemptStorageRecovery(this.dbPath, { error, mode: 'quarantine_corrupt' });
+      const recovery = await attemptStorageRecovery(this.dbPath, { error, mode: 'quarantine_corrupt' });
+      if (!recovery.recovered) {
+        throw new SymbolStorageRecoveryError(this.dbPath, recovery.errors, error);
+      }
       this.openDatabase();
       this.initialized = true;
     }

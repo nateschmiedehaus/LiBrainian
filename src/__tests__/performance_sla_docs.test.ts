@@ -17,8 +17,8 @@ describe('performance SLA docs', () => {
   it('documents performance characteristics in README', () => {
     const readme = fs.readFileSync(path.join(process.cwd(), 'README.md'), 'utf8');
     expect(readme).toContain('## Performance Characteristics');
-    expect(readme).toContain('librarian benchmark');
-    expect(readme).toContain('--fail-on block');
+    expect(readme).toContain('docs/performance-sla.md');
+    expect(readme).not.toContain('librarian benchmark');
   });
 
   it('enforces deterministic benchmark gate in CI', () => {

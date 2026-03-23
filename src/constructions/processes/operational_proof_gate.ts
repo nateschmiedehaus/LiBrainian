@@ -10,6 +10,7 @@ import {
   createOperationalProofBundle,
   type OperationalProofBundle,
 } from './proof_bundle.js';
+import type { ProofContractEvaluationOutput } from './proof_contract_evaluator.js';
 import {
   createWetTestingPolicyDecisionArtifact,
   evaluateWetTestingPolicy,
@@ -89,6 +90,22 @@ function buildPolicyFailClosedResult(
     stdout: '',
     stderr: reason,
   };
+}
+
+function isProofContractEvaluationOutput(
+  value: Partial<ProofContractEvaluationOutput> | undefined,
+): value is ProofContractEvaluationOutput {
+  return !!value
+    && typeof value.id === 'string'
+    && typeof value.commandLine === 'string'
+    && (typeof value.exitCode === 'number' || value.exitCode === null)
+    && typeof value.timedOut === 'boolean'
+    && typeof value.durationMs === 'number'
+    && typeof value.passed === 'boolean'
+    && Array.isArray(value.missingOutputSubstrings)
+    && Array.isArray(value.missingFilePaths)
+    && typeof value.stdout === 'string'
+    && typeof value.stderr === 'string';
 }
 
 export function createOperationalProofGateConstruction(): Construction<
@@ -192,7 +209,7 @@ export function createOperationalProofGateConstruction(): Construction<
               detail: 'operational_proof_policy_fail_closed',
             });
 
-            return ok({
+            const output: OperationalProofGateOutput = {
               kind: 'OperationalProofGateResult.v1',
               passed: false,
               failureCount: 1,
@@ -208,7 +225,15 @@ export function createOperationalProofGateConstruction(): Construction<
               },
               exitReason: 'failed',
               events,
-            });
+            };
+            return fail(
+              new ConstructionError(
+                `Operational proof policy fail-closed: ${reason}`,
+                'operational-proof-gate',
+              ),
+              output,
+              'policy',
+            );
           }
         }
       }
@@ -232,20 +257,50 @@ export function createOperationalProofGateConstruction(): Construction<
 
         const requiredOutputSubstrings = uniqueValues(check.requiredOutputSubstrings);
         const requiredFilePaths = uniqueValues(check.requiredFilePaths);
-        const evaluation = unwrapConstructionExecutionResult(
-          await proofEvaluator.execute({
-            id: check.id,
-            description: check.description,
-            commandLine: dispatch.commandLine,
-            exitCode: dispatch.exitCode,
-            timedOut: dispatch.timedOut,
-            durationMs: dispatch.durationMs,
-            stdout: dispatch.stdout,
-            stderr: dispatch.stderr,
-            requiredOutputSubstrings,
-            requiredFilePaths,
-          }),
-        );
+        const evaluationOutcome = await proofEvaluator.execute({
+          id: check.id,
+          description: check.description,
+          commandLine: dispatch.commandLine,
+          exitCode: dispatch.exitCode,
+          timedOut: dispatch.timedOut,
+          durationMs: dispatch.durationMs,
+          stdout: dispatch.stdout,
+          stderr: dispatch.stderr,
+          requiredOutputSubstrings,
+          requiredFilePaths,
+        });
+        const evaluation = evaluationOutcome.ok
+          ? evaluationOutcome.value
+          : evaluationOutcome.partial;
+        if (!isProofContractEvaluationOutput(evaluation)) {
+          return fail(
+            new ConstructionError(
+              `Operational proof evaluation failed without partial result for check ${check.id}`,
+              'operational-proof-gate',
+            ),
+            {
+              kind: 'OperationalProofGateResult.v1',
+              passed: false,
+              failureCount: checkResults.filter((entry) => !entry.passed).length + 1,
+              checkResults,
+              proofBundle: createOperationalProofBundle({
+                source: input.proofBundleSource ?? 'operational-proof-gate',
+                checks: checkResults,
+              }),
+              policyDecisionArtifact,
+              observations: {
+                checks: checkResults,
+                policyDecision: policyDecisionArtifact?.decision,
+              },
+              costSummary: {
+                durationMs: Date.now() - startedAtMs,
+              },
+              exitReason: 'failed',
+              events,
+            },
+            check.id,
+          );
+        }
 
         checkResults.push({
           id: evaluation.id,
@@ -287,7 +342,7 @@ export function createOperationalProofGateConstruction(): Construction<
           'utf8',
         );
       }
-      return ok({
+      const output: OperationalProofGateOutput = {
         kind: 'OperationalProofGateResult.v1',
         passed,
         failureCount,
@@ -308,7 +363,19 @@ export function createOperationalProofGateConstruction(): Construction<
         },
         exitReason: passed ? 'completed' : 'failed',
         events,
-      });
+      };
+      if (passed) {
+        return ok(output);
+      }
+      const firstFailed = checkResults.find((entry) => !entry.passed)?.id;
+      return fail(
+        new ConstructionError(
+          `Operational proof failed: ${failureCount} check(s) did not satisfy proof contract`,
+          'operational-proof-gate',
+        ),
+        output,
+        firstFailed,
+      );
     },
   };
 }

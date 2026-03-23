@@ -91,6 +91,14 @@ describe('classifyQueryIntent', () => {
       expect(result.featureTarget).toBe('query pipeline');
     });
 
+    it('classifies "where does auth routing live" as an implementation-location query', () => {
+      const result = classifyQueryIntent('where does auth routing live');
+      expect(result.isCodeQuery).toBe(true);
+      expect(result.isMetaQuery).toBe(false);
+      expect(result.isFeatureLocationQuery).toBe(true);
+      expect(result.featureTarget).toBe('auth routing');
+    });
+
     it('classifies internal recovery/failure questions as implementation queries instead of meta guidance', () => {
       const result = classifyQueryIntent(
         'How should agents recover when LiBrainian MCP tool calls time out or hit storage/provider failures?'
@@ -421,6 +429,40 @@ describe('classifyQueryIntent', () => {
       expect(result.isArchitectureVerificationQuery).toBe(true);
       expect(result.isArchitectureOverviewQuery).toBe(false);
     });
+
+    it('treats mixed architecture-vs-symbol phrasing as architecture-first', () => {
+      const result = classifyQueryIntent('where is the auth module and how is it structured');
+      expect(result.isArchitectureOverviewQuery).toBe(true);
+      expect(result.isSymbolQuery).toBe(false);
+      expect(result.entityTypes).toContain('module');
+      expect(result.entityTypes).toContain('document');
+    });
+  });
+
+  describe('path and symbol query detection', () => {
+    it('classifies explicit file paths as path queries', () => {
+      const result = classifyQueryIntent('show me src/auth/token.ts');
+      expect(result.isPathQuery).toBe(true);
+      expect(result.pathTarget).toBe('src/auth/token.ts');
+      expect(result.isCodeQuery).toBe(true);
+      expect(result.isMetaQuery).toBe(false);
+      expect(result.documentBias).toBeLessThanOrEqual(0.2);
+    });
+
+    it('classifies natural-language symbol lookup as a symbol query', () => {
+      const result = classifyQueryIntent('where is the login function?');
+      expect(result.isSymbolQuery).toBe(true);
+      expect(result.isArchitectureOverviewQuery).toBe(false);
+      expect(result.isCodeQuery).toBe(true);
+      expect(result.entityTypes).toContain('function');
+    });
+
+    it('treats direct symbol-definition queries as symbol lookup, not entry-point lookup', () => {
+      const result = classifyQueryIntent('where is createAuthenticationManager defined?');
+      expect(result.isSymbolQuery).toBe(true);
+      expect(result.isEntryPointQuery).toBe(false);
+      expect(result.isCodeQuery).toBe(true);
+    });
   });
 });
 
@@ -703,6 +745,19 @@ describe('classifyUnifiedQueryIntent', () => {
       const result = classifyUnifiedQueryIntent('Locate the bootstrap function');
       expect(result.intentType).toBe('location');
     });
+
+    it('classifies "Where does auth routing live?" as location', () => {
+      const result = classifyUnifiedQueryIntent('Where does auth routing live?');
+      expect(result.intentType).toBe('location');
+      expect(result.primaryStrategy).toBe('search');
+    });
+
+    it('classifies explicit file paths with a path-specific strategy', () => {
+      const result = classifyUnifiedQueryIntent('show me src/auth/token.ts');
+      expect(result.intentType).toBe('path');
+      expect(result.primaryStrategy).toBe('path_lookup');
+      expect(result.explanation).toContain('path');
+    });
   });
 
   describe('explanation query detection (summary strategy)', () => {
@@ -730,6 +785,29 @@ describe('classifyUnifiedQueryIntent', () => {
     it('classifies "Describe the query pipeline logic" as explanation', () => {
       const result = classifyUnifiedQueryIntent('Describe the query pipeline logic');
       expect(result.intentType).toBe('explanation');
+    });
+
+    it('classifies architecture overviews separately from generic explanations', () => {
+      const result = classifyUnifiedQueryIntent('how is the auth module structured?');
+      expect(result.intentType).toBe('architecture');
+      expect(result.primaryStrategy).toBe('architecture_summary');
+      expect(result.entityTypes).toContain('module');
+      expect(result.entityTypes).toContain('document');
+    });
+  });
+
+  describe('symbol query detection (direct lookup strategy)', () => {
+    it('classifies exact symbol-location requests separately from architecture questions', () => {
+      const result = classifyUnifiedQueryIntent('where is the login function?');
+      expect(result.intentType).toBe('symbol');
+      expect(result.primaryStrategy).toBe('symbol_lookup');
+      expect(result.entityTypes).toContain('function');
+    });
+
+    it('classifies definition-style symbol lookup without misrouting to entry-point search', () => {
+      const result = classifyUnifiedQueryIntent('where is createAuthenticationManager defined?');
+      expect(result.intentType).toBe('symbol');
+      expect(result.primaryStrategy).toBe('symbol_lookup');
     });
   });
 
@@ -855,6 +933,15 @@ describe('applyRetrievalStrategyAdjustments', () => {
     const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 14 });
 
     expect(adjustments.adjustedLimit).toBeGreaterThan(14);
+  });
+
+  it('uses tight direct lookup settings for explicit path queries', () => {
+    const intent = classifyUnifiedQueryIntent('show me src/auth/token.ts');
+    const adjustments = applyRetrievalStrategyAdjustments(intent, { limit: 14 });
+
+    expect(adjustments.adjustedLimit).toBeLessThanOrEqual(10);
+    expect(adjustments.useGraphFirst).toBe(false);
+    expect(adjustments.explanation).toContain('Path query');
   });
 
   it('sets useDocsFirst for meta queries', () => {

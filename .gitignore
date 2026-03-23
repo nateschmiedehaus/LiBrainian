@@ -59,3 +59,13 @@ docs/internal/tmp/
 .claude-pr-files.txt
 .claude-worker-evidence.txt
 .claude/worktrees/
+/.claude/
+/.codex/
+/.mcp.json
+/.librainian-manifest.json
+/*.cpuprofile
+/CPU*.cpuprofile
+/librainian-*.tgz
+/tmp-*
+/tasks
+/0

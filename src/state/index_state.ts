@@ -101,7 +101,7 @@ export class IndexNotReadyError extends Error {
   constructor(phase: IndexPhase, elapsedMs: number) {
     super(
       `Bootstrap incomplete. Index phase is '${phase}' after ${Math.round(elapsedMs / 1000)}s. ` +
-      `Run \`librarian bootstrap\` first.`
+      `Run \`librainian bootstrap\` first.`
     );
     this.name = 'IndexNotReadyError';
     this.phase = phase;

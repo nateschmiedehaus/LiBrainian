@@ -1,37 +1,35 @@
 # OpenClaw Integration
 
-LiBrainian ships an official OpenClaw skill and installer flow.
+This is a source-checkout maintainer note for deferred OpenClaw work.
+The OpenClaw flows described here are intentionally excluded from the first
+public release surface and are not part of the supported npm package contract
+for `0.2.x`.
 
-## Install
+Do not treat this page as current public product documentation. The flows below
+are design notes for deferred work and are not wired into the current public
+CLI release surface.
 
-```bash
-npx librainian install-openclaw-skill
-```
+## Deferred Install Wiring
 
-This command:
+The deferred installer wires the OpenClaw skill into a local source checkout.
+It:
 1. Installs `SKILL.md` into `~/.openclaw/skills/librainian/SKILL.md`.
 2. Updates `~/.openclaw/openclaw.json` under `skills.entries.librainian`.
 3. Verifies required LiBrainian MCP tools are available.
 4. Prints a test invocation.
 
-## OpenClaw daemon bridge
+## Deferred Daemon Bridge
 
-```bash
-librarian openclaw-daemon start
-```
-
-This command:
+The deferred daemon bridge registers a local OpenClaw service in a source
+checkout. It:
 1. Registers a `librainian` service in `~/.openclaw/config.yaml` under `backgroundServices`.
 2. Persists daemon lifecycle state to `~/.librainian/openclaw-daemon/state.json`.
 3. Supports `status` and `stop` actions for deterministic local lifecycle control.
 
-## Quantitative integration suite
+## Deferred Quantitative Integration Suite
 
-```bash
-librarian test-integration --suite openclaw --strict
-```
-
-The suite evaluates six scenarios with threshold-based pass/fail outputs:
+The deferred OpenClaw integration suite evaluates six scenarios with
+threshold-based pass/fail outputs:
 
 1. Cold start context efficiency
 2. Memory staleness detection
@@ -57,25 +55,16 @@ The canonical skill source in this repository:
 
 ## Verify
 
-After installation:
+After installation from a source checkout:
 
 ```bash
 openclaw send "Use the librainian skill and start with get_context_pack for: investigate auth logout bug"
 ```
 
-If OpenClaw or the LiBrainian MCP server is not configured yet, run:
-
-```bash
-librarian mcp --print-config --client claude
-```
-
 ## Security gate before publishing/installing third-party skills
 
-```bash
-librarian audit-skill ./SKILL.md
-```
-
-Use `--json` for machine-readable verdicts in CI or pre-submission workflows.
+Use the maintained `audit-skill` command from a source checkout. Pass `--json`
+for machine-readable verdicts in CI or pre-submission workflows.
 
 For calibration feedback loop wiring, see `docs/integrations/openclaw-calibration.md`.
 For quantitative integration suite results, see `docs/integrations/openclaw-benchmark-results.md`.

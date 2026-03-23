@@ -1,8 +1,8 @@
 # MCP Design Principles
 
-Last updated: 2026-02-18
+Last updated: 2026-03-23
 
-This document defines the canonical design rules for LiBrainian MCP tools.
+This document defines the public MCP design rules for the LiBrainian release surface.
 
 ## Principle 1: Token-Optimized Responses
 
@@ -14,8 +14,8 @@ Why: keeps agent context windows usable and lowers cost.
 
 ## Principle 2: Reference Over Value
 
-- If output exceeds practical inline size, return a reference (file path, id, URI) instead of full content.
-- Prefer `outputPath`/artifact patterns for large exports.
+- If output exceeds practical inline size, return a reference instead of full content.
+- Prefer artifact or file-path handoff for large exports.
 
 Why: avoids flooding context with low-signal bulk data.
 
@@ -30,75 +30,76 @@ Why: deterministic tools are easier for agents to chain and verify.
 ## Principle 4: Self-Healing Errors
 
 - Errors must include:
-  - what failed,
-  - current state (when available),
-  - the next command to recover.
+  - what failed
+  - current state when available
+  - the next command to recover
 
 Why: every failure should provide a direct recovery path.
 
-## Principle 5: `readOnlyHint` On Every Tool
+## Principle 5: Explicit Safety Hints
 
-- Every tool must declare `annotations.readOnlyHint`.
-- Mutating tools should also declare `destructiveHint` and `idempotentHint`.
+- Every advertised tool must declare `annotations.readOnlyHint`.
+- Mutating tools should also declare destructive/idempotent hints when they are ever exposed.
 
 Why: lets clients safely plan tool calls.
 
-## Principle 6: Pagination For List-Style Tools
+## Principle 6: Public Surface First
 
-- Any tool that can return large lists should support bounded retrieval and predictable paging.
-- Use limit/page-style controls and deterministic ordering.
+- `tools/list` should advertise only the stable public golden path.
+- Internal or maintainer-only tools may remain callable in controlled contexts but must stay out of the default advertised surface.
+- Public docs must describe the advertised surface, not the internal inventory.
 
-Why: protects token budget and improves repeatability.
+Why: the first-release agent experience should be small, legible, and trustworthy.
 
-## Principle 7: Dual Format Responses
+## Principle 7: Standard Golden-Path Envelope
 
-- Return machine-usable structured content and human-readable summaries.
-- Keep schemas explicit and versionable.
+- Golden-path tool responses should expose:
+  - `summary`
+  - `confidence`
+  - `dataQuality`
+  - `warnings`
+  - `followUp`
+  - raw `result`
 
-Why: agents and humans both need first-class output modes.
+Why: agents need a stable contract for fast judgment without losing access to the underlying payload.
 
-## Current Audit (2026-02-18)
+## Public MCP Surface (2026-03-23)
 
-Tool inventory audited: 18 MCP tools in `src/mcp/server.ts`.
+LiBrainian's advertised public MCP surface is the 10-tool golden path defined in `src/mcp/types.ts`.
+Internal tools are intentionally omitted from default `tools/list`.
 
-| Tool | P1 | P2 | P3 | P4 | P5 | P6 | P7 | Notes |
-|---|---|---|---|---|---|---|---|---|
-| `bootstrap` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Dual-format follow-up tracked in #63 |
-| `status` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Dual-format follow-up tracked in #63 |
-| `system_contract` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Dual-format follow-up tracked in #63 |
-| `diagnose_self` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Dual-format follow-up tracked in #63 |
-| `list_verification_plans` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `list_episodes` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `list_technique_primitives` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `list_technique_compositions` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `select_technique_compositions` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `compile_technique_composition` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `compile_intent_bundles` | Pass | Pass | Pass | Pass | Pass | Gap | Gap | Pagination follow-up tracked in #64 |
-| `query` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `submit_feedback` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `verify_claim` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `run_audit` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `diff_runs` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
-| `export_index` | Pass | Gap | Pass | Pass | Pass | N/A | Gap | Large-output reference/pagination follow-up tracked in #64 |
-| `get_context_pack_bundle` | Pass | Pass | Pass | Pass | Pass | N/A | Gap | Structured output follow-up tracked in #63 |
+| Tool | Use for |
+|---|---|
+| `query` | Cross-file architecture, behavior, and impact reasoning |
+| `get_context_pack` | Task-shaped context before multi-file edits |
+| `find_symbol` | Exact symbol lookup |
+| `get_change_impact` | Blast radius and pre-edit impact estimation |
+| `explain_function` | Function-level behavior explanation |
+| `find_usages` | Exact caller and usage tracing |
+| `get_repo_map` | Fast repository orientation |
+| `describe_capabilities` | Discover the stable public tool contract |
+| `run_health_check` | Diagnose index and environment readiness |
+| `query_codebase` | Composition-backed codebase querying on the public surface |
 
-## Violation Tracking
+## Public Surface Rules
 
-Active issues used as violation trackers:
+- Public tool names should be descriptive and task-shaped.
+- Legacy aliases may remain callable for compatibility but should stay hidden from `tools/list`.
+- Public schemas should hide legacy snake_case-only query aliases and internal-only parameters such as `blast_radius`.
+- Every advertised tool description should follow the 4-part template:
+  - when to use it
+  - what to provide
+  - what it returns
+  - what it is not for
 
-- #63 Define typed `ConstructionResult` interface with Zod schemas
-- #64 Add pagination and reference-over-value to all list-type MCP tools
+## Release Checklist For MCP Changes
 
-No additional violation tracker issue was needed because current gaps map to existing open work.
-
-## New Tool PR Checklist
-
-Every PR that adds or changes an MCP tool must confirm:
+Every PR that adds or changes an advertised MCP tool must confirm:
 
 1. Token-optimized response shape.
-2. Reference-over-value handling for large payloads.
+2. Reference-over-value behavior for large payloads.
 3. Single-purpose deterministic behavior.
-4. Error includes fix command/state hint.
-5. `annotations.readOnlyHint` set.
-6. Pagination controls for list outputs.
-7. Dual-format output strategy documented.
+4. Error includes recovery guidance.
+5. Safety annotations are present.
+6. Public-surface filtering remains intentional.
+7. Golden-path response envelope remains stable where applicable.

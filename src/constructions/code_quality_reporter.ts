@@ -95,15 +95,32 @@ export interface QualityReport {
   analysisTimeMs: number;
 }
 
+interface AspectAnalysis {
+  issues: QualityIssue[];
+  matchedFiles: Set<string>;
+}
+
 // ============================================================================
 // CONSTRUCTION
 // ============================================================================
 
 export class CodeQualityReporter {
+  private static readonly STRUCTURAL_QUERY_TIMEOUT_MS = 20_000;
   private librarian: Librarian;
 
   constructor(librarian: Librarian) {
     this.librarian = librarian;
+  }
+
+  private queryStructurally(intent: string, files: string[]) {
+    return this.librarian.queryOptional({
+      intent,
+      affectedFiles: files,
+      depth: 'L2',
+      taskType: 'understand',
+      llmRequirement: 'disabled',
+      timeoutMs: CodeQualityReporter.STRUCTURAL_QUERY_TIMEOUT_MS,
+    });
   }
 
   /**
@@ -113,31 +130,35 @@ export class CodeQualityReporter {
     const startTime = Date.now();
     const evidenceRefs: string[] = [];
     const allIssues: QualityIssue[] = [];
+    const matchedFiles = new Set<string>();
 
     // Analyze each aspect
     for (const aspect of query.aspects) {
-      const aspectIssues = await this.analyzeAspect(aspect, query.files);
-      allIssues.push(...aspectIssues);
-      evidenceRefs.push(`${aspect}_analysis:${aspectIssues.length}_issues`);
+      const analysis = await this.analyzeAspect(aspect, query.files);
+      allIssues.push(...analysis.issues);
+      for (const file of analysis.matchedFiles) {
+        matchedFiles.add(file);
+      }
+      evidenceRefs.push(`${aspect}_analysis:${analysis.issues.length}_issues`);
     }
 
     // Compute metrics
-    const metrics = this.computeMetrics(allIssues, query);
-    evidenceRefs.push(`metrics_computed:${query.files.length}_files`);
+    const metrics = this.computeMetrics(allIssues, matchedFiles.size);
+    evidenceRefs.push(`metrics_computed:${matchedFiles.size}_files`);
 
     // Generate recommendations
     const recommendations = this.generateRecommendations(allIssues, metrics);
     evidenceRefs.push(`recommendations:${recommendations.length}`);
 
     // Compute confidence
-    const confidence = this.computeConfidence(allIssues, query.files.length);
+    const confidence = this.computeConfidence(allIssues, matchedFiles.size);
 
     return {
       query,
       issues: allIssues,
       metrics,
       recommendations,
-      analyzedFiles: query.files.length,
+      analyzedFiles: matchedFiles.size,
       confidence,
       evidenceRefs,
       analysisTimeMs: Date.now() - startTime,
@@ -150,7 +171,7 @@ export class CodeQualityReporter {
   private async analyzeAspect(
     aspect: QualityAspect,
     files: string[]
-  ): Promise<QualityIssue[]> {
+  ): Promise<AspectAnalysis> {
     switch (aspect) {
       case 'complexity':
         return this.analyzeComplexity(files);
@@ -159,31 +180,35 @@ export class CodeQualityReporter {
       case 'testability':
         return this.analyzeTestability(files);
       default:
-        return [];
+        return { issues: [], matchedFiles: new Set<string>() };
     }
   }
 
   /**
    * Analyze code complexity.
    */
-  private async analyzeComplexity(files: string[]): Promise<QualityIssue[]> {
+  private async analyzeComplexity(files: string[]): Promise<AspectAnalysis> {
     const issues: QualityIssue[] = [];
+    const matchedFiles = new Set<string>();
 
-    const queryResult = await this.librarian.queryOptional({
-      intent: 'Find complex functions with high cyclomatic complexity, deep nesting, or many parameters',
-      affectedFiles: files,
-      depth: 'L2',
-      taskType: 'understand',
-    });
+    const queryResult = await this.queryStructurally(
+      'Find complex functions with high cyclomatic complexity, deep nesting, or many parameters',
+      files,
+    );
 
     if (queryResult.packs) {
       for (const pack of queryResult.packs) {
+        const scopedFile = this.resolveScopedFile(pack, files);
+        if (!scopedFile) {
+          continue;
+        }
+        matchedFiles.add(scopedFile);
         // Analyze snippets for complexity indicators
         if (pack.codeSnippets) {
           for (const snippet of pack.codeSnippets) {
             const complexityIssues = this.detectComplexityIssues(
               snippet.content,
-              snippet.filePath || pack.relatedFiles?.[0] || 'unknown',
+              scopedFile,
               snippet.startLine
             );
             issues.push(...complexityIssues);
@@ -192,7 +217,7 @@ export class CodeQualityReporter {
       }
     }
 
-    return issues;
+    return { issues, matchedFiles };
   }
 
   /**
@@ -260,21 +285,25 @@ export class CodeQualityReporter {
   /**
    * Analyze code duplication.
    */
-  private async analyzeDuplication(files: string[]): Promise<QualityIssue[]> {
+  private async analyzeDuplication(files: string[]): Promise<AspectAnalysis> {
     const issues: QualityIssue[] = [];
+    const matchedFiles = new Set<string>();
 
-    const queryResult = await this.librarian.queryOptional({
-      intent: 'Find duplicated code patterns, copy-pasted code, or similar functions',
-      affectedFiles: files,
-      depth: 'L2',
-      taskType: 'understand',
-    });
+    const queryResult = await this.queryStructurally(
+      'Find duplicated code patterns, copy-pasted code, or similar functions',
+      files,
+    );
 
     if (queryResult.packs) {
       // Look for similar packs (potential duplication)
       const packsByContent = new Map<string, ContextPack[]>();
 
       for (const pack of queryResult.packs) {
+        const scopedFile = this.resolveScopedFile(pack, files);
+        if (!scopedFile) {
+          continue;
+        }
+        matchedFiles.add(scopedFile);
         // Group by similar summaries
         const key = pack.summary?.toLowerCase().slice(0, 50) || pack.targetId;
         if (!packsByContent.has(key)) {
@@ -299,29 +328,33 @@ export class CodeQualityReporter {
       }
     }
 
-    return issues;
+    return { issues, matchedFiles };
   }
 
   /**
    * Analyze testability.
    */
-  private async analyzeTestability(files: string[]): Promise<QualityIssue[]> {
+  private async analyzeTestability(files: string[]): Promise<AspectAnalysis> {
     const issues: QualityIssue[] = [];
+    const matchedFiles = new Set<string>();
 
-    const queryResult = await this.librarian.queryOptional({
-      intent: 'Find code that is hard to test: global state, tight coupling, no dependency injection',
-      affectedFiles: files,
-      depth: 'L2',
-      taskType: 'understand',
-    });
+    const queryResult = await this.queryStructurally(
+      'Find code that is hard to test: global state, tight coupling, no dependency injection',
+      files,
+    );
 
     if (queryResult.packs) {
       for (const pack of queryResult.packs) {
+        const scopedFile = this.resolveScopedFile(pack, files);
+        if (!scopedFile) {
+          continue;
+        }
+        matchedFiles.add(scopedFile);
         if (pack.codeSnippets) {
           for (const snippet of pack.codeSnippets) {
             const testabilityIssues = this.detectTestabilityIssues(
               snippet.content,
-              snippet.filePath || pack.relatedFiles?.[0] || 'unknown',
+              scopedFile,
               snippet.startLine
             );
             issues.push(...testabilityIssues);
@@ -330,7 +363,30 @@ export class CodeQualityReporter {
       }
     }
 
-    return issues;
+    return { issues, matchedFiles };
+  }
+
+  private resolveScopedFile(pack: ContextPack, requestedFiles: string[]): string | undefined {
+    const normalizedRequested = requestedFiles.map((file) => this.normalizeFilePath(file));
+    const candidates = [
+      ...(pack.relatedFiles ?? []),
+      ...(pack.codeSnippets?.map((snippet) => snippet.filePath).filter((file): file is string => typeof file === 'string') ?? []),
+    ];
+
+    for (const candidate of candidates) {
+      const normalizedCandidate = this.normalizeFilePath(candidate);
+      const matched = normalizedRequested.find((requested) =>
+        normalizedCandidate === requested || normalizedCandidate.endsWith(`/${requested}`),
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+    return undefined;
+  }
+
+  private normalizeFilePath(file: string): string {
+    return file.replace(/\\/g, '/').replace(/^\.\/+/, '');
   }
 
   /**
@@ -388,13 +444,22 @@ export class CodeQualityReporter {
   /**
    * Compute aggregated quality metrics.
    */
-  private computeMetrics(issues: QualityIssue[], query: QualityQuery): QualityMetrics {
+  private computeMetrics(issues: QualityIssue[], analyzedFileCount: number): QualityMetrics {
     const complexityIssues = issues.filter(i => i.type === 'complexity');
     const duplicationIssues = issues.filter(i => i.type === 'duplication');
     const testabilityIssues = issues.filter(i => i.type === 'testability');
 
+    if (analyzedFileCount === 0) {
+      return {
+        averageComplexity: 0,
+        duplicationRatio: 0,
+        testabilityScore: 0,
+        overallScore: 0,
+      };
+    }
+
     // Compute per-aspect scores (inverted from issue count)
-    const fileCount = Math.max(1, query.files.length);
+    const fileCount = Math.max(1, analyzedFileCount);
 
     const averageComplexity = Math.min(1, complexityIssues.length / (fileCount * 2)) * 0.5 + 0.25;
     const duplicationRatio = Math.min(1, duplicationIssues.length / fileCount) * 0.4;

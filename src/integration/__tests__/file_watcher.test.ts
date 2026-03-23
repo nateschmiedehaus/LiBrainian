@@ -123,6 +123,45 @@ describe('file_watcher', () => {
 
   });
 
+  it('logs when degraded watch state cannot be persisted during reconcile disable', async () => {
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
+    const filePath = path.join(workspaceRoot, 'src', 'a.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'export const a = 1;\n', 'utf8');
+
+    const checksum = computeFileChecksum(await fs.readFile(filePath, 'utf8'));
+    const storage: StorageStub = {
+      async getFileChecksum(fp) {
+        return fp === filePath ? checksum : null;
+      },
+      async getState() {
+        return null;
+      },
+      async setState(key, value) {
+        if (key.includes('watch') && String(value).includes('storage_missing_getFiles')) {
+          throw new Error('disk full');
+        }
+      },
+    };
+
+    const librarian = { reindexFiles: vi.fn(async () => {}) } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      watch: () => ({ close: () => {} } as any),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await flushPromises();
+
+    const persistWarnings = vi
+      .mocked(logger.logWarning)
+      .mock.calls.filter(([msg]) => typeof msg === 'string' && msg.includes('Failed to persist watch reconcile degraded state'));
+    expect(persistWarnings).toHaveLength(1);
+  });
+
   it('skips reindex when file checksum unchanged', async () => {
     const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const filePath = path.join(workspaceRoot, 'src', 'a.ts');
@@ -172,6 +211,7 @@ describe('file_watcher', () => {
     await fs.writeFile(filePath, 'export const b = 1;\n', 'utf8');
 
     const states = new Map<string, string>();
+    const storedTimestamp = '3000-01-01T00:00:00.000Z';
     const storage: StorageStub = {
       async getFileChecksum(fp) {
         return fp === filePath ? 'deadbeefdeadbeef' : null;
@@ -213,6 +253,69 @@ describe('file_watcher', () => {
     expect(librarian.reindexFiles).toHaveBeenCalledWith([filePath]);
   });
 
+  it('marks watch state degraded when live reindex fails for a single file change', async () => {
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
+    const filePath = path.join(workspaceRoot, 'src', 'failed.ts');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, 'export const failed = 1;\n', 'utf8');
+
+    const states = new Map<string, string>();
+    const storage: StorageStub = {
+      async getFileChecksum(fp) {
+        return fp === filePath ? 'deadbeefdeadbeef' : null;
+      },
+      async getState(key) {
+        return states.get(key) ?? null;
+      },
+      async setState(key, value) {
+        states.set(key, value);
+      },
+      async getFiles() {
+        return [{ path: filePath, lastModified: storedTimestamp }];
+      },
+    };
+
+    const reindexError = new Error('live reindex exploded');
+    const librarian = {
+      reindexFiles: vi.fn(async () => {
+        throw reindexError;
+      }),
+    } as unknown as { reindexFiles: (paths: string[]) => Promise<void> };
+    let captured: ((event: string, filename: any) => void) | null = null;
+
+    startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      watch: (_root, _options, callback) => {
+        captured = callback;
+        return { close: () => {} } as any;
+      },
+    });
+
+    if (!captured) throw new Error('Expected file watcher callback to be registered');
+    (captured as unknown as (event: string, filename: string) => void)('change', 'src/failed.ts');
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    await flushPromises();
+
+    const watchStateRaw = states.get('librarian.watch_state.v1');
+    expect(watchStateRaw).toBeDefined();
+    const watchState = JSON.parse(watchStateRaw ?? '{}') as {
+      needs_catchup?: boolean;
+      suspected_dead?: boolean;
+      last_error?: string;
+      watch_last_event_at?: string;
+      watch_last_reindex_ok_at?: string;
+    };
+    expect(watchState.needs_catchup).toBe(true);
+    expect(watchState.suspected_dead).toBe(false);
+    expect(watchState.last_error).toBe('live reindex exploded');
+    expect(typeof watchState.watch_last_event_at).toBe('string');
+    expect(watchState.watch_last_reindex_ok_at).toBeUndefined();
+  });
+
   it('batches multiple changes within the batch window', async () => {
     const workspaceRoot = registerWorkspace(await createTempWorkspace());
     const fileA = path.join(workspaceRoot, 'src', 'a.ts');
@@ -222,6 +325,7 @@ describe('file_watcher', () => {
     await fs.writeFile(fileB, 'export const b = 2;\n', 'utf8');
 
     const states = new Map<string, string>();
+    const storedTimestamp = '3000-01-01T00:00:00.000Z';
     const storage: StorageStub = {
       async getFileChecksum() {
         return 'mismatch';
@@ -274,6 +378,78 @@ describe('file_watcher', () => {
     expect(new Set(call)).toEqual(new Set([fileA, fileB]));
 
     stopFileWatcher(workspaceRoot);
+  });
+
+  it('marks watch state degraded when batched reindex fails', async () => {
+    const workspaceRoot = registerWorkspace(await createTempWorkspace());
+    const fileA = path.join(workspaceRoot, 'src', 'batch-a.ts');
+    const fileB = path.join(workspaceRoot, 'src', 'batch-b.ts');
+    await fs.mkdir(path.dirname(fileA), { recursive: true });
+    await fs.writeFile(fileA, 'export const batchA = 1;\n', 'utf8');
+    await fs.writeFile(fileB, 'export const batchB = 2;\n', 'utf8');
+
+    const states = new Map<string, string>();
+    const storage: StorageStub = {
+      async getFileChecksum() {
+        return 'mismatch';
+      },
+      async getState(key) {
+        return states.get(key) ?? null;
+      },
+      async setState(key, value) {
+        states.set(key, value);
+      },
+      async getFiles() {
+        return [
+          { path: fileA, lastModified: storedTimestamp },
+          { path: fileB, lastModified: storedTimestamp },
+        ];
+      },
+    };
+
+    const reindexError = new Error('batch reindex exploded');
+    const reindexFiles = vi.fn(async (_paths: string[]) => {
+      throw reindexError;
+    });
+    const librarian = { reindexFiles } as unknown as {
+      reindexFiles: (paths: string[]) => Promise<void>;
+    };
+    let captured: ((event: string, filename: any) => void) | null = null;
+
+    startFileWatcher({
+      workspaceRoot,
+      librarian: librarian as any,
+      storage: storage as any,
+      debounceMs: 10,
+      batchWindowMs: 50,
+      stormThreshold: 1000,
+      watch: (_root, _options, callback) => {
+        captured = callback;
+        return { close: () => {} } as any;
+      },
+    });
+
+    if (!captured) throw new Error('Expected file watcher callback to be registered');
+    (captured as (event: string, filename: string) => void)('change', 'src/batch-a.ts');
+    (captured as (event: string, filename: string) => void)('change', 'src/batch-b.ts');
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await flushPromises();
+    await flushPromises();
+
+    expect(reindexFiles).toHaveBeenCalledTimes(1);
+    const watchStateRaw = states.get('librarian.watch_state.v1');
+    expect(watchStateRaw).toBeDefined();
+    const watchState = JSON.parse(watchStateRaw ?? '{}') as {
+      needs_catchup?: boolean;
+      suspected_dead?: boolean;
+      last_error?: string;
+      watch_last_reindex_ok_at?: string;
+    };
+    expect(watchState.needs_catchup).toBe(true);
+    expect(watchState.suspected_dead).toBe(false);
+    expect(watchState.last_error).toBe('batch reindex exploded');
+    expect(watchState.watch_last_reindex_ok_at).toBeUndefined();
   });
 
   it('flags watch state on event storms', async () => {
@@ -733,6 +909,12 @@ describe('file_watcher', () => {
     await fs.writeFile(filePath, 'export const reconcile = true;\n', 'utf8');
 
     const states = new Map<string, string>();
+    states.set('librarian.watch_state.v1', JSON.stringify({
+      schema_version: 1,
+      workspace_root: workspaceRoot,
+      needs_catchup: true,
+      last_error: 'previous reindex failure',
+    }));
     const storage: StorageStub = {
       async getFileChecksum() {
         return null;
@@ -770,8 +952,9 @@ describe('file_watcher', () => {
 
     const watchStateRaw = states.get('librarian.watch_state.v1');
     expect(watchStateRaw).toBeDefined();
-    const watchState = JSON.parse(watchStateRaw ?? '{}') as { needs_catchup?: boolean };
+    const watchState = JSON.parse(watchStateRaw ?? '{}') as { needs_catchup?: boolean; last_error?: string };
     expect(watchState.needs_catchup).toBe(false);
+    expect(watchState.last_error).toBeUndefined();
 
     await stopFileWatcher(workspaceRoot);
   });

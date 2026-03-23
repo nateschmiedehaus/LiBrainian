@@ -1,12 +1,17 @@
 import { parseArgs } from 'node:util';
 import * as mcpServerModule from '../../mcp/server.js';
 import { emitJsonOutput } from '../json_output.js';
-import { buildCapabilityInventory } from '../../capabilities/inventory.js';
+import { buildCapabilityInventory, type CapabilitySurface } from '../../capabilities/inventory.js';
+import { createError } from '../errors.js';
 
 export interface CapabilitiesCommandOptions {
   workspace: string;
   args: string[];
   rawArgs: string[];
+}
+
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
 }
 
 type ToolSummary = {
@@ -28,6 +33,7 @@ type MCPServerConstructor = new (config: {
   };
 }) => {
   getAvailableTools: () => ToolSummary[];
+  getAdvertisedToolsForInventory?: () => ToolSummary[];
 };
 
 function resolveMcpServerCtor(): MCPServerConstructor {
@@ -42,12 +48,14 @@ function resolveMcpServerCtor(): MCPServerConstructor {
   return ctor;
 }
 
-function resolveMcpTools(workspace: string): ToolSummary[] {
+function resolveMcpTools(workspace: string, surface: CapabilitySurface): ToolSummary[] {
   const MCPServerCtor = resolveMcpServerCtor();
   const server = new MCPServerCtor({
     workspaces: [workspace],
     authorization: {
-      enabledScopes: ['read', 'write', 'execute', 'network', 'admin'],
+      enabledScopes: surface === 'full'
+        ? ['read', 'write', 'execute', 'network', 'admin']
+        : ['read'],
       requireConsent: false,
     },
     audit: {
@@ -56,7 +64,7 @@ function resolveMcpTools(workspace: string): ToolSummary[] {
       logPath: '.librarian/audit/mcp',
     },
   });
-  return server.getAvailableTools();
+  return server.getAdvertisedToolsForInventory?.() ?? server.getAvailableTools();
 }
 
 export async function capabilitiesCommand(options: CapabilitiesCommandOptions): Promise<void> {
@@ -64,6 +72,7 @@ export async function capabilitiesCommand(options: CapabilitiesCommandOptions): 
     args: options.rawArgs.slice(1),
     options: {
       json: { type: 'boolean', default: true },
+      full: { type: 'boolean', default: false },
       out: { type: 'string' },
     },
     allowPositionals: true,
@@ -71,7 +80,16 @@ export async function capabilitiesCommand(options: CapabilitiesCommandOptions): 
   });
 
   const out = typeof values.out === 'string' ? values.out : undefined;
-  const tools = resolveMcpTools(options.workspace);
-  const inventory = buildCapabilityInventory({ mcpTools: tools });
+  const surface: CapabilitySurface = values.full ? 'full' : 'public';
+
+  if (surface === 'full' && !internalCommandsEnabled()) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      'The full capability inventory is unavailable in the public release surface. Set LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1 in a source checkout to access the full inventory.',
+    );
+  }
+
+  const tools = resolveMcpTools(options.workspace, surface);
+  const inventory = buildCapabilityInventory({ mcpTools: tools, surface });
   await emitJsonOutput(inventory, out);
 }

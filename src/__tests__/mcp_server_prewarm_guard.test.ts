@@ -11,9 +11,12 @@ describe('mcp server startup prewarm guardrails', () => {
     expect(serverSource).toContain("import { preloadReranker } from '../api/embedding_providers/cross_encoder_reranker.js';");
     expect(serverSource).toContain('private startupPrewarmPromise: Promise<void> | null = null;');
     expect(serverSource).toContain('private startModelPrewarm(): void');
+    expect(serverSource).toContain('const rerankerEnabled = this.isCrossEncoderPrewarmEnabled();');
     expect(serverSource).toContain('Promise.allSettled([');
     expect(serverSource).toContain('preloadEmbeddingModel()');
     expect(serverSource).toContain('preloadReranker()');
+    expect(serverSource).toContain("rerankerEnabled ? preloadReranker() : Promise.resolve('reranker disabled')");
+    expect(serverSource).toContain('private isCrossEncoderPrewarmEnabled(): boolean');
     expect(serverSource).toContain('void this.startModelPrewarm();');
     expect(serverSource).toContain('coldStartStructuralOnly: this.startupPrewarmPromise !== null,');
   });

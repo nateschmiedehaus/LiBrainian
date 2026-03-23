@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+/**
+ * Reporting helper only. Queue selection and milestone authority live in
+ * scripts/portfolio-control.mjs; this script must not become scheduler truth.
+ */
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';

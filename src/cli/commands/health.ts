@@ -53,7 +53,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
           status: 'unhealthy',
           reason: 'bootstrap_required',
           message: bootstrapCheck.reason || 'Bootstrap required',
-          suggestion: 'Run `librarian bootstrap` to initialize the index',
+          suggestion: 'Run `librainian bootstrap` to initialize the index',
         },
         verbose,
         provenance
@@ -105,7 +105,7 @@ export async function healthCommand(options: HealthOptions): Promise<void> {
         status: 'unhealthy',
         reason: 'storage_unavailable',
         message,
-        suggestion: 'Run `librarian doctor --heal` or `librarian bootstrap --force` to recover',
+        suggestion: 'Run `librainian doctor --heal` or `librainian bootstrap --force --mode fast` to recover',
       },
       verbose,
       provenance
@@ -221,8 +221,8 @@ function printTextReport(report: LibrarianStateReport, verbose: boolean, provena
 
   if (!report.health.checks.indexFresh) {
     console.log('\nSuggested Fixes:');
-    console.log('  - Run `librarian watch` to keep the index fresh.');
-    console.log('  - Or run `librarian bootstrap --mode fast` to refresh immediately.');
+    console.log('  - Run `librainian watch` to keep the index fresh.');
+    console.log('  - Or run `librainian bootstrap --mode fast` to refresh immediately.');
   }
 
   if (verbose) {

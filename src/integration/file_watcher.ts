@@ -330,9 +330,8 @@ class IncrementalFileWatcher implements FileWatcherHandle {
         this.queueBatch(relativePath);
       } else {
         this.handleChange(relativePath).catch((error) => {
-          logWarning('[librarian] File watcher reindex failed', {
+          void this.reportWatchReindexFailure('[librarian] File watcher reindex failed', error, {
             filePath: relativePath,
-            error: error instanceof Error ? error.message : String(error),
           });
         });
       }
@@ -434,17 +433,18 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       void globalEventBus.emit(createFileModifiedEvent(filePath, 'watcher'));
     }
     await this.updateWatchEvent();
+    let reindexSucceeded = false;
     try {
       await this.librarian.reindexFiles(toReindex);
       await this.updateWatchReindexOk();
+      reindexSucceeded = true;
     } catch (error) {
-      logWarning('[librarian] Batch reindex failed', {
+      await this.reportWatchReindexFailure('[librarian] Batch reindex failed', error, {
         files: toReindex.length,
-        error: error instanceof Error ? error.message : String(error),
       });
     }
 
-    if (this.cascadeQueue && this.storage) {
+    if (reindexSucceeded && this.cascadeQueue && this.storage) {
       for (const filePath of toReindex) {
         await this.queueDependentsForCascade(filePath);
       }
@@ -591,8 +591,12 @@ class IncrementalFileWatcher implements FileWatcherHandle {
           cursor: prev?.cursor,
           last_error: 'storage_missing_getFiles',
         }));
-      } catch {
-        // Ignore: state updates are best-effort in degraded storage scenarios.
+      } catch (error: unknown) {
+        this.warnOnce('watch_reconcile_state_persist_failed', '[librarian] Failed to persist watch reconcile degraded state', {
+          workspaceRoot: this.workspaceRoot,
+          reason: 'storage_missing_getFiles',
+          error: getErrorMessage(error),
+        });
       }
       this.warnOnce('watch_reconcile_storage_missing_getFiles', '[librarian] Watch reconcile disabled', {
         workspaceRoot: this.workspaceRoot,
@@ -891,7 +895,25 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       storage_attached: true,
       effective_config: this.watchConfig,
       cursor: cursor ?? prev?.cursor,
-      last_error: prev?.last_error,
+      last_error: undefined,
+    }));
+  }
+
+  private async updateWatchReindexFailed(lastError: string): Promise<void> {
+    if (!this.storage) return;
+    await updateWatchState(this.storage, (prev) => ({
+      schema_version: 1,
+      workspace_root: this.workspaceRoot,
+      watch_started_at: prev?.watch_started_at,
+      watch_last_heartbeat_at: prev?.watch_last_heartbeat_at,
+      watch_last_event_at: prev?.watch_last_event_at,
+      watch_last_reindex_ok_at: prev?.watch_last_reindex_ok_at,
+      suspected_dead: false,
+      needs_catchup: true,
+      storage_attached: true,
+      effective_config: this.watchConfig,
+      cursor: prev?.cursor,
+      last_error: lastError,
     }));
   }
 
@@ -937,6 +959,27 @@ class IncrementalFileWatcher implements FileWatcherHandle {
       cursor: prev?.cursor,
       last_error: prev?.last_error,
     }));
+  }
+
+  private async reportWatchReindexFailure(
+    message: string,
+    error: unknown,
+    meta: Record<string, unknown>,
+  ): Promise<void> {
+    const errorMessage = getErrorMessage(error);
+    try {
+      await this.updateWatchReindexFailed(errorMessage);
+    } catch (stateError) {
+      logWarning('[librarian] Failed to update watch state after reindex failure', {
+        workspaceRoot: this.workspaceRoot,
+        error: getErrorMessage(stateError),
+        reindexError: errorMessage,
+      });
+    }
+    logWarning(message, {
+      ...meta,
+      error: errorMessage,
+    });
   }
 
   private async handleDeletion(absolutePath: string): Promise<void> {

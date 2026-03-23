@@ -4,7 +4,9 @@
 
 # LiBrainian Status
 
-**M0 (Dogfood-Ready): BLOCKED — do not use as launch-ready evidence.**
+Historical advisory snapshot only: this file captures a February 27, 2026 recovery checkpoint and is not current release evidence. The current publish-grade evidence lives in `eval-results/agentic-use-case-review.json`, `state/eval/live-fire/hardcore/latest.json`, `state/eval/smoke/external/all-repos/report.json`, `state/eval/testing-discipline/report.json`, and `state/eval/testing-discipline/testing-tracker.json`.
+
+**Historical M0 snapshot (2026-02-27): BLOCKED — archival context only, not the current launch state.**
 
 ---
 

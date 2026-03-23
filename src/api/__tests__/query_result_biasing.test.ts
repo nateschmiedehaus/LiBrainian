@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SimilarityResult } from '../../storage/types.js';
 import {
+  LOW_RELEVANCE_CONFIDENCE,
+  LOW_RELEVANCE_SCORE_THRESHOLD,
   applyDefinitionBias,
   applyDocumentBias,
+  applyLowRelevanceConfidenceGuardrail,
   isDefinitionEntity,
 } from '../query_result_biasing.js';
 
@@ -59,5 +62,18 @@ describe('query_result_biasing', () => {
     expect(ranked[0].similarity).toBeCloseTo(0.88, 10);
     const usage = ranked.find((entry) => entry.entityId.includes('getStorage'));
     expect(usage?.similarity).toBeCloseTo(0.352, 10);
+  });
+
+  it('downgrades total confidence when the top relevance score is too low', () => {
+    const guarded = applyLowRelevanceConfidenceGuardrail(0.82, 0.41);
+    expect(guarded.totalConfidence).toBe(LOW_RELEVANCE_CONFIDENCE);
+    expect(guarded.triggered).toBe(true);
+    expect(guarded.reason).toContain(String(LOW_RELEVANCE_SCORE_THRESHOLD));
+  });
+
+  it('does not downgrade when the top relevance score clears the threshold', () => {
+    const guarded = applyLowRelevanceConfidenceGuardrail(0.82, 0.71);
+    expect(guarded.totalConfidence).toBe(0.82);
+    expect(guarded.triggered).toBe(false);
   });
 });

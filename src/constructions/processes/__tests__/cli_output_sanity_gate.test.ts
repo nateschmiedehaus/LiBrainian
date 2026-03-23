@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { createCliOutputSanityGateConstruction } from '../cli_output_sanity_gate.js';
+import {
+  createCliOutputSanityGateConstruction,
+  parseJsonOutput,
+} from '../cli_output_sanity_gate.js';
 import { unwrapConstructionExecutionResult } from '../../types.js';
 
 describe('CLI Output Sanity Gate', () => {
+  it('rejects non-object JSON payloads for machine-readable command checks', () => {
+    expect(parseJsonOutput('{"ok":true}')).toEqual({ ok: true, keys: ['ok'] });
+    expect(parseJsonOutput('[]')).toEqual({ ok: false, keys: [] });
+    expect(parseJsonOutput('0')).toEqual({ ok: false, keys: [] });
+    expect(parseJsonOutput('true')).toEqual({ ok: false, keys: [] });
+  });
+
   it('validates CLI output quality, exit-code behavior, and help consistency', async () => {
     const gate = createCliOutputSanityGateConstruction();
     const result = unwrapConstructionExecutionResult(await gate.execute({

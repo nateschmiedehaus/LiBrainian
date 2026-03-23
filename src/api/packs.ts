@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { existsSync } from 'node:fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
@@ -100,7 +101,7 @@ export async function generateContextPacks(
     logWarning('[packs] Failed to retrieve stored version', { error: getErrorMessage(err) });
     return null;
   });
-  const version = options.version ?? storedVersion ?? getCurrentVersion();
+  const version = options.version ?? storedVersion ?? getSyntheticPackVersion();
   const workspaceRoot = await resolveWorkspaceRoot(storage);
   const patternFacts = includeSupplemental ? await collectPatternFacts(storage) : emptyPatternFacts();
   const decisionFacts = includeSupplemental ? await collectDecisionFacts(storage, workspaceRoot) : new Map();
@@ -557,7 +558,7 @@ async function buildFunctionPack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: [fn.filePath],
   };
 }
@@ -718,7 +719,7 @@ async function buildModulePack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: relatedFiles,
   };
 }
@@ -797,7 +798,7 @@ async function buildChangeImpactPack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: relatedFiles,
   };
 }
@@ -838,7 +839,7 @@ async function buildPatternPack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: relatedFiles,
   };
 }
@@ -876,7 +877,7 @@ async function buildDecisionPack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: relatedFiles,
   };
 }
@@ -914,7 +915,7 @@ async function buildSimilarTasksPack(
     lastOutcome: 'unknown',
     successCount: 0,
     failureCount: 0,
-    version: getCurrentVersion(),
+    version: getSyntheticPackVersion(),
     invalidationTriggers: relatedFiles,
   };
 }
@@ -1230,12 +1231,48 @@ function collectRelatedFiles(mod: ModuleKnowledge): string[] {
   related.add(mod.path);
   for (const dep of mod.dependencies) {
     if (dep.startsWith('.')) {
-      related.add(path.resolve(path.dirname(mod.path), dep));
+      related.add(resolveLocalDependencySourcePath(mod.path, dep));
     } else if (dep.startsWith('/')) {
       related.add(dep);
     }
   }
   return Array.from(related);
+}
+
+function resolveLocalDependencySourcePath(modulePath: string, dependencyPath: string): string {
+  const resolved = path.resolve(path.dirname(modulePath), dependencyPath);
+  if (existsSync(resolved)) {
+    return resolved;
+  }
+
+  const resolvedExt = path.extname(resolved).toLowerCase();
+  if (!['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'].includes(resolvedExt)) {
+    return resolved;
+  }
+
+  const preferredExtensions = resolvePreferredSiblingExtensions(path.extname(modulePath).toLowerCase(), resolvedExt);
+  const basePath = resolved.slice(0, -resolvedExt.length);
+  for (const extension of preferredExtensions) {
+    const candidate = `${basePath}${extension}`;
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return resolved;
+}
+
+function resolvePreferredSiblingExtensions(moduleExt: string, dependencyExt: string): string[] {
+  const typeScriptFamily = ['.ts', '.tsx', '.mts', '.cts'];
+  const javaScriptFamily = ['.js', '.jsx', '.mjs', '.cjs'];
+  const modulePrefersTypeScript = typeScriptFamily.includes(moduleExt);
+  const dependencyIsTypeScriptish = typeScriptFamily.includes(dependencyExt);
+
+  const preferred = modulePrefersTypeScript || dependencyIsTypeScriptish
+    ? [...typeScriptFamily, ...javaScriptFamily]
+    : [...javaScriptFamily, ...typeScriptFamily];
+
+  return Array.from(new Set(preferred));
 }
 
 type PatternFacts = { patternsByFile: Map<string, string[]>; antiPatternsByFile: Map<string, string[]> };
@@ -1495,15 +1532,15 @@ function getLanguage(filePath: string): string {
   return language === 'text' ? fallback : language;
 }
 
-function getCurrentVersion(): LibrarianVersion {
+function getSyntheticPackVersion(): LibrarianVersion {
   return {
     major: LIBRARIAN_VERSION.major,
     minor: LIBRARIAN_VERSION.minor,
     patch: LIBRARIAN_VERSION.patch,
     string: LIBRARIAN_VERSION.string,
-    qualityTier: 'full',
-    indexedAt: new Date(),
-    indexerVersion: LIBRARIAN_VERSION.string,
+    qualityTier: 'mvp',
+    indexedAt: new Date(0),
+    indexerVersion: `${LIBRARIAN_VERSION.string}-runtime-fallback`,
     features: [...LIBRARIAN_VERSION.features],
   };
 }

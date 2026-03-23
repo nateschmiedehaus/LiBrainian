@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { generateContextPacks } from '../packs.js';
@@ -98,5 +98,56 @@ describe('module context pack depth', () => {
     expect(modulePack?.codeSnippets).toHaveLength(1);
     expect(modulePack?.codeSnippets[0]?.startLine).toBeGreaterThan(40);
     expect(modulePack?.codeSnippets[0]?.content).toContain('typedef struct PtxNode');
+  });
+
+  it('rewrites local runtime import specifiers to existing source files in relatedFiles', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'librainian-module-pack-related-'));
+    tempDirs.push(tmpDir);
+    const srcDir = path.join(tmpDir, 'src');
+    const filePath = path.join(srcDir, 'query.ts');
+    const siblingPath = path.join(srcDir, 'query_synthesis.ts');
+
+    await mkdir(srcDir, { recursive: true });
+    await writeFile(filePath, "import { synthesize } from './query_synthesis.js';\nexport function query() { return synthesize(); }\n");
+    await writeFile(siblingPath, 'export function synthesize() { return 1; }\n');
+
+    const moduleInfo: ModuleKnowledge = {
+      id: 'module:src/query.ts',
+      path: filePath,
+      purpose: 'Query pipeline entry point',
+      exports: ['query'],
+      dependencies: ['./query_synthesis.js'],
+      confidence: 0.91,
+    };
+
+    const capturedPacks: ContextPack[] = [];
+    const storage = {
+      getFunctions: async () => [],
+      getModules: async () => [moduleInfo],
+      getVersion: async () => baseVersion,
+      getMetadata: async () => ({ workspace: tmpDir }),
+      getContextPackForTarget: async () => null,
+      upsertContextPack: async (pack: ContextPack) => {
+        capturedPacks.push(pack);
+      },
+    } as unknown as LibrarianStorage;
+
+    await generateContextPacks(storage, {
+      functions: [],
+      modules: [moduleInfo],
+      includeFunctionPacks: false,
+      includeModulePacks: true,
+      includeSupplemental: false,
+      skipLlm: true,
+      force: true,
+      maxPacks: 10,
+      version: baseVersion,
+    });
+
+    const modulePack = capturedPacks.find((pack) => pack.packType === 'module_context');
+    expect(modulePack).toBeDefined();
+    expect(modulePack?.relatedFiles).toContain(filePath);
+    expect(modulePack?.relatedFiles).toContain(siblingPath);
+    expect(modulePack?.relatedFiles).not.toContain(path.join(srcDir, 'query_synthesis.js'));
   });
 });

@@ -83,6 +83,17 @@ describe('constructionsCommand', () => {
     expect(combined).not.toContain('requires: librainian-eval');
   });
 
+  it('hides experimental constructions from default public list output', async () => {
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['list'],
+      rawArgs: ['constructions', 'list'],
+    });
+
+    const combined = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(combined).not.toContain('comprehensive-quality-construction');
+  });
+
   it('returns ranked search results in JSON mode', async () => {
     await constructionsCommand({
       workspace: '/tmp/workspace',
@@ -99,7 +110,7 @@ describe('constructionsCommand', () => {
     const security = payload.results.find((result) => result.id === 'librainian:security-audit-helper') as
       | (typeof payload.results[number] & { installCommand?: string })
       | undefined;
-    expect(security?.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
+    expect(security?.installCommand).toBe('librainian constructions install librainian:security-audit-helper');
     for (let index = 1; index < payload.results.length; index += 1) {
       expect(payload.results[index - 1]!.score).toBeGreaterThanOrEqual(payload.results[index]!.score);
     }
@@ -116,7 +127,7 @@ describe('constructionsCommand', () => {
     expect(payload.id).toBe('librainian:security-audit-helper');
     expect(typeof payload.agentDescription).toBe('string');
     expect(payload.installMode).toBe('builtin');
-    expect(payload.installCommand).toBe('librarian constructions install librainian:security-audit-helper');
+    expect(payload.installCommand).toBe('librainian constructions install librainian:security-audit-helper');
     expect(typeof payload.runCommand).toBe('string');
     expect((payload.requiredCapabilities as string[]).includes('security-analysis')).toBe(true);
   });
@@ -235,6 +246,26 @@ describe('constructionsCommand', () => {
     expect(invokeConstruction).toHaveBeenCalled();
   });
 
+  it('returns failure and non-zero exit code when a construction outcome is not ok', async () => {
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
+    (invokeConstruction as unknown as Mock).mockResolvedValueOnce({
+      ok: false,
+      error: new ConstructionError('construction failed', 'librainian:security-audit-helper'),
+    });
+
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:security-audit-helper'],
+      rawArgs: ['constructions', 'run', 'librainian:security-audit-helper', '--input', '{"files":["src/auth.ts"],"checkTypes":["auth"]}', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+    expect(payload.success).toBe(false);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = previousExitCode;
+  });
+
   it('runs patrol-process via legacy slug alias', async () => {
     await constructionsCommand({
       workspace: '/tmp/workspace',
@@ -249,6 +280,8 @@ describe('constructionsCommand', () => {
   });
 
   it('serializes construction failures with non-empty error and cause messages', async () => {
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
     (invokeConstruction as unknown as Mock).mockResolvedValueOnce({
       ok: false,
       error: new ConstructionError(
@@ -276,10 +309,109 @@ describe('constructionsCommand', () => {
         };
       };
     };
-    expect(payload.success).toBe(true);
+    expect(payload.success).toBe(false);
     expect(payload.output.ok).toBe(false);
     expect(payload.output.error?.message).toContain('provider unavailable');
     expect(payload.output.error?.cause?.message).toContain('claude unavailable');
+    expect(process.exitCode).toBe(1);
+    process.exitCode = previousExitCode;
+  });
+
+  it('serializes opaque error-like payloads with hidden message fields', async () => {
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
+    const opaqueCause: Record<string, unknown> = {};
+    Object.defineProperty(opaqueCause, 'message', {
+      value: 'claude unavailable in nested session',
+      enumerable: false,
+    });
+
+    const opaqueError: Record<string, unknown> = {
+      kind: 'construction_error',
+      retriable: false,
+      cause: opaqueCause,
+    };
+    Object.defineProperty(opaqueError, 'message', {
+      value: 'provider unavailable',
+      enumerable: false,
+    });
+
+    (invokeConstruction as unknown as Mock).mockResolvedValueOnce({
+      ok: false,
+      error: opaqueError,
+    });
+
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:architecture-verifier'],
+      rawArgs: ['constructions', 'run', 'librainian:architecture-verifier', '--json'],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as {
+      success: boolean;
+      output: {
+        ok: boolean;
+        error?: {
+          message?: string;
+          cause?: {
+            message?: string;
+          };
+        };
+      };
+    };
+    expect(payload.success).toBe(false);
+    expect(payload.output.ok).toBe(false);
+    expect(payload.output.error?.message).toContain('provider unavailable');
+    expect(payload.output.error?.cause?.message).toContain('claude unavailable');
+    expect(process.exitCode).toBe(1);
+    process.exitCode = previousExitCode;
+  });
+
+  it('serializes opaque non-enumerable cause messages instead of empty objects', async () => {
+    const opaqueCause = {};
+    Object.defineProperty(opaqueCause, 'message', {
+      value: 'codex rate limited in nested session',
+      enumerable: false,
+      configurable: true,
+    });
+
+    (invokeConstruction as unknown as Mock).mockResolvedValueOnce({
+      ok: false,
+      error: new ConstructionError(
+        'provider unavailable',
+        'librainian:code-quality-reporter',
+        opaqueCause as Error,
+      ),
+    });
+
+    await constructionsCommand({
+      workspace: '/tmp/workspace',
+      args: ['run', 'librainian:code-quality-reporter'],
+      rawArgs: [
+        'constructions',
+        'run',
+        'librainian:code-quality-reporter',
+        '--input',
+        '{"files":["src/auth.ts"],"aspects":["complexity"]}',
+        '--json',
+      ],
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]?.[0])) as {
+      output: {
+        ok: boolean;
+        error?: {
+          message?: string;
+          cause?: {
+            message?: string;
+          };
+        };
+      };
+    };
+
+    expect(payload.output.ok).toBe(false);
+    expect(payload.output.error?.message).toContain('provider unavailable');
+    expect(payload.output.error?.cause?.message).toContain('codex rate limited');
   });
 
   it('runs code-review-pipeline preset via legacy slug alias', async () => {

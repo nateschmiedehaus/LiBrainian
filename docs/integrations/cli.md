@@ -2,6 +2,8 @@
 
 Status: available now.
 
+This guide covers the public CLI surface only. Maintainer-only workflows are hidden by default and deferred to separate release work.
+
 ## Prerequisites
 
 - Node.js 18+
@@ -18,8 +20,8 @@ npx librainian quickstart --ci --json
 npx librainian query "Where is auth enforced?" --json --out state/librarian/query.json
 
 # Health and status checks
-npx librainian status --format json
-npx librainian health --format json
+npx librainian status --json
+npx librainian doctor --json
 ```
 
 ## Real-world use case

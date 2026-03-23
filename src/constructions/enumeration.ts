@@ -33,6 +33,18 @@ const DEFAULT_ENDPOINT_SCAN_MAX_FILES_TEST = 200;
 const DEFAULT_ENDPOINT_SCAN_BUDGET_MS = 15000;
 const DEFAULT_ENDPOINT_SCAN_BUDGET_MS_TEST = 5000;
 const DEFAULT_ENDPOINT_CACHE_TTL_MS = 2 * 60 * 1000;
+const COMMON_SOURCE_SCAN_IGNORES = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/.git/**',
+  '**/.librarian/**',
+  '**/state/**',
+  '**/coverage/**',
+  '**/tmp/**',
+  '**/.tmp/**',
+  '**/eval-corpus/**',
+];
 
 function readEnvNumber(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -630,24 +642,14 @@ async function enumerateTestFiles(
   _storage?: LibrarianStorage
 ): Promise<EnumeratedEntity[]> {
   const pattern = '**/*.{test,spec}.{ts,tsx}';
-  const ignore = [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.git/**',
-    '**/.librarian/**',
-    '**/state/**',
-    '**/coverage/**',
-    '**/tmp/**',
-    '**/.tmp/**',
-  ];
+  const ignore = COMMON_SOURCE_SCAN_IGNORES;
 
   try {
     const uniqueFiles = await glob(pattern, {
-      cwd: workspace,
-      absolute: true,
-      ignore,
-      nodir: true,
+        cwd: workspace,
+        absolute: true,
+        ignore,
+        nodir: true,
     });
 
     const entities: EnumeratedEntity[] = uniqueFiles.map((filePath) => {
@@ -1152,6 +1154,42 @@ const HAPI_PATTERNS = [
   /server\s*\.\s*route\s*\(\s*\{[^}]*path\s*:\s*['"`]([^'"`]+)['"`][^}]*method\s*:\s*['"`](\w+)['"`]/gi,
 ];
 
+const ENDPOINT_CONTENT_HINTS = [
+  '@Controller',
+  '@Get',
+  '@Post',
+  '@Put',
+  '@Delete',
+  '@Patch',
+  'app.get(',
+  'app.post(',
+  'app.put(',
+  'app.delete(',
+  'app.patch(',
+  'router.get(',
+  'router.post(',
+  'router.put(',
+  'router.delete(',
+  'router.patch(',
+  'router.route(',
+  'fastify.get(',
+  'fastify.post(',
+  'fastify.put(',
+  'fastify.delete(',
+  'fastify.patch(',
+  'server.route(',
+  '.route({',
+];
+
+function likelyContainsEndpointDefinitions(content: string): boolean {
+  for (const hint of ENDPOINT_CONTENT_HINTS) {
+    if (content.includes(hint)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Enumerate API endpoints by scanning source files for route definitions.
  *
@@ -1187,9 +1225,7 @@ async function enumerateEndpoints(
         cwd: workspace,
         absolute: true,
         ignore: [
-          '**/node_modules/**',
-          '**/dist/**',
-          '**/build/**',
+          ...COMMON_SOURCE_SCAN_IGNORES,
           '**/__tests__/**',
           '**/test/**',
           '**/tests/**',
@@ -1218,6 +1254,11 @@ async function enumerateEndpoints(
         const content = await fs.readFile(filePath, 'utf-8');
         const relativePath = path.relative(workspace, filePath);
         const lines = content.split('\n');
+
+        // Avoid running expensive endpoint regexes across obviously unrelated files.
+        if (!likelyContainsEndpointDefinitions(content)) {
+          continue;
+        }
 
         // Track NestJS controller prefix
         let controllerPrefix = '';

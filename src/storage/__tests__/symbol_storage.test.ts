@@ -42,4 +42,21 @@ describe('SymbolStorage recovery', () => {
       await storage.close();
     }
   });
+
+  it('fails closed when recovery cannot quarantine a malformed symbol database', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-symbol-storage-'));
+    tempDirs.push(dir);
+
+    const dbPath = path.join(dir, 'knowledge.db');
+    await fs.writeFile(dbPath, 'not-a-sqlite-database', 'utf8');
+    await fs.writeFile(
+      `${dbPath}.lock`,
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }),
+      'utf8',
+    );
+
+    const storage = createSymbolStorageWithPath(dbPath);
+    await expect(storage.initialize()).rejects.toThrow(/storage_recovery_failed/i);
+    expect(storage.isInitialized()).toBe(false);
+  });
 });

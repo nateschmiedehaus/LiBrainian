@@ -137,7 +137,7 @@ const CORPUS_FILES = [
   // Core API
   { label: 'librarian_api', file: 'src/api/librarian.ts', desc: 'Main LiBrainian API class' },
   { label: 'provider_gate', file: 'src/api/provider_gate.ts', desc: 'Provider availability gate' },
-  { label: 'migrations', file: 'src/api/migrations.ts', desc: 'Database migration management' },
+  { label: 'migrations', file: 'src/api/schema_migrations.ts', desc: 'Database migration management' },
 
   // Adapters
   { label: 'llm_service', file: 'src/adapters/llm_service.ts', desc: 'LLM service adapter interface and resolution' },

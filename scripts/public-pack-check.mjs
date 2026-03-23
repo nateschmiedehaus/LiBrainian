@@ -5,6 +5,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_MAX_UNPACKED_SIZE_MB = 15;
+const PUBLIC_INTEGRATION_DOCS = new Set([
+  'docs/integrations/README.md',
+  'docs/integrations/cli.md',
+  'docs/integrations/mcp.md',
+]);
+const DEFERRED_DIST_PREFIXES = [
+  'dist/debug/',
+  'dist/evidence/',
+  'dist/incidents/',
+  'dist/quality/',
+  'dist/release/',
+];
+const DEFERRED_DIST_FILES = [
+  'dist/connectors/github_issues.d.ts',
+  'dist/connectors/github_issues.js',
+  'dist/connectors/jira.d.ts',
+  'dist/connectors/jira.js',
+  'dist/connectors/openclaw_skill_template.d.ts',
+  'dist/connectors/openclaw_skill_template.js',
+  'dist/connectors/pagerduty.d.ts',
+  'dist/connectors/pagerduty.js',
+];
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -28,8 +50,35 @@ function isAllowedPackPath(filePath) {
   if (filePath === 'README.md') return true;
   if (filePath === 'CHANGELOG.md') return true;
   if (filePath === 'LICENSE') return true;
+  if (filePath === 'docs/START_HERE.md') return true;
+  if (filePath === 'docs/README.md') return true;
+  if (filePath === 'docs/mcp-setup.md') return true;
+  if (filePath === 'docs/mcp-design-principles.md') return true;
+  if (PUBLIC_INTEGRATION_DOCS.has(filePath)) return true;
   if (filePath.startsWith('dist/')) return true;
   return false;
+}
+
+function isDeferredPackPath(filePath) {
+  return DEFERRED_DIST_PREFIXES.some((prefix) => filePath.startsWith(prefix))
+    || DEFERRED_DIST_FILES.includes(filePath);
+}
+
+function isRootScratchArtifact(filePath) {
+  return (
+    filePath === '.claude/' ||
+    filePath.startsWith('.claude/') ||
+    filePath === '.codex/' ||
+    filePath.startsWith('.codex/') ||
+    filePath === '.mcp.json' ||
+    filePath === '.librainian-manifest.json' ||
+    filePath === '0' ||
+    filePath === 'tasks' ||
+    filePath.startsWith('tmp-') ||
+    filePath.startsWith('CPU') && filePath.endsWith('.cpuprofile') ||
+    filePath.endsWith('.cpuprofile') ||
+    filePath.startsWith('librainian-') && filePath.endsWith('.tgz')
+  );
 }
 
 function parsePackOutput(rawOutput) {
@@ -154,6 +203,8 @@ function main() {
   const filePaths = pack.files.map((entry) => String(entry.path));
   const filePathSet = new Set(filePaths);
   const disallowed = filePaths.filter((filePath) => !isAllowedPackPath(filePath));
+  const deferredPaths = filePaths.filter((filePath) => isDeferredPackPath(filePath));
+  const scratchArtifacts = filePaths.filter((filePath) => isRootScratchArtifact(filePath));
   const sourcemaps = filePaths.filter((filePath) => filePath.endsWith('.map'));
   const packedRuntimeJs = filePaths.filter((filePath) => filePath.startsWith('dist/') && filePath.endsWith('.js'));
   const federationFiles = filePaths.filter((filePath) => filePath.startsWith('dist/federation/'));
@@ -190,6 +241,24 @@ function main() {
   if (disallowed.length > 0) {
     throw new Error(
       `Package contains non-public files:\n${disallowed
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (deferredPaths.length > 0) {
+    throw new Error(
+      `Package contains deferred internal implementation paths:\n${deferredPaths
+        .slice(0, 25)
+        .map((filePath) => `- ${filePath}`)
+        .join('\n')}`
+    );
+  }
+
+  if (scratchArtifacts.length > 0) {
+    throw new Error(
+      `Package contains root-local scratch artifacts:\n${scratchArtifacts
         .slice(0, 25)
         .map((filePath) => `- ${filePath}`)
         .join('\n')}`

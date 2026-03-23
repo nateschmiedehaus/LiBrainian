@@ -103,6 +103,15 @@ const report = await runAgenticUseCaseReview({
   runLabel: args.values.runLabel,
   initTimeoutMs: parseNumber(args.values.initTimeoutMs),
   queryTimeoutMs: parseNumber(args.values.queryTimeoutMs),
+  onProgress: (event) => {
+    console.log(
+      `[agentic-use-case-review] ${event.type} repo=${event.repo}`
+      + `${event.useCaseId ? ` useCase=${event.useCaseId}` : ''}`
+      + `${typeof event.completed === 'number' && typeof event.total === 'number' ? ` progress=${event.completed}/${event.total}` : ''}`
+      + `${typeof event.success === 'boolean' ? ` success=${event.success}` : ''}`
+      + ` ${event.message}`,
+    );
+  },
 });
 
 await mkdir(path.dirname(outPath), { recursive: true });

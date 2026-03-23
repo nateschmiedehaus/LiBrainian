@@ -207,7 +207,7 @@ describe('first_run_gate degraded mode', () => {
     expect((capturedConfig?.bootstrapConfig as Record<string, unknown>)?.skipEmbeddings).toBe(true);
   });
 
-  it('defaults to degraded mode when embeddings are unavailable', async () => {
+  it('fails closed by default when embeddings are unavailable', async () => {
     const { ensureLibrarianReady } = await import('../first_run_gate.js');
 
     const providerGate = async () => ({
@@ -231,14 +231,11 @@ describe('first_run_gate degraded mode', () => {
       bypassed: false,
     });
 
-    const result = await ensureLibrarianReady(workspace, {
+    await expect(ensureLibrarianReady(workspace, {
       throwOnFailure: true,
       providerGate,
-    });
-
-    expect(result.success).toBe(true);
-    expect(capturedConfig).toBeTruthy();
-    expect((capturedConfig?.bootstrapConfig as Record<string, unknown>)?.skipEmbeddings).toBe(true);
+    })).rejects.toThrow(/Embedding provider unavailable/);
+    expect(capturedConfig).toBeNull();
   });
 
   it('auto-detects workspace root when invoked from a subdirectory', async () => {

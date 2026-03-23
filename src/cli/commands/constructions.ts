@@ -382,7 +382,7 @@ async function runInstall(params: {
   const { workspace, subcommandArgs, json, dryRun } = params;
   const id = subcommandArgs[0];
   if (!id) {
-    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librarian constructions install <id>');
+    throw createError('INVALID_ARGUMENT', 'Construction id is required. Usage: librainian constructions install <id>');
   }
 
   const manifest = getConstructionManifest(id);
@@ -550,19 +550,26 @@ async function runRun(params: {
       },
     );
     const serializedOutput = serializeConstructionRunOutput(output);
+    const success = !isRecord(output) || output.ok !== false;
     const payload = {
       command: 'run',
-      success: true,
+      success,
       id: manifest.id,
       input,
       output: serializedOutput,
     };
     if (json) {
       console.log(JSON.stringify(payload));
+      if (!success) {
+        process.exitCode = 1;
+      }
       return;
     }
-    console.log(`Ran ${manifest.id}`);
+    console.log(success ? `Ran ${manifest.id}` : `Construction failed: ${manifest.id}`);
     console.log(JSON.stringify(serializedOutput, null, 2));
+    if (!success) {
+      process.exitCode = 1;
+    }
   } finally {
     await librarian.shutdown();
   }
@@ -758,7 +765,7 @@ function formatInstallCommand(manifest: ConstructionManifest): string {
   if (mode === 'npm') {
     return `npm install ${toPackageName(manifest.id)}@${manifest.version}`;
   }
-  return `librarian constructions install ${manifest.id}`;
+  return `librainian constructions install ${manifest.id}`;
 }
 
 function parseRunInput(inputFlag: string | undefined, positionalRemainder: string[]): unknown {
@@ -1061,8 +1068,20 @@ function serializeErrorForOutput(error: unknown, depth = 0): unknown {
     return error;
   }
   const serialized: Record<string, unknown> = {};
+  const hiddenName = readErrorLikeString(error, 'name');
+  if (hiddenName) {
+    serialized.name = hiddenName;
+  }
+  const hiddenMessage = readErrorLikeString(error, 'message');
+  if (hiddenMessage) {
+    serialized.message = hiddenMessage;
+  }
   for (const [key, value] of Object.entries(error)) {
     serialized[key] = serializeErrorForOutput(value, depth + 1);
+  }
+  const cause = readErrorLikeField(error, 'cause');
+  if (cause !== undefined && serialized.cause === undefined) {
+    serialized.cause = serializeErrorForOutput(cause, depth + 1);
   }
   return serialized;
 }
@@ -1079,6 +1098,23 @@ function normalizeErrorMessage(error: Error): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readErrorLikeField(value: Record<string, unknown>, key: string): unknown {
+  try {
+    return Reflect.get(value, key);
+  } catch {
+    return undefined;
+  }
+}
+
+function readErrorLikeString(value: Record<string, unknown>, key: string): string | undefined {
+  const candidate = readErrorLikeField(value, key);
+  if (typeof candidate !== 'string') {
+    return undefined;
+  }
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function sanitizePathSegment(value: string): string {

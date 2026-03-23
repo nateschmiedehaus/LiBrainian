@@ -17,6 +17,8 @@
  * - Prevention is better than cure
  */
 
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { ConfidenceAssessment, Provenance } from './types.js';
 
 // ============================================================================
@@ -542,6 +544,55 @@ export interface DebtDashboard {
 export function createComplexityDetector(
   config: DetectorConfig
 ): DebtDetector {
+  const resolveSeverity = (score: number): DebtSeverity | null => {
+    if (score >= config.thresholds.critical) return 'critical';
+    if (score >= config.thresholds.high) return 'high';
+    if (score >= config.thresholds.medium) return 'medium';
+    if (score >= config.thresholds.low) return 'low';
+    return null;
+  };
+
+  const shouldSkip = (relativePath: string): boolean => {
+    const normalized = relativePath.replace(/\\/g, '/');
+    return config.excludePaths.some((prefix) => normalized.startsWith(prefix.replace(/\\/g, '/')));
+  };
+
+  const withinScope = (relativePath: string): boolean => {
+    const normalized = relativePath.replace(/\\/g, '/');
+    if (config.includePaths.length === 0) return true;
+    return config.includePaths.some((prefix) => normalized.startsWith(prefix.replace(/\\/g, '/')));
+  };
+
+  const walkSourceFiles = async (root: string, relative = ''): Promise<string[]> => {
+    const currentDir = relative.length > 0 ? path.join(root, relative) : root;
+    let entries;
+    try {
+      entries = await readdir(currentDir, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    const results: string[] = [];
+    for (const entry of entries) {
+      const nextRelative = relative.length > 0 ? path.join(relative, entry.name) : entry.name;
+      const normalized = nextRelative.replace(/\\/g, '/');
+      if (shouldSkip(normalized)) continue;
+      if (entry.isDirectory()) {
+        results.push(...await walkSourceFiles(root, nextRelative));
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (!/\.(cjs|cts|js|jsx|mjs|mts|ts|tsx)$/.test(entry.name)) continue;
+      if (!withinScope(normalized)) continue;
+      results.push(normalized);
+    }
+    return results;
+  };
+
+  const estimateComplexity = (source: string): number => {
+    const branchTokens = source.match(/\b(if|else if|for|while|case|catch|\?|&&|\|\|)\b/g) ?? [];
+    return 1 + branchTokens.length;
+  };
+
   return {
     id: 'complexity-detector',
     name: 'Complexity Detector',
@@ -550,15 +601,53 @@ export function createComplexityDetector(
     confidence: 0.85,
     enabled: true,
     detect: async (codebasePath: string): Promise<TechnicalDebtItem[]> => {
-      // In a real implementation, this would analyze the codebase
-      // For now, return an empty array as a placeholder
+      const files = await walkSourceFiles(codebasePath);
       const items: TechnicalDebtItem[] = [];
 
-      // Analysis would go here:
-      // 1. Parse files in codebasePath
-      // 2. Calculate cyclomatic complexity
-      // 3. Compare against thresholds
-      // 4. Create TechnicalDebtItem for violations
+      for (const relativePath of files) {
+        const absolutePath = path.join(codebasePath, relativePath);
+        let source = '';
+        try {
+          source = await readFile(absolutePath, 'utf8');
+        } catch {
+          continue;
+        }
+
+        const complexity = estimateComplexity(source);
+        const severity = resolveSeverity(complexity);
+        if (!severity) continue;
+
+        items.push(createDebtItem({
+          title: `High complexity in ${relativePath}`,
+          description: `Estimated cyclomatic complexity ${complexity} exceeds configured ${severity} threshold.`,
+          type: 'code',
+          category: 'complexity',
+          severity,
+          principalCost: Math.max(2, Math.ceil(complexity / 4)),
+          affectedFiles: [relativePath],
+          discoveredBy: 'automated',
+          tags: ['complexity', 'heuristic-detector'],
+          evidence: [{
+            type: 'metric',
+            description: 'Keyword-based complexity heuristic',
+            data: { estimatedComplexity: complexity },
+            source: absolutePath,
+            collectedAt: new Date(),
+          }],
+          confidence: {
+            level: 'probable',
+            score: 0.72,
+            factors: [{
+              name: 'estimated_complexity',
+              contribution: 0.72,
+              evidence: `keyword-based estimate=${complexity}`,
+              quality: 'moderate',
+            }],
+            lastAssessed: new Date().toISOString(),
+            assessedBy: 'automated',
+          },
+        }));
+      }
 
       return items;
     },

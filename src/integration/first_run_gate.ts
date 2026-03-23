@@ -184,7 +184,7 @@ export async function ensureLibrarianReady(
     excludePatterns,
     providerGate,
     embeddingService,
-    allowDegradedEmbeddings = true,
+    allowDegradedEmbeddings = false,
     skipLlm: forceSkipLlm = false,
     autoInstallGrammars,
     requireCompleteParserCoverage = false,

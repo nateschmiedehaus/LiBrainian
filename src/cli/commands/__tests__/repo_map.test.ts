@@ -80,8 +80,8 @@ describe('repoMapCommand', () => {
       maxTokens: 500,
       consumedTokens: 0,
       entries: [],
-      text: 'No files indexed. Run `librarian bootstrap` first.',
-      notice: 'No files indexed. Run `librarian bootstrap` first.',
+      text: 'No files indexed. Run `librainian bootstrap` first.',
+      notice: 'No files indexed. Run `librainian bootstrap` first.',
     });
 
     await repoMapCommand({

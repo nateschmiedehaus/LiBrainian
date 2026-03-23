@@ -1,12 +1,24 @@
 import { parseArgs } from 'node:util';
-import { LIBRARIAN_VERSION } from '../../index.js';
+import { LIBRARIAN_VERSION, LIBRAINIAN_PACKAGE_VERSION } from '../../index.js';
 import { collectFeatureRegistry, type FeatureEntry } from '../../features/registry.js';
+import { createError } from '../errors.js';
 import { emitJsonOutput } from '../json_output.js';
 
 export interface FeaturesCommandOptions {
   workspace: string;
   args: string[];
   rawArgs: string[];
+}
+
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
+function filterFeatures(entries: FeatureEntry[], includeAll: boolean): FeatureEntry[] {
+  if (includeAll) {
+    return entries;
+  }
+  return entries.filter((entry) => entry.surface === 'public');
 }
 
 function statusLabel(status: FeatureEntry['status']): string {
@@ -43,6 +55,7 @@ export async function featuresCommand(options: FeaturesCommandOptions): Promise<
     options: {
       json: { type: 'boolean', default: false },
       verbose: { type: 'boolean', default: false },
+      all: { type: 'boolean', default: false },
       out: { type: 'string' },
     },
     allowPositionals: true,
@@ -50,21 +63,45 @@ export async function featuresCommand(options: FeaturesCommandOptions): Promise<
   });
   const json = Boolean(values.json);
   const verbose = Boolean(values.verbose);
+  const includeAll = Boolean(values.all);
   const out = typeof values.out === 'string' ? values.out : undefined;
 
+  if (includeAll && !internalCommandsEnabled()) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      'The full feature inventory is unavailable in the public release surface.',
+      {
+        recoveryHints: [
+          'Run `librainian features` for the supported public inventory.',
+          'Maintainers can opt into internal inventory from a source checkout with LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1.',
+        ],
+      },
+    );
+  }
+
   const startedAtMs = Date.now();
-  const features = await collectFeatureRegistry(options.workspace);
+  const allFeatures = await collectFeatureRegistry(options.workspace);
+  const features = filterFeatures(allFeatures, includeAll);
   const elapsedMs = Date.now() - startedAtMs;
 
   const payload = {
+    kind: 'LiBrainianFeatures.v1',
     workspace: options.workspace,
-    version: LIBRARIAN_VERSION.string,
+    version: LIBRAINIAN_PACKAGE_VERSION,
+    schemaVersion: 1,
+    productSchemaVersion: LIBRARIAN_VERSION.string,
+    surface: includeAll ? 'full' : 'public',
     generatedAt: new Date().toISOString(),
     durationMs: elapsedMs,
+    counts: {
+      visible: features.length,
+      hidden: Math.max(0, allFeatures.length - features.length),
+    },
     features: features.map((entry) => ({
       name: entry.name,
       id: entry.id,
       category: entry.category,
+      surface: entry.surface,
       status: entry.status,
       description: entry.description,
       requiresConfig: entry.requiresConfig,
@@ -81,7 +118,9 @@ export async function featuresCommand(options: FeaturesCommandOptions): Promise<
   const core = features.filter((entry) => entry.category === 'core');
   const experimental = features.filter((entry) => entry.category === 'experimental');
 
-  console.log(`LIBRAINIAN FEATURE STATUS (v${LIBRARIAN_VERSION.string})`);
+  console.log(`LIBRAINIAN FEATURE STATUS (v${LIBRAINIAN_PACKAGE_VERSION})`);
+  console.log(`Schema version: ${LIBRARIAN_VERSION.string}`);
+  console.log(`Surface: ${includeAll ? 'full inventory' : 'public release surface'}`);
   console.log('');
   console.log('Core Features:');
   for (const entry of core) {
@@ -98,6 +137,10 @@ export async function featuresCommand(options: FeaturesCommandOptions): Promise<
 
   if (verbose) {
     console.log('');
+    if (!includeAll) {
+      console.log(`Hidden internal/planned entries: ${Math.max(0, allFeatures.length - features.length)} (source checkout internal inventory only)`);
+      console.log('');
+    }
     console.log(`Generated in ${elapsedMs}ms`);
   }
 }

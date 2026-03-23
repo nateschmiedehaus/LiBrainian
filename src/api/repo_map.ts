@@ -85,7 +85,7 @@ export async function generateRepoMap(
   const selected = selectEntriesByTokenBudget(entries, maxTokens, style);
 
   const notice = selected.entries.length === 0
-    ? 'No files indexed. Run `librarian bootstrap` first.'
+    ? 'No files indexed. Run `librainian bootstrap` first.'
     : undefined;
   const rendered = style === 'json'
     ? undefined

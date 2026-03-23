@@ -7,6 +7,18 @@ interface IntentAnchorHint {
 
 const INTENT_ANCHOR_HINTS: IntentAnchorHint[] = [
   {
+    // Query-pipeline orientation should anchor to the orchestrator module, not
+    // sibling pipelines that happen to include the word "pipeline".
+    patterns: [
+      /\bquery\s+pipeline\b/i,
+    ],
+    files: [
+      'src/api/query.ts',
+      'src/api/query_synthesis.ts',
+      'src/api/query_intent.ts',
+    ],
+  },
+  {
     // Runtime MCP recovery queries should anchor directly to the server-side
     // error envelope path instead of generic tool/error utilities.
     patterns: [
@@ -18,6 +30,20 @@ const INTENT_ANCHOR_HINTS: IntentAnchorHint[] = [
       'src/mcp/server.ts',
       'src/cli/commands/mcp.ts',
       'src/cli/errors.ts',
+    ],
+  },
+  {
+    // Bootstrap debugging and self-hosting queries should anchor to the phase
+    // orchestration, postcondition validation, and storage lifecycle paths.
+    patterns: [
+      /\bbootstrap\b/i,
+      /\b(?:semantic[_\s]?index(?:ing)?|postcondition|validation|storage\s+initialization|initialize\(\)|initialized)\b/i,
+    ],
+    files: [
+      'src/api/bootstrap.ts',
+      'src/preflight/validation_gates.ts',
+      'src/storage/sqlite_storage.ts',
+      'src/cli/commands/bootstrap.ts',
     ],
   },
 ];
@@ -108,6 +134,7 @@ export function extractFeatureTarget(intent: string): string | undefined {
     /locate\s+(?:the\s+)?(?:implementation|code)\s+(?:for|of)\s+(?:the\s+)?([\w-]+(?:\s+[\w-]+){0,4})\b/i,
     /which\s+files?\s+(?:implement|contain|handle)\s+(?:the\s+)?([\w-]+(?:\s+[\w-]+){0,4})\b/i,
     /where\s+(?:does|is)\s+(?:the\s+)?([\w-]+(?:\s+[\w-]+){0,4})\s+(?:happen|occur|get\s+handled)\b/i,
+    /where\s+(?:do|does)\s+(?:the\s+)?([\w-]+(?:\s+[\w-]+){0,6})\s+live\b/i,
   ];
 
   for (const pattern of targetPatterns) {
@@ -149,6 +176,7 @@ export function extractReferencedFilePath(intent: string): string | undefined {
     new RegExp(`["'\`]((?:[A-Za-z]:[\\\\/])?(?:[A-Za-z0-9._@-]+[\\\\/])+[A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})["'\`]`, 'i'),
     new RegExp(`((?:[A-Za-z]:[\\\\/])?(?:[A-Za-z0-9._@-]+[\\\\/])+[A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})`, 'i'),
     new RegExp(`["'\`]([A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})["'\`]`, 'i'),
+    new RegExp(`\\b([A-Za-z0-9._@-]+\\.${FILE_PATH_EXTENSION_PATTERN})\\b`, 'i'),
   ];
 
   for (const pattern of patterns) {

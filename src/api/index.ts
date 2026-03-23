@@ -8,8 +8,6 @@ export {
   Librarian as LiBrainian,
   createLibrarian,
   createLibrarian as createLiBrainian,
-  createLibrarianSync,
-  createLibrarianSync as createLiBrainianSync,
 } from './librarian.js';
 export type { LibrarianConfig, LibrarianStatus, LibrarianDependencyOverrides } from './librarian.js';
 export type {
@@ -420,14 +418,8 @@ export {
   ClosedLoopLearner,
 } from './learning_loop.js';
 export {
-  TuringOracleClassifier,
-} from './self_aware_oracle.js';
-export {
   ProofCarryingRetriever,
 } from './proof_carrying_context.js';
-export {
-  CausalDiscoveryEngine,
-} from './causal_discovery.js';
 export {
   BiTemporalKnowledgeStore,
 } from './bi_temporal_knowledge.js';
@@ -787,25 +779,6 @@ export type {
   EnhancedExecutionResult,
   ContractMapping,
 } from './technique_contract_bridge.js';
-
-// Template Registry API
-export {
-  createTemplateRegistry,
-  getDefaultTemplateRegistry,
-  resetDefaultTemplateRegistry,
-  DOMAIN_TO_TEMPLATES,
-} from './template_registry.js';
-export type {
-  TemplateRegistry,
-  ConstructionTemplate,
-  IntentHints,
-  RankedTemplate,
-  TemplateInfo,
-  OutputEnvelopeSpec,
-  TemplateContext,
-  TemplateResult,
-  TemplateSelectionEvidence,
-} from './template_registry.js';
 
 // T2 DeltaMap Template API
 export {

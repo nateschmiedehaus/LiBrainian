@@ -1,6 +1,6 @@
 # Skill Audit Security Model
 
-`librarian audit-skill` evaluates `SKILL.md` content for high-risk behavior before installation.
+`librainian audit-skill` evaluates `SKILL.md` content for high-risk behavior before installation.
 
 ## Detection categories
 
@@ -31,8 +31,8 @@ Each indicator includes a SHA-256 hash and a typed pattern classification.
 ## CLI
 
 ```bash
-librarian audit-skill ./path/to/SKILL.md
-librarian audit-skill ./path/to/SKILL.md --json
+librainian audit-skill ./path/to/SKILL.md
+librainian audit-skill ./path/to/SKILL.md --json
 ```
 
 ## API helper

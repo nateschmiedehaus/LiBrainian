@@ -6,7 +6,7 @@
  *
  * IMPORTANT: This command invalidates context packs for target files and their
  * dependents BEFORE reindexing. If indexing fails, context packs may be lost.
- * Run `librarian bootstrap` to regenerate if needed.
+ * Run `librainian bootstrap` to regenerate if needed.
  *
  * Usage: librarian index <file...> [--workspace <path>]
  *
@@ -28,9 +28,11 @@ import {
   getGitStagedChanges,
   getGitStatusChanges,
   isGitRepo,
+  type GitDiffChanges,
   type GitRename,
 } from '../../utils/git.js';
 import { detectFunctionRenames } from '../../indexing/commit_level_ast_diff.js';
+import { getFileCategory, isExcluded } from '../../universal_patterns.js';
 
 export interface IndexCommandOptions {
   workspace?: string;
@@ -42,6 +44,44 @@ export interface IndexCommandOptions {
   since?: string;
   allowLockSkip?: boolean;
 }
+
+interface IndexSelection {
+  existingFiles: string[];
+  deletedFiles: string[];
+}
+
+const GIT_SELECTOR_EXCLUDED_DIRS = new Set([
+  '.git',
+  '.librarian',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  'state',
+  '.claude',
+  '.codex',
+]);
+
+const GIT_SELECTOR_EXCLUDED_EXTENSIONS = new Set([
+  '.cpuprofile',
+  '.tgz',
+  '.tar',
+  '.gz',
+  '.zip',
+]);
+
+const GIT_SELECTOR_EXTENSIONLESS_ALLOWLIST = [
+  /^dockerfile(?:\..+)?$/i,
+  /^makefile$/i,
+  /^readme$/i,
+  /^license$/i,
+  /^changelog$/i,
+  /^agents$/i,
+  /^claude$/i,
+  /^codex$/i,
+  /^memory$/i,
+  /^procfile$/i,
+];
 
 function isStorageLockError(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -65,10 +105,10 @@ function buildIndexFailureGuidance(
   finalStatus: { stats: { totalFunctions: number; totalModules: number } } | null,
 ): string {
   const normalized = errorMessage.toLowerCase();
-  let guidance = 'Run "librarian bootstrap" to recover and retry.';
+  let guidance = 'Run "librainian bootstrap" to recover and retry.';
 
   if (normalized.includes('providerunavailable') || normalized.includes('provider')) {
-    guidance = 'Check provider credentials/network, then retry. If needed, run "librarian check-providers".';
+    guidance = 'Check provider credentials/network, then retry. If needed, run "librainian check-providers".';
   } else if (normalized.includes('lock') || normalized.includes('sqlite_busy')) {
     guidance = 'Another process may hold the database lock; wait and retry.';
   } else if (normalized.includes('extract') || normalized.includes('parse')) {
@@ -78,7 +118,7 @@ function buildIndexFailureGuidance(
   if (finalStatus) {
     guidance += ` Context packs were invalidated; current totals: ${finalStatus.stats.totalFunctions} functions, ${finalStatus.stats.totalModules} modules.`;
   } else {
-    guidance += ' Database state may be unknown; run "librarian bootstrap" before continuing.';
+    guidance += ' Database state may be unknown; run "librainian bootstrap" before continuing.';
   }
 
   return guidance;
@@ -88,7 +128,9 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   const workspace = options.workspace || process.cwd();
   const verbose = options.verbose ?? false;
   const force = options.force ?? false;
-  let files = await resolveRequestedFiles(workspace, options);
+  let selection = await resolveRequestedFiles(workspace, options);
+  let files = selection.existingFiles;
+  let deletedFiles = selection.deletedFiles;
   const selectorMode = Boolean(options.incremental || options.staged || options.since);
   let updatePlan: UpdateCatchupPlan | null = null;
 
@@ -110,7 +152,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
       return;
     } else if (updatePlan.status === 'deletions_only') {
       console.warn(
-        `Update detected delete/rename-only drift (${shortSha(updatePlan.fromSha)}..${shortSha(updatePlan.toSha)}); run "librarian bootstrap" to refresh safely.`
+        `Update detected delete/rename-only drift (${shortSha(updatePlan.fromSha)}..${shortSha(updatePlan.toSha)}); run "librainian bootstrap" to refresh safely.`
       );
       return;
     } else if (verbose) {
@@ -118,14 +160,14 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     }
   }
 
-  if (selectorMode && files.length === 0) {
+  if (selectorMode && files.length === 0 && deletedFiles.length === 0) {
     if (verbose) {
       console.log('No candidate files selected by git selector. Index is already up to date.');
     }
     return;
   }
 
-  if (!files || files.length === 0) {
+  if ((!files || files.length === 0) && deletedFiles.length === 0) {
     throw new CliError(
       'No files specified. Usage: librarian index <file...>',
       'INVALID_ARGUMENT'
@@ -139,7 +181,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     throw new CliError(
       'CAUTION: Indexing invalidates context packs BEFORE reindexing.\n' +
       'If indexing fails, context packs for target files will be PERMANENTLY LOST.\n' +
-      'Recovery requires running `librarian bootstrap` to regenerate all context packs.\n\n' +
+      'Recovery requires running `librainian bootstrap` to regenerate all context packs.\n\n' +
       'To proceed, use the --force flag to acknowledge this risk:\n' +
       '  librarian index --force <file...>',
       'INVALID_ARGUMENT'
@@ -158,6 +200,9 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     console.log('Selection mode: explicit files');
   }
   console.log(`Files to index: ${files.length}\n`);
+  if (deletedFiles.length > 0) {
+    console.log(`Deleted files to retire: ${deletedFiles.length}\n`);
+  }
 
   // Resolve workspace to its real path for symlink protection
   let resolvedWorkspace: string;
@@ -213,7 +258,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     resolvedFiles.push(realPath);
   }
 
-  if (resolvedFiles.length === 0) {
+  if (resolvedFiles.length === 0 && deletedFiles.length === 0) {
     throw new CliError('No valid files to index', 'INVALID_ARGUMENT');
   }
 
@@ -249,7 +294,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     workspace,
     autoBootstrap: false,
     autoWatch: false,
-    disableLlmDiscovery: hookFriendlyUpdate,
+    disableLlmDiscovery: hookFriendlyUpdate || !hasLlmConfig,
     llmProvider: hasLlmConfig ? llmProvider : undefined,
     llmModelId: hasLlmConfig ? llmModelId : undefined,
   });
@@ -262,7 +307,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     if (options.allowLockSkip && isAdapterBootstrapError(errorMessage)) {
       console.warn(
         'LiBrainian update skipped (non-blocking:adapter_unavailable). ' +
-        'Run "librarian check-providers" and "librarian bootstrap" to restore full update behavior.',
+        'Run "librainian check-providers" and "librainian bootstrap" to restore full update behavior.',
       );
       if (verbose) {
         console.warn(`Details: ${errorMessage}`);
@@ -304,11 +349,11 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     const status = await librarian.getStatus();
     if (!status.bootstrapped) {
       if (options.allowLockSkip) {
-        console.warn('LiBrainian index is not bootstrapped; skipping update. Run "librarian bootstrap" to initialize.');
+        console.warn('LiBrainian index is not bootstrapped; skipping update. Run "librainian bootstrap" to initialize.');
         return;
       }
       throw new CliError(
-        'LiBrainian not bootstrapped. Run "librarian bootstrap" first.',
+        'LiBrainian not bootstrapped. Run "librainian bootstrap" first.',
         'NOT_BOOTSTRAPPED'
       );
     }
@@ -317,19 +362,26 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
 
     // Warn about data loss risk
     console.log('\n\u26A0\uFE0F  Note: Indexing invalidates context packs for target files.');
-    console.log('   If indexing fails, run `librarian bootstrap` to regenerate.\n');
+    console.log('   If indexing fails, run `librainian bootstrap` to regenerate.\n');
+
+    if (deletedFiles.length > 0) {
+      console.log('Retiring deleted files from index...\n');
+      await librarian.retireDeletedFiles(deletedFiles);
+    }
 
     console.log('Indexing files...\n');
     const startTime = Date.now();
 
     try {
-      await librarian.reindexFiles(resolvedFiles);
+      if (resolvedFiles.length > 0) {
+        await librarian.reindexFiles(resolvedFiles);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (options.allowLockSkip && isAdapterBootstrapError(errorMessage)) {
         console.warn(
           'LiBrainian update skipped (non-blocking:adapter_unavailable). ' +
-          'Run "librarian check-providers" and "librarian bootstrap" to restore full update behavior.',
+          'Run "librainian check-providers" and "librainian bootstrap" to restore full update behavior.',
         );
         if (verbose) {
           console.warn(`Details: ${errorMessage}`);
@@ -363,6 +415,9 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
     console.log('=== Index Complete ===\n');
     console.log(`Duration: ${(duration / 1000).toFixed(1)}s`);
     console.log(`Files indexed: ${resolvedFiles.length}`);
+    if (deletedFiles.length > 0) {
+      console.log(`Files retired: ${deletedFiles.length}`);
+    }
     if (verbose) {
       console.log(`Entities created: ${created}`);
       console.log(`Entities updated: ${updated}`);
@@ -384,7 +439,7 @@ export async function indexCommand(options: IndexCommandOptions): Promise<void> 
   }
 }
 
-async function resolveRequestedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {
+async function resolveRequestedFiles(workspace: string, options: IndexCommandOptions): Promise<IndexSelection> {
   const explicitFiles = options.files ?? [];
   const modeCount = [Boolean(options.incremental), Boolean(options.staged), Boolean(options.since)].filter(Boolean).length;
 
@@ -396,7 +451,7 @@ async function resolveRequestedFiles(workspace: string, options: IndexCommandOpt
   }
 
   if (modeCount === 0) {
-    return explicitFiles;
+    return { existingFiles: explicitFiles, deletedFiles: [] };
   }
 
   if (!isGitRepo(workspace)) {
@@ -407,26 +462,112 @@ async function resolveRequestedFiles(workspace: string, options: IndexCommandOpt
   }
 
   const fromGit = await resolveGitSelectedFiles(workspace, options);
-  return dedupeStrings([...explicitFiles, ...fromGit]);
+  return {
+    existingFiles: dedupeStrings([...explicitFiles, ...fromGit.existingFiles]),
+    deletedFiles: fromGit.deletedFiles,
+  };
 }
 
-async function resolveGitSelectedFiles(workspace: string, options: IndexCommandOptions): Promise<string[]> {
+async function resolveGitSelectedFiles(workspace: string, options: IndexCommandOptions): Promise<IndexSelection> {
   const changes = options.since
     ? await getGitDiffNames(workspace, options.since)
     : options.staged
       ? await getGitStagedChanges(workspace)
       : await getGitStatusChanges(workspace);
 
-  if (!changes) return [];
+  if (!changes) return { existingFiles: [], deletedFiles: [] };
   if (changes.deleted.length > 0) {
-    console.log(`WARNING: Skipping ${changes.deleted.length} deleted file(s).`);
+    console.log(`Detected ${changes.deleted.length} deleted file(s) to retire from the index.`);
   }
   const renamed = changes.renamed ?? [];
   if (options.since && renamed.length > 0) {
-    logCommitLevelRenameInsights(workspace, options.since, renamed, options.verbose === true);
+      logCommitLevelRenameInsights(workspace, options.since, renamed, options.verbose === true);
   }
 
-  return [...changes.added, ...changes.modified].map((file) => path.resolve(workspace, file));
+  return selectGitChangeCandidates(workspace, changes);
+}
+
+function selectGitChangeCandidates(workspace: string, changes: GitDiffChanges | null): IndexSelection {
+  if (!changes) {
+    return { existingFiles: [], deletedFiles: [] };
+  }
+
+  return {
+    existingFiles: dedupeStrings(
+      [...changes.added, ...changes.modified]
+        .filter((file) => isIndexableGitSelection(workspace, file))
+        .map((file) => path.resolve(workspace, file)),
+    ),
+    deletedFiles: dedupeStrings(
+      changes.deleted
+        .filter((file) => isRetirableGitSelection(file))
+        .map((file) => path.resolve(workspace, file)),
+    ),
+  };
+}
+
+export function isIndexableGitSelection(workspace: string, relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, '/').trim();
+  if (!isGitSelectionCandidate(normalized)) {
+    return false;
+  }
+
+  const absolutePath = path.resolve(workspace, normalized);
+  if (!fs.existsSync(absolutePath)) {
+    return false;
+  }
+
+  try {
+    if (!fs.statSync(absolutePath).isFile()) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
+export function isRetirableGitSelection(relativePath: string): boolean {
+  return isGitSelectionCandidate(relativePath.replace(/\\/g, '/').trim());
+}
+
+function isGitSelectionCandidate(normalized: string): boolean {
+  if (!normalized) return false;
+  if (normalized.endsWith('/')) {
+    return false;
+  }
+
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.some((part) => GIT_SELECTOR_EXCLUDED_DIRS.has(part))) {
+    return false;
+  }
+
+  const baseName = parts[parts.length - 1] ?? normalized;
+  const extension = path.extname(baseName).toLowerCase();
+  const allowlistedExtensionless = !extension
+    && GIT_SELECTOR_EXTENSIONLESS_ALLOWLIST.some((pattern) => pattern.test(baseName));
+  if (GIT_SELECTOR_EXCLUDED_EXTENSIONS.has(extension)) {
+    return false;
+  }
+
+  if (!extension && !allowlistedExtensionless) {
+    return false;
+  }
+
+  if (/^tmp($|[-_.])/i.test(baseName) && !extension) {
+    return false;
+  }
+
+  if (isExcluded(normalized)) {
+    return false;
+  }
+
+  if (getFileCategory(normalized) === 'unknown' && !allowlistedExtensionless) {
+    return false;
+  }
+
+  return true;
 }
 
 function logCommitLevelRenameInsights(
@@ -518,25 +659,24 @@ async function buildUpdateCatchupPlan(workspace: string): Promise<UpdateCatchupP
       return { status: 'none' };
     }
 
-    if (fromSha === toSha) {
-      await markWatchStateCaughtUpInternal(storage, workspace, toSha);
-      return { status: 'caught_up', fromSha, toSha };
-    }
-
-    const changes = await getGitDiffNames(workspace, fromSha);
-    const addedOrModified = changes
-      ? dedupeStrings([...changes.added, ...changes.modified].map((file) => path.resolve(workspace, file)))
-      : [];
+    const commitChanges = fromSha === toSha ? null : await getGitDiffNames(workspace, fromSha);
+    const statusChanges = await getGitStatusChanges(workspace);
+    const commitSelection = selectGitChangeCandidates(workspace, commitChanges);
+    const statusSelection = selectGitChangeCandidates(workspace, statusChanges);
+    const addedOrModified = dedupeStrings([
+      ...commitSelection.existingFiles,
+      ...statusSelection.existingFiles,
+    ]);
+    const deletedFiles = dedupeStrings([
+      ...commitSelection.deletedFiles,
+      ...statusSelection.deletedFiles,
+    ]);
 
     if (addedOrModified.length > 0) {
       return { status: 'reindex', files: addedOrModified, fromSha, toSha };
     }
 
-    const totalChangedFiles = changes
-      ? changes.added.length + changes.modified.length + changes.deleted.length + changes.renamed.length
-      : 0;
-
-    if (totalChangedFiles === 0) {
+    if (deletedFiles.length === 0) {
       await markWatchStateCaughtUpInternal(storage, workspace, toSha);
       return { status: 'caught_up', fromSha, toSha };
     }

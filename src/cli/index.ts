@@ -2,57 +2,9 @@
 /**
  * @fileoverview LiBrainian CLI - Developer Experience Interface
  *
- * Commands:
- *   librarian status              - Show current librarian status
- *   librarian stats               - Summarize cost/performance from evidence ledger
- *   librarian calibration         - Build confidence calibration dashboard from patrol runs
- *   librarian query <intent>      - Run a query against the knowledge base
- *   librarian context <topic>     - Get focused deep context on a topic (alias for query --depth L3)
- *   librarian briefing <path>     - Generate ambient module briefing with token-budget tiers
- *   librarian repo-map            - Generate a compact repo map ranked by symbol centrality
- *   librarian feedback <token>    - Submit outcome feedback for a prior query
- *   librarian bootstrap [--force] - Run bootstrap to initialize/refresh index
- *   librarian embed --fix          - Backfill semantic embeddings and repair coverage
- *   librarian uninstall           - Remove LiBrainian bootstrap artifacts
- *   librarian mcp                 - Start MCP stdio server / print client config
- *   librarian eject-docs          - Remove injected librarian docs from CLAUDE.md
- *   librarian generate-docs       - Generate TOOLS/CONTEXT/RULES prompt docs
- *   librarian index --force <...> - Incrementally index specific files or git-selected changes
- *   librarian inspect <module>    - Inspect a module's knowledge
- *   librarian confidence <entity> - Show confidence scores for an entity
- *   librarian validate <file>     - Validate constraints for a file
- *   librarian check-providers     - Check provider availability
- *   librarian audit-skill          - Audit SKILL.md files for malicious patterns
- *   librarian visualize           - Generate codebase visualizations
- *   librarian quickstart          - Smooth onboarding and recovery flow
- *   librarian setup               - Quickstart alias (setup-oriented naming)
- *   librarian init                - Scaffold templates or run quickstart/editor MCP onboarding
- *   librarian smoke               - Run external repo smoke harness
- *   librarian journey             - Run agentic journey simulations
- *   librarian live-fire           - Run continuous objective trial matrix
- *   librarian watch               - Watch for file changes and auto-reindex
- *   librarian scan --secrets      - Show secret redaction scan totals
- *   librarian contract            - Show system contract and provenance
- *   librarian diagnose            - Diagnose LiBrainian self-knowledge drift
- *   librarian health              - Show health status (EvolutionOps)
- *   librarian check               - Run diff-aware CI integrity checks
- *   librarian heal                - Run homeostatic healing loop
- *   librarian constructions       - Browse and validate registry constructions
- *   librarian analyze             - Run static analysis (dead code, complexity)
- *   librarian update              - Hook-friendly alias for incremental indexing
- *   librarian config heal         - Auto-detect and fix suboptimal config
- *   librarian doctor              - Run health diagnostics to identify issues
- *   librarian publish-gate        - Run strict publish-readiness gate checks
- *   librarian install-openclaw-skill - Install official OpenClaw skill + config wiring
- *   librarian openclaw-daemon     - Manage OpenClaw daemon registration + state
- *   librarian memory-bridge       - Show memory bridge annotation state
- *   librarian test-integration     - Run quantitative integration benchmark suites
- *   librarian benchmark           - Run local performance SLA diagnostics
- *   librarian privacy-report      - Summarize privacy-mode audit evidence
- *   librarian export              - Export portable .librarian index bundle
- *   librarian import              - Import portable .librarian index bundle
- *   librarian features            - Show dynamic feature registry and status
- *   librarian capabilities        - Emit machine-readable capability inventory
+ * The supported public command surface is derived from COMMANDS plus
+ * INTERNAL_COMMANDS below. Keep this header intentionally minimal so it does
+ * not drift from the gated release contract.
  *
  * @packageDocumentation
  */
@@ -60,54 +12,18 @@
 import { parseArgs } from 'node:util';
 import { showHelp } from './help.js';
 import { statusCommand } from './commands/status.js';
-import { statsCommand } from './commands/stats.js';
-import { calibrationCommand } from './commands/calibration.js';
 import { queryCommand } from './commands/query.js';
 import { contextCommand } from './commands/context.js';
-import { briefingCommand } from './commands/briefing.js';
 import { repoMapCommand } from './commands/repo_map.js';
-import { feedbackCommand } from './commands/feedback.js';
 import { bootstrapCommand } from './commands/bootstrap.js';
 import { embedCommand } from './commands/embed.js';
 import { uninstallCommand } from './commands/uninstall.js';
 import { mcpCommand } from './commands/mcp.js';
-import { ejectDocsCommand } from './commands/eject_docs.js';
-import { inspectCommand } from './commands/inspect.js';
-import { confidenceCommand } from './commands/confidence.js';
-import { validateCommand } from './commands/validate.js';
 import { checkProvidersCommand } from './commands/check_providers.js';
-import { auditSkillCommand } from './commands/audit_skill.js';
-import { visualizeCommand } from './commands/visualize.js';
-import { coverageCommand } from './commands/coverage.js';
 import { quickstartCommand } from './commands/quickstart.js';
 import { initCommand } from './commands/init.js';
-import { smokeCommand } from './commands/smoke.js';
-import { journeyCommand } from './commands/journey.js';
-import { liveFireCommand } from './commands/live_fire.js';
-import { healthCommand } from './commands/health.js';
-import { checkCommand } from './commands/check.js';
-import { checkCompletenessCommand } from './commands/check_completeness.js';
-import { healCommand } from './commands/heal.js';
-import { watchCommand } from './commands/watch.js';
 import { indexCommand } from './commands/index.js';
-import { scanCommand } from './commands/scan.js';
-import { triageCommand } from './commands/triage.js';
-import { contractCommand } from './commands/contract.js';
-import { diagnoseCommand } from './commands/diagnose.js';
-import { composeCommand } from './commands/compose.js';
-import { constructionsCommand } from './commands/constructions.js';
-import { analyzeCommand } from './commands/analyze.js';
-import { configHealCommand } from './commands/config_heal.js';
 import { doctorCommand } from './commands/doctor.js';
-import { publishGateCommand } from './commands/publish_gate.js';
-import { externalReposCommand } from './commands/external_repos.js';
-import { installOpenclawSkillCommand } from './commands/install_openclaw_skill.js';
-import { openclawDaemonCommand } from './commands/openclaw_daemon.js';
-import { memoryBridgeCommand } from './commands/memory_bridge.js';
-import { testIntegrationCommand } from './commands/test_integration.js';
-import { benchmarkCommand } from './commands/benchmark.js';
-import { generateDocsCommand } from './commands/generate_docs.js';
-import { privacyReportCommand } from './commands/privacy_report.js';
 import { exportIndexStateCommand, importIndexStateCommand } from './commands/index_state_bundle.js';
 import { featuresCommand } from './commands/features.js';
 import { capabilitiesCommand } from './commands/capabilities.js';
@@ -125,7 +41,62 @@ import {
   type ErrorEnvelope,
 } from './errors.js';
 
-type Command = 'status' | 'stats' | 'calibration' | 'query' | 'context' | 'briefing' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'external-repos' | 'install-openclaw-skill' | 'openclaw-daemon' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+type Command = 'status' | 'stats' | 'calibration' | 'query' | 'context' | 'briefing' | 'repo-map' | 'feedback' | 'bootstrap' | 'embed' | 'uninstall' | 'mcp' | 'eject-docs' | 'generate-docs' | 'inspect' | 'confidence' | 'validate' | 'check-providers' | 'audit-skill' | 'visualize' | 'coverage' | 'quickstart' | 'setup' | 'init' | 'smoke' | 'journey' | 'live-fire' | 'health' | 'check' | 'heal' | 'watch' | 'index' | 'update' | 'scan' | 'triage' | 'contract' | 'diagnose' | 'compose' | 'constructions' | 'analyze' | 'config' | 'doctor' | 'publish-gate' | 'external-repos' | 'memory-bridge' | 'test-integration' | 'benchmark' | 'privacy-report' | 'export' | 'import' | 'features' | 'capabilities' | 'help';
+
+const INTERNAL_COMMANDS = new Set<Command>([
+  'stats',
+  'calibration',
+  'briefing',
+  'feedback',
+  'eject-docs',
+  'generate-docs',
+  'inspect',
+  'confidence',
+  'validate',
+  'audit-skill',
+  'visualize',
+  'coverage',
+  'smoke',
+  'journey',
+  'live-fire',
+  'health',
+  'check',
+  'heal',
+  'watch',
+  'update',
+  'scan',
+  'triage',
+  'contract',
+  'diagnose',
+  'compose',
+  'constructions',
+  'analyze',
+  'config',
+  'publish-gate',
+  'external-repos',
+  'memory-bridge',
+  'test-integration',
+  'benchmark',
+  'privacy-report',
+]);
+
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
+function isCommandPubliclyAvailable(command: Command): boolean {
+  return !INTERNAL_COMMANDS.has(command) || internalCommandsEnabled();
+}
+
+function getPublicCommandNames(): Command[] {
+  return (Object.keys(COMMANDS) as Command[]).filter((command) => isCommandPubliclyAvailable(command));
+}
+
+function hasInitScaffoldingFlags(rawArgs: string[]): boolean {
+  return rawArgs.includes('--construction')
+    || rawArgs.includes('--mcp-config')
+    || rawArgs.includes('--claude-md');
+}
 
 /**
  * Check if --json flag is present in arguments
@@ -149,224 +120,216 @@ function outputStructuredError(envelope: ErrorEnvelope, useJson: boolean, debug:
 
 const COMMANDS: Record<Command, { description: string; usage: string }> = {
   'status': {
-    description: 'Show current librarian status',
-    usage: 'librarian status [--verbose] [--format text|json] [--out <path>] [--costs] [--cost-budget-usd <n>] [--cost-window-days <n>] [--cost-limit <n>] [--workspace-set <path>]',
+    description: 'Show current librainian status',
+    usage: 'librainian status [--verbose] [--format text|json] [--out <path>] [--costs] [--cost-budget-usd <n>] [--cost-window-days <n>] [--cost-limit <n>] [--workspace-set <path>]',
   },
   'stats': {
     description: 'Summarize tool-call cost and performance from evidence ledger',
-    usage: 'librarian stats [--days N] [--limit N] [--json]',
+    usage: 'librainian stats [--days N] [--limit N] [--json]',
   },
   'calibration': {
     description: 'Build confidence calibration dashboard from patrol run artifacts',
-    usage: 'librarian calibration [--patrol-dir <path>] [--bucket-count N] [--min-samples N] [--json]',
+    usage: 'librainian calibration [--patrol-dir <path>] [--bucket-count N] [--min-samples N] [--json]',
   },
   'query': {
     description: 'Run a query against the knowledge base',
-    usage: 'librarian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librainian query "<intent>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--diversify] [--diversity-lambda <0-1>] [--session new|<id>] [--drill-down <entity>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'context': {
     description: 'Get focused deep context on a topic (alias for query --depth L3)',
-    usage: 'librarian context "<topic>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--json] [--out <path>] [--no-bootstrap]',
+    usage: 'librainian context "<topic>" [--depth L0|L1|L2|L3] [--files <paths>] [--scope <path>] [--json] [--out <path>] [--no-bootstrap]',
   },
   'briefing': {
     description: 'Generate ambient briefing for a file/module path',
-    usage: 'librarian briefing <path> [--tier micro|standard|deep] [--max-tokens <n>] [--json]',
+    usage: 'librainian briefing <path> [--tier micro|standard|deep] [--max-tokens <n>] [--json]',
   },
   'repo-map': {
     description: 'Generate a compact codebase map ranked by function centrality',
-    usage: 'librarian repo-map [--style compact|detailed|json] [--max-tokens N] [--focus pathA,pathB] [--json]',
+    usage: 'librainian repo-map [--style compact|detailed|json] [--max-tokens N] [--focus pathA,pathB] [--json]',
   },
   'feedback': {
     description: 'Submit task outcome feedback for a prior query',
-    usage: 'librarian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
+    usage: 'librainian feedback <feedbackToken> --outcome success|failure|partial [--missing-context "..."] [--json]',
   },
   'bootstrap': {
     description: 'Initialize or refresh the knowledge index',
-    usage: 'librarian bootstrap [--force] [--force-resume] [--workspace-set <path>] [--emit-baseline] [--install-grammars] [--no-claude-md]',
+    usage: 'librainian bootstrap [--force] [--force-resume] [--workspace-set <path>] [--emit-baseline] [--install-grammars]',
   },
   'embed': {
     description: 'Repair and backfill semantic embeddings',
-    usage: 'librarian embed --fix [--json]',
+    usage: 'librainian embed --fix [--json]',
   },
   'uninstall': {
     description: 'Remove LiBrainian-managed bootstrap artifacts',
-    usage: 'librarian uninstall [--dry-run] [--keep-index] [--force] [--json] [--no-install]',
+    usage: 'librainian uninstall [--dry-run] [--keep-index] [--force] [--json] [--no-install]',
   },
   'mcp': {
     description: 'Start MCP stdio server or print client config snippets',
-    usage: 'librarian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
+    usage: 'librainian mcp [--print-config] [--client claude|cursor|vscode|windsurf|gemini] [--launcher installed|npx] [--json]',
   },
   'eject-docs': {
-    description: 'Remove injected librarian docs from CLAUDE.md files',
-    usage: 'librarian eject-docs [--dry-run] [--json]',
+    description: 'Remove injected librainian docs from CLAUDE.md files',
+    usage: 'librainian eject-docs [--dry-run] [--json]',
   },
   'generate-docs': {
     description: 'Generate TOOLS/CONTEXT/RULES prompt docs for agent injection',
-    usage: 'librarian generate-docs [--output-dir <path>] [--include tools,context,rules] [--no-tools] [--no-context] [--no-rules] [--max-tokens <n>] [--combined] [--json]',
+    usage: 'librainian generate-docs [--output-dir <path>] [--include tools,context,rules] [--no-tools] [--no-context] [--no-rules] [--max-tokens <n>] [--combined] [--json]',
   },
   'inspect': {
     description: 'Inspect a module or function\'s knowledge',
-    usage: 'librarian inspect <path-or-name>',
+    usage: 'librainian inspect <path-or-name>',
   },
   'confidence': {
     description: 'Show confidence scores for an entity',
-    usage: 'librarian confidence <entity-id>',
+    usage: 'librainian confidence <entity-id>',
   },
   'validate': {
     description: 'Validate constraints for a file',
-    usage: 'librarian validate <file-path>',
+    usage: 'librainian validate <file-path>',
   },
   'check-providers': {
     description: 'Check provider availability and authentication',
-    usage: 'librarian check-providers [--format text|json] [--out <path>] [--force-probe]',
+    usage: 'librainian check-providers [--format text|json] [--out <path>] [--force-probe]',
   },
   'audit-skill': {
     description: 'Audit a SKILL.md for malicious or suspicious patterns',
-    usage: 'librarian audit-skill <path-to-SKILL.md> [--json]',
+    usage: 'librainian audit-skill <path-to-SKILL.md> [--json]',
   },
   'visualize': {
     description: 'Generate codebase visualizations',
-    usage: 'librarian visualize [--type dependency|call|tree|health] [--format ascii|mermaid] [--focus <path>]',
+    usage: 'librainian visualize [--type dependency|call|tree|health] [--format ascii|mermaid] [--focus <path>]',
   },
   'coverage': {
     description: 'Generate UC x method x scenario coverage audit',
-    usage: 'librarian coverage [--output <path>] [--strict]',
+    usage: 'librainian coverage [--output <path>] [--strict]',
   },
   'quickstart': {
     description: 'Smooth onboarding and recovery flow',
-    usage: 'librarian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
+    usage: 'librainian quickstart [--mode fast|full|--depth quick|full] [--risk-tolerance safe|low|medium] [--force] [--skip-baseline] [--ci] [--no-mcp]',
   },
   'setup': {
     description: 'Setup-oriented alias for quickstart onboarding',
-    usage: 'librarian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
+    usage: 'librainian setup [--depth quick|full] [--ci] [--no-mcp] [--mode fast|full]',
   },
   'init': {
-    description: 'Scaffold constructions/MCP/CLAUDE.md or run quickstart onboarding fallback',
-    usage: 'librarian init [--construction <name>] [--mcp-config] [--claude-md] [--force] [--json] | [quickstart options]',
+    description: 'Alias for quickstart onboarding',
+    usage: 'librainian init [quickstart options]',
   },
   'smoke': {
     description: 'Run external repo smoke harness',
-    usage: 'librarian smoke [--repos-root <path>] [--max-repos N] [--repo a,b] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+    usage: 'librainian smoke [--repos-root <path>] [--max-repos N] [--repo a,b] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
   },
   'journey': {
     description: 'Run agentic journey simulations',
-    usage: 'librarian journey [--repos-root <path>] [--max-repos N] [--llm disabled|optional] [--deterministic] [--strict-objective] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
+    usage: 'librainian journey [--repos-root <path>] [--max-repos N] [--llm disabled|optional] [--deterministic] [--strict-objective] [--timeout-ms N] [--artifacts-dir <path>] [--json]',
   },
   'live-fire': {
     description: 'Run continuous objective trial matrix',
-    usage: 'librarian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
+    usage: 'librainian live-fire [--profile <name>|--profiles <a,b>] [--matrix] [--profiles-file <path>] [--repos-root <path>] [--rounds N] [--llm-modes disabled,optional] [--strict-objective] [--include-smoke] [--json]',
   },
   'health': {
     description: 'Show current LiBrainian health status',
-    usage: 'librarian health [--verbose] [--completeness] [--format text|json|prometheus]',
+    usage: 'librainian health [--verbose] [--completeness] [--format text|json|prometheus]',
   },
   'check': {
     description: 'Run diff-aware CI integrity checks',
-    usage: 'librarian check [--diff HEAD~1..HEAD|<base-ref>|working-tree] [--format text|json|junit] [--out <path>]',
+    usage: 'librainian check [--diff HEAD~1..HEAD|<base-ref>|working-tree] [--format text|json|junit] [--out <path>]',
   },
   'heal': {
     description: 'Run homeostatic healing loop until healthy',
-    usage: 'librarian heal [--max-cycles N] [--budget-tokens N] [--dry-run]',
+    usage: 'librainian heal [--max-cycles N] [--budget-tokens N] [--dry-run]',
   },
   'watch': {
     description: 'Watch for file changes and auto-reindex',
-    usage: 'librarian watch [--debounce <ms>] [--quiet]',
+    usage: 'librainian watch [--debounce <ms>] [--quiet]',
   },
   'contract': {
     description: 'Show system contract and provenance',
-    usage: 'librarian contract [--pretty]',
+    usage: 'librainian contract [--pretty]',
   },
   'diagnose': {
     description: 'Diagnose LiBrainian self-knowledge drift',
-    usage: 'librarian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
+    usage: 'librainian diagnose [--pretty] [--config] [--heal] [--risk-tolerance safe|low|medium]',
   },
   'compose': {
     description: 'Compose construction pipelines or technique bundles from intent',
-    usage: 'librarian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty] [--timeout <ms>] [--verbose]',
+    usage: 'librainian compose "<intent>" [--mode constructions|techniques] [--limit N] [--include-primitives] [--pretty] [--timeout <ms>] [--verbose]',
   },
   'constructions': {
     description: 'List/search/describe/install/run/validate constructions',
-    usage: 'librarian constructions list|search|describe|install|run|validate [options]',
+    usage: 'librainian constructions list|search|describe|install|run|validate [options]',
   },
   'index': {
     description: 'Incrementally index specific files (no full bootstrap)',
-    usage: 'librarian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
+    usage: 'librainian index --force <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'scan': {
     description: 'Scan/redaction audit reporting for sensitive content',
-    usage: 'librarian scan --secrets [--json|--format text|json]',
+    usage: 'librainian scan --secrets [--json|--format text|json]',
   },
   'triage': {
     description: 'Assess and cluster dirty worktree state with safe recovery strategies',
-    usage: 'librarian triage [--threshold N] [--json] [--auto|--stash|--revert --confirm]',
+    usage: 'librainian triage [--threshold N] [--json] [--auto|--stash|--revert --confirm]',
   },
   'update': {
     description: 'Hook-friendly alias for incremental indexing (implies --force)',
-    usage: 'librarian update <file...>|--incremental|--staged|--since <ref> [--verbose]',
+    usage: 'librainian update <file...>|--incremental|--staged|--since <ref> [--verbose]',
   },
   'analyze': {
     description: 'Run static analysis (dead code, complexity)',
-    usage: 'librarian analyze --dead-code | --complexity [--format text|json]',
+    usage: 'librainian analyze --dead-code | --complexity [--format text|json]',
   },
   'config': {
     description: 'Configuration management (heal, diagnose)',
-    usage: 'librarian config heal [--dry-run] [--diagnose-only] [--rollback] [--history]',
+    usage: 'librainian config heal [--dry-run] [--diagnose-only] [--rollback] [--history]',
   },
   'doctor': {
     description: 'Run health diagnostics to identify issues',
-    usage: 'librarian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency] [--install-grammars] [--risk-tolerance safe|low|medium]',
+    usage: 'librainian doctor [--verbose] [--json] [--heal] [--fix] [--check-consistency] [--install-grammars] [--risk-tolerance safe|low|medium]',
   },
   'publish-gate': {
     description: 'Run strict publish-readiness gate checks',
-    usage: 'librarian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
+    usage: 'librainian publish-gate [--profile broad|release] [--gates-file <path>] [--status-file <path>] [--json]',
   },
   'external-repos': {
     description: 'Sync external repo corpus from manifest.json',
-    usage: 'librarian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
-  },
-  'install-openclaw-skill': {
-    description: 'Install official OpenClaw skill and register LiBrainian tool wiring',
-    usage: 'librarian install-openclaw-skill [--openclaw-root <path>] [--dry-run] [--json]',
-  },
-  'openclaw-daemon': {
-    description: 'Start/stop/status for OpenClaw daemon registration and local state',
-    usage: 'librarian openclaw-daemon <start|status|stop> [--openclaw-root <path>] [--state-root <path>] [--json]',
+    usage: 'librainian external-repos sync [--repos-root <path>] [--max-repos N] [--json] [--verify]',
   },
   'memory-bridge': {
     description: 'Show memory bridge entry and state-file health',
-    usage: 'librarian memory-bridge status|remember|add|search|update|delete [options]',
+    usage: 'librainian memory-bridge status|remember|add|search|update|delete [options]',
   },
   'test-integration': {
     description: 'Run quantitative integration test suites (currently OpenClaw)',
-    usage: 'librarian test-integration --suite openclaw [--scenario all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration] [--fixtures-root <path>] [--strict] [--json]',
+    usage: 'librainian test-integration --suite openclaw [--scenario all|cold-start|staleness|navigation|budget-gate|skill-audit|calibration] [--fixtures-root <path>] [--strict] [--json]',
   },
   'benchmark': {
     description: 'Run local performance SLA diagnostics',
-    usage: 'librarian benchmark [--queries N] [--incremental-files N] [--json] [--out <path>] [--fail-on never|alert|block]',
+    usage: 'librainian benchmark [--queries N] [--incremental-files N] [--json] [--out <path>] [--fail-on never|alert|block]',
   },
   'privacy-report': {
     description: 'Summarize privacy-audit events and external content transmission',
-    usage: 'librarian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
+    usage: 'librainian privacy-report [--since <ISO-8601>] [--format text|json] [--out <path>]',
   },
   'export': {
-    description: 'Export portable .librarian index state bundle',
-    usage: 'librarian export [--output <bundle.tar.gz>] [--json] [--out <path>]',
+    description: 'Export portable .librainian index state bundle',
+    usage: 'librainian export [--output <bundle.tar.gz>] [--json] [--out <path>]',
   },
   'import': {
-    description: 'Import portable .librarian index state bundle',
-    usage: 'librarian import --input <bundle.tar.gz> [--json] [--out <path>]',
+    description: 'Import portable .librainian index state bundle',
+    usage: 'librainian import --input <bundle.tar.gz> [--json] [--out <path>]',
   },
   'features': {
     description: 'List dynamic LiBrainian feature registry and current status',
-    usage: 'librarian features [--json] [--verbose] [--out <path>]',
+    usage: 'librainian features [--json] [--verbose] [--out <path>]',
   },
   'capabilities': {
-    description: 'Emit machine-readable capability inventory (MCP tools, constructions, compositions)',
-    usage: 'librarian capabilities [--json] [--out <path>]',
+    description: 'Emit machine-readable capability inventory for the public MCP surface',
+    usage: 'librainian capabilities [--json] [--out <path>]',
   },
   'help': {
     description: 'Show help information',
-    usage: 'librarian help [command]',
+    usage: 'librainian help [command]',
   },
 };
 
@@ -396,8 +359,8 @@ async function main(): Promise<void> {
   });
 
   if (values.version) {
-    const { LIBRARIAN_VERSION } = await import('../index.js');
-    console.log(`librarian ${LIBRARIAN_VERSION.string}`);
+    const { LIBRAINIAN_PACKAGE_VERSION } = await import('../index.js');
+    console.log(`librainian ${LIBRAINIAN_PACKAGE_VERSION}`);
     return;
   }
 
@@ -414,7 +377,9 @@ async function main(): Promise<void> {
   }
 
   if (values.help || !command || command === 'help') {
-    const helpCommand = command === 'help' ? commandArgs[0] : undefined;
+    const helpCommand = command === 'help'
+      ? commandArgs[0]
+      : (values.help && command && command in COMMANDS ? command : undefined);
     showHelp(helpCommand);
     return;
   }
@@ -442,16 +407,36 @@ async function main(): Promise<void> {
   const workspace = resolved.workspace;
   commandArgs = resolved.commandArgs;
 
-  if (!(command in COMMANDS)) {
+  if (!(command in COMMANDS) || !isCommandPubliclyAvailable(command)) {
     const envelope = createErrorEnvelope(
       'EINVALID_ARGUMENT',
-      `Unknown command: ${command}`,
+      !(command in COMMANDS)
+        ? `Unknown command: ${command}`
+        : `Command unavailable in the public release surface: ${command}`,
       {
         recoveryHints: [
-          `Run 'librarian help' for usage information`,
-          `Available commands: ${Object.keys(COMMANDS).join(', ')}`,
+          `Run 'librainian help' for usage information`,
+          `Available commands: ${getPublicCommandNames().join(', ')}`,
+          ...(command in COMMANDS ? ['Maintainers can re-enable hidden commands with LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1.'] : []),
         ],
         context: { command },
+      },
+    );
+    outputStructuredError(envelope, jsonMode, debug);
+    process.exitCode = getExitCode(envelope);
+    return;
+  }
+
+  if (command === 'init' && hasInitScaffoldingFlags(args) && !internalCommandsEnabled()) {
+    const envelope = createErrorEnvelope(
+      'EINVALID_ARGUMENT',
+      'Init scaffolding flags are unavailable in the public release surface.',
+      {
+        recoveryHints: [
+          'Run `librainian init` or `librainian quickstart` for the supported public onboarding flow.',
+          'Maintainers can re-enable init scaffolding with LIBRAINIAN_ENABLE_INTERNAL_COMMANDS=1.',
+        ],
+        context: { command, flags: args.filter((arg) => arg.startsWith('--')) },
       },
     );
     outputStructuredError(envelope, jsonMode, debug);
@@ -471,10 +456,16 @@ async function main(): Promise<void> {
         });
         break;
       case 'stats':
-        await statsCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { statsCommand } = await import('./commands/stats.js');
+          await statsCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'calibration':
-        await calibrationCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { calibrationCommand } = await import('./commands/calibration.js');
+          await calibrationCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
 
       case 'query':
@@ -484,14 +475,20 @@ async function main(): Promise<void> {
         await contextCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'briefing':
-        await briefingCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { briefingCommand } = await import('./commands/briefing.js');
+          await briefingCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'repo-map':
         await repoMapCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
 
       case 'feedback':
-        await feedbackCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { feedbackCommand } = await import('./commands/feedback.js');
+          await feedbackCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
 
       case 'bootstrap':
@@ -507,22 +504,37 @@ async function main(): Promise<void> {
         await mcpCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'eject-docs':
-        await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { ejectDocsCommand } = await import('./commands/eject_docs.js');
+          await ejectDocsCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'generate-docs':
-        await generateDocsCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { generateDocsCommand } = await import('./commands/generate_docs.js');
+          await generateDocsCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
 
       case 'inspect':
-        await inspectCommand({ workspace, args: commandArgs });
+        {
+          const { inspectCommand } = await import('./commands/inspect.js');
+          await inspectCommand({ workspace, args: commandArgs });
+        }
         break;
 
       case 'confidence':
-        await confidenceCommand({ workspace, args: commandArgs });
+        {
+          const { confidenceCommand } = await import('./commands/confidence.js');
+          await confidenceCommand({ workspace, args: commandArgs });
+        }
         break;
 
       case 'validate':
-        await validateCommand({ workspace, args: commandArgs });
+        {
+          const { validateCommand } = await import('./commands/validate.js');
+          await validateCommand({ workspace, args: commandArgs });
+        }
         break;
 
       case 'check-providers':
@@ -534,14 +546,23 @@ async function main(): Promise<void> {
         });
         break;
       case 'audit-skill':
-        await auditSkillCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { auditSkillCommand } = await import('./commands/audit_skill.js');
+          await auditSkillCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
 
       case 'visualize':
-        await visualizeCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { visualizeCommand } = await import('./commands/visualize.js');
+          await visualizeCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'coverage':
-        await coverageCommand({ workspace, args: commandArgs });
+        {
+          const { coverageCommand } = await import('./commands/coverage.js');
+          await coverageCommand({ workspace, args: commandArgs });
+        }
         break;
       case 'quickstart':
       case 'setup':
@@ -551,30 +572,44 @@ async function main(): Promise<void> {
         await initCommand({ workspace, args: commandArgs, rawArgs: args });
         break;
       case 'smoke':
-        await smokeCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { smokeCommand } = await import('./commands/smoke.js');
+          await smokeCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'journey':
-        await journeyCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { journeyCommand } = await import('./commands/journey.js');
+          await journeyCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'live-fire':
-        await liveFireCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { liveFireCommand } = await import('./commands/live_fire.js');
+          await liveFireCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'health':
-        await healthCommand({
-          workspace,
-          verbose,
-          format: getFormatArg(args) as 'text' | 'json' | 'prometheus',
-          completeness: args.includes('--completeness'),
-        });
+        {
+          const { healthCommand } = await import('./commands/health.js');
+          await healthCommand({
+            workspace,
+            verbose,
+            format: getFormatArg(args) as 'text' | 'json' | 'prometheus',
+            completeness: args.includes('--completeness'),
+          });
+        }
         break;
       case 'check':
         if ((commandArgs[0] ?? '').toLowerCase() === 'completeness') {
+          const { checkCompletenessCommand } = await import('./commands/check_completeness.js');
           process.exitCode = await checkCompletenessCommand({
             workspace,
             args: commandArgs.slice(1),
             rawArgs: args,
           });
         } else {
+          const { checkCommand } = await import('./commands/check.js');
           process.exitCode = await checkCommand({
             workspace,
             args: commandArgs,
@@ -583,29 +618,39 @@ async function main(): Promise<void> {
         }
         break;
       case 'heal':
-        await healCommand({
-          workspace,
-          verbose,
-          maxCycles: getNumericArg(args, '--max-cycles'),
-          budgetTokens: getNumericArg(args, '--budget-tokens'),
-          dryRun: args.includes('--dry-run'),
-        });
+        {
+          const { healCommand } = await import('./commands/heal.js');
+          await healCommand({
+            workspace,
+            verbose,
+            maxCycles: getNumericArg(args, '--max-cycles'),
+            budgetTokens: getNumericArg(args, '--budget-tokens'),
+            dryRun: args.includes('--dry-run'),
+          });
+        }
         break;
       case 'watch':
-        await watchCommand({
-          workspace,
-          debounceMs: getNumericArg(args, '--debounce'),
-          quiet: args.includes('--quiet'),
-        });
+        {
+          const { watchCommand } = await import('./commands/watch.js');
+          await watchCommand({
+            workspace,
+            debounceMs: getNumericArg(args, '--debounce'),
+            quiet: args.includes('--quiet'),
+          });
+        }
         break;
       case 'contract':
-        await contractCommand({
-          workspace,
-          pretty: args.includes('--pretty'),
-        });
+        {
+          const { contractCommand } = await import('./commands/contract.js');
+          await contractCommand({
+            workspace,
+            pretty: args.includes('--pretty'),
+          });
+        }
         break;
       case 'diagnose':
         {
+          const { diagnoseCommand } = await import('./commands/diagnose.js');
           const riskToleranceRaw = getStringArg(args, '--risk-tolerance');
           const riskTolerance = (riskToleranceRaw === 'safe' || riskToleranceRaw === 'low' || riskToleranceRaw === 'medium')
             ? riskToleranceRaw
@@ -621,18 +666,24 @@ async function main(): Promise<void> {
         }
         break;
       case 'compose':
-        await composeCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        {
+          const { composeCommand } = await import('./commands/compose.js');
+          await composeCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'constructions':
-        await constructionsCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        {
+          const { constructionsCommand } = await import('./commands/constructions.js');
+          await constructionsCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'index':
       case 'update':
@@ -661,29 +712,39 @@ async function main(): Promise<void> {
         }
         break;
       case 'scan':
-        await scanCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        {
+          const { scanCommand } = await import('./commands/scan.js');
+          await scanCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'triage':
-        await triageCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        {
+          const { triageCommand } = await import('./commands/triage.js');
+          await triageCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'analyze':
-        await analyzeCommand({
-          workspace,
-          args: commandArgs,
-          rawArgs: args,
-        });
+        {
+          const { analyzeCommand } = await import('./commands/analyze.js');
+          await analyzeCommand({
+            workspace,
+            args: commandArgs,
+            rawArgs: args,
+          });
+        }
         break;
       case 'config':
         // Sub-command handling for config
         if (commandArgs[0] === 'heal') {
+          const { configHealCommand } = await import('./commands/config_heal.js');
           await configHealCommand({
             workspace,
             dryRun: args.includes('--dry-run'),
@@ -695,7 +756,7 @@ async function main(): Promise<void> {
             showHistory: args.includes('--history'),
           });
         } else {
-          throw new CliError('Unknown config subcommand. Use: librarian config heal.', 'INVALID_ARGUMENT');
+          throw new CliError('Unknown config subcommand. Use: librainian config heal.', 'INVALID_ARGUMENT');
         }
         break;
 		      case 'doctor':
@@ -718,33 +779,45 @@ async function main(): Promise<void> {
 		        }
 	        break;
       case 'publish-gate':
-        await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { publishGateCommand } = await import('./commands/publish_gate.js');
+          await publishGateCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
 	      case 'external-repos':
-	        await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
+	        {
+	          const { externalReposCommand } = await import('./commands/external_repos.js');
+	          await externalReposCommand({ workspace, args: commandArgs, rawArgs: args });
+	        }
 	        break;
-      case 'install-openclaw-skill':
-        await installOpenclawSkillCommand({ workspace, args: commandArgs, rawArgs: args });
-        break;
-      case 'openclaw-daemon':
-        await openclawDaemonCommand({ workspace, args: commandArgs, rawArgs: args });
-        break;
       case 'memory-bridge':
-        await memoryBridgeCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { memoryBridgeCommand } = await import('./commands/memory_bridge.js');
+          await memoryBridgeCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'test-integration':
-        await testIntegrationCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { testIntegrationCommand } = await import('./commands/test_integration.js');
+          await testIntegrationCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'benchmark':
-        await benchmarkCommand({ workspace, args: commandArgs, rawArgs: args });
+        {
+          const { benchmarkCommand } = await import('./commands/benchmark.js');
+          await benchmarkCommand({ workspace, args: commandArgs, rawArgs: args });
+        }
         break;
       case 'privacy-report':
-        process.exitCode = await privacyReportCommand({
-          workspace,
-          since: getStringArg(args, '--since') ?? undefined,
-          format: defaultFormat as 'text' | 'json',
-          out: getStringArg(args, '--out') ?? undefined,
-        });
+        {
+          const { privacyReportCommand } = await import('./commands/privacy_report.js');
+          process.exitCode = await privacyReportCommand({
+            workspace,
+            since: getStringArg(args, '--since') ?? undefined,
+            format: defaultFormat as 'text' | 'json',
+            out: getStringArg(args, '--out') ?? undefined,
+          });
+        }
         break;
       case 'export':
         await exportIndexStateCommand({ workspace, args: commandArgs, rawArgs: args });

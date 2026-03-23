@@ -45,6 +45,7 @@ describe('quickstartCommand', () => {
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
+    delete process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS;
     delete process.env.LIBRARIAN_DISABLE_WORKSPACE_AUTODETECT;
     if (originalHome === undefined) {
       delete process.env.HOME;
@@ -60,7 +61,7 @@ describe('quickstartCommand', () => {
       workspace: resolvedWorkspace,
       dbPath,
       autoHealConfig: true,
-      allowDegradedEmbeddings: true,
+      allowDegradedEmbeddings: false,
       bootstrapMode: 'fast',
       emitBaseline: true,
       updateAgentDocs: false,
@@ -70,6 +71,7 @@ describe('quickstartCommand', () => {
   });
 
   it('respects explicit flags', async () => {
+    process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS = '1';
     await quickstartCommand({
       workspace,
       args: [],
@@ -90,6 +92,14 @@ describe('quickstartCommand', () => {
     expect(payload).toBeTruthy();
     const parsed = JSON.parse(payload!);
     expect(parsed.status).toBeTruthy();
+  });
+
+  it('blocks agent-doc mutation flags on the public release surface', async () => {
+    await expect(quickstartCommand({
+      workspace,
+      args: [],
+      rawArgs: ['quickstart', '--update-agent-docs'],
+    })).rejects.toThrow(/public release surface/);
   });
 
   it('supports setup-compatible depth/ci/no-mcp flags', async () => {
@@ -179,6 +189,7 @@ describe('quickstartCommand', () => {
     expect(payload).toBeTruthy();
     const parsed = JSON.parse(payload!);
     expect(parsed.warnings).toContain('Semantic search unavailable - no embeddings generated.');
+    expect(parsed.updateAgentDocs).toBeUndefined();
   });
 
   it('explains why capabilities are disabled when providers are available', async () => {

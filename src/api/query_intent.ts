@@ -15,7 +15,13 @@
 
 import type { EmbeddableEntityType } from '../storage/types.js';
 import type { GraphEdgeType } from '../types.js';
+import { detectSymbolQuery } from '../constructions/symbol_table.js';
 import { parseStructuralQueryIntent, type StructuralQueryIntent } from './dependency_query.js';
+import {
+  ARCHITECTURE_INTENT_PATTERNS,
+  PATH_LIKE_QUERY_PATTERNS,
+} from './query_intent_patterns.js';
+import { extractReferencedFilePath } from './query_intent_targets.js';
 import { classifyTestQuery, type TestQueryClassification } from './test_file_correlation.js';
 
 // ============================================================================
@@ -30,7 +36,7 @@ import { classifyTestQuery, type TestQueryClassification } from './test_file_cor
  * - 'meta': Project-level queries (what is this project) -> use documentation
  * - 'test': Test file queries (tests for X) -> use test correlation
  */
-export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta' | 'test';
+export type QueryIntentType = 'structural' | 'path' | 'symbol' | 'architecture' | 'location' | 'explanation' | 'meta' | 'test';
 
 /**
  * Retrieval strategy that maps to intent type:
@@ -41,7 +47,16 @@ export type QueryIntentType = 'structural' | 'location' | 'explanation' | 'meta'
  * - 'test_correlation': Use deterministic test file correlation
  * - 'hybrid': Use multiple strategies with blending
  */
-export type RetrievalStrategy = 'graph' | 'search' | 'summary' | 'docs' | 'test_correlation' | 'hybrid';
+export type RetrievalStrategy =
+  | 'graph'
+  | 'path_lookup'
+  | 'symbol_lookup'
+  | 'architecture_summary'
+  | 'search'
+  | 'summary'
+  | 'docs'
+  | 'test_correlation'
+  | 'hybrid';
 
 /**
  * Unified query intent classification with confidence and routing information.
@@ -91,6 +106,7 @@ export interface UnifiedQueryIntent {
  */
 const LOCATION_QUERY_PATTERNS = [
   /\bwhere\s+(is|are|can\s+i\s+find)\b/i,
+  /\bwhere\s+(?:do|does)\b.*\blive\b/i,
   /\blocate\b/i,
   // Note: "Find the X class/function/etc" - specific entity type lookup
   /\bfind\s+(the|a)\s+\w+\s+(class|function|module|method|interface|type)\b/i,
@@ -206,6 +222,12 @@ function getRetrievalStrategy(intentType: QueryIntentType): RetrievalStrategy {
   switch (intentType) {
     case 'structural':
       return 'graph';
+    case 'path':
+      return 'path_lookup';
+    case 'symbol':
+      return 'symbol_lookup';
+    case 'architecture':
+      return 'architecture_summary';
     case 'location':
       return 'search';
     case 'explanation':
@@ -227,6 +249,12 @@ function getFallbackStrategies(intentType: QueryIntentType): RetrievalStrategy[]
     case 'structural':
       // If graph doesn't have enough results, fall back to search then summary
       return ['search', 'summary'];
+    case 'path':
+      return ['search', 'summary'];
+    case 'symbol':
+      return ['search', 'summary'];
+    case 'architecture':
+      return ['summary', 'search'];
     case 'location':
       // If search doesn't find it, try graph relationships
       return ['graph', 'summary'];
@@ -252,6 +280,12 @@ function getEntityTypesForIntent(intentType: QueryIntentType): EmbeddableEntityT
     case 'structural':
       // Structural queries focus on code entities with relationships
       return ['function', 'module'];
+    case 'path':
+      return ['module', 'function'];
+    case 'symbol':
+      return ['function', 'module'];
+    case 'architecture':
+      return ['module', 'document'];
     case 'location':
       // Location queries search all code entities
       return ['function', 'module'];
@@ -276,6 +310,12 @@ function getDocumentBias(intentType: QueryIntentType, confidence: number): numbe
   switch (intentType) {
     case 'structural':
       return 0.1; // Strong code preference
+    case 'path':
+      return 0.05; // Explicit file path lookup should avoid docs
+    case 'symbol':
+      return 0.1; // Concrete symbol lookup is code-first
+    case 'architecture':
+      return 0.75; // Architecture overviews need module + doc context
     case 'location':
       return 0.2; // Code preference
     case 'explanation':
@@ -349,7 +389,59 @@ export function classifyUnifiedQueryIntent(intent: string): UnifiedQueryIntent {
     };
   }
 
-  // 3. Pattern-based classification for location/explanation/meta
+  // 3. Explicit path queries should anchor direct file lookup before broad search
+  const referencedPath = extractReferencedFilePath(intent);
+  const pathMatches = countPatternMatches(normalizedIntent, PATH_LIKE_QUERY_PATTERNS);
+  if (referencedPath && pathMatches > 0) {
+    return {
+      intentType: 'path',
+      intentConfidence: 0.95,
+      primaryStrategy: 'path_lookup',
+      fallbackStrategies: ['search', 'summary'],
+      entityTypes: ['module', 'function'],
+      documentBias: 0.05,
+      explanation: `Path query detected for "${referencedPath}". Prioritizing direct path lookup.`,
+      requiresExhaustive: false,
+    };
+  }
+
+  // 4. Distinguish architecture overviews from concrete symbol lookup
+  const architectureMatches = countPatternMatches(normalizedIntent, ARCHITECTURE_INTENT_PATTERNS);
+  if (architectureMatches > 0) {
+    return {
+      intentType: 'architecture',
+      intentConfidence: Math.min(0.95, 0.7 + (architectureMatches * 0.08)),
+      primaryStrategy: 'architecture_summary',
+      fallbackStrategies: ['summary', 'search'],
+      entityTypes: ['module', 'document'],
+      documentBias: 0.75,
+      explanation: `Architecture query detected with ${architectureMatches} structure-oriented pattern match(es).`,
+      requiresExhaustive: false,
+    };
+  }
+
+  const symbolQuery = detectSymbolQuery(intent);
+  const explicitSymbolLocationQuery =
+    /\bwhere\s+is\s+(?:the\s+)?[A-Za-z_][A-Za-z0-9_]*\s+(?:function|class|method|symbol)\b/i.test(intent)
+    || /\bwho\s+calls?\s+[A-Za-z_][A-Za-z0-9_]*\b/i.test(intent);
+  const factoryDefinitionQuery =
+    /\bwhere\s+is\s+(?:the\s+)?(?:create|make|build|init|setup)[A-Z][A-Za-z0-9_]*\s+(?:defined|declared|implemented)\??$/i.test(intent);
+  if (explicitSymbolLocationQuery || factoryDefinitionQuery) {
+    return {
+      intentType: 'symbol',
+      intentConfidence: Math.min(0.97, 0.78 + (symbolQuery ? 0.12 : 0) + (factoryDefinitionQuery ? 0.05 : 0)),
+      primaryStrategy: 'symbol_lookup',
+      fallbackStrategies: ['search', 'summary'],
+      entityTypes: ['function', 'module'],
+      documentBias: 0.1,
+      explanation: symbolQuery
+        ? `Symbol query detected for "${symbolQuery.symbolName}". Prioritizing direct symbol lookup.`
+        : 'Symbol query detected from explicit location wording. Prioritizing direct symbol lookup.',
+      requiresExhaustive,
+    };
+  }
+
+  // 5. Pattern-based classification for location/explanation/meta
   const locationMatches = countPatternMatches(normalizedIntent, LOCATION_QUERY_PATTERNS);
   const explanationMatches = countPatternMatches(normalizedIntent, EXPLANATION_QUERY_PATTERNS);
   const metaMatches = countPatternMatches(normalizedIntent, META_QUERY_PATTERNS);
@@ -449,6 +541,25 @@ export function applyRetrievalStrategyAdjustments(
         explanation += ' EXHAUSTIVE mode enabled.';
         adjustedLimit = 1000; // Much higher limit for exhaustive
       }
+      break;
+
+    case 'path_lookup':
+      adjustedThreshold = similarityThreshold * 1.1;
+      adjustedLimit = Math.min(limit, 10);
+      explanation = `Path query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing direct path lookup.`;
+      break;
+
+    case 'symbol_lookup':
+      adjustedThreshold = similarityThreshold * 1.05;
+      adjustedLimit = Math.min(limit, 12);
+      explanation = `Symbol query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing exact symbol lookup.`;
+      break;
+
+    case 'architecture_summary':
+      adjustedThreshold = similarityThreshold * 0.95;
+      adjustedLimit = Math.min(Math.max(limit, 12), 24);
+      useDocsFirst = true;
+      explanation = `Architecture query (${classification.intentConfidence.toFixed(2)} conf). Prioritizing module summaries and structural context.`;
       break;
 
     case 'search':

@@ -32,7 +32,7 @@ export async function confidenceCommand(options: ConfidenceCommandOptions): Prom
 
   const entityId = positionals.join(' ');
   if (!entityId) {
-    throw createError('INVALID_ARGUMENT', 'Entity ID is required. Usage: librarian confidence <entity-id>');
+    throw createError('INVALID_ARGUMENT', 'Entity ID is required. Usage: librainian confidence <entity-id>');
   }
 
   const showHistory = values.history as boolean;
@@ -45,7 +45,7 @@ export async function confidenceCommand(options: ConfidenceCommandOptions): Prom
 
   try {
     // Check if bootstrapped
-    const bootstrapCheck = await isBootstrapRequired(workspace, storage);
+    const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' });
     if (bootstrapCheck.required) {
       throw createError('NOT_BOOTSTRAPPED', bootstrapCheck.reason);
     }

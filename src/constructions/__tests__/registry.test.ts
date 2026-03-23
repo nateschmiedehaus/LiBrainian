@@ -8,6 +8,7 @@ import {
   getConstructionManifest,
   invokeConstruction,
   listConstructions,
+  normalizeConstructionExecutionError,
 } from '../registry.js';
 import { isConstructionId } from '../types.js';
 
@@ -166,6 +167,54 @@ describe('default construction registry', () => {
 
     expect(outcome.ok).toBe(false);
     expect(outcome.error?.message ?? '').toContain('insufficient_data');
+  });
+
+  it('fails comprehensive quality construction when architecture or security branches are vacuous', async () => {
+    const mockLibrarian = {
+      queryOptional: async () => ({ packs: [] }),
+      queryRequired: async () => ({ packs: [] }),
+      query: async () => ({ packs: [] }),
+    } as const;
+
+    const outcome = await invokeConstruction(
+      'librainian:comprehensive-quality-construction',
+      {
+        files: ['src/test.ts'],
+        architectureSpec: { layers: [], boundaries: [], rules: [] },
+        securityScope: { files: ['src/test.ts'], checkTypes: [] },
+      },
+      { deps: { librarian: mockLibrarian } },
+    ) as { ok: boolean; error?: { message?: string } };
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.error?.message ?? '').toContain('insufficient_data');
+  });
+
+  it('normalizes opaque error-like objects into ConstructionError instances', () => {
+    const opaqueCause: Record<string, unknown> = {};
+    Object.defineProperty(opaqueCause, 'message', {
+      value: 'claude unavailable in nested session',
+      enumerable: false,
+    });
+
+    const opaqueError: Record<string, unknown> = {
+      kind: 'construction_error',
+      retriable: false,
+      cause: opaqueCause,
+    };
+    Object.defineProperty(opaqueError, 'message', {
+      value: 'provider unavailable',
+      enumerable: false,
+    });
+
+    const normalized = normalizeConstructionExecutionError(
+      opaqueError,
+      'librainian:architecture-verifier',
+    );
+
+    expect(normalized).toBeInstanceOf(ConstructionError);
+    expect(normalized.message).toContain('provider unavailable');
+    expect(normalized.cause?.message).toContain('claude unavailable');
   });
 });
 

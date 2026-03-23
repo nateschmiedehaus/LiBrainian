@@ -1,5 +1,13 @@
 # OpenClaw Memory Bridge
 
+This is a source-checkout maintainer note for deferred integration work.
+The memory bridge described here is intentionally excluded from the first public
+release surface and is not part of the supported npm package contract for
+`0.2.x`.
+
+Do not treat this page as current public product documentation. It exists so
+the future integration can be resumed without re-discovering the design.
+
 LiBrainian can bridge `harvest_session_knowledge` outputs into annotated `MEMORY.md` entries that are linked to evidence IDs.
 
 ## Why
@@ -30,13 +38,11 @@ When persisted, claims are written like:
 - UserRepository uses CockroachDB <!-- librainian:ev_abc123:confidence=0.88 -->
 ```
 
-## CLI Status Check
+## Maintainer-Only CLI Status Check
 
-```bash
-librarian memory-bridge status --memory-file /path/to/repo/.openclaw/memory/MEMORY.md --json
-```
-
-This reports total, active, and defeated entries from the local memory-bridge state file.
+Use the source-checkout maintainer CLI help for the memory bridge status
+command. It reports total, active, and defeated entries from the local
+memory-bridge state file.
 
 ## Stale Marking Hook
 

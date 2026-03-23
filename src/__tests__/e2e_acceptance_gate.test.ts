@@ -198,17 +198,32 @@ describe('E2E acceptance gate (issue #466)', () => {
 
     expect(toolResponse.isError).not.toBe(true);
     const payload = JSON.parse(toolResponse.content[0]?.text ?? '{}') as {
+      summary?: string;
+      confidence?: number;
+      dataQuality?: string;
+      followUp?: unknown[];
+      result?: {
+        success?: boolean;
+        tool?: string;
+        tokenCount?: number;
+        functions?: Array<{ relatedFiles?: string[] }>;
+      };
       success?: boolean;
       tool?: string;
       tokenCount?: number;
       functions?: Array<{ relatedFiles?: string[] }>;
     };
-    expect(payload.success).toBe(true);
-    expect(payload.tool).toBe('get_context_pack');
-    expect(payload.tokenCount ?? 0).toBeLessThan(10_000);
-    expect(Array.isArray(payload.functions)).toBe(true);
+    const raw = payload.result ?? payload;
+    expect(typeof payload.summary).toBe('string');
+    expect(typeof payload.confidence).toBe('number');
+    expect(typeof payload.dataQuality).toBe('string');
+    expect(Array.isArray(payload.followUp)).toBe(true);
+    expect(raw.success).toBe(true);
+    expect(raw.tool).toBe('get_context_pack');
+    expect(raw.tokenCount ?? 0).toBeLessThan(10_000);
+    expect(Array.isArray(raw.functions)).toBe(true);
     expect(
-      (payload.functions ?? []).some((fn) =>
+      (raw.functions ?? []).some((fn) =>
         (fn.relatedFiles ?? []).some((file) => file.replace(/\\/g, '/').includes('src/auth/session.ts'))),
     ).toBe(true);
   });

@@ -24,6 +24,8 @@ describe('External repo smoke (integration)', () => {
 
     expect(report.results.length).toBeGreaterThan(0);
     for (const result of report.results) {
+      expect(typeof result.language).toBe('string');
+      expect(result.language?.length ?? 0).toBeGreaterThan(0);
       expect(result.errors).toEqual([]);
       expect(result.overviewOk || result.contextOk).toBe(true);
     }

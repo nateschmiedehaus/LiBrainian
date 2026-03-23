@@ -42,13 +42,13 @@ This is enforced by `validateManifest(...)` in `src/constructions/manifest.ts`.
 Validate a manifest:
 
 ```bash
-librarian constructions validate ./construction.manifest.json
+librainian constructions validate ./construction.manifest.json
 ```
 
 Submit (registry staging path under `.librainian/registry-submissions/`):
 
 ```bash
-librarian constructions submit ./construction.manifest.json
+librainian constructions submit ./construction.manifest.json
 ```
 
 Use `--dry-run` to validate submission without writing staged artifacts.

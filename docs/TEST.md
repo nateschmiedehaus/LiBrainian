@@ -1,5 +1,7 @@
 # TESTING POLICY - Wave0 Autopilot
 
+> GitHub/source-checkout policy only. This document is not part of the published npm package surface.
+
 > Testing policy is described here, but the machine-readable canon (including which commands are Tier-0 CI vs Tier-2 qualification) is declared in `config/canon.json`.
 >
 > All agents (Claude, Codex, Gemini) MUST follow these policies. This document supersedes testing sections in other agent docs.
@@ -69,18 +71,18 @@ LiBrainian is an agent cognition system, not a static utility library. Its launc
 ### Machine-Enforced Release Chain
 
 - `npm run eval:live-fire:hardcore` must emit a full `LiveFireTrialReport.v1` artifact (not pointer-only metadata).
-- `npm run eval:ab:agentic-bugfix:codex` must run control+treatment in `agent_command` mode with no verification fallback and `evidenceProfile=release`.
-- The A/B release artifact must encode strict threshold policy (`requireAgentCommandTasks=true`, `minAgentCommandShare=1`, `minAgentVerifiedExecutionShare=1`, `requireBaselineFailureForAgentTasks=true`, `requireT3Significance=true`, `minArtifactIntegrityShare=1`, `maxVerificationFallbackShare=0`) or publish gate fails.
 - `npm run smoke:external:all` must cover multi-repo external smoke with zero failures.
 - `npm run eval:use-cases:agentic` must execute broad, docs-derived use-case intents against real external repos, use a release-approved selection mode (`selectionMode=balanced` or `selectionMode=probabilistic`), and emit `AgenticUseCaseReviewReport.v1` with `evidenceProfile=release`.
 - `npm run eval:use-cases:agentic` must run progressive prerequisites before target examples (dependency chain from `USE_CASE_MATRIX.md`), then fail closed if target runs are not dependency-ready.
-- `npm run eval:publish-gate` runs deterministic hygiene gates first (`npm run canon:guard`, `npm run complexity:check`), then strict publish mode (`--zero-warning`), and blocks publish when any required signal is missing/imperfect **or** when `docs/LiBrainian/GATES.json` / `docs/LiBrainian/STATUS.md` still contain strict failure markers (for example `unverified_by_trace(...)`).
+- `npm run eval:publish-gate` runs deterministic hygiene guards first, then strict publish mode (`--zero-warning`), and blocks publish when any required maintained release signal is missing or imperfect. Advisory docs under `docs/librarian/` are not the release source of truth.
+- The maintained release signals are live-fire, external-repo use-case review, external smoke, testing-discipline, testing-tracker, and conversation-insights review.
+- Comparative A/B and final-verification lanes are deferred until they are rebuilt on maintained source modules and scripts.
 - `prepublishOnly` is packaging-only (`package:assert-identity`, `build`, `package:install-smoke`) so `npm publish` is stable and fast.
-- Strict release evidence remains mandatory, but runs explicitly via `npm run release:qualify` and CI publish gates.
+- Strict release evidence remains mandatory, and the canonical qualification entrypoint is `npm run test:agentic:strict`.
 
 ### Agentic Use-Case Review (Real Projects)
 
-- Canonical source of intents: `docs/LiBrainian/USE_CASE_MATRIX.md`.
+- Canonical source of intents: `docs/archive/USE_CASE_MATRIX.md`.
 - Runner: `scripts/agentic-use-case-review.ts`.
 - Primary command: `npm run eval:use-cases:agentic`.
 - Quick bounded command: `npm run eval:use-cases:agentic:quick`.
@@ -103,7 +105,7 @@ LiBrainian is an agent cognition system, not a static utility library. Its launc
 
 Wave0 uses an explicit separation:
 
-- **Tier-0 (deterministic CI)**: `npm run test:tier0` (see `config/canon.json` `commands.ci_test`). Must be deterministic and must not require live providers/network.
+- **Tier-0 (deterministic CI)**: `npm test` (see `config/canon.json` `commands.ci_test`). Must be deterministic and must not require live providers/network.
 - **Tier-2 (live qualification)**: explicitly separate from CI (see `config/canon.json` `commands.qualification`). This is allowed to fail honestly due to provider availability and is unimplemented until Qualification (Stage 15).
 
 **Agentic-first composite gate**:
@@ -119,17 +121,15 @@ If a test requires live providers, it must not be part of Tier-0 CI.
 Release qualification uses real-agent evidence and must pass with zero strict markers:
 
 - **Required command**: `npm run test:agentic:strict`
-  - runs real agent-command A/B (`eval:ab:agentic-bugfix:codex`)
   - runs progressive, docs-derived use-case review (`eval:use-cases:agentic`)
   - runs live-fire and external smoke on real repos
-  - runs testing-discipline audit (`eval:testing-discipline`)
   - runs strict publish gate (`eval:publish-gate --zero-warning`)
 
 No fallback/retry/degraded/unverified evidence is acceptable for release qualification.
 
 ## Agent Session Invocation Runbook (Tier-2)
 
-Use this runbook when tests must execute through real agent sessions (A/B harness, live-fire, and real-project use-case review).
+Use this runbook when tests must execute through real agent sessions (live-fire and real-project use-case review).
 
 Release signoff requires a full strict run:
 
@@ -143,66 +143,32 @@ claude --version
 claude --print "provider check"
 codex --version
 codex login status
-npm run dev -- check-providers --format json
+npm run dev -- check-providers --json
 ```
 
-2. Start with strict real-agent A/B (recommended default):
-```bash
-npm run eval:ab:agentic-bugfix:codex
-```
-
-3. If you need custom agent command wiring, use the harness contract explicitly:
-```bash
-AB_HARNESS_AGENT_CMD="node $(pwd)/scripts/ab-agent-codex.mjs" \
-  npm run eval:ab:agentic-bugfix
-```
-
-4. Validate real-project retrieval sessions:
+2. Validate real-project retrieval sessions:
 ```bash
 npm run eval:use-cases:agentic:quick
 npm run eval:use-cases:agentic
 ```
 
-5. Run publish-grade agentic chain:
+3. Exercise live-fire in bounded mode before the full release run:
 ```bash
-npm run eval:trial-by-fire:publish
+npm run eval:live-fire:quick
 ```
 
-### Agent Session Command Contract (A/B Harness)
-
-Any `AB_HARNESS_AGENT_CMD` must satisfy all of these:
-- Read the task prompt from `AB_HARNESS_PROMPT_FILE`.
-- Execute edits inside `AB_HARNESS_WORKSPACE_ROOT`.
-- Exit `0` only when task execution completed (non-zero for any failure/timeout).
-- Honor harness timeout via `AB_HARNESS_AGENT_TIMEOUT_MS`.
-- Do not simulate success when providers fail.
-
-Harness environment passed to agent commands:
-- `AB_HARNESS_PROMPT_FILE`
-- `AB_HARNESS_CONTEXT_FILE`
-- `AB_HARNESS_TASK_FILE`
-- `AB_HARNESS_WORKSPACE_ROOT`
-- `AB_HARNESS_WORKER_TYPE`
-- `AB_HARNESS_TASK_ID`
-- `AB_HARNESS_AGENT_TIMEOUT_MS`
+4. Run the full publish-grade chain:
+```bash
+npm run test:agentic:strict
+```
 
 ### Agent Session Artifact Checks (Required)
 
 After each run, verify:
-- A/B report exists and includes `agent_command` execution evidence.
-- A/B report uses release provenance (`options.evidenceProfile=release`) and strict thresholds.
 - Use-case report schema is `AgenticUseCaseReviewReport.v1` with progressive prerequisite metrics populated and release provenance (`options.evidenceProfile=release`).
 - Live-fire report schema is `LiveFireTrialReport.v1` with zero fallback/retry/degraded signals.
 - External smoke report has language-diverse repo coverage (validated against `eval-corpus/external-repos/manifest.json`).
 - Any `unverified_by_trace(...)`, fallback, retry, or degraded markers are treated as failures for release evidence.
-
-## 0.3 Browser/E2E prerequisites (Playwright)
-
-Wave0 includes Playwright-based tooling (e.g. browser capture and `web_*` research actions). These are **not** used by Tier‑0 CI by default.
-
-- Install browser runtime once per machine: `npm run playwright:install`
-- Diagnose Playwright environment: `npm run playwright:doctor`
-- Enable network-dependent research actions during live runs: `LIBRARIAN_ALLOW_NETWORK=1`
 ## 0.1 Multi-agent coordination tests (Autopilot → Via-negativa; Stages 14–18)
 
 As Wave0 becomes meaningfully multi-agent (Autopilot/Stage 14+), tests must validate **coordination correctness**, not just “single-agent outputs”.
@@ -893,13 +859,13 @@ interface DistributionalCriteria {
 ### Implementation Pattern
 
 ```bash
-# Run N trials
+# Run N bounded qualification trials
 for i in {1..10}; do
-  npm run episode:run -- --scenario bug_fix --trial $i
+  npm run eval:live-fire:quick
 done
 
-# Aggregate and evaluate
-npm run episode:evaluate -- --min-pass-rate 0.8 --confidence 0.95
+# Inspect the resulting evidence gates
+npm run eval:publish-gate -- --json
 ```
 
 ---
@@ -978,11 +944,9 @@ Compare distributions across:
 # Detect test file deletions
 git diff --name-status | grep "^D.*\.test\." && echo "BLOCKED: Test deletion"
 
-# Detect assertion weakening
-npm run lint:assertions
-
-# Detect fake embeddings
-npm run detect:fake-embeddings
+# Re-run deterministic guardrails
+npm test -- --run
+npm run public:pack
 ```
 
 ### Red-Team Your Eval
@@ -1048,15 +1012,16 @@ To advance from Gate N to Gate N+1:
 ### Testing at Each Gate
 
 ```bash
-# Gate 0: Read-only analysis
-npm run episode:run -- --gate 0 --scenario analysis
+# Gate 0: deterministic CI and package guards
+npm test -- --run
+npm run public:pack
 
-# Gate 1: Proposal quality
-npm run episode:run -- --gate 1 --scenario propose_fix
+# Gate 1: bounded real-agent retrieval checks
+npm run eval:use-cases:agentic:quick
 
-# Gate 2: Sandbox safety
-npm run episode:run -- --gate 2 --scenario sandbox_fix
+# Gate 2: bounded real-repo live-fire
+npm run eval:live-fire:quick
 
-# Gate 3: Full autonomy (requires --allow-merge)
-npm run episode:run -- --gate 3 --scenario autonomous --allow-merge
+# Gate 3: full publish qualification
+npm run test:agentic:strict
 ```

@@ -77,6 +77,100 @@ describe('query pipeline definition', () => {
     expect(stored?.status).toBe('success');
   });
 
+  it('bypasses query cache when watch freshness requires catch-up', async () => {
+    const eligibility = await __testing.resolveQueryCacheEligibility({
+      storage: {} as LibrarianStorage,
+      query: { intent: 'cache bypass', depth: 'L1' },
+      indexState: { phase: 'ready' },
+      workspaceRoot: '/tmp/workspace',
+      deps: {
+        getWatchStateFn: vi.fn().mockResolvedValue({
+          needs_catchup: true,
+          cursor: { kind: 'git', lastIndexedCommitSha: 'abc123' },
+        }),
+      },
+    });
+
+    expect(eligibility.allowCache).toBe(false);
+    expect(eligibility.reason).toContain('watch freshness');
+  });
+
+  it('bypasses query cache when git drift shows stale or new files', async () => {
+    const checkFiles = vi.fn().mockResolvedValue([
+      { filePath: '/tmp/workspace/src/api/query.ts', status: 'stale' },
+      { filePath: '/tmp/workspace/src/api/new.ts', status: 'new' },
+    ]);
+    const eligibility = await __testing.resolveQueryCacheEligibility({
+      storage: {} as LibrarianStorage,
+      query: { intent: 'cache bypass', depth: 'L1' },
+      indexState: { phase: 'ready' },
+      workspaceRoot: '/tmp/workspace',
+      deps: {
+        getWatchStateFn: vi.fn().mockResolvedValue(null),
+        isGitRepoFn: vi.fn().mockReturnValue(true),
+        getGitStatusChangesFn: vi.fn().mockResolvedValue({
+          added: ['src/api/new.ts'],
+          modified: ['src/api/query.ts'],
+          deleted: [],
+          renamed: [],
+        }),
+        createStalenessTrackerFn: vi.fn().mockReturnValue({
+          checkFiles,
+        }),
+      },
+    });
+
+    expect(eligibility.allowCache).toBe(false);
+    expect(eligibility.reason).toContain('workspace drift detected');
+    expect(checkFiles).toHaveBeenCalledWith([
+      '/tmp/workspace/src/api/new.ts',
+      '/tmp/workspace/src/api/query.ts',
+    ]);
+  });
+
+  it('keeps query cache eligible when the workspace is clean', async () => {
+    const eligibility = await __testing.resolveQueryCacheEligibility({
+      storage: {} as LibrarianStorage,
+      query: { intent: 'cache bypass', depth: 'L1' },
+      indexState: { phase: 'ready' },
+      workspaceRoot: '/tmp/workspace',
+      deps: {
+        getWatchStateFn: vi.fn().mockResolvedValue(null),
+        isGitRepoFn: vi.fn().mockReturnValue(true),
+        getGitStatusChangesFn: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    expect(eligibility.allowCache).toBe(true);
+    expect(eligibility.reason).toBeUndefined();
+  });
+
+  it('ignores non-indexable git artifacts when deciding query cache drift', async () => {
+    const checkFiles = vi.fn().mockResolvedValue([]);
+    const eligibility = await __testing.resolveQueryCacheEligibility({
+      storage: {} as LibrarianStorage,
+      query: { intent: 'cache bypass', depth: 'L1' },
+      indexState: { phase: 'ready' },
+      workspaceRoot: '/tmp/workspace',
+      deps: {
+        getWatchStateFn: vi.fn().mockResolvedValue(null),
+        isGitRepoFn: vi.fn().mockReturnValue(true),
+        getGitStatusChangesFn: vi.fn().mockResolvedValue({
+          added: ['.claude/session.log', 'librainian-0.2.1.tgz', 'tmp-claude'],
+          modified: [],
+          deleted: [],
+          renamed: [],
+        }),
+        createStalenessTrackerFn: vi.fn().mockReturnValue({
+          checkFiles,
+        }),
+      },
+    });
+
+    expect(eligibility.allowCache).toBe(true);
+    expect(checkFiles).not.toHaveBeenCalled();
+  });
+
   it('rejects non-function observers early', async () => {
     const storage = {} as LibrarianStorage;
     await expect(
@@ -105,6 +199,252 @@ describe('query pipeline definition', () => {
     expect(getContextPacks).toHaveBeenCalledTimes(1);
     const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[] };
     expect(queryOptions.relatedFilesAny).toContain('reccmp/compare/core.py');
+  });
+
+  it('anchors bare filename mentions to indexed file paths for direct-pack retrieval', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-query-file',
+        relatedFiles: ['src/api/query.ts'],
+      }),
+    ]);
+    const getFiles = vi.fn().mockResolvedValue([
+      { path: 'src/api/query.ts' },
+      { path: 'src/api/query_synthesis.ts' },
+    ]);
+    const storage = { getContextPacks, getFiles } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      '/tmp/workspace',
+    );
+
+    expect(packs).toHaveLength(1);
+    expect(getFiles).toHaveBeenCalledTimes(1);
+    const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[] };
+    expect(queryOptions.relatedFilesAny).toContain('src/api/query.ts');
+    expect(queryOptions.relatedFilesAny).toContain('/tmp/workspace/src/api/query.ts');
+  });
+
+  it('prunes bare filename collisions for seam-planning intents to the strongest API anchor', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-query-file',
+        relatedFiles: ['src/api/query.ts'],
+      }),
+    ]);
+    const getFiles = vi.fn().mockResolvedValue([
+      { path: 'src/api/query.ts' },
+      { path: 'src/api/query_synthesis.ts' },
+      { path: 'src/api/query_intent_bias_profile.ts' },
+      { path: 'src/cli/commands/query.ts' },
+    ]);
+    const storage = { getContextPacks, getFiles } as unknown as LibrarianStorage;
+
+    await __testing.collectDirectPacks(
+      storage,
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      '/tmp/workspace',
+    );
+
+    const queryOptions = getContextPacks.mock.calls[0]?.[0] as { relatedFilesAny?: string[] };
+    expect(queryOptions.relatedFilesAny).toContain('src/api/query.ts');
+    expect(queryOptions.relatedFilesAny).not.toContain('src/cli/commands/query.ts');
+  });
+
+  it('skips semantic retrieval for anchored planning queries when direct packs already cover the referenced file', () => {
+    const shouldSkip = __testing.shouldSkipSemanticRetrievalForAnchoredPlanning(
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      [
+        createPack({
+          packId: 'pack-query-file',
+          summary: 'Query pipeline orchestration seam for routing, retrieval, and synthesis.',
+          keyFacts: ['Coordinates routing, retrieval, and synthesis stages.'],
+          relatedFiles: ['src/api/query.ts'],
+          codeSnippets: [{ filePath: 'src/api/query.ts', startLine: 1, endLine: 10, content: '...', language: 'typescript' }],
+        }),
+      ],
+    );
+
+    expect(shouldSkip).toBe(true);
+  });
+
+  it('keeps semantic retrieval enabled when direct packs do not cover the referenced planning file', () => {
+    const shouldSkip = __testing.shouldSkipSemanticRetrievalForAnchoredPlanning(
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      [
+        createPack({
+          packId: 'pack-other-file',
+          relatedFiles: ['src/cli/commands/query.ts'],
+        }),
+      ],
+    );
+
+    expect(shouldSkip).toBe(false);
+  });
+
+  it('uses anchored planning direct mode for file-anchored seam-planning intents', () => {
+    expect(
+      __testing.shouldUseAnchoredPlanningDirectMode({
+        intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?',
+        depth: 'L2',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not use anchored planning direct mode when no file is referenced', () => {
+    expect(
+      __testing.shouldUseAnchoredPlanningDirectMode({
+        intent: 'What should I touch to split the query pipeline into routing, retrieval, and synthesis seams?',
+        depth: 'L2',
+      }),
+    ).toBe(false);
+  });
+
+  it('does not use anchored planning direct mode for test-targeting split queries', () => {
+    expect(
+      __testing.shouldUseAnchoredPlanningDirectMode({
+        intent: 'What tests should I update if I split src/api/query.ts into routing, retrieval, and synthesis modules?',
+        depth: 'L2',
+      }),
+    ).toBe(false);
+  });
+
+  it('synthesizes anchored file fallback packs when direct context packs are missing for a basename collision', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([]);
+    const getFiles = vi.fn().mockResolvedValue([
+      { path: 'src/api/query.ts' },
+      { path: 'src/cli/commands/query.ts' },
+    ]);
+    const getModuleByPath = vi.fn().mockImplementation(async (filePath: string) => {
+      if (filePath === 'src/api/query.ts') {
+        return {
+          id: 'mod-api-query',
+          path: 'src/api/query.ts',
+          purpose: 'Query pipeline orchestration coordinates routing, retrieval, and synthesis stages.',
+          exports: ['queryLibrarian'],
+          dependencies: ['src/api/query_synthesis.ts'],
+          confidence: 0.86,
+        };
+      }
+      if (filePath === 'src/cli/commands/query.ts') {
+        return {
+          id: 'mod-cli-query',
+          path: 'src/cli/commands/query.ts',
+          purpose: 'CLI command for parsing query flags and printing results.',
+          exports: ['queryCommand'],
+          dependencies: ['src/cli/db_path.js'],
+          confidence: 0.88,
+        };
+      }
+      return null;
+    });
+    const getFunctionsByPath = vi.fn().mockImplementation(async (filePath: string) => {
+      if (filePath === 'src/api/query.ts') {
+        return [
+          {
+            id: 'fn-api-synthesis',
+            filePath,
+            name: 'runSynthesisStage',
+            signature: 'runSynthesisStage(options)',
+            purpose: 'Coordinates synthesis for retrieved query packs.',
+            startLine: 6013,
+            endLine: 6190,
+            confidence: 0.84,
+            accessCount: 0,
+            lastAccessed: null,
+            validationCount: 0,
+            outcomeHistory: { successes: 0, failures: 0 },
+          },
+        ];
+      }
+      if (filePath === 'src/cli/commands/query.ts') {
+        return [
+          {
+            id: 'fn-cli-query',
+            filePath,
+            name: 'queryCommand',
+            signature: 'queryCommand(options)',
+            purpose: 'Parses CLI flags and formats output.',
+            startLine: 1,
+            endLine: 400,
+            confidence: 0.9,
+            accessCount: 0,
+            lastAccessed: null,
+            validationCount: 0,
+            outcomeHistory: { successes: 0, failures: 0 },
+          },
+        ];
+      }
+      return [];
+    });
+    const storage = {
+      getContextPacks,
+      getFiles,
+      getModuleByPath,
+      getFunctionsByPath,
+    } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      '/tmp/workspace',
+    );
+
+    expect(packs.length).toBeGreaterThan(0);
+    expect(packs[0]?.relatedFiles[0]).toBe('src/api/query.ts');
+    expect(packs.some((pack) => pack.relatedFiles[0] === 'src/cli/commands/query.ts')).toBe(false);
+  });
+
+  it('binds storage path lookup methods when synthesizing anchored fallback packs', async () => {
+    const storage = {
+      marker: 'bound-storage',
+      async getContextPacks() { return []; },
+      async getFiles() {
+        return [{ path: 'src/api/query.ts' }];
+      },
+      async getModuleByPath(this: { marker?: string }, filePath: string) {
+        if (this.marker !== 'bound-storage') throw new Error('unbound');
+        if (filePath !== 'src/api/query.ts') return null;
+        return {
+          id: 'mod-api-query',
+          path: filePath,
+          purpose: 'Query pipeline orchestration coordinates routing, retrieval, and synthesis stages.',
+          exports: ['queryLibrarian'],
+          dependencies: ['src/api/query_synthesis.ts'],
+          confidence: 0.86,
+        };
+      },
+      async getFunctionsByPath(this: { marker?: string }, filePath: string) {
+        if (this.marker !== 'bound-storage') throw new Error('unbound');
+        if (filePath !== 'src/api/query.ts') return [];
+        return [
+          {
+            id: 'fn-api-synthesis',
+            filePath,
+            name: 'runSynthesisStage',
+            signature: 'runSynthesisStage(options)',
+            purpose: 'Coordinates synthesis for retrieved query packs.',
+            startLine: 6013,
+            endLine: 6190,
+            confidence: 0.84,
+            accessCount: 0,
+            lastAccessed: null,
+            validationCount: 0,
+            outcomeHistory: { successes: 0, failures: 0 },
+          },
+        ];
+      },
+    } as unknown as LibrarianStorage;
+
+    const packs = await __testing.collectDirectPacks(
+      storage,
+      { intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?', depth: 'L2' },
+      '/tmp/workspace',
+    );
+
+    expect(packs.some((pack) => pack.relatedFiles[0] === 'src/api/query.ts')).toBe(true);
   });
 
   it('anchors direct-pack retrieval from identifier mentions in location intents', async () => {
@@ -173,6 +513,117 @@ describe('query pipeline definition', () => {
     expect(queryOptions.relatedFilesAny).toContain('src/mcp/server.ts');
     expect(queryOptions.relatedFilesAny).toContain('src/cli/commands/mcp.ts');
     expect(queryOptions.limit).toBe(80);
+  });
+
+  it('uses the feature-location stage as an early direct answer and ignores fixture noise', async () => {
+    const getIngestionItems = vi.fn().mockImplementation(async ({ sourceType }: { sourceType: string }) => {
+      if (sourceType === 'function') {
+        return [
+          {
+            id: 'fn-auth',
+            payload: {
+              path: 'src/mcp/authentication.ts',
+              name: 'createAuthenticationManager',
+              content: 'Creates authentication manager and session token handling for MCP server.',
+            },
+          },
+          {
+            id: 'fn-fixture',
+            payload: {
+              path: 'tests/fixtures/index-correctness-fixture/src/auth/session.ts',
+              name: 'createSessionToken',
+              content: 'Fixture auth session helper.',
+            },
+          },
+        ];
+      }
+      if (sourceType === 'module') {
+        return [
+          {
+            id: 'mod-auth',
+            payload: {
+              path: 'src/mcp/authentication.ts',
+              content: 'Authentication module with token and authorization routing helpers.',
+            },
+          },
+        ];
+      }
+      return [];
+    });
+    const storage = { getIngestionItems } as unknown as LibrarianStorage;
+
+    const result = await __testing.runFeatureLocationStage({
+      storage,
+      intent: 'Where does auth routing live?',
+      featureTarget: 'auth routing',
+      version: baseVersion,
+    });
+
+    expect(result.analyzed).toBe(true);
+    expect(result.shouldShortCircuit).toBe(true);
+    expect(result.packs).toHaveLength(1);
+    expect(result.packs[0]?.relatedFiles).toContain('src/mcp/authentication.ts');
+    expect(result.packs[0]?.relatedFiles.some((file) => file.includes('tests/fixtures'))).toBe(false);
+    expect(result.packs[0]?.summary).toContain('auth routing');
+  });
+
+  it('uses the path lookup stage as an early direct answer for explicit file queries', async () => {
+    const getContextPacks = vi.fn().mockResolvedValue([
+      createPack({
+        packId: 'pack-query-file',
+        relatedFiles: ['src/api/query.ts'],
+        summary: 'Primary query pipeline implementation',
+      }),
+      createPack({
+        packId: 'pack-generic',
+        relatedFiles: ['src/constructions/strategic/work_presets_construction.ts'],
+        summary: 'Unrelated strategic helper',
+      }),
+    ]);
+    const storage = { getContextPacks } as unknown as LibrarianStorage;
+
+    const result = await __testing.runPathLookupStage({
+      storage,
+      intent: 'Show me src/api/query.ts',
+      pathTarget: 'src/api/query.ts',
+      workspaceRoot: '/tmp/workspace',
+      depth: 'L2',
+    });
+
+    expect(result.analyzed).toBe(true);
+    expect(result.shouldShortCircuit).toBe(true);
+    expect(result.packs[0]?.relatedFiles).toContain('src/api/query.ts');
+    expect(result.explanation).toContain('exact context pack');
+  });
+
+  it('replaces low-coherence heuristic synthesis with a bounded fallback', () => {
+    const synthesis = {
+      answer: 'path-like query routing implemented in LiBrainian is primarily implemented in src/constructions/strategic/operational_excellence_construction.ts.',
+      confidence: 0.7,
+      citations: [],
+      keyInsights: ['Wrong confident claim'],
+      uncertainties: [],
+    };
+    const guarded = __testing.applyHeuristicSynthesisGuardrail({
+      synthesis,
+      synthesisMode: 'heuristic',
+      queryIntent: 'Where is path-like query routing implemented in LiBrainian?',
+      finalPacks: [
+        createPack({ relatedFiles: ['src/api/query.ts'] }),
+        createPack({ packId: 'pack-2', relatedFiles: ['src/api/query_intent.ts'] }),
+      ],
+      coherenceAnalysis: {
+        overallCoherence: 0.2,
+        explanation: 'Results appear scattered/incoherent (20%).',
+      },
+      lowRelevanceTriggered: true,
+      lowRelevanceReason: 'Top relevance score 0.41 below 0.60 threshold.',
+    });
+
+    expect(guarded?.answer).toContain('Results are too scattered');
+    expect(guarded?.answer).toContain('src/api/query.ts');
+    expect(guarded?.confidence).toBeLessThanOrEqual(0.35);
+    expect(guarded?.uncertainties.some((entry) => entry.includes('Heuristic answer guardrail applied'))).toBe(true);
   });
 
   it('scores anchored direct packs by lexical relevance so recovery helpers outrank generic server startup helpers', () => {
@@ -411,6 +862,43 @@ describe('query pipeline definition', () => {
     expect(report?.results.telemetry?.rerankInputCount).toBe(2);
     expect(report?.results.telemetry?.rerankAppliedCount).toBe(0);
     expect(report?.results.telemetry?.rerankSkipReason).toBe('deterministic_mode_disabled');
+  });
+
+  it('skips cross-encoder reranking by default unless explicitly opted in', async () => {
+    const previousFlag = process.env.LIBRARIAN_CROSS_ENCODER;
+    delete process.env.LIBRARIAN_CROSS_ENCODER;
+    const stageTracker = __testing.createStageTracker();
+    const explanationParts: string[] = [];
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const rerank = vi.fn();
+
+    try {
+      const result = await __testing.runRerankStage({
+        query: { intent: 'test rerank', depth: 'L1' },
+        finalPacks: [
+          createPack({ packId: 'pack-a', targetId: 'module-a' }),
+          createPack({ packId: 'pack-b', targetId: 'module-b' }),
+        ],
+        candidateScoreMap: new Map(),
+        stageTracker,
+        explanationParts,
+        recordCoverageGap,
+        forceRerank: false,
+        rerank,
+      });
+
+      expect(result.map((pack) => pack.packId)).toEqual(['pack-a', 'pack-b']);
+      expect(rerank).not.toHaveBeenCalled();
+      expect(explanationParts.join(' ')).toContain('Skipped cross-encoder rerank: cross-encoder is disabled.');
+      const report = stageTracker.report().find((stage) => stage.stage === 'reranking');
+      expect(report?.status).toBe('skipped');
+      expect(report?.results.telemetry?.rerankSkipReason).toBe('cross_encoder_disabled');
+    } finally {
+      if (typeof previousFlag === 'string') process.env.LIBRARIAN_CROSS_ENCODER = previousFlag;
+      else delete process.env.LIBRARIAN_CROSS_ENCODER;
+    }
   });
 
   it('applies MMR diversification when query.diversify is enabled', async () => {
@@ -668,6 +1156,38 @@ describe('query pipeline definition', () => {
     expect(report?.status).toBe('failed');
   });
 
+  it('uses storage metadata when no synthesis workspace override is provided', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const storage = {
+      getMetadata: vi.fn().mockResolvedValue({ workspace: '/tmp/workspace-from-storage' }),
+    } as unknown as LibrarianStorage;
+    const synthesizeQueryAnswerFn = vi.fn().mockResolvedValue({
+      synthesized: true,
+      answer: 'synthetic answer',
+      confidence: 0.7,
+      citations: [],
+      keyInsights: [],
+      uncertainties: [],
+    });
+
+    const result = await __testing.runSynthesisStage({
+      query: { intent: 'test synthesis', depth: 'L1' },
+      storage,
+      finalPacks: [createPack({})],
+      stageTracker,
+      recordCoverageGap: () => {},
+      explanationParts: [],
+      synthesisEnabled: true,
+      canAnswerFromSummariesFn: () => false,
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesis?.answer).toBe('synthetic answer');
+    expect(synthesizeQueryAnswerFn).toHaveBeenCalledWith(expect.objectContaining({
+      workspace: '/tmp/workspace-from-storage',
+    }));
+  });
+
   it('uses quick synthesis when summaries are sufficient', async () => {
     const stageTracker = __testing.createStageTracker();
     const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
@@ -776,6 +1296,231 @@ describe('query pipeline definition', () => {
     expect(createQuickAnswerFn).toHaveBeenCalledTimes(1);
     expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
     expect(explanationParts.join(' ')).toContain('degraded retrieval state');
+  });
+
+  it('uses quick synthesis for file-anchored seam-planning queries', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+    const synthesizeQueryAnswerFn = vi.fn().mockResolvedValue({
+      synthesized: true,
+      answer: 'slow-llm-answer',
+      confidence: 0.7,
+      citations: ['pack-query'],
+      keyInsights: ['insight'],
+      uncertainties: [],
+    });
+
+    const result = await __testing.runSynthesisStage({
+      query: {
+        intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?',
+        depth: 'L2',
+        forceSummarySynthesis: true,
+      },
+      storage: {} as LibrarianStorage,
+      finalPacks: [
+        createPack({
+          packId: 'pack-cli-query',
+          summary: 'CLI query command parses flags and prints formatted results for the query command.',
+          relatedFiles: ['src/cli/commands/query.ts'],
+          confidence: 0.91,
+          keyFacts: ['Formats query command output.'],
+        }),
+        createPack({
+          packId: 'pack-synth',
+          summary: 'Module query_synthesis exporting synthesizeQueryAnswer, canAnswerFromSummaries, createQuickAnswer...',
+          relatedFiles: ['src/api/query_synthesis.ts'],
+          confidence: 0.9,
+          keyFacts: ['Exports quick and full synthesis helpers.'],
+        }),
+        createPack({
+          packId: 'pack-query',
+          summary: 'Query pipeline orchestration in src/api/query.ts coordinates routing, retrieval, and synthesis stages.',
+          relatedFiles: ['src/api/query.ts'],
+          confidence: 0.84,
+          keyFacts: ['Coordinates routing, retrieval, and synthesis stages.'],
+        }),
+        createPack({
+          packId: 'pack-intent',
+          summary: 'Intent bias and routing helpers live in src/api/query_intent_bias_profile.ts.',
+          relatedFiles: ['src/api/query_intent_bias_profile.ts'],
+          confidence: 0.72,
+          keyFacts: ['Derives retrieval biases from classified query intent.'],
+        }),
+      ],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+      synthesizeQueryAnswerFn,
+    });
+
+    expect(result.synthesisMode).toBe('heuristic');
+    expect(result.synthesis?.answer).toContain('src/api/query.ts');
+    expect(result.synthesis?.answer).not.toContain('Start with src/cli/commands/query.ts');
+    expect(result.synthesis?.answer).toContain('src/api/query_synthesis.ts');
+    expect(result.synthesis?.answer).not.toContain('Supporting logic already lives in src/cli/commands/query.ts');
+    expect(result.synthesis?.answer).toContain('routing, retrieval, synthesis');
+    expect(synthesizeQueryAnswerFn).not.toHaveBeenCalled();
+  });
+
+  it('includes pipeline stages in quick location answers when the pack provides them', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+
+    const result = await __testing.runSynthesisStage({
+      query: {
+        intent: 'Where is the query pipeline implemented and what are its stages?',
+        depth: 'L1',
+        forceSummarySynthesis: true,
+      },
+      storage: {} as LibrarianStorage,
+      finalPacks: [
+        createPack({
+          packId: 'pack-query-pipeline',
+          summary: 'Main query pipeline orchestration module.',
+          relatedFiles: ['src/api/query.ts'],
+          confidence: 0.88,
+          keyFacts: [
+            'Purpose: Main query pipeline orchestration module.',
+            'Pipeline stages: adequacy_scan, direct_packs, semantic_retrieval, graph_expansion, multi_signal_scoring, multi_vector_scoring, fallback, reranking, defeater_check, method_guidance, synthesis, post_processing',
+          ],
+        }),
+      ],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+    });
+
+    expect(result.synthesis?.answer).toContain('src/api/query.ts');
+    expect(result.synthesis?.answer).toContain('Pipeline stages: adequacy_scan');
+    expect(result.synthesis?.answer).toContain('post_processing');
+  });
+
+  it('augments final synthesis with pipeline stages for query-pipeline stage questions', () => {
+    const synthesis = __testing.applyQueryPipelineStageAnswerAugmentation({
+      query: {
+        intent: 'Where is the query pipeline implemented and what are its stages?',
+        depth: 'L1',
+      },
+      synthesis: {
+        answer: 'the query pipeline implemented and what are its stages is primarily implemented in src/api/query.ts.',
+        confidence: 0.8,
+        citations: [],
+        keyInsights: [],
+        uncertainties: [],
+      },
+      finalPacks: [
+        createPack({
+          relatedFiles: ['src/api/query.ts'],
+        }),
+      ],
+    });
+
+    expect(synthesis?.answer).toContain('src/api/query.ts');
+    expect(synthesis?.answer).toContain('Pipeline stages: adequacy_scan');
+    expect(synthesis?.answer).toContain('post_processing');
+  });
+
+  it('surfaces dependency files as supporting seam modules when only the anchored module pack is present', async () => {
+    const stageTracker = __testing.createStageTracker();
+    const recordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity) => {
+      stageTracker.issue(stage, { message, severity: severity ?? 'minor' });
+    };
+
+    const result = await __testing.runSynthesisStage({
+      query: {
+        intent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?',
+        depth: 'L2',
+        forceSummarySynthesis: true,
+      },
+      storage: {} as LibrarianStorage,
+      finalPacks: [
+        createPack({
+          packId: 'pack-query',
+          summary: 'Query pipeline orchestration in src/api/query.ts coordinates routing, retrieval, and synthesis stages.',
+          relatedFiles: ['src/api/query.ts'],
+          confidence: 0.9,
+          keyFacts: [
+            'Coordinates routing, retrieval, and synthesis stages.',
+            'Adjacent modules: src/api/query_synthesis.ts, src/api/query_intent_bias_profile.ts',
+            'Dependencies: ../storage/types.js, ../types.js',
+          ],
+        }),
+      ],
+      stageTracker,
+      recordCoverageGap,
+      explanationParts: [],
+      synthesisEnabled: true,
+      workspaceRoot: process.cwd(),
+    });
+
+    expect(result.synthesis?.answer).toContain('src/api/query_synthesis.ts');
+    expect(result.synthesis?.answer).toContain('src/api/query_intent_bias_profile.ts');
+  });
+
+  it('prioritizes synthesis, routing, and retrieval adjacent modules for mixed seam-planning queries', () => {
+    const adjacentModules = __testing.findAdjacentImplementationModules(
+      'src/api/query.ts',
+      [
+        { path: 'src/api/query.ts' },
+        { path: 'src/api/query_synthesis.ts' },
+        { path: 'src/api/query_intent_routing_overrides.ts' },
+        { path: 'src/api/query_result_biasing.ts' },
+        { path: 'src/api/query_candidate_merge.ts' },
+        { path: 'src/api/query_intent_patterns.ts' },
+        { path: 'src/api/query_intent_targets.ts' },
+        { path: 'src/api/query_intent_bias_profile.ts' },
+      ],
+      'What should I touch to split query.ts into routing, retrieval, and synthesis seams?',
+    );
+
+    expect(adjacentModules.slice(0, 3)).toEqual([
+      'src/api/query_synthesis.ts',
+      'src/api/query_intent_routing_overrides.ts',
+      'src/api/query_result_biasing.ts',
+    ]);
+  });
+
+  it('preserves anchored seam-planning heuristic answers instead of replacing them with scatter fallback', () => {
+    const result = __testing.applyHeuristicSynthesisGuardrail({
+      synthesis: {
+        answer: 'Start with src/api/query.ts as the orchestration seam for routing, retrieval, synthesis. Supporting logic already lives in src/api/query_synthesis.ts, src/api/query_intent_bias_profile.ts.',
+        confidence: 0.7,
+        citations: [],
+        keyInsights: ['query.ts is the orchestration seam'],
+        uncertainties: ['Answer derived from pack summary without full LLM synthesis'],
+      },
+      synthesisMode: 'heuristic',
+      queryIntent: 'What should I touch to split query.ts into routing, retrieval, and synthesis seams?',
+      finalPacks: [
+        createPack({
+          relatedFiles: ['src/api/query.ts'],
+          confidence: 0.84,
+        }),
+        createPack({
+          relatedFiles: ['src/api/query_synthesis.ts'],
+          confidence: 0.8,
+        }),
+      ],
+      coherenceAnalysis: {
+        overallCoherence: 0.2,
+        explanation: 'Result files span multiple adjacent modules.',
+      },
+      lowRelevanceTriggered: false,
+      lowRelevanceReason: undefined,
+    });
+
+    expect(result?.answer).toContain('Start with src/api/query.ts');
+    expect(result?.answer).not.toContain('Results are too scattered');
+    expect(result?.confidence).toBe(0.55);
+    expect(result?.uncertainties.join(' ')).toContain('guardrail applied');
   });
 
   it('uses full synthesis when summaries are insufficient', async () => {

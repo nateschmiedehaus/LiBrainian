@@ -3,9 +3,11 @@ import { listConstructions } from '../constructions/registry.js';
 import type { ConstructionManifest } from '../constructions/types.js';
 import { DEFAULT_TECHNIQUE_COMPOSITIONS } from '../api/technique_compositions.js';
 import type { TechniqueComposition } from '../strategic/techniques.js';
-import { LIBRARIAN_VERSION } from '../index.js';
+import { LIBRARIAN_VERSION, LIBRAINIAN_PACKAGE_VERSION } from '../index.js';
+import { MCP_GOLDEN_PATH_TOOLS } from '../mcp/types.js';
 
 export type CapabilityKind = 'mcp_tool' | 'construction' | 'composition';
+export type CapabilitySurface = 'public' | 'full';
 
 export interface CapabilityToolDefinition {
   name: string;
@@ -25,6 +27,7 @@ export interface CapabilityEntry {
 export interface CapabilityInventory {
   kind: 'LiBrainianCapabilities.v1';
   schemaVersion: 1;
+  surface: CapabilitySurface;
   inventoryVersion: string;
   generatedAt: string;
   librainianVersion: string;
@@ -37,11 +40,73 @@ export interface CapabilityInventory {
   capabilities: CapabilityEntry[];
 }
 
+const PUBLIC_EXAMPLE_ARGS: Partial<Record<(typeof MCP_GOLDEN_PATH_TOOLS)[number], Record<string, unknown>>> = {
+  query: {
+    intent: 'How does authentication work?',
+  },
+  get_context_pack: {
+    intent: 'Refactor the query pipeline safely',
+  },
+  find_symbol: {
+    query: 'rankContextPacks',
+  },
+  get_change_impact: {
+    target: 'src/api/query.ts',
+  },
+  explain_function: {
+    name: 'queryLibrarian',
+  },
+  find_usages: {
+    symbol: 'queryLibrarian',
+  },
+  get_repo_map: {
+    focus: ['src/api', 'src/cli'],
+  },
+};
+
 function asObjectSchema(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
   return { type: 'object', properties: {}, required: [] };
+}
+
+function sanitizeInventoryText(value: string): string {
+  return value
+    .replace(/\bControls items for the [a-z_]+ tool\.\s*/gi, '')
+    .replace(/workspace\.ts",\s*"\/workspace\/src\/middleware\/session\.ts"\]\./g, 'workspace.')
+    .replace(/(?<!\/)\b([a-z]{3,})\.ts\./g, '$1.')
+    .replace(/([A-Za-z0-9_/-]+)\.json"\./g, '$1.json.')
+    .replace(/\)ts"\./g, ').')
+    .replace(/([a-z]{3,})ts"\./g, '$1.')
+    .replace(/\bbytes\.ts\./g, 'bytes.')
+    .replace(/\breferencelibrarian\/reports\/page-0\.json"\./g, 'reference file.')
+    .replace(/\breferencelibrarian\/reports\/page-0\.json\./g, 'reference file.')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function sanitizeSchemaDescriptions(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeSchemaDescriptions(entry));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const next: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(record)) {
+    if (key === 'description' && typeof nested === 'string') {
+      const sanitized = sanitizeInventoryText(nested);
+      if (sanitized.length > 0) {
+        next[key] = sanitized;
+      }
+      continue;
+    }
+    next[key] = sanitizeSchemaDescriptions(nested);
+  }
+  return next;
 }
 
 function inferExampleValue(property: unknown): unknown {
@@ -83,12 +148,12 @@ function buildExampleArgs(schema: Record<string, unknown>): Record<string, unkno
 
 function makeMcpToolCapabilities(tools: CapabilityToolDefinition[]): CapabilityEntry[] {
   return tools.map((tool) => {
-    const schema = asObjectSchema(tool.inputSchema);
-    const args = buildExampleArgs(schema);
+    const schema = sanitizeSchemaDescriptions(asObjectSchema(tool.inputSchema)) as Record<string, unknown>;
+    const args = PUBLIC_EXAMPLE_ARGS[tool.name as (typeof MCP_GOLDEN_PATH_TOOLS)[number]] ?? buildExampleArgs(schema);
     return {
       kind: 'mcp_tool',
       name: tool.name,
-      description: tool.description?.trim() || `MCP tool: ${tool.name}`,
+      description: sanitizeInventoryText(tool.description?.trim() || `MCP tool: ${tool.name}`),
       inputSchema: schema,
       exampleUsage: `{"tool":"${tool.name}","arguments":${JSON.stringify(args)}}`,
       version: LIBRARIAN_VERSION.string,
@@ -103,7 +168,7 @@ function buildConstructionExample(manifest: ConstructionManifest): string {
     && typeof rawInput === 'object'
     && !Array.isArray(rawInput)
   ) ? rawInput as Record<string, unknown> : buildExampleArgs(asObjectSchema(manifest.inputSchema));
-  return `librarian constructions run ${manifest.id} --input '${JSON.stringify(input)}'`;
+  return `librainian constructions run ${manifest.id} --input '${JSON.stringify(input)}'`;
 }
 
 function makeConstructionCapabilities(manifests: ConstructionManifest[]): CapabilityEntry[] {
@@ -136,7 +201,7 @@ function makeCompositionCapabilities(compositions: TechniqueComposition[]): Capa
       },
       required: ['compositionId'],
     },
-    exampleUsage: `{"tool":"compile_technique_composition","arguments":{"compositionId":"${composition.id}"}}`,
+    exampleUsage: `{"tool":"query_codebase","arguments":{"compositionId":"${composition.id}"}}`,
     version: composition.updatedAt || composition.createdAt || LIBRARIAN_VERSION.string,
   }));
 }
@@ -156,14 +221,31 @@ function computeInventoryVersion(capabilities: CapabilityEntry[]): string {
   return `v1-${digest}`;
 }
 
+function internalCapabilitySurfaceEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
 export function buildCapabilityInventory(input: {
   mcpTools: CapabilityToolDefinition[];
   compositions?: TechniqueComposition[];
+  surface?: CapabilitySurface;
 }): CapabilityInventory {
+  const surface = input.surface ?? 'public';
+  if (surface === 'full' && !internalCapabilitySurfaceEnabled()) {
+    throw new Error('The full capability inventory is unavailable in the public release surface.');
+  }
   const compositions = input.compositions ?? DEFAULT_TECHNIQUE_COMPOSITIONS;
-  const mcpCapabilities = makeMcpToolCapabilities(input.mcpTools);
-  const constructionCapabilities = makeConstructionCapabilities(listConstructions({}));
-  const compositionCapabilities = makeCompositionCapabilities(compositions);
+  const publicToolNames = new Set<string>(MCP_GOLDEN_PATH_TOOLS);
+  const selectedTools = surface === 'public'
+    ? input.mcpTools.filter((tool) => publicToolNames.has(tool.name))
+    : input.mcpTools;
+  const mcpCapabilities = makeMcpToolCapabilities(selectedTools);
+  const constructionCapabilities = surface === 'full'
+    ? makeConstructionCapabilities(listConstructions({}))
+    : [];
+  const compositionCapabilities = surface === 'full'
+    ? makeCompositionCapabilities(compositions)
+    : [];
 
   const capabilities = [
     ...mcpCapabilities,
@@ -176,9 +258,10 @@ export function buildCapabilityInventory(input: {
   return {
     kind: 'LiBrainianCapabilities.v1',
     schemaVersion: 1,
+    surface,
     inventoryVersion: computeInventoryVersion(capabilities),
     generatedAt: new Date().toISOString(),
-    librainianVersion: LIBRARIAN_VERSION.string,
+    librainianVersion: LIBRAINIAN_PACKAGE_VERSION,
     counts: {
       mcpTools: mcpCapabilities.length,
       constructions: constructionCapabilities.length,

@@ -32,7 +32,7 @@ export async function inspectCommand(options: InspectCommandOptions): Promise<vo
 
   const target = positionals.join(' ');
   if (!target) {
-    throw createError('INVALID_ARGUMENT', 'Module or function path/name is required. Usage: librarian inspect <path-or-name>');
+    throw createError('INVALID_ARGUMENT', 'Module or function path/name is required. Usage: librainian inspect <path-or-name>');
   }
 
   const entityType = values.type as 'function' | 'module' | 'auto';
@@ -45,7 +45,7 @@ export async function inspectCommand(options: InspectCommandOptions): Promise<vo
 
   try {
     // Check if bootstrapped
-    const bootstrapCheck = await isBootstrapRequired(workspace, storage);
+    const bootstrapCheck = await isBootstrapRequired(workspace, storage, { targetQualityTier: 'mvp' });
     if (bootstrapCheck.required) {
       throw createError('NOT_BOOTSTRAPPED', bootstrapCheck.reason);
     }

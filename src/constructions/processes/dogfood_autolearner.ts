@@ -519,8 +519,8 @@ export function createDogfoodAutoLearnerConstruction(): Construction<
           causalRationale: `success_lift_t3_plus=${successLift.toFixed(2)} below ${THRESHOLDS.success_lift_t3_plus.toFixed(2)}; interventions should target decision-changing query quality.`,
           expectedMetricMovement: ['success_lift_t3_plus:+0.08', 'rework_reduction_t3_plus:+0.06'],
           evidence: ['ablation_replay:aggregate', 'natural_usage_metrics:success_lift_t3_plus'],
-          files: ['src/evaluation/ab_harness.ts', 'docs/archive/evals/dogfood/m0_qualitative_protocol.md'],
-          tests: ['src/__tests__/ab_harness.test.ts'],
+          files: ['src/evaluation/agentic_use_case_review.ts', 'docs/archive/evals/dogfood/m0_qualitative_protocol.md'],
+          tests: ['src/__tests__/agentic_use_case_review_provider_probe.test.ts'],
         }));
       }
 

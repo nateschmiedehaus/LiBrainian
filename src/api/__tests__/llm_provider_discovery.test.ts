@@ -458,6 +458,25 @@ describe('llm provider discovery', () => {
     existsSyncSpy.mockRestore();
   });
 
+  it('accepts positive Codex login output even when the status command exits nonzero', async () => {
+    setupVerifiedCli('codex');
+    process.env.CODEX_HOME = '/tmp/codex';
+    execaMock
+      .mockResolvedValueOnce(buildExecaResult({ exitCode: 0, stdout: 'codex 1.0.0' }))
+      .mockResolvedValueOnce(buildExecaResult({
+        exitCode: 1,
+        stdout: 'Logged in using ChatGPT',
+        stderr: 'WARNING: proceeding, even though we could not update PATH: Refusing to create helper binaries under temporary dir "/tmp/codex-home"',
+      }));
+    const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+
+    const status = await codexCliProbe.probe();
+    expect(status.available).toBe(true);
+    expect(status.authenticated).toBe(true);
+
+    existsSyncSpy.mockRestore();
+  });
+
   it('treats empty Codex login status as unauthenticated', async () => {
     setupVerifiedCli('codex');
     process.env.CODEX_HOME = '/tmp/codex';

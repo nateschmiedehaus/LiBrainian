@@ -182,13 +182,13 @@ Authoring rules that prevent downstream breakage:
 Quick validation loop:
 
 ```bash
-librarian constructions validate ./construction.manifest.json
+librainian constructions validate ./construction.manifest.json
 ```
 
 Submit loop:
 
 ```bash
-librarian constructions submit ./construction.manifest.json
+librainian constructions submit ./construction.manifest.json
 ```
 
 ## 6. Testing a Construction preset
@@ -284,10 +284,10 @@ npm test -- --run src/testing/__tests__/helpers.test.ts
 npm run build
 
 # 4) validate manifest
-librarian constructions validate ./construction.manifest.json
+librainian constructions validate ./construction.manifest.json
 
 # 5) submit manifest
-librarian constructions submit ./construction.manifest.json
+librainian constructions submit ./construction.manifest.json
 
 # 6) publish package (community scope example)
 npm publish --access public

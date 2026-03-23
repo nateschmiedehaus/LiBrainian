@@ -69,7 +69,7 @@ Add screenshots for UI changes.
 
 ## Reality Verification (required for M0 issues)
 
-See [REALITY_VERIFICATION.md](../docs/LiBrainian/REALITY_VERIFICATION.md) for the full protocol.
+See [REALITY_VERIFICATION.md](../docs/librarian/REALITY_VERIFICATION.md) for the full protocol.
 
 - [ ] Code merged to main: (this PR)
 - [ ] T0 passes: `npm test` — link CI run or paste output
@@ -101,7 +101,8 @@ See [REALITY_VERIFICATION.md](../docs/LiBrainian/REALITY_VERIFICATION.md) for th
 - [ ] Any dependent changes have been merged and published
 - [ ] `npm run package:assert-identity` passes
 - [ ] `npm run package:install-smoke` passes
-- [ ] `npm run eval:publish-gate -- --json` passes
+- [ ] `npm run validate:fast` passes
+- [ ] If this PR is intended for release qualification: `npm run test:agentic:strict` passes
 
 ## MCP Tool Checklist (required when adding/updating MCP tools)
 

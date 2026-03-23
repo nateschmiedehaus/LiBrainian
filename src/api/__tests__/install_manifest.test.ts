@@ -30,7 +30,7 @@ describe('install manifest', () => {
 
     const written = await writeInstallManifest({
       workspaceRoot: workspace,
-      packageVersion: '0.2.1',
+      packageVersion: '0.2.2',
       bootstrapMode: 'full',
       docsUpdatedFiles: ['AGENTS.md', 'docs/CLAUDE.md'],
     });

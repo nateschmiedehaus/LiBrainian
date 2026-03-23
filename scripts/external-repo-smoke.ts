@@ -41,4 +41,8 @@ console.log(JSON.stringify({
   results: report.results,
 }, null, 2));
 
+if (failures.length === 0) {
+  console.log('[external-repo-smoke] completed successfully');
+}
+
 process.exit(failures.length > 0 ? 1 : 0);

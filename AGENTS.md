@@ -1,5 +1,8 @@
 # Agent Instructions for LiBrainian
 
+> This file is for autonomous coding agents working inside the repository.
+> If you are evaluating, installing, or contributing as a human, start with `README.md`, `docs/START_HERE.md`, and `CONTRIBUTING.md`.
+
 LiBrainian is a codebase knowledge system for AI coding agents. It indexes
 source code and provides semantic search, context packs, and relationship
 graphs so agents can make better decisions without reading every file.
@@ -19,7 +22,6 @@ graphs so agents can make better decisions without reading every file.
 npm run build          # compile TypeScript → dist/
 npm run check          # Inner-loop guardrail: type-check + changed tests
 npm test               # T0 unit tests (no live providers required)
-npm run test:tier0     # same as npm test --run (CI gate)
 npm run test:integration   # T1 integration tests (providers optional)
 npx tsc --noEmit       # type-check only
 npm run lint           # ESLint
@@ -42,7 +44,7 @@ npm run test:agentic:strict   # T2 full agentic qualification (live providers re
 2. `NO_RETRY_NO_FALLBACK` — any fallback/degraded/unverified marker in release evidence is a hard failure
 3. `100%` strict pass required — no "pass with caveats"
 4. Run `test:agentic:strict` for publish-grade qualification
-5. Update `docs/LiBrainian/CONVERSATION_INSIGHTS.md` before release-gate runs
+5. Update `docs/librarian/CONVERSATION_INSIGHTS.md` before release-gate runs
 
 ## PR Rules
 
@@ -50,7 +52,7 @@ Use conventional commits (`feat/fix/test/docs/refactor/chore`). Do not force-pus
 
 ## What NOT to Do
 
-- Do not write `docs/LiBrainian/STATUS.md` manually — evidence must come from real runs
+- Do not write `docs/librarian/STATUS.md` manually — evidence must come from real runs
 - Do not skip smoke tests and claim success
 - Do not treat fallback/degraded mode output as release evidence
 - Do not add runtime dependencies not justified by a spec
@@ -72,10 +74,21 @@ LiBrainian is available as an MCP server. Agents auto-discover it via
 - Assessing blast radius of a change
 
 Example tool calls:
-- `query({ intent: "How does the bootstrap quality gate work?" })`
-- `query({ intent: "What breaks if I change the scoring pipeline?" })`
-- `get_context_pack({ intent: "debug embedding fallback", taskType: "bug_fix" })`
-- `find_callers({ symbolName: "rankContextPacks" })`
+- `mcp__librainian__query({ intent: "How does the bootstrap quality gate work?" })`
+- `mcp__librainian__query({ intent: "What breaks if I change the scoring pipeline?" })`
+- `mcp__librainian__get_context_pack({ intent: "debug embedding fallback" })`
+- `mcp__librainian__find_symbol({ symbolName: "rankContextPacks" })`
+- `mcp__librainian__find_usages({ symbolName: "rankContextPacks" })`
+
+Golden-path MCP tools for agent sessions:
+- `mcp__librainian__query` for architecture, behavior, and impact reasoning
+- `mcp__librainian__get_context_pack` before multi-file edits
+- `mcp__librainian__find_symbol` and `mcp__librainian__find_usages` for exact symbol tracing
+- `mcp__librainian__get_change_impact` before risky edits
+- `mcp__librainian__get_repo_map` for fast orientation
+- `mcp__librainian__semantic_search` when names are unknown
+
+Reserve Grep for exact literal string matching only.
 
 ### When NOT to Use
 
@@ -92,7 +105,7 @@ usage instructions in their prompt.
 If LiBrainian returns a structured error:
 - Retry at most once when `retryable`/`retry_safe` is true.
 - Do not retry when `retryable`/`retry_safe` is false; use `fallback_command` or `recoverWith`.
-- If the error reports stale or partial index state, repair with `librarian bootstrap` before trusting retrieval output.
+- If the error reports stale or partial index state, repair with `librainian bootstrap` before trusting retrieval output.
 - If MCP/query paths stay degraded, fall back to `rg` for direct source inspection instead of burning turns on repeated retries.
 
 Quick reference for subagent prompts:
@@ -118,8 +131,8 @@ CLI-to-MCP equivalence:
 
 | MCP tool | CLI equivalent |
 |----------|---------------|
-| `query({ intent: "..." })` | `./ask "..."` |
-| `query({ intent: "...", json: true })` | `./ask --json "..."` |
+| `mcp__librainian__query({ intent: "..." })` | `./ask "..."` |
+| `mcp__librainian__query({ intent: "...", json: true })` | `./ask --json "..."` |
 | `status()` | `node dist/cli/index.js status` |
 | `doctor()` | `node dist/cli/index.js doctor` |
 
@@ -134,7 +147,7 @@ Rules:
 2. Treat baseline dirty files as foreign state unless the issue explicitly requires touching them.
 3. Never rely on broad `git add -A` behavior to salvage partial work.
 4. If your issue genuinely needs a baseline-dirty file, make that decision explicit in the evidence comment and commit intentionally.
-5. Use `librarian triage --json` when the workspace is already dirty and the ownership/safety of those changes is unclear.
+5. Use `librainian triage --json` when the workspace is already dirty and the ownership/safety of those changes is unclear.
 
 This exists to prevent false issue progress, contaminated commits, and accidental destruction or capture of user-owned work.
 
@@ -269,15 +282,15 @@ Use this contract for autonomous issue implementation:
 
 Reference docs:
 
-- `docs/LiBrainian/MILESTONE_BRIEF.md`
-- `docs/LiBrainian/GATING_POLICY.md`
+- `docs/librarian/MILESTONE_BRIEF.md`
+- `docs/librarian/GATING_POLICY.md`
 
 ---
 
 ## Do Not
 1. Create more spec files, npm scripts, or docs — reduce, don't add
 2. Work on M2/M3/M4 — the product doesn't work at M0
-3. Close issues based on unit tests alone — require reality verification per `docs/LiBrainian/REALITY_VERIFICATION.md`
+3. Close issues based on unit tests alone — require reality verification per `docs/librarian/REALITY_VERIFICATION.md`
 4. Mock LLM/embedding calls in integration tests — use `PredeterminedLlmService` or real providers
 5. Modify evaluation infrastructure — keep scorer separate from scored
 

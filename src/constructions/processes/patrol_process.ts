@@ -15,6 +15,7 @@ import {
 } from './patrol_policy.js';
 import type { WetTestingPolicyConfig } from './wet_testing_policy.js';
 import { unwrapConstructionExecutionResult } from '../types.js';
+import { ConstructionError } from '../base/construction_base.js';
 
 export interface PatrolInput extends ProcessInput {
   repoPath?: string;
@@ -118,6 +119,27 @@ function resolvePolicyTrigger(
   return 'manual';
 }
 
+function assertSuccessfulDispatch(
+  dispatch: AgentDispatchOutput | undefined,
+  stageId: string,
+): void {
+  if (!dispatch) {
+    throw new ConstructionError('dispatch output missing after command execution', stageId);
+  }
+  if (dispatch.timedOut) {
+    throw new ConstructionError(
+      `patrol command timed out while executing ${dispatch.commandLine}`,
+      stageId,
+    );
+  }
+  if (dispatch.exitCode !== 0) {
+    throw new ConstructionError(
+      `patrol command failed with exit code ${dispatch.exitCode} while executing ${dispatch.commandLine}`,
+      stageId,
+    );
+  }
+}
+
 export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, PatrolProcessState> {
   constructor() {
     super('patrol-process', 'Patrol Process', 'Agent Patrol as a first-class process construction.');
@@ -211,6 +233,16 @@ export class PatrolProcess extends AgenticProcess<PatrolInput, PatrolOutput, Pat
                   timeoutMs: taskInput.timeoutMs,
                 }));
                 return { dispatch, policyPreflight };
+              },
+            },
+            {
+              id: 'dispatch.validate',
+              run: async (_taskInput, state) => {
+                if (state.dispatch?.commandLine === 'synthetic-dry-run') {
+                  return {};
+                }
+                assertSuccessfulDispatch(state.dispatch, 'dispatch.validate');
+                return {};
               },
             },
           ],

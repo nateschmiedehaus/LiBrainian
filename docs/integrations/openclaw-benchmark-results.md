@@ -1,6 +1,9 @@
 # OpenClaw Integration Benchmark Results
 
-This benchmark suite is produced by:
+This is a source-checkout maintainer artifact for deferred OpenClaw integration work.
+It is not part of the first public release surface.
+
+When maintainers run the hidden integration benchmark lane, it is produced by:
 
 ```bash
 librarian test-integration --suite openclaw --json

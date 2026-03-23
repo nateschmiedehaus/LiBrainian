@@ -49,7 +49,7 @@ interface QuickstartReport {
     nextSteps?: string[];
   };
   baseline: boolean;
-  updateAgentDocs: boolean;
+  updateAgentDocs?: boolean;
   warnings: string[];
   errors: string[];
   recovery: unknown;
@@ -138,7 +138,7 @@ function formatMcpRegistrationValue(
   mcpReport: ConfigureEditorMcpForInitReport | null,
 ): string {
   if (noMcp || ci) return 'skipped';
-  if (!mcpReport) return 'manual setup (run `librarian mcp --print-config`)';
+  if (!mcpReport) return 'manual setup (run `librainian mcp --print-config`)';
 
   if (mcpReport.dryRun) {
     return `dry-run (${mcpReport.wouldWrite} planned changes)`;
@@ -165,8 +165,13 @@ function hasAnyMcpInitFlag(rawArgs: string[]): boolean {
   ));
 }
 
+function internalCommandsEnabled(): boolean {
+  return process.env.LIBRAINIAN_ENABLE_INTERNAL_COMMANDS === '1';
+}
+
 export async function quickstartCommand(options: QuickstartCommandOptions): Promise<void> {
   const { workspace, rawArgs } = options;
+  const internalSurface = internalCommandsEnabled();
 
   const { values } = parseArgs({
     args: rawArgs.slice(1),
@@ -219,6 +224,12 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
   const mcpEditor = typeof values.editor === 'string' ? values.editor : undefined;
   const mcpDryRun = values['dry-run'] as boolean;
   const mcpGlobalConfig = values.global as boolean;
+  if (updateAgentDocs && !internalSurface) {
+    throw createError(
+      'INVALID_ARGUMENT',
+      'Quickstart agent-doc mutation flags are unavailable in the public release surface.',
+    );
+  }
 
   const dbPath = await resolveDbPath(workspaceRoot);
 
@@ -227,7 +238,7 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
     dbPath,
     autoHealConfig: true,
     riskTolerance,
-    allowDegradedEmbeddings: true,
+    allowDegradedEmbeddings: false,
     bootstrapMode,
     emitBaseline,
     updateAgentDocs,
@@ -283,11 +294,13 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       nextSteps: mcpReport?.nextSteps,
     },
     baseline: emitBaseline,
-    updateAgentDocs,
     warnings,
     errors: summary.errors,
     recovery,
   };
+  if (internalSurface) {
+    report.updateAgentDocs = updateAgentDocs;
+  }
 
   if (json) {
     console.log(JSON.stringify(report, null, 2));
@@ -300,8 +313,8 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
       { key: 'CI Mode', value: ci ? 'enabled' : 'disabled' },
       { key: 'MCP Registration', value: formatMcpRegistrationValue(noMcp, ci, mcpReport) },
       { key: 'Baseline', value: emitBaseline ? 'enabled' : 'disabled' },
-      { key: 'Agent Docs Update', value: updateAgentDocs ? 'enabled' : 'disabled' },
       { key: 'Status', value: status.toUpperCase() },
+      ...(internalSurface ? [{ key: 'Agent Docs Update', value: updateAgentDocs ? 'enabled' : 'disabled' }] : []),
     ]);
 
     console.log('\nRecovery Summary:');
@@ -370,8 +383,8 @@ export async function quickstartCommand(options: QuickstartCommandOptions): Prom
         console.log(`  - ${error}`);
       }
       console.log('\nNext steps:');
-      console.log('  - Run `librarian doctor --heal` for deeper diagnostics');
-      console.log('  - Run `librarian bootstrap --force` for a full rebuild');
+      console.log('  - Run `librainian doctor --heal` for deeper diagnostics');
+      console.log('  - Run `librainian bootstrap --force --mode fast` for a fast rebuild of the active index');
     } else {
       console.log('\nLibrarian is ready for use.');
     }

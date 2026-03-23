@@ -36,5 +36,18 @@ describe('workspace_lock signal handler registration', () => {
     expect(process.listenerCount('SIGTERM')).toBeLessThanOrEqual(baseCounts.SIGTERM + 1);
     expect(process.listenerCount('exit')).toBeLessThanOrEqual(baseCounts.exit + 1);
   });
-});
 
+  it('fails closed when an existing lock file is corrupt', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'librarian-ws-lock-corrupt-'));
+    handles.push({ release: async () => undefined, dir: root });
+    const lockPath = path.join(root, '.librarian', 'bootstrap.lock');
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
+    await fs.writeFile(lockPath, '{corrupt', 'utf8');
+
+    await expect(acquireWorkspaceLock(root, {
+      timeoutMs: 20,
+      pollIntervalMs: 5,
+    })).rejects.toThrow(/bootstrap lock exists but is corrupt/i);
+    await expect(fs.readFile(lockPath, 'utf8')).resolves.toBe('{corrupt');
+  });
+});

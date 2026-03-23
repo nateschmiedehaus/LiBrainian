@@ -69,7 +69,7 @@ export async function startWatchSession(options: WatchCommandOptions): Promise<W
   const status = await librarian.getStatus();
   if (!status.bootstrapped) {
     throw new CliError(
-      'Librarian not bootstrapped. Run "librarian quickstart" or "librarian bootstrap" first.',
+      'LiBrainian not bootstrapped. Run "librainian quickstart" or "librainian bootstrap" first.',
       'NOT_BOOTSTRAPPED'
     );
   }

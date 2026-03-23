@@ -10,6 +10,7 @@ import type { BootstrapReport } from '../types.js';
 
 export interface ExternalRepoSmokeResult {
   repo: string;
+  language?: string;
   overviewOk: boolean;
   contextOk: boolean;
   contextFile?: string;
@@ -330,7 +331,7 @@ export async function runExternalRepoSmoke(options: {
   const manifestPath = path.join(options.reposRoot, 'manifest.json');
   await stat(manifestPath);
   const raw = await readFile(manifestPath, 'utf8');
-  const parsed = safeJsonParse<{ repos?: Array<{ name: string }> }>(raw);
+  const parsed = safeJsonParse<{ repos?: Array<{ name: string; language?: string }> }>(raw);
   if (!parsed.ok || !parsed.value?.repos) {
     throw new Error('unverified_by_trace(test_fixture_missing): external repo manifest missing or invalid');
   }
@@ -339,7 +340,7 @@ export async function runExternalRepoSmoke(options: {
   let requested = repos;
   if (Array.isArray(options.repoNames) && options.repoNames.length > 0) {
     const byName = new Map(repos.map((repo) => [repo.name, repo] as const));
-    const resolved: Array<{ name: string }> = [];
+    const resolved: Array<{ name: string; language?: string }> = [];
     const missing: string[] = [];
 
     for (const name of options.repoNames) {
@@ -415,6 +416,7 @@ export async function runExternalRepoSmoke(options: {
     const repoRoot = path.join(options.reposRoot, repo.name);
     const result: ExternalRepoSmokeResult = {
       repo: repo.name,
+      language: typeof repo.language === 'string' && repo.language.length > 0 ? repo.language : undefined,
       overviewOk: false,
       contextOk: false,
       errors: [],

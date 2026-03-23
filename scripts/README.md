@@ -6,11 +6,9 @@ LiBrainian scripts are grouped by function:
   - `assert-package-identity.mjs`
   - `publish-github-package.mjs`
   - `package-install-smoke.mjs`
-  - `refresh-final-verification.mjs`
   - `benchmark-query-latency.ts` (real end-to-end query latency + lingering bootstrap/query process hygiene guard)
 - **Evaluation orchestration**
-  - `ab-harness.ts`
-  - `ab-diagnosis.ts`
+  - Maintainer-only diagnostics; not part of the package-shipped user surface
   - `agentic-use-case-review.ts`
   - `external-repo-smoke.ts`
   - `external-ground-truth.ts`
@@ -22,6 +20,7 @@ LiBrainian scripts are grouped by function:
   - `canon_guard.mjs`
   - `complexity_check.mjs`
   - `check-file-sizes.mjs`
+  - `claude-broker.mjs` (local Claude CLI sidecar exposing `GET /health` + `POST /v1/chat` for nested-session-safe broker transport)
   - `guard-generated-artifacts.mjs` (blocks likely accidental TypeScript emit artifacts like `src/**/*.js` beside `src/**/*.ts`)
   - `repo-folder-audit.mjs`
   - `hook-update-index.mjs` (best-effort staged index refresh for pre-commit flows)
@@ -52,5 +51,7 @@ LiBrainian scripts are grouped by function:
 
 - Keep scripts deterministic and machine-readable where possible.
 - Prefer JSON artifact output for anything consumed by gates/CI.
+- Remove unmaintained evaluation lanes from the active contract instead of keeping broken wrappers around.
+- Keep placeholder lexical evaluation lanes fail-closed and out of release proof until the real product path exists.
 - Temporary one-off scripts should not remain in this directory.
 - Hook bypass policy (`--no-verify`) is documented in `docs/archive/policies/hook-fallback-policy.md`.

@@ -204,6 +204,16 @@ export interface AgenticUseCaseReviewOptions {
   queryTimeoutMs?: number;
   forceProviderProbe?: boolean;
   signal?: AbortSignal;
+  onProgress?: (event: {
+    type: 'repo_start' | 'repo_complete' | 'use_case' | 'exploration';
+    repo: string;
+    useCaseId?: string;
+    intent?: string;
+    completed?: number;
+    total?: number;
+    success?: boolean;
+    message: string;
+  }) => void;
 }
 
 interface RepoManifest {
@@ -224,6 +234,17 @@ const DEFAULT_THRESHOLDS: AgenticUseCaseReviewThresholds = {
   minTargetPassRate: 0.75,
   minTargetDependencyReadyShare: 1,
 };
+
+const REPO_INIT_LOCK_RETRY_DELAY_MS = 1_500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableInitLockError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /storage_locked:.*indexing in progress/i.test(message);
+}
 
 const EMPTY_SUMMARIES = new Set(['No context available', 'No relevant context found']);
 const STRICT_FAILURE_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
@@ -255,6 +276,20 @@ function resolveTimeoutMs(value: number | undefined, envName: string, fallbackMs
     if (Number.isFinite(parsed) && parsed >= 0) return parsed;
   }
   return fallbackMs;
+}
+
+async function withProviderWorkspaceRoot<T>(workspaceRoot: string, fn: () => Promise<T>): Promise<T> {
+  const previous = process.env.LIBRARIAN_WORKSPACE_ROOT;
+  process.env.LIBRARIAN_WORKSPACE_ROOT = workspaceRoot;
+  try {
+    return await fn();
+  } finally {
+    if (typeof previous === 'string') {
+      process.env.LIBRARIAN_WORKSPACE_ROOT = previous;
+    } else {
+      delete process.env.LIBRARIAN_WORKSPACE_ROOT;
+    }
+  }
 }
 
 function safeRate(numerator: number, denominator: number): number {
@@ -649,7 +684,7 @@ function evaluateUseCaseReviewGate(
   return { passed: reasons.length === 0, reasons, thresholds };
 }
 
-function buildPlannedUseCases(selectedUseCases: AgenticUseCase[], progressivePrerequisites: boolean): AgenticUseCasePlanItem[] {
+export function buildPlannedUseCases(selectedUseCases: AgenticUseCase[], progressivePrerequisites: boolean): AgenticUseCasePlanItem[] {
   const selectedIds = new Set(selectedUseCases.map((useCase) => useCase.id));
   const prerequisites = new Map<string, AgenticUseCasePlanItem>();
   const targets: AgenticUseCasePlanItem[] = [];
@@ -675,10 +710,83 @@ function buildPlannedUseCases(selectedUseCases: AgenticUseCase[], progressivePre
     });
   }
 
-  return [
-    ...Array.from(prerequisites.values()).sort((left, right) => useCaseNumber(left.id) - useCaseNumber(right.id)),
-    ...targets.sort((left, right) => useCaseNumber(left.id) - useCaseNumber(right.id)),
+  const combined = [
+    ...Array.from(prerequisites.values()),
+    ...targets,
   ];
+
+  const byId = new Map(combined.map((item) => [item.id, item]));
+  const dependents = new Map<string, string[]>();
+  const indegree = new Map<string, number>();
+  for (const item of combined) {
+    indegree.set(item.id, 0);
+    dependents.set(item.id, []);
+  }
+
+  for (const item of combined) {
+    for (const dependency of item.dependencies) {
+      if (!byId.has(dependency)) continue;
+      indegree.set(item.id, (indegree.get(item.id) ?? 0) + 1);
+      const bucket = dependents.get(dependency) ?? [];
+      bucket.push(item.id);
+      dependents.set(dependency, bucket);
+    }
+  }
+
+  const comparePlanItems = (left: AgenticUseCasePlanItem, right: AgenticUseCasePlanItem): number => {
+    const leftIsPrerequisite = left.stepKind === 'prerequisite';
+    const rightIsPrerequisite = right.stepKind === 'prerequisite';
+    if (leftIsPrerequisite !== rightIsPrerequisite) {
+      return leftIsPrerequisite ? -1 : 1;
+    }
+    return useCaseNumber(left.id) - useCaseNumber(right.id);
+  };
+
+  const ready = combined
+    .filter((item) => (indegree.get(item.id) ?? 0) === 0)
+    .sort(comparePlanItems);
+  const ordered: AgenticUseCasePlanItem[] = [];
+
+  while (ready.length > 0) {
+    const next = ready.shift();
+    if (!next) break;
+    ordered.push(next);
+
+    for (const dependentId of dependents.get(next.id) ?? []) {
+      const remaining = (indegree.get(dependentId) ?? 0) - 1;
+      indegree.set(dependentId, remaining);
+      if (remaining === 0) {
+        const dependent = byId.get(dependentId);
+        if (dependent) {
+          ready.push(dependent);
+          ready.sort(comparePlanItems);
+        }
+      }
+    }
+  }
+
+  if (ordered.length !== combined.length) {
+    return combined.sort(comparePlanItems);
+  }
+
+  return ordered;
+}
+
+function assignUseCasesToRepos(
+  selectedRepos: string[],
+  selectedUseCases: AgenticUseCase[],
+  maxRunsPerRepo: number,
+): Map<string, AgenticUseCase[]> {
+  const assignments = new Map<string, AgenticUseCase[]>();
+  if (selectedRepos.length === 0) return assignments;
+
+  let index = 0;
+  for (const repo of selectedRepos) {
+    assignments.set(repo, selectedUseCases.slice(index, index + maxRunsPerRepo));
+    index += maxRunsPerRepo;
+  }
+
+  return assignments;
 }
 
 export async function runAgenticUseCaseReview(
@@ -687,7 +795,7 @@ export async function runAgenticUseCaseReview(
   throwIfAborted(options.signal, 'agentic_use_case_review');
 
   const reposRoot = path.resolve(options.reposRoot);
-  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'librarian', 'USE_CASE_MATRIX.md'));
+  const matrixPath = path.resolve(options.matrixPath ?? path.join(process.cwd(), 'docs', 'archive', 'USE_CASE_MATRIX.md'));
   const ucStart = options.ucStart ?? 1;
   const ucEnd = options.ucEnd ?? 310;
   const selectionMode = options.selectionMode ?? 'probabilistic';
@@ -725,15 +833,26 @@ export async function runAgenticUseCaseReview(
   const selectedRepos = await resolveRepoNames(reposRoot, options.repoNames, options.maxRepos);
   const maxRunsPerRepo = Math.max(1, Math.ceil(Math.max(1, selectedUseCases.length) / Math.max(1, selectedRepos.length || 1)));
   const plannedUseCases = buildPlannedUseCases(selectedUseCases, progressivePrerequisites);
+  const useCasesByRepo = assignUseCasesToRepos(selectedRepos, selectedUseCases, maxRunsPerRepo);
   const explorationIntents = buildExplorationIntents(explorationIntentsPerRepo);
   const results: AgenticUseCaseRunResult[] = [];
   const explorationFindings: AgenticUseCaseExplorationFinding[] = [];
   const repoReportPaths: string[] = [];
   const runLabel = options.runLabel?.trim().length ? sanitizePathSegment(options.runLabel) : `agentic-use-cases-${Date.now()}`;
   const artifactsRoot = options.artifactRoot?.trim().length ? path.resolve(options.artifactRoot, runLabel) : null;
+  const emitProgress = options.onProgress;
 
   for (const repoName of selectedRepos) {
     throwIfAborted(options.signal, 'agentic_use_case_review');
+    const repoSelectedUseCases = useCasesByRepo.get(repoName) ?? [];
+    const repoPlannedUseCases = buildPlannedUseCases(repoSelectedUseCases, progressivePrerequisites);
+    emitProgress?.({
+      type: 'repo_start',
+      repo: repoName,
+      completed: 0,
+      total: repoPlannedUseCases.length,
+      message: `Starting repo review for ${repoName}`,
+    });
     const repoRoot = path.join(reposRoot, repoName);
     let providerSnapshot: unknown = null;
     let repoError: string | null = null;
@@ -741,42 +860,55 @@ export async function runAgenticUseCaseReview(
     const repoResults: AgenticUseCaseRunResult[] = [];
     const repoExplorationFindings: AgenticUseCaseExplorationFinding[] = [];
 
-    try {
-      const providerGate = await withTimeout(
-        runProviderReadinessGate(repoRoot, { emitReport: true, forceProbe: forceProviderProbe }),
-        initTimeoutMs,
-        { context: `unverified_by_trace(timeout_provider_gate): ${repoName}` },
-      );
-      providerSnapshot = {
-        ready: providerGate.ready,
-        llmReady: providerGate.llmReady,
-        embeddingReady: providerGate.embeddingReady,
-        selectedProvider: providerGate.selectedProvider ?? null,
-        reason: providerGate.reason ?? null,
-      };
-      if (!providerGate.ready || !providerGate.llmReady || !providerGate.embeddingReady) {
-        throw new Error(`unverified_by_trace(provider_unavailable): ${providerGate.reason ?? 'provider gate not ready'}`);
-      }
+    await withProviderWorkspaceRoot(repoRoot, async () => {
+      try {
+        const providerGate = await withTimeout(
+          runProviderReadinessGate(repoRoot, { emitReport: true, forceProbe: forceProviderProbe }),
+          initTimeoutMs,
+          { context: `unverified_by_trace(timeout_provider_gate): ${repoName}` },
+        );
+        providerSnapshot = {
+          ready: providerGate.ready,
+          llmReady: providerGate.llmReady,
+          embeddingReady: providerGate.embeddingReady,
+          selectedProvider: providerGate.selectedProvider ?? null,
+          reason: providerGate.reason ?? null,
+        };
+        if (!providerGate.ready || !providerGate.llmReady || !providerGate.embeddingReady) {
+          throw new Error(`unverified_by_trace(provider_unavailable): ${providerGate.reason ?? 'provider gate not ready'}`);
+        }
 
-      const gateResult = await withTimeout(
-        ensureLibrarianReady(repoRoot, {
-          allowDegradedEmbeddings: false,
-          skipLlm: true,
-          requireCompleteParserCoverage: true,
-          throwOnFailure: true,
-          timeoutMs: initTimeoutMs,
-          maxWaitForBootstrapMs: initTimeoutMs,
-          providerGate: async () => providerGate,
-        }),
-        initTimeoutMs,
-        { context: `unverified_by_trace(timeout_initialization): ${repoName}` },
-      );
-      if (!gateResult.librarian) {
-        throw new Error('unverified_by_trace(initialization_failed): librarian unavailable');
-      }
-      librarianForCleanup = gateResult.librarian;
+        let gateResult: Awaited<ReturnType<typeof ensureLibrarianReady>> | null = null;
+        let initAttempt = 0;
+        while (!gateResult) {
+          try {
+            gateResult = await withTimeout(
+              ensureLibrarianReady(repoRoot, {
+                allowDegradedEmbeddings: false,
+                requireCompleteParserCoverage: true,
+                throwOnFailure: true,
+                timeoutMs: initTimeoutMs,
+                maxWaitForBootstrapMs: initTimeoutMs,
+                providerGate: async () => providerGate,
+              }),
+              initTimeoutMs,
+              { context: `unverified_by_trace(timeout_initialization): ${repoName}` },
+            );
+          } catch (error) {
+            if (initAttempt < 1 && isRetryableInitLockError(error)) {
+              initAttempt += 1;
+              await sleep(REPO_INIT_LOCK_RETRY_DELAY_MS);
+              continue;
+            }
+            throw error;
+          }
+        }
+        if (!gateResult.librarian) {
+          throw new Error('unverified_by_trace(initialization_failed): librarian unavailable');
+        }
+        librarianForCleanup = gateResult.librarian;
 
-      for (const useCase of plannedUseCases) {
+      for (const useCase of repoPlannedUseCases) {
         throwIfAborted(options.signal, 'agentic_use_case_review');
         const intent = buildUseCaseIntent(useCase);
         const missingPrerequisites = useCase.stepKind === 'target'
@@ -815,6 +947,16 @@ export async function runAgenticUseCaseReview(
           };
           results.push(run);
           repoResults.push(run);
+          emitProgress?.({
+            type: 'use_case',
+            repo: repoName,
+            useCaseId: useCase.id,
+            intent,
+            completed: repoResults.length,
+            total: repoPlannedUseCases.length,
+            success: run.success,
+            message: `${repoName} ${useCase.id} ${run.success ? 'passed' : 'failed'}`,
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const run: AgenticUseCaseRunResult = {
@@ -835,6 +977,16 @@ export async function runAgenticUseCaseReview(
           };
           results.push(run);
           repoResults.push(run);
+          emitProgress?.({
+            type: 'use_case',
+            repo: repoName,
+            useCaseId: useCase.id,
+            intent,
+            completed: repoResults.length,
+            total: repoPlannedUseCases.length,
+            success: false,
+            message: `${repoName} ${useCase.id} failed: ${message}`,
+          });
         }
       }
 
@@ -866,6 +1018,15 @@ export async function runAgenticUseCaseReview(
           };
           explorationFindings.push(finding);
           repoExplorationFindings.push(finding);
+          emitProgress?.({
+            type: 'exploration',
+            repo: repoName,
+            intent,
+            completed: repoExplorationFindings.length,
+            total: explorationIntents.length,
+            success: finding.success,
+            message: `${repoName} exploration ${finding.success ? 'passed' : 'failed'}`,
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           const finding: AgenticUseCaseExplorationFinding = {
@@ -883,53 +1044,65 @@ export async function runAgenticUseCaseReview(
           };
           explorationFindings.push(finding);
           repoExplorationFindings.push(finding);
+          emitProgress?.({
+            type: 'exploration',
+            repo: repoName,
+            intent,
+            completed: repoExplorationFindings.length,
+            total: explorationIntents.length,
+            success: false,
+            message: `${repoName} exploration failed: ${message}`,
+          });
         }
       }
-    } catch (error) {
-      repoError = error instanceof Error ? error.message : String(error);
-      for (const useCase of plannedUseCases) {
-        const intent = buildUseCaseIntent(useCase);
-        const run: AgenticUseCaseRunResult = {
-          repo: repoName,
-          useCaseId: useCase.id,
-          domain: useCase.domain,
-          intent,
-          stepKind: useCase.stepKind,
-          success: false,
-          dependencyReady: false,
-          missingPrerequisites: useCase.dependencies,
-          packCount: 0,
-          evidenceCount: 0,
-          hasUsefulSummary: false,
-          totalConfidence: 0,
-          strictSignals: detectStrictSignals(repoError),
-          errors: [repoError],
-        };
-        results.push(run);
-        repoResults.push(run);
+      } catch (error) {
+        repoError = error instanceof Error ? error.message : String(error);
+        const repoSelectedUseCases = useCasesByRepo.get(repoName) ?? [];
+        const repoPlannedUseCases = buildPlannedUseCases(repoSelectedUseCases, progressivePrerequisites);
+        for (const useCase of repoPlannedUseCases) {
+          const intent = buildUseCaseIntent(useCase);
+          const run: AgenticUseCaseRunResult = {
+            repo: repoName,
+            useCaseId: useCase.id,
+            domain: useCase.domain,
+            intent,
+            stepKind: useCase.stepKind,
+            success: false,
+            dependencyReady: false,
+            missingPrerequisites: useCase.dependencies,
+            packCount: 0,
+            evidenceCount: 0,
+            hasUsefulSummary: false,
+            totalConfidence: 0,
+            strictSignals: detectStrictSignals(repoError),
+            errors: [repoError],
+          };
+          results.push(run);
+          repoResults.push(run);
+        }
+        for (const intent of explorationIntents) {
+          const finding: AgenticUseCaseExplorationFinding = {
+            repo: repoName,
+            intent,
+            success: false,
+            packCount: 0,
+            evidenceCount: 0,
+            hasUsefulSummary: false,
+            totalConfidence: 0,
+            strictSignals: detectStrictSignals(repoError),
+            errors: [repoError],
+            summary: null,
+            citations: [],
+          };
+          explorationFindings.push(finding);
+          repoExplorationFindings.push(finding);
+        }
+      } finally {
+        if (librarianForCleanup) {
+          await librarianForCleanup.shutdown().catch(() => {});
+        }
       }
-      for (const intent of explorationIntents) {
-        const finding: AgenticUseCaseExplorationFinding = {
-          repo: repoName,
-          intent,
-          success: false,
-          packCount: 0,
-          evidenceCount: 0,
-          hasUsefulSummary: false,
-          totalConfidence: 0,
-          strictSignals: detectStrictSignals(repoError),
-          errors: [repoError],
-          summary: null,
-          citations: [],
-        };
-        explorationFindings.push(finding);
-        repoExplorationFindings.push(finding);
-      }
-    } finally {
-      if (librarianForCleanup) {
-        await librarianForCleanup.shutdown().catch(() => {});
-      }
-    }
+    });
 
     if (artifactsRoot) {
       const repoReportPath = path.join(artifactsRoot, 'repos', `${sanitizePathSegment(repoName)}.json`);
@@ -945,6 +1118,14 @@ export async function runAgenticUseCaseReview(
       }, null, 2), 'utf8');
       repoReportPaths.push(repoReportPath);
     }
+    emitProgress?.({
+      type: 'repo_complete',
+      repo: repoName,
+      completed: repoResults.length,
+      total: repoPlannedUseCases.length,
+      success: repoError == null,
+      message: `Completed repo review for ${repoName}${repoError ? ` with error: ${repoError}` : ''}`,
+    });
   }
 
   const summary = summarizeUseCaseReview(

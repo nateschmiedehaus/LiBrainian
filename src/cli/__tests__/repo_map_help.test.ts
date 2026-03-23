@@ -7,7 +7,7 @@ describe('repo-map help', () => {
     expect(mainHelp).toContain('repo-map');
 
     const commandHelp = getCommandHelp('repo-map');
-    expect(commandHelp).toContain('librarian repo-map');
+    expect(commandHelp).toContain('librainian repo-map');
     expect(commandHelp).toContain('--max-tokens');
     expect(commandHelp).toContain('--focus');
   });

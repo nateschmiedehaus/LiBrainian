@@ -159,7 +159,7 @@ export class MetaKnowledgeEngine {
       area,
       reason: 'No indexed entities for scope',
       risk: 'high',
-      suggestion: 'Run librarian bootstrap or reindex this directory.',
+      suggestion: 'Run librainian bootstrap or reindex this directory.',
     }));
   }
 

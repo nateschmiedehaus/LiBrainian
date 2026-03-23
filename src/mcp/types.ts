@@ -37,6 +37,19 @@ import type { SearchFilter } from '../types.js';
 // ============================================================================
 
 export const MCP_SCHEMA_VERSION = '1.0.0';
+export const MCP_GOLDEN_PATH_TOOLS = [
+  'query',
+  'get_context_pack',
+  'find_symbol',
+  'get_change_impact',
+  'explain_function',
+  'find_usages',
+  'get_repo_map',
+  'describe_capabilities',
+  'run_health_check',
+  'query_codebase',
+] as const;
+export const DEFAULT_MCP_SERVER_INSTRUCTIONS = 'Use mcp__librainian__query for cross-file understanding, mcp__librainian__get_context_pack before multi-file edits, mcp__librainian__find_symbol or mcp__librainian__find_usages for exact symbol tracing, mcp__librainian__get_change_impact before risky edits, and reserve Grep for exact literal string matching.';
 
 // ============================================================================
 // RESOURCE TYPES
@@ -975,6 +988,9 @@ export interface ListConstructionsToolInput {
 export interface ListCapabilitiesToolInput {
   /** Optional workspace path to resolve workspace-scoped compositions */
   workspace?: string;
+
+  /** Capability inventory surface. Public is the stable release surface; full includes internal constructions and compositions. */
+  surface?: 'public' | 'full';
 }
 
 /** Invoke construction tool input */
@@ -2416,6 +2432,12 @@ export interface LiBrainianMCPServerConfig {
   /** Workspace roots to serve */
   workspaces: string[];
 
+  /** Optional visible tool subset for tools/list advertisement */
+  enabledTools?: string[];
+
+  /** Optional host-facing instructions for MCP client registration */
+  serverInstructions?: string;
+
   /** Authorization settings */
   authorization: {
     /** Enabled scopes */
@@ -2523,6 +2545,7 @@ export const DEFAULT_MCP_SERVER_CONFIG: LiBrainianMCPServerConfig = {
   name: 'librarian-mcp-server',
   version: MCP_SCHEMA_VERSION,
   workspaces: [],
+  serverInstructions: DEFAULT_MCP_SERVER_INSTRUCTIONS,
   authorization: {
     enabledScopes: ['read'],
     requireConsent: true,

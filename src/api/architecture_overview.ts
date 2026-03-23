@@ -440,14 +440,174 @@ export async function handleArchitectureQuery(
   storage: LibrarianStorage,
   workspaceRoot: string,
   existingPacks: ContextPack[],
-  version: LibrarianVersion
+  version: LibrarianVersion,
+  intent?: string
 ): Promise<ContextPack[]> {
   // Generate architecture overview
   const architecturePack = await generateArchitectureOverview(storage, workspaceRoot, version);
+  const architectureLayers = await inferArchitectureLayers(storage, workspaceRoot).catch(() => []);
+  const curatedPacks = curateArchitectureContextPacks(existingPacks, architectureLayers, workspaceRoot, intent);
 
-  // Prepend architecture pack to existing packs
-  const result = [architecturePack, ...existingPacks];
+  // Prepend architecture pack to curated structural context only.
+  return [architecturePack, ...curatedPacks].filter(pack => pack.confidence >= 0.3);
+}
 
-  // Filter out low-confidence packs that might confuse the response
-  return result.filter(pack => pack.confidence >= 0.3);
+const ARCHITECTURE_ALLOWED_PACK_TYPES = new Set<string>([
+  'module_context',
+  'doc_context',
+  'project_understanding',
+  'architecture_overview',
+]);
+
+const ARCHITECTURE_STOPWORDS = new Set([
+  'the', 'this', 'that', 'these', 'those', 'how', 'what', 'where', 'when', 'why', 'which',
+  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'does', 'do', 'did', 'can', 'could',
+  'should', 'would', 'module', 'modules', 'system', 'service', 'services', 'layer', 'layers',
+  'package', 'packages', 'codebase', 'project', 'code', 'architecture', 'architectural',
+  'structure', 'structured', 'structured?', 'organized', 'organization', 'layout', 'design',
+  'overview', 'main', 'components', 'component', 'high', 'level', 'summary', 'show', 'tell',
+  'explain', 'describe', 'diagram', 'map', 'of', 'for', 'in', 'on', 'to', 'and', 'or',
+]);
+
+function curateArchitectureContextPacks(
+  existingPacks: ContextPack[],
+  architectureLayers: ArchitectureLayer[],
+  workspaceRoot: string,
+  intent?: string
+): ContextPack[] {
+  const layerNames = new Set(architectureLayers.map(layer => layer.name.toLowerCase()));
+  const topicTerms = extractArchitectureTopicTerms(intent);
+  const scored = existingPacks
+    .filter((pack) => ARCHITECTURE_ALLOWED_PACK_TYPES.has(pack.packType))
+    .filter((pack) => !packTargetsTestOrFixture(pack))
+    .map((pack) => ({
+      pack,
+      score: scoreArchitecturePack(pack, topicTerms, layerNames, workspaceRoot),
+    }))
+    .filter(({ pack, score }) => {
+      if (topicTerms.length === 0) {
+        return true;
+      }
+      if (pack.packType === 'doc_context' || pack.packType === 'project_understanding') {
+        return true;
+      }
+      return score >= (pack.confidence + 0.15);
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const curated: ContextPack[] = [];
+  const seenDirectories = new Set<string>();
+
+  for (const { pack } of scored) {
+    if (pack.packType === 'module_context') {
+      const directoryKey = getRepresentativeDirectory(pack, workspaceRoot);
+      if (directoryKey && seenDirectories.has(directoryKey)) {
+        continue;
+      }
+      if (directoryKey) {
+        seenDirectories.add(directoryKey);
+      }
+    }
+
+    curated.push(pack);
+    if (curated.length >= 6) {
+      break;
+    }
+  }
+
+  return curated;
+}
+
+function extractArchitectureTopicTerms(intent?: string): string[] {
+  if (!intent) {
+    return [];
+  }
+
+  const terms = intent
+    .toLowerCase()
+    .split(/[^a-z0-9_]+/i)
+    .map(term => term.trim())
+    .filter(term => term.length >= 3)
+    .filter(term => !ARCHITECTURE_STOPWORDS.has(term));
+
+  return [...new Set(terms)].slice(0, 6);
+}
+
+function scoreArchitecturePack(
+  pack: ContextPack,
+  topicTerms: string[],
+  layerNames: Set<string>,
+  workspaceRoot: string
+): number {
+  let score = pack.confidence;
+  const packText = [
+    pack.summary,
+    pack.targetId,
+    ...pack.keyFacts,
+    ...pack.relatedFiles,
+  ].join(' ').toLowerCase();
+  const representativeDirectory = getRepresentativeDirectory(pack, workspaceRoot);
+
+  if (pack.packType === 'module_context') {
+    score += 0.25;
+  } else if (pack.packType === 'doc_context') {
+    score += 0.18;
+  } else if (pack.packType === 'project_understanding') {
+    score += 0.1;
+  }
+
+  if (representativeDirectory && layerNames.has(representativeDirectory)) {
+    score += 0.2;
+  }
+
+  const topicMatches = topicTerms.filter(term => packText.includes(term)).length;
+  if (topicMatches > 0) {
+    score += Math.min(0.9, topicMatches * 0.35);
+  } else if (topicTerms.length > 0) {
+    score -= 0.4;
+  }
+
+  if (/\b(?:architecture|structure|structured|organization|layout|layer|layers|module)\b/i.test(pack.summary)) {
+    score += 0.15;
+  }
+
+  if (pack.relatedFiles.some(file => normalizeRelativePath(file, workspaceRoot).startsWith('src/'))) {
+    score += 0.1;
+  }
+
+  return score;
+}
+
+function packTargetsTestOrFixture(pack: ContextPack): boolean {
+  return pack.relatedFiles.some(isTestOrFixturePath);
+}
+
+function isTestOrFixturePath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  return /(^|\/)(test|tests|__tests__|fixtures|__fixtures__|coverage|tmp)(\/|$)/.test(normalized);
+}
+
+function getRepresentativeDirectory(pack: ContextPack, workspaceRoot: string): string | null {
+  const firstRelevantFile = pack.relatedFiles.find(file => !isTestOrFixturePath(file));
+  if (!firstRelevantFile) {
+    return null;
+  }
+
+  const normalized = normalizeRelativePath(firstRelevantFile, workspaceRoot);
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+  if (parts[0] === 'src' && parts.length > 1) {
+    return parts[1].toLowerCase();
+  }
+  return parts[0].toLowerCase();
+}
+
+function normalizeRelativePath(filePath: string, workspaceRoot: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.startsWith(workspaceRoot.replace(/\\/g, '/'))) {
+    return path.posix.normalize(path.posix.relative(workspaceRoot.replace(/\\/g, '/'), normalized));
+  }
+  return path.posix.normalize(normalized.replace(/^\.?\//, ''));
 }

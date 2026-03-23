@@ -25,7 +25,7 @@ import { ParserRegistry } from '../agents/parser_registry.js';
 import { GovernorContext, estimateTokenCount } from '../api/governor_context.js';
 import { loadGovernorConfig } from '../api/bootstrap.js';
 import { DEFAULT_GOVERNOR_CONFIG, writeGovernorBudgetReport, type GovernorConfig } from '../api/governors.js';
-import { __setMigrationBackupCopyForTests } from '../api/migrations.js';
+import { __setMigrationBackupCopyForTests } from '../api/schema_migrations.js';
 import { minimizeSnippet, redactText } from '../api/redaction.js';
 import type { LibrarianVersion, FunctionKnowledge } from '../types.js';
 import { cleanupWorkspace } from './helpers/index.js';

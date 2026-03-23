@@ -346,25 +346,10 @@ jobs:
           if [ -n "${{ inputs.issue_number }}" ]; then
             NUM="${{ inputs.issue_number }}"
           else
-            ACTIVE_MILESTONE="${{ steps.portfolio.outputs.active_milestone || 'none' }}"
-
-            NUM=""
-            if [ "$ACTIVE_MILESTONE" != "none" ]; then
-              NUM=$(gh issue list -R "$REPO" --state open \
-                --label "verify:pending" \
-                --limit 300 \
-                --json number,milestone | jq -r --arg m "$ACTIVE_MILESTONE" '
-                  [.[] | select((.milestone.title // "none") == $m) | .number] | sort | first // empty
-                ')
-            fi
-
-            # Fallback: if none in active milestone, pick oldest verify:pending globally.
-            if [ -z "$NUM" ]; then
-              NUM=$(gh issue list -R "$REPO" --state open \
-                --label "verify:pending" \
-                --limit 300 \
-                --json number | jq -r 'sort_by(.number) | first | .number // empty')
-            fi
+            node scripts/portfolio-control.mjs select-verify \
+              --repo "$REPO" \
+              --github-output "$GITHUB_OUTPUT" >/tmp/portfolio-select-verify.log
+            NUM=$(grep '^issue_number=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2-)
           fi
 
           if [ -z "$NUM" ]; then
@@ -1466,6 +1451,15 @@ jobs:
           TITLE_CLEAN=${TITLE//\"/\'}
           MILESTONE="${{ steps.find.outputs.milestone || 'none' }}"
           REASON="verify_unknown"
+          {
+            echo "**Verification escalation (source issue retained)**"
+            echo ""
+            echo "- Reduced control-plane mode suppresses verification wrapper issue creation."
+            echo "- Verification state remains attached to source issue #$NUM."
+          } > .verify-management-suppressed.md
+          gh issue comment "$NUM" -R "$REPO" --body-file .verify-management-suppressed.md
+          rm -f .verify-management-suppressed.md
+          exit 0
           TICKET_SUPPRESSED=false
           META_BUDGET_EXCEEDED=false
           ACTIVE_RUNNABLE_SOURCE=0
@@ -1691,31 +1685,7 @@ jobs:
       - name: Close resolved verification management items
         if: steps.verdict.outputs.verdict == 'PASS' && steps.find.outputs.issue_number
         run: |
-          NUM=${{ steps.find.outputs.issue_number }}
-          MGMT_IDS=$(gh issue list -R "$REPO" --state open \
-            --label "agent:management-ticket" \
-            --limit 200 \
-            --json number,title,body | jq -r --arg src "$NUM" '
-              def src:
-                ((try ((.body // "") | capture("source_issue=(?<n>[0-9]+)").n) catch null)
-                 // (try ((.body // "") | capture("Source issue:\\s*#(?<n>[0-9]+)").n) catch null)
-                 // (try ((.title // "") | capture("issue\\s*#(?<n>[0-9]+)").n) catch null)
-                 // "");
-              def queue:
-                ((try ((.body // "") | capture("queue=(?<q>[a-z]+)").q) catch null)
-                 // (if ((.title // "") | test("^meta:\\s*verify"; "i")) then "verify" else "work" end));
-              .[] | select((src == $src) and (queue == "verify")) | .number
-            ')
-          if [ -z "$MGMT_IDS" ]; then
-            exit 0
-          fi
-          for MID in $MGMT_IDS; do
-            if [ "$MID" = "$NUM" ]; then
-              continue
-            fi
-            gh issue close "$MID" -R "$REPO" \
-              --comment "Auto-closing verification management ticket: issue #$NUM passed and merged in run ${{ github.run_id }}."
-          done
+          echo "No-op in reduced control-plane mode: verification wrapper issues are not part of the success path."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

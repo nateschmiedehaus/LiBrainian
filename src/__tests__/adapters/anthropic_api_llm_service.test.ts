@@ -8,14 +8,14 @@ import {
   createApiLlmServiceFactory,
 } from '../../adapters/anthropic_api_llm_service.js';
 import { CliLlmService } from '../../adapters/cli_llm_service.js';
-import { getActiveProviderFailures } from '../../utils/provider_failures.js';
+import { getActiveProviderFailures, recordProviderFailure } from '../../utils/provider_failures.js';
 
 vi.mock('../../utils/provider_failures.js', () => ({
   classifyProviderFailure: vi.fn(() => ({ reason: 'unknown', ttlMs: 1000 })),
   getActiveProviderFailures: vi.fn(async () => ({})),
   recordProviderFailure: vi.fn(async () => undefined),
   recordProviderSuccess: vi.fn(async () => undefined),
-  resolveProviderWorkspaceRoot: vi.fn(() => process.cwd()),
+  resolveProviderWorkspaceRoot: vi.fn(() => process.env.LIBRARIAN_WORKSPACE_ROOT ?? process.cwd()),
 }));
 
 vi.mock('../../security/privacy_audit.js', () => ({
@@ -40,6 +40,7 @@ describe('AnthropicApiLlmService', () => {
     CLAUDE_CODE: process.env.CLAUDE_CODE,
     SESSION_ID: process.env.SESSION_ID,
     CLAUDE_MODEL: process.env.CLAUDE_MODEL,
+    LIBRARIAN_WORKSPACE_ROOT: process.env.LIBRARIAN_WORKSPACE_ROOT,
   };
 
   beforeEach(() => {
@@ -54,6 +55,7 @@ describe('AnthropicApiLlmService', () => {
     delete process.env.CLAUDE_CODE;
     delete process.env.SESSION_ID;
     delete process.env.CLAUDE_MODEL;
+    delete process.env.LIBRARIAN_WORKSPACE_ROOT;
     vi.mocked(getActiveProviderFailures).mockResolvedValue({});
   });
 
@@ -123,6 +125,24 @@ describe('AnthropicApiLlmService', () => {
       process.env.ANTHROPIC_API_KEY = 'sk-ant-env-key';
       const service = new AnthropicApiLlmService();
       expect(service).toBeInstanceOf(AnthropicApiLlmService);
+    });
+
+    it('re-resolves provider workspace root when persisting failures after construction', async () => {
+      process.env.LIBRARIAN_WORKSPACE_ROOT = '/tmp/repo-a';
+      const service = new AnthropicApiLlmService();
+      process.env.LIBRARIAN_WORKSPACE_ROOT = '/tmp/repo-b';
+
+      await (service as unknown as {
+        recordFailure(reason: string, message: string): Promise<void>;
+      }).recordFailure('unavailable', 'provider unavailable');
+
+      expect(recordProviderFailure).toHaveBeenCalledWith(
+        '/tmp/repo-b',
+        expect.objectContaining({
+          provider: 'claude',
+          message: 'provider unavailable',
+        }),
+      );
     });
   });
 

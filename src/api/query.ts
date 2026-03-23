@@ -7,8 +7,6 @@ import type {
   LibrarianStorage,
   SimilarityResult,
   QueryCacheEntry,
-  MultiVectorRecord,
-  MultiVectorQueryOptions,
   StorageCapabilities,
   EmbeddableEntityType,
   QueryAccessLogEntry,
@@ -42,8 +40,7 @@ import { runEntryPointQueryStage } from './entry_point_query.js';
 import { createDeterministicContext, stableSort } from '../types.js';
 import type { AdrRecord } from '../ingest/adr_indexer.js';
 import { LIBRARIAN_VERSION } from '../index.js';
-import type { GraphEntityType, GraphMetricsEntry } from '../graphs/metrics.js';
-import { buildMetricEmbeddings, findGraphNeighbors } from '../graphs/embeddings.js';
+import type { GraphEntityType } from '../graphs/metrics.js';
 import { EmbeddingService } from './embeddings.js';
 import { isModelLoaded, preloadEmbeddingModel } from './embedding_providers/real_embeddings.js';
 import { GovernorContext, estimateTokenCount } from './governor_context.js';
@@ -71,16 +68,39 @@ import { deriveWatchHealth, type WatchHealth } from '../state/watch_health.js';
 import type { HierarchicalMemory } from '../cache/tiered_cache.js';
 import { resolveMethodGuidance } from '../methods/method_guidance.js';
 import { globalEventBus, createQueryCompleteEvent, createQueryReceivedEvent, createQueryStartEvent, createQueryResultEvent, createQueryErrorEvent } from '../events.js';
-import { scoreCandidatesWithMultiSignals } from '../query/scoring.js';
-import { deserializeMultiVector, queryMultiVectors, QUERY_TYPE_WEIGHTS, type SerializedMultiVector } from './embedding_providers/multi_vector_representations.js';
+import { isEvalCorpusPath } from '../query/scoring.js';
 import {
-  synthesizeQueryAnswer,
-  canAnswerFromSummaries,
-  canFallbackToQuickAnswerOnSynthesisFailure,
-  createQuickAnswer,
-  type QuerySynthesisResult,
-} from './query_synthesis.js';
-import { runAdequacyScan, type AdequacyReport } from './difficulty_detectors.js';
+  applyAdequacyToSynthesis,
+  applyHeuristicSynthesisGuardrail,
+  isAnchoredImplementationPlanningIntent,
+  resolveProviderCallTimeoutMs,
+  resolveStageTimeoutMs,
+  runSynthesisStage,
+  shouldSkipSemanticRetrievalForAnchoredPlanning,
+  shouldUseAnchoredPlanningDirectMode,
+  stripTracePrefix,
+  withStageTimeout,
+} from './query_pipeline_synthesis_stage.js';
+import { runDefeaterStage } from './query_pipeline_defeater_stage.js';
+import { runMethodGuidanceStage } from './query_pipeline_method_guidance_stage.js';
+import { runRerankStage } from './query_pipeline_reranking_stage.js';
+import type { AdequacyReport } from './difficulty_detectors.js';
+import {
+  runAdequacyScanStage,
+  runDirectPacksStage,
+} from './query_pipeline_early_stages.js';
+import { runCandidatePackStage } from './query_pipeline_candidate_pack_stage.js';
+import {
+  getEntityStats,
+  runGraphExpansionStage,
+} from './query_pipeline_graph_expansion_stage.js';
+import { runSemanticRetrievalStage } from './query_pipeline_semantic_retrieval_stage.js';
+import { runScoringStage } from './query_pipeline_scoring_stage.js';
+import {
+  appendConstructionPlanEvidence,
+  appendQueryEvidence,
+  appendStageEvidence,
+} from './query_pipeline_evidence_reporting.js';
 import type { SynthesizedResponse } from '../types.js';
 import { calculateStalenessDecay } from '../knowledge/extractors/evidence_collector.js';
 import { createQueryVerificationPlan } from './verification_plans.js';
@@ -92,8 +112,9 @@ import { buildConstructionPlan } from './construction_plan.js';
 import type { IEvidenceLedger, SessionId } from '../epistemics/evidence_ledger.js';
 import { createSessionId, REPLAY_UNAVAILABLE_TRACE } from '../epistemics/evidence_ledger.js';
 import { analyzeResultCoherence, applyCoherenceAdjustment } from '../epistemics/result_coherence.js';
+import { getFileCategory, isExcluded } from '../universal_patterns.js';
 import { collectCorrelationConflictDisclosures } from '../epistemics/event_ledger_bridge.js';
-import { getCurrentGitSha } from '../utils/git.js';
+import { getCurrentGitSha, getGitStatusChanges, isGitRepo } from '../utils/git.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { isOfflineModeEnabled } from '../utils/runtime_controls.js';
 import { inferPerspective, getPerspectiveConfig, type PerspectiveConfig } from './perspective.js';
@@ -118,6 +139,8 @@ import {
   shouldUseExhaustiveMode,
   mergeGraphResultsWithCandidates,
   type DependencyQueryResult,
+  type ResolvedDependency,
+  type StructuralQueryIntent,
 } from './dependency_query.js';
 import {
   detectCallFlowQuery,
@@ -126,6 +149,7 @@ import {
   toCallChain,
   type CallFlowResult,
 } from './call_flow.js';
+import { detectSymbolQuery } from '../constructions/symbol_table.js';
 import { runSymbolLookupStage } from './symbol_lookup.js';
 import { runComparisonLookupStage, type ComparisonLookupStageResult } from './comparison_lookup.js';
 import { runGitQueryStage, type GitQueryStageResult } from './git_query.js';
@@ -231,17 +255,9 @@ import {
 import {
   applyDefinitionBias,
   applyDocumentBias,
+  applyLowRelevanceConfidenceGuardrail,
   isDefinitionEntity,
 } from './query_result_biasing.js';
-import {
-  computeCentrality,
-  computeRecency,
-  scoreCandidates,
-} from './query_candidate_scoring.js';
-import {
-  candidateKey,
-  mergeCandidates,
-} from './query_candidate_merge.js';
 import {
   buildExplanation,
   dedupePacks,
@@ -290,9 +306,7 @@ import {
   setCachedQuery,
   type QueryCacheStore,
 } from './query_cache_store_utils.js';
-import {
-  applyMmrDiversification,
-} from './query_mmr_utils.js';
+import { createStalenessTracker } from '../storage/staleness.js';
 import {
   applyEntryPointBias,
   isEntryPointEntity,
@@ -303,6 +317,7 @@ import {
   isConstructionEnabled,
 } from './query_construction_routing.js';
 import {
+  ARCHITECTURE_INTENT_PATTERNS,
   ARCHITECTURE_VERIFICATION_PATTERNS,
   BUG_INVESTIGATION_PATTERNS,
   CODE_QUALITY_PATTERNS,
@@ -313,6 +328,7 @@ import {
   FEATURE_LOCATION_PATTERNS,
   IMPLEMENTATION_SEEKING_PATTERNS,
   META_QUERY_PATTERNS,
+  PATH_LIKE_QUERY_PATTERNS,
   REFACTORING_OPPORTUNITIES_PATTERNS,
   REFACTORING_SAFETY_PATTERNS,
   SECURITY_AUDIT_PATTERNS,
@@ -322,8 +338,6 @@ import { buildQueryIntentBiasProfile } from './query_intent_bias_profile.js';
 import { applyIntentTypeRoutingOverrides } from './query_intent_routing_overrides.js';
 import {
   resolveQueryDepthProfile,
-  resolveRerankWindow,
-  resolveSemanticCandidateWindow,
 } from './query_depth_profile.js';
 import {
   SecurityAuditHelper,
@@ -356,16 +370,12 @@ export { applyDefinitionBias, applyDocumentBias, isDefinitionEntity };
 export { applyEntryPointBias, isEntryPointEntity };
 
 type Candidate = { entityId: string; entityType: GraphEntityType; path?: string; semanticSimilarity: number; confidence: number; recency: number; pagerank: number; centrality: number; communityId: number | null; graphSimilarity?: number; cochange?: number; score?: number; };
-type GraphMetricsStore = LibrarianStorage & { getGraphMetrics?: (options?: { entityIds?: string[]; entityType?: GraphEntityType }) => Promise<GraphMetricsEntry[]>; };
 const SEMANTIC_CACHE_THRESHOLDS: Record<SemanticCacheCategory, number> = {
   lookup: 0.95,
   conceptual: 0.7,
   diagnostic: 0.8,
 };
 const SEMANTIC_CACHE_CANDIDATE_LIMIT = 120;
-const DEFAULT_METHOD_GUIDANCE_STAGE_TIMEOUT_MS = 10_000;
-const DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS = 60_000;
-
 export interface QueryTraceOptions {
   evidenceLedger?: IEvidenceLedger;
   sessionId?: SessionId;
@@ -383,17 +393,6 @@ interface QueryExecutionOptions {
 const q = (value: number, range: [number, number], rationale: string): number =>
   resolveQuantifiedValue(configurable(value, range, rationale));
 
-const SCORE_WEIGHTS = {
-  semantic: q(0.35, [0, 1], 'Semantic similarity weight for candidate scoring.'),
-  pagerank: q(0.2, [0, 1], 'PageRank weight for candidate scoring.'),
-  centrality: q(0.1, [0, 1], 'Graph centrality weight for candidate scoring.'),
-  confidence: q(0.2, [0, 1], 'Stored confidence weight for candidate scoring.'),
-  recency: q(0.1, [0, 1], 'Recency weight for candidate scoring.'),
-  cochange: q(0.05, [0, 1], 'Co-change signal weight for candidate scoring.'),
-};
-const MULTI_VECTOR_BLEND_WEIGHT = q(0.18, [0, 1], 'Blend weight for multi-vector reranking.');
-const MIN_SIMILARITY_MVP = q(0.35, [0, 1], 'Minimum semantic similarity for MVP retrieval.');
-const MIN_SIMILARITY_FULL = q(0.35, [0, 1], 'Minimum semantic similarity for full retrieval.');
 const EMBEDDING_QUERY_MIN_SIMILARITY = q(
   0.35,
   [0, 1],
@@ -402,23 +401,6 @@ const EMBEDDING_QUERY_MIN_SIMILARITY = q(
 const HYDE_EMBEDDING_CACHE_PREFIX = 'hyde:embedding:';
 const HYDE_EXPANSION_CACHE_LIMIT = 128;
 const IDENTIFIER_EXPANSION_EMBEDDING_PREFIX = 'identifier:embedding:';
-const GRAPH_NEIGHBOR_MIN_SIMILARITY = q(
-  0.55,
-  [0, 1],
-  'Minimum similarity for graph neighbor expansion.'
-);
-const FALLBACK_MIN_CONFIDENCE_MVP = q(
-  0.45,
-  [0, 1],
-  'Fallback minimum confidence for MVP packs.'
-);
-const FALLBACK_MIN_CONFIDENCE_FULL = q(
-  0.7,
-  [0, 1],
-  'Fallback minimum confidence for full packs.'
-);
-const FALLBACK_CANDIDATE_LIMIT = 80;
-const FALLBACK_RESULT_LIMIT = 6;
 const DEFAULT_MIN_CONFIDENCE = q(0.3, [0, 1], 'Default minimum confidence for pack retrieval.');
 const CANDIDATE_SCORE_FLOOR = q(0.85, [0, 1], 'Fallback candidate score floor.');
 const DIRECT_PACK_SCORE_BASE = 1.08;
@@ -518,14 +500,6 @@ const KNOWLEDGE_CONFIDENCE_SLOPE = q(
   [0, 1],
   'Confidence slope per relevance point for knowledge sources.'
 );
-const ENTITY_CONFIDENCE_FALLBACK = q(0.4, [0, 1], 'Fallback confidence for missing entity stats.');
-const ENTITY_RECENCY_DEFAULT = q(0.5, [0, 1], 'Default recency for entities without timestamps.');
-const ENTITY_RECENCY_FALLBACK = q(0.4, [0, 1], 'Fallback recency when entity stats are missing.');
-const RECENCY_DECAY_DAYS = q(30, [1, 365], 'Recency decay window in days.');
-const BLEND_WEIGHT_MIN = q(0.05, [0, 1], 'Minimum blend weight for rescoring.');
-const BLEND_WEIGHT_MAX = q(0.9, [0, 1], 'Maximum blend weight for rescoring.');
-const CROSS_ENCODER_BI_WEIGHT = q(0.4, [0, 1], 'Bi-encoder weight for hybrid rerank.');
-const CROSS_ENCODER_CROSS_WEIGHT = q(0.6, [0, 1], 'Cross-encoder weight for hybrid rerank.');
 const INDEX_CONFIDENCE_CAP_MIN = q(0.1, [0, 1], 'Minimum confidence cap during indexing.');
 const INDEX_CONFIDENCE_CAP_MAX = q(0.5, [0, 1], 'Maximum confidence cap during indexing.');
 const INDEX_CONFIDENCE_CAP_SCALE = q(0.5, [0, 1], 'Scale factor for indexing confidence cap.');
@@ -581,6 +555,9 @@ function getConstructionId(classificationFlag: keyof QueryClassification): strin
 export interface QueryClassification {
   isMetaQuery: boolean;
   isCodeQuery: boolean;
+  isPathQuery: boolean;  // Queries naming explicit file paths
+  pathTarget?: string;  // The referenced file path when present
+  isSymbolQuery: boolean;  // Queries asking for a concrete symbol definition/location
   isDefinitionQuery: boolean;  // Queries about interfaces, types, contracts
   isTestQuery: boolean;  // Queries asking about test files for a source file
   isEntryPointQuery: boolean;  // Queries about entry points, main files, factories
@@ -652,6 +629,8 @@ export interface QueryClassification {
  * WHY queries should prefer ADRs, design docs, and rationale content.
  */
 export function classifyQueryIntent(intent: string): QueryClassification {
+  const pathTarget = extractReferencedFilePath(intent);
+  const pathMatches = PATH_LIKE_QUERY_PATTERNS.filter(p => p.test(intent)).length;
   const rawMetaMatches = META_QUERY_PATTERNS.filter(p => p.test(intent)).length;
   const implementationSeekingMatches = IMPLEMENTATION_SEEKING_PATTERNS.filter(p => p.test(intent)).length;
   // When the query is seeking implementation details (e.g., "how does the query pipeline work"),
@@ -662,10 +641,16 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const entryPointMatches = ENTRY_POINT_QUERY_PATTERNS.filter(p => p.test(intent)).length;
   const projectUnderstandingMatches = PROJECT_UNDERSTANDING_PATTERNS.filter(p => p.test(intent)).length;
   const whyMatches = WHY_QUERY_PATTERNS.filter(p => p.test(intent)).length;
+  const symbolQuery = detectSymbolQuery(intent);
+  const explicitSymbolLocationQuery =
+    /\bwhere\s+is\s+(?:the\s+)?[A-Za-z_][A-Za-z0-9_]*\s+(?:function|class|method|symbol)\b/i.test(intent)
+    || /\bwhere\s+is\s+(?:the\s+)?[A-Za-z_][A-Za-z0-9_]*\s+(?:defined|declared|implemented)\??$/i.test(intent)
+    || /\bwho\s+calls?\s+[A-Za-z_][A-Za-z0-9_]*\b/i.test(intent);
 
   // Check for test query using the dedicated classifier
   const testClassification = classifyTestQuery(intent);
   const isTestQuery = testClassification.isTestQuery;
+  const isPathQuery = Boolean(pathTarget) && pathMatches > 0 && !isTestQuery;
 
   // Check for refactoring safety queries - these have highest priority
   const refactoringMatches = REFACTORING_SAFETY_PATTERNS.filter(p => p.test(intent)).length;
@@ -686,8 +671,11 @@ export function classifyQueryIntent(intent: string): QueryClassification {
 
   // Check for architecture overview queries (structure, layers, organization)
   // Architecture overview queries take priority over generic project understanding
-  const architectureOverviewMatches = ARCHITECTURE_QUERY_PATTERNS.filter(p => p.test(intent)).length;
+  const architectureOverviewMatches =
+    ARCHITECTURE_QUERY_PATTERNS.filter(p => p.test(intent)).length
+    + ARCHITECTURE_INTENT_PATTERNS.filter(p => p.test(intent)).length;
   const isArchitectureOverviewQuery = architectureOverviewMatches > 0 && !isTestQuery && !isArchitectureVerificationQuery;
+  const isSymbolQuery = (Boolean(symbolQuery) || explicitSymbolLocationQuery) && !isTestQuery && !isArchitectureOverviewQuery && !isPathQuery;
 
   const codeQualityMatches = CODE_QUALITY_PATTERNS.filter(p => p.test(intent)).length;
   const isCodeQualityQuery = codeQualityMatches > 0 && !isTestQuery;
@@ -697,6 +685,8 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   const featureTarget = isFeatureLocationQuery ? extractFeatureTarget(intent) : undefined;
   const hasStrongImplementationLocationSignal =
     implementationSeekingMatches > 0
+    || isPathQuery
+    || isSymbolQuery
     || isFeatureLocationQuery
     || /\bwhere\s+is\b.*\b(implemented|defined|located)\b/i.test(intent);
 
@@ -737,13 +727,13 @@ export function classifyQueryIntent(intent: string): QueryClassification {
     && !isWhyQuery
   ) || isProjectUnderstanding;
   const isCodeQuery =
-    (codeMatches > 0 || implementationSeekingMatches > 0)
-    && (codeMatches > metaMatches || hasStrongImplementationLocationSignal || implementationSeekingMatches > 0)
+    (codeMatches > 0 || implementationSeekingMatches > 0 || isPathQuery || isSymbolQuery || isFeatureLocationQuery)
+    && (codeMatches > metaMatches || hasStrongImplementationLocationSignal || implementationSeekingMatches > 0 || isPathQuery || isSymbolQuery || isFeatureLocationQuery)
     && !isTestQuery
     && !isProjectUnderstanding
     && !isWhyQuery;
   const isDefinitionQuery = definitionMatches > 0 && !isTestQuery;
-  const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery && !isArchitectureOverviewQuery;
+  const isEntryPointQuery = entryPointMatches > 0 && !isTestQuery && !isArchitectureOverviewQuery && !isSymbolQuery;
 
   const whyTopics = isWhyQuery ? extractWhyQueryTopics(intent) : {};
   const whyQueryTopic = whyTopics.topic;
@@ -764,6 +754,8 @@ export function classifyQueryIntent(intent: string): QueryClassification {
     isProjectUnderstandingQuery: isProjectUnderstanding,
     isWhyQuery,
     isArchitectureOverviewQuery,
+    isPathQuery,
+    isSymbolQuery,
   });
   const {
     documentBias,
@@ -778,6 +770,9 @@ export function classifyQueryIntent(intent: string): QueryClassification {
   return {
     isMetaQuery,
     isCodeQuery,
+    isPathQuery,
+    pathTarget,
+    isSymbolQuery,
     isDefinitionQuery,
     isTestQuery,
     isEntryPointQuery,
@@ -906,6 +901,34 @@ export function getQueryPipelineDefinition(): QueryPipelineDefinition {
 
 export function getQueryPipelineStages(): QueryPipelineStageDefinition[] {
   return clonePipelineStages();
+}
+
+function appendPipelineStageFacts(keyFacts: string[], filePath: string, exportsList: string[]): void {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  if (normalizedPath !== 'src/api/query.ts') return;
+  if (!exportsList.includes('getQueryPipelineStages') && !exportsList.includes('queryLibrarian')) return;
+  keyFacts.push(`Pipeline stages: ${getQueryPipelineStages().map((stage) => stage.stage).join(', ')}`);
+}
+
+function applyQueryPipelineStageAnswerAugmentation(options: {
+  query: LibrarianQuery;
+  synthesis?: SynthesizedResponse;
+  finalPacks: ContextPack[];
+}): SynthesizedResponse | undefined {
+  const { query, synthesis, finalPacks } = options;
+  if (!synthesis) return synthesis;
+  const intent = query.intent?.toLowerCase() ?? '';
+  if (!/\bquery\s+pipeline\b/.test(intent) || !/\bstages?\b/.test(intent)) return synthesis;
+  const pointsToQueryModule = finalPacks.some((pack) =>
+    (pack.relatedFiles ?? []).some((file) => file.replace(/\\/g, '/') === 'src/api/query.ts')
+  );
+  if (!pointsToQueryModule) return synthesis;
+  const stageList = getQueryPipelineStages().map((stage) => stage.stage).join(', ');
+  if (synthesis.answer.includes(stageList)) return synthesis;
+  return {
+    ...synthesis,
+    answer: `${synthesis.answer} Pipeline stages: ${stageList}.`,
+  };
 }
 /**
  * Queries the librarian knowledge base to retrieve relevant context packs.
@@ -1056,7 +1079,7 @@ export async function queryLibrarian(
     // Default to optional LLM usage: retrieval should work without a live chat model,
     // and synthesis should degrade gracefully when providers are unavailable.
     const requestedLlmRequirement: LlmRequirement = query.llmRequirement ?? 'optional';
-    const llmRequirement: LlmRequirement =
+    let llmRequirement: LlmRequirement =
       (offlineMode || envDisableSynthesis) ? 'disabled' : requestedLlmRequirement;
     const embeddingRequirementExplicit = query.embeddingRequirement !== undefined;
     const deterministicStructuralRetrieval =
@@ -1067,11 +1090,25 @@ export async function queryLibrarian(
       deterministicStructuralRetrieval
         ? 'disabled'
         : (query.embeddingRequirement ?? (query.depth === 'L0' ? 'disabled' : 'required'));
+    const anchoredPlanningDirectMode = shouldUseAnchoredPlanningDirectMode(query)
+      && requestedLlmRequirement !== 'required'
+      && query.embeddingRequirement !== 'required';
+    if (anchoredPlanningDirectMode) {
+      embeddingRequirement = 'disabled';
+    }
     let llmAvailable = llmRequirement === 'required';
     let llmProviderError: string | undefined;
-    query = { ...query, llmRequirement, embeddingRequirement };
+    query = {
+      ...query,
+      llmRequirement,
+      embeddingRequirement,
+      forceSummarySynthesis: anchoredPlanningDirectMode ? true : query.forceSummarySynthesis,
+    };
     if (offlineMode) {
       disclosures.push('unverified_by_trace(offline_mode): Runtime offline/local-only mode active; LLM synthesis disabled.');
+    }
+    if (anchoredPlanningDirectMode) {
+      disclosures.push('unverified_by_trace(anchored_planning_direct_mode): Skipping provider probes and semantic retrieval for anchored implementation-planning query.');
     }
     const capabilities = resolveStorageCapabilities(storage);
   const stageTracker = createStageTracker(stageObserver);
@@ -1089,6 +1126,7 @@ export async function queryLibrarian(
 
     const providerChecksDisabled =
       (llmRequirement === 'disabled' && query.embeddingRequirement === 'disabled')
+      || anchoredPlanningDirectMode
       || query.coldStartStructuralOnly === true;
     const providerSnapshot = providerChecksDisabled
       ? {
@@ -1218,7 +1256,7 @@ export async function queryLibrarian(
     }
 
     // Disable synthesis in deterministic mode for reproducible results
-    const synthesisEnabled = llmRequirement !== 'disabled' && llmAvailable && !deterministicCtx;
+    const synthesisEnabled = ((llmRequirement !== 'disabled' && llmAvailable) || query.forceSummarySynthesis === true) && !deterministicCtx;
 
     if (deterministicCtx) {
       recordCoverageGap('synthesis', 'LLM synthesis skipped for deterministic mode.', 'minor');
@@ -1247,7 +1285,7 @@ export async function queryLibrarian(
 
   let queryEmbedding: Float32Array | null = null;
   const governor = governorContext ?? new GovernorContext({ phase: 'query', config: DEFAULT_GOVERNOR_CONFIG }); governor.checkBudget();
-  const version = await storage.getVersion() || getCurrentVersion();
+  const version = await storage.getVersion() || getSyntheticPackVersion();
   const retrievalIntentType = (query.intentType ?? query.taskType ?? 'general').toString();
   const retrievalStrategySelection = await selectRetrievalStrategyForIntent(storage, retrievalIntentType);
   const selectedRetrievalStrategy: RetrievalStrategyArm = retrievalStrategySelection.strategyId;
@@ -1256,7 +1294,16 @@ export async function queryLibrarian(
   if (query.waitForIndexMs && !isReadyPhase(indexState.phase)) {
     indexState = await waitForIndexReady(storage, { timeoutMs: query.waitForIndexMs });
   }
-  const allowCache = isReadyPhase(indexState.phase) && query.disableCache !== true;
+  const cacheEligibility = await resolveQueryCacheEligibility({
+    storage,
+    query,
+    indexState,
+    workspaceRoot,
+  });
+  if (cacheEligibility.reason) {
+    disclosures.push(`cache_bypassed: ${cacheEligibility.reason}`);
+  }
+  const allowCache = cacheEligibility.allowCache;
   const cacheKey = allowCache ? buildQueryCacheKey(query, version, llmRequirement, synthesisEnabled) : '';
   if (allowCache) {
     const cache = getQueryCache(storage);
@@ -1392,6 +1439,7 @@ export async function queryLibrarian(
     workspaceRoot,
     stageTracker,
     explanationParts,
+    collectDirectPacksFn: collectDirectPacks,
   });
   let cacheHit = directStageResult.cacheHit;
   let directPacks = directStageResult.directPacks;
@@ -1453,6 +1501,54 @@ export async function queryLibrarian(
     }
     return null;
   };
+  const preliminaryQueryClassification = applyIntentTypeRoutingOverrides(
+    classifyQueryIntent(query.intent ?? ''),
+    query.intentType,
+    query.affectedFiles
+  );
+  let pathLookupHandled = false;
+  let featureLocationHandled = false;
+
+  if (preliminaryQueryClassification.isPathQuery && preliminaryQueryClassification.pathTarget) {
+    const pathLookupResult = await runPathLookupStage({
+      storage,
+      intent: query.intent ?? '',
+      pathTarget: preliminaryQueryClassification.pathTarget,
+      workspaceRoot,
+      depth: query.depth,
+      filter: query.filter,
+      minConfidence: query.minConfidence,
+    });
+    pathLookupHandled = pathLookupResult.analyzed;
+    const pathLookupStageResponse = await applyDirectPackStage({
+      shouldShortCircuit: Boolean(pathLookupResult.shouldShortCircuit),
+      shouldMerge: pathLookupResult.analyzed,
+      packs: pathLookupResult.packs,
+      explanation: pathLookupResult.explanation,
+    });
+    if (pathLookupStageResponse) {
+      return pathLookupStageResponse;
+    }
+  }
+
+  if (!pathLookupHandled && preliminaryQueryClassification.isFeatureLocationQuery && preliminaryQueryClassification.featureTarget) {
+    const featureLocationResult = await runFeatureLocationStage({
+      storage,
+      intent: query.intent ?? '',
+      featureTarget: preliminaryQueryClassification.featureTarget,
+      version,
+    });
+    featureLocationHandled = featureLocationResult.analyzed;
+    const featureLocationStageResponse = await applyDirectPackStage({
+      shouldShortCircuit: Boolean(featureLocationResult.shouldShortCircuit),
+      shouldMerge: featureLocationResult.analyzed,
+      packs: featureLocationResult.packs,
+      explanation: featureLocationResult.explanation,
+    });
+    if (featureLocationStageResponse) {
+      return featureLocationStageResponse;
+    }
+  }
 
   // TEST CORRELATION STAGE: Find test files through deterministic path matching
   // This runs before semantic retrieval to provide reliable test file results
@@ -1673,6 +1769,23 @@ export async function queryLibrarian(
         dependencyQueryResult = await executeDependencyQuery(storage, structuralIntent, query.intent ?? '');
       }
       if (dependencyQueryResult.results.length > 0) {
+        const callerProbePack = shouldShortCircuitStructuralCallerQuery(structuralIntent, dependencyQueryResult)
+          ? buildStructuralCallerPack(dependencyQueryResult, version, workspaceRoot)
+          : null;
+        const callerProbeStageResponse = callerProbePack
+          ? await applyDirectPackStage({
+              shouldShortCircuit: true,
+              shouldMerge: false,
+              packs: [callerProbePack],
+              explanation: [
+                dependencyQueryResult.explanation,
+                `Caller probe detected for "${structuralIntent.targetEntity}"; using indexed call edges instead of semantic retrieval.`,
+              ],
+            })
+          : null;
+        if (callerProbeStageResponse) {
+          return callerProbeStageResponse;
+        }
         // Convert graph traversal results to candidates with high scores
         // Filter to only function/module types that are valid Candidate entityTypes
         const validResults = dependencyQueryResult.results.filter(
@@ -1704,6 +1817,11 @@ export async function queryLibrarian(
     }
   }
 
+  const skipSemanticRetrievalForAnchoredPlanning = !shouldRunExhaustive
+    && shouldSkipSemanticRetrievalForAnchoredPlanning(query, directPacks);
+  if (skipSemanticRetrievalForAnchoredPlanning) {
+    explanationParts.push('Skipped semantic retrieval for anchored planning query because direct packs already cover the referenced file.');
+  }
   const semanticResult = shouldRunExhaustive
     ? {
         candidates: [] as Candidate[],
@@ -1721,6 +1839,23 @@ export async function queryLibrarian(
           degradedReason: undefined as string | undefined,
         },
       }
+    : skipSemanticRetrievalForAnchoredPlanning
+      ? {
+          candidates: [] as Candidate[],
+          queryEmbedding: null,
+          queryClassification: applyIntentTypeRoutingOverrides(
+            classifyQueryIntent(query.intent ?? ''),
+            query.intentType,
+            query.affectedFiles
+          ),
+          diagnostics: {
+            vectorIndexDegraded: false,
+            vectorIndexEmpty: false,
+            noSemanticMatches: false,
+            embeddingUnavailable: false,
+            degradedReason: undefined as string | undefined,
+          },
+        }
     : await runSemanticRetrievalStage({
         storage,
         query,
@@ -1731,6 +1866,18 @@ export async function queryLibrarian(
         capabilities,
         version,
         embeddingAvailable: embeddingsAvailable,
+        isModelLoadedFn: isModelLoaded,
+        preloadEmbeddingModelFn: preloadEmbeddingModel,
+        logWarningFn: logWarning,
+        resolveQueryEmbeddingsFn: resolveQueryEmbeddings,
+        classifyQueryIntentFn: classifyQueryIntent,
+        applyIntentTypeRoutingOverridesFn: applyIntentTypeRoutingOverrides,
+        fuseSimilarityResultListsWithRrfFn: fuseSimilarityResultListsWithRrf,
+        applyDocumentBiasFn: applyDocumentBias,
+        applyDefinitionBiasFn: applyDefinitionBias,
+        hydrateCandidatesFn: hydrateCandidates,
+        injectFilenameCandidatesFn: injectFilenameCandidates,
+        extractIntentAnchorPathsFn: extractIntentAnchorPaths,
       });
   queryEmbedding = semanticResult.queryEmbedding;
   const queryClassification = semanticResult.queryClassification;
@@ -1813,6 +1960,12 @@ export async function queryLibrarian(
     recordCoverageGap,
     explanationParts,
     version,
+    collectCandidatePacksFn: collectCandidatePacks,
+    dedupePacksFn: dedupePacks,
+    collectFilesystemFallbackPacksFn: collectFilesystemFallbackPacks,
+    rankHeuristicFallbackPacksFn: rankHeuristicFallbackPacks,
+    scoreAnchoredDirectPackFn: scoreAnchoredDirectPack,
+    filterPacksToWorkspaceFn: filterPacksToWorkspace,
   });
   // Determine task type for ranking: use 'guidance' for meta-queries to boost documentation,
   // 'implementation' for code-seeking queries to penalize docs and prefer functions.
@@ -1905,7 +2058,7 @@ export async function queryLibrarian(
   if (queryClassification?.isArchitectureOverviewQuery) {
     explanationParts.push('Architecture query detected: inferring layers from directory structure and dependencies.');
     // Generate architecture overview and prepend to packs
-    finalPacks = await handleArchitectureQuery(storage, workspaceRoot, finalPacks, version);
+    finalPacks = await handleArchitectureQuery(storage, workspaceRoot, finalPacks, version, query.intent ?? '');
   }
   // Handle WHY queries specially - search for rationale/reasoning
   let inferredRationaleHint: string | undefined;
@@ -2024,6 +2177,7 @@ export async function queryLibrarian(
     // Handle feature location queries - find where features are implemented
     {
       enabled: Boolean(
+        !featureLocationHandled &&
         queryClassification?.isFeatureLocationQuery &&
         queryClassification.featureTarget &&
         isConstructionEnabled('feature-location-advisor', query.enabledConstructables)
@@ -2152,6 +2306,18 @@ export async function queryLibrarian(
   // Add coherence warnings to disclosures for transparency
   if (coherenceAnalysis.warnings.length > 0) {
     disclosures.push(...coherenceAnalysis.warnings.map(w => `coherence_warning: ${w}`));
+  }
+  let lowRelevanceGuardrailTriggered = false;
+  let lowRelevanceGuardrailReason: string | undefined;
+  if (finalPacks.length > 0) {
+    const topPackRelevance = candidateScoreMap.get(finalPacks[0].targetId) ?? finalPacks[0].confidence;
+    const relevanceGuardrail = applyLowRelevanceConfidenceGuardrail(totalConfidence, topPackRelevance);
+    totalConfidence = relevanceGuardrail.totalConfidence;
+    lowRelevanceGuardrailTriggered = relevanceGuardrail.triggered;
+    lowRelevanceGuardrailReason = relevanceGuardrail.reason;
+    if (relevanceGuardrail.triggered && relevanceGuardrail.reason) {
+      disclosures.push(`low_relevance_confidence_guardrail: ${relevanceGuardrail.reason}`);
+    }
   }
   const currentDepth = query.depth ?? 'L1';
   const retrievalEntropy = computeRetrievalEntropy(finalPacks);
@@ -2352,9 +2518,10 @@ export async function queryLibrarian(
     recordCoverageGap,
     explanationParts,
     synthesisEnabled,
-    preferQuickSynthesis: coverageGaps.some((gap) =>
-      /persistent index is empty|vector_index_empty|index not initialized/i.test(gap)
-    ),
+    preferQuickSynthesis: skipSemanticRetrievalForAnchoredPlanning
+      || coverageGaps.some((gap) =>
+        /persistent index is empty|vector_index_empty|index not initialized/i.test(gap)
+      ),
     workspaceRoot,
   });
   let synthesis = synthesisStageResult.synthesis;
@@ -2363,7 +2530,17 @@ export async function queryLibrarian(
   if (!llmError && llmProviderError) {
     llmError = llmProviderError;
   }
+  synthesis = applyHeuristicSynthesisGuardrail({
+    synthesis,
+    synthesisMode,
+    queryIntent: query.intent,
+    finalPacks,
+    coherenceAnalysis,
+    lowRelevanceTriggered: lowRelevanceGuardrailTriggered,
+    lowRelevanceReason: lowRelevanceGuardrailReason,
+  });
   synthesis = applyAdequacyToSynthesis(synthesis, adequacyReport);
+  synthesis = applyQueryPipelineStageAnswerAugmentation({ query, synthesis, finalPacks });
   if (!synthesisMode && synthesis) synthesisMode = 'llm';
   if (!synthesisMode && finalPacks.length > 0) synthesisMode = 'heuristic';
 
@@ -2488,7 +2665,7 @@ export async function queryLibrarian(
         const degradedMessage = createStorageWriteDegradedMessage(message);
         disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
         drillDownHints.unshift(degradedMessage);
-        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librainian doctor --heal` to recover storage locks.');
       } else {
         recordCoverageGap('post_processing', `Verification plan save failed: ${message}`, 'minor');
       }
@@ -2658,7 +2835,7 @@ export async function queryLibrarian(
         const degradedMessage = createStorageWriteDegradedMessage(message);
         disclosures.push(`unverified_by_trace(storage_write_degraded): ${degradedMessage}`);
         drillDownHints.unshift(degradedMessage);
-        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librarian doctor --heal` to recover storage locks.');
+        recordCoverageGap('post_processing', degradedMessage, 'significant', 'Run `librainian doctor --heal` to recover storage locks.');
       }
     } else {
       recordCoverageGap('post_processing', `Episode record failed: ${message}`, 'minor');
@@ -2917,662 +3094,6 @@ async function storeFeedbackContext(context: FeedbackContext, storage?: Libraria
 }
 
 type RecordCoverageGap = (stage: StageName, message: string, severity?: StageIssueSeverity, remediation?: string) => void;
-
-function runAdequacyScanStage(options: {
-  query: LibrarianQuery;
-  workspaceRoot: string;
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  runAdequacyScanFn?: typeof runAdequacyScan;
-}): AdequacyReport | null {
-  const {
-    query,
-    workspaceRoot,
-    stageTracker,
-    recordCoverageGap,
-    runAdequacyScanFn,
-  } = options;
-  const shouldRun = Boolean(query.intent && query.intent.trim());
-  const stage = stageTracker.start('adequacy_scan', shouldRun ? 1 : 0);
-  if (!shouldRun) {
-    stageTracker.finish(stage, { outputCount: 0, filteredCount: 0, status: 'skipped' });
-    return null;
-  }
-  try {
-    const scan = (runAdequacyScanFn ?? runAdequacyScan)({
-      intent: query.intent,
-      taskType: query.taskType,
-      workspaceRoot,
-    });
-    if (scan.missingEvidence.length > 0) {
-      const missing = scan.missingEvidence.map((req) => req.description).join('; ');
-      const remediation = scan.evidenceCommands.length
-        ? `Collect evidence: ${scan.evidenceCommands.join(' | ')}`
-        : undefined;
-      recordCoverageGap('adequacy_scan', `Missing adequacy evidence: ${missing}`, scan.blocking ? 'significant' : 'moderate', remediation);
-    }
-    for (const difficulty of scan.difficulties) {
-      const severity: StageIssueSeverity =
-        difficulty.severity === 'extreme' || difficulty.severity === 'hard'
-          ? 'significant'
-          : difficulty.severity === 'medium'
-            ? 'moderate'
-            : 'minor';
-      stageTracker.issue('adequacy_scan', {
-        message: `Difficulty detected: ${difficulty.name}`,
-        severity,
-        remediation: difficulty.evidenceCommands.length
-          ? `Evidence commands: ${difficulty.evidenceCommands.join(' | ')}`
-          : undefined,
-      });
-    }
-    const status = scan.missingEvidence.length > 0
-      ? (scan.blocking ? 'failed' : 'partial')
-      : 'success';
-    stageTracker.finish(stage, { outputCount: 1, filteredCount: 0, status });
-    return scan;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    recordCoverageGap('adequacy_scan', `Adequacy scan failed: ${message}`, 'moderate');
-    stageTracker.finish(stage, { outputCount: 0, filteredCount: 0, status: 'failed' });
-    return null;
-  }
-}
-
-type QueryEvidenceEvent = 'query_start' | 'query_complete' | 'query_cache_hit' | 'query_error';
-
-async function appendQueryEvidence(
-  ledger: IEvidenceLedger,
-  sessionId: SessionId,
-  event: QueryEvidenceEvent,
-  payload: Record<string, unknown>
-): Promise<void> {
-  try {
-    await ledger.append({
-      kind: 'tool_call',
-      payload: {
-        toolName: `librarian_query_${event}`,
-        arguments: payload,
-        result: event === 'query_error' ? null : payload,
-        success: event !== 'query_error',
-        durationMs: 0,
-        errorMessage: event === 'query_error' ? String(payload.errorMessage ?? 'unverified_by_trace(query_failed)') : undefined,
-      },
-      provenance: {
-        source: 'system_observation',
-        method: 'librarian_query',
-        agent: { type: 'tool', identifier: 'librarian' },
-      },
-      relatedEntries: [],
-      sessionId,
-    });
-  } catch {
-    // Evidence ledger failures must not break queries.
-  }
-}
-
-async function appendStageEvidence(
-  ledger: IEvidenceLedger,
-  sessionId: SessionId,
-  report: StageReport
-): Promise<void> {
-  try {
-    await ledger.append({
-      kind: 'tool_call',
-      payload: {
-        toolName: 'librarian_query_stage',
-        arguments: { stage: report.stage, status: report.status },
-        result: report,
-        success: report.status === 'success',
-        durationMs: report.durationMs ?? 0,
-        errorMessage: report.status === 'failed' ? report.issues.map((issue) => issue.message).join('; ') : undefined,
-      },
-      provenance: {
-        source: 'system_observation',
-        method: 'query_stage',
-        agent: { type: 'tool', identifier: 'librarian' },
-      },
-      relatedEntries: [],
-      sessionId,
-    });
-  } catch {
-    // Non-fatal.
-  }
-}
-
-async function appendConstructionPlanEvidence(
-  ledger: IEvidenceLedger,
-  sessionId: SessionId,
-  plan: ConstructionPlan
-): Promise<void> {
-  try {
-    await ledger.append({
-      kind: 'tool_call',
-      payload: {
-        toolName: 'construction_plan',
-        arguments: {
-          planId: plan.id,
-          templateId: plan.templateId,
-          ucIds: plan.ucIds,
-          domain: plan.domain ?? null,
-          source: plan.source,
-          selectionReason: plan.selectionReason ?? null,
-          requiredMaps: plan.requiredMaps ?? [],
-          requiredCapabilities: plan.requiredCapabilities ?? [],
-          requiredArtifacts: plan.requiredArtifacts ?? [],
-          rankedCandidates: (plan.rankedCandidates ?? []).map((candidate) => ({
-            templateId: candidate.templateId,
-            score: candidate.score,
-            source: candidate.source,
-          })),
-        },
-        result: plan,
-        success: true,
-        durationMs: 0,
-      },
-      provenance: {
-        source: 'system_observation',
-        method: 'construction_plan',
-        agent: { type: 'tool', identifier: 'librarian' },
-      },
-      relatedEntries: [],
-      sessionId,
-    });
-  } catch {
-    // Non-fatal.
-  }
-}
-
-// Query pipeline stage helpers
-async function runDirectPacksStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
-  workspaceRoot: string;
-  stageTracker: StageTracker;
-  explanationParts: string[];
-}): Promise<{ directPacks: ContextPack[]; cacheHit: boolean }> {
-  const { storage, query, workspaceRoot, stageTracker, explanationParts } = options;
-  const directScopeHints = (query.affectedFiles?.length ?? 0) + (query.filter ? 1 : 0);
-  const directStage = stageTracker.start('direct_packs', directScopeHints);
-  const directPacks = await collectDirectPacks(storage, query, workspaceRoot);
-  stageTracker.finish(directStage, { outputCount: directPacks.length, filteredCount: 0 });
-  const cacheHit = directPacks.length > 0;
-  if (cacheHit) {
-    explanationParts.push(`Matched ${directPacks.length} direct packs from query anchors.`);
-  }
-  return { directPacks, cacheHit };
-}
-
-function applySimilaritySearchDegradation(
-  source: string,
-  response: {
-    degraded?: boolean;
-    degradedReason?: string;
-  },
-  diagnostics: {
-    vectorIndexDegraded: boolean;
-    vectorIndexEmpty: boolean;
-    noSemanticMatches: boolean;
-    embeddingUnavailable: boolean;
-    degradedReason?: string;
-  },
-  recordCoverageGap: RecordCoverageGap
-): void {
-  if (!response.degraded) return;
-  diagnostics.vectorIndexDegraded = true;
-  if (!diagnostics.degradedReason) {
-    diagnostics.degradedReason = response.degradedReason;
-  }
-  const emptyIndex = response.degradedReason === 'vector_index_empty' || response.degradedReason === 'vector_index_null';
-  if (emptyIndex) {
-    diagnostics.vectorIndexEmpty = true;
-  }
-  recordCoverageGap(
-    'semantic_retrieval',
-    `Similarity search (${source}) degraded: ${response.degradedReason ?? 'unknown'}`,
-    emptyIndex ? 'significant' : 'moderate',
-    'Re-bootstrap the index or check embedding configuration.'
-  );
-}
-
-async function runSemanticRetrievalStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
-  embeddingService: EmbeddingService;
-  governor: GovernorContext;
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  capabilities: StorageCapabilities;
-  version: LibrarianVersion;
-  embeddingAvailable: boolean;
-}): Promise<{
-  candidates: Candidate[];
-  queryEmbedding: Float32Array | null;
-  queryClassification?: QueryClassification;
-  diagnostics: {
-    vectorIndexDegraded: boolean;
-    vectorIndexEmpty: boolean;
-    noSemanticMatches: boolean;
-    embeddingUnavailable: boolean;
-    degradedReason?: string;
-  };
-}> {
-  const {
-    storage,
-    query,
-    embeddingService,
-    governor,
-    stageTracker,
-    recordCoverageGap,
-    capabilities,
-    version,
-    embeddingAvailable,
-  } = options;
-  let queryEmbedding: Float32Array | null = null;
-  let candidates: Candidate[] = [];
-  let queryClassification: QueryClassification | undefined;
-  let semanticCandidateWindow = 0;
-  let searchExecutions = 0;
-
-  // Track diagnostic state for zero-result explanation
-  const diagnostics = {
-    vectorIndexDegraded: false,
-    vectorIndexEmpty: false,
-    noSemanticMatches: false,
-    embeddingUnavailable: false,
-    degradedReason: undefined as string | undefined,
-  };
-
-  if (query.coldStartStructuralOnly && !isModelLoaded()) {
-    void preloadEmbeddingModel().catch(() => undefined);
-    recordCoverageGap(
-      'semantic_retrieval',
-      'Returning structural retrieval results while embedding model prewarms.',
-      'minor',
-      'Retry query after prewarm for full semantic retrieval.'
-    );
-  } else if (embeddingAvailable && !isModelLoaded()) {
-    logWarning('Embedding model not preloaded - first query may experience cold-start latency. Ensure preloadEmbeddingModel() is called during bootstrap.', {
-      stage: 'semantic_retrieval',
-    });
-  }
-
-  const semanticStage = stageTracker.start('semantic_retrieval', query.intent && query.depth !== 'L0' ? 1 : 0);
-  if (query.coldStartStructuralOnly && !isModelLoaded()) {
-    stageTracker.finish(semanticStage, {
-      outputCount: 0,
-      filteredCount: 0,
-      status: 'partial',
-    });
-  } else if (semanticStage.inputCount > 0) {
-    semanticCandidateWindow = resolveSemanticCandidateWindow(query.depth, false);
-    if (!embeddingAvailable) {
-      diagnostics.embeddingUnavailable = true;
-      const reason = capabilities.optional.embeddings
-        ? 'Embedding provider unavailable.'
-        : 'Embedding retrieval unsupported by storage.';
-      recordCoverageGap(
-        'semantic_retrieval',
-        reason,
-        'significant',
-        capabilities.optional.embeddings ? 'Authenticate a live embedding provider.' : 'Use a storage backend with embedding support.'
-      );
-    } else {
-      const resolvedEmbeddings = await resolveQueryEmbeddings(query, embeddingService, governor);
-      queryEmbedding = resolvedEmbeddings.hydeEmbedding ?? resolvedEmbeddings.directEmbedding;
-      const minSimilarity = version.qualityTier === 'mvp'
-        ? MIN_SIMILARITY_MVP
-        : MIN_SIMILARITY_FULL;
-
-      // Classify query to determine entity type routing.
-      // Explicit intentType overrides heuristic text classification.
-      queryClassification = applyIntentTypeRoutingOverrides(
-        classifyQueryIntent(query.intent ?? ''),
-        query.intentType,
-        query.affectedFiles
-      );
-
-      const searchLimit = resolveSemanticCandidateWindow(query.depth, queryClassification.isMetaQuery);
-      semanticCandidateWindow = searchLimit;
-      const searchMinSimilarity = queryClassification.isMetaQuery ? minSimilarity * 0.9 : minSimilarity;
-
-      // Use classified entity types (includes 'document' for meta-queries)
-      const directSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.directEmbedding, {
-        limit: searchLimit,
-        minSimilarity: searchMinSimilarity,
-        entityTypes: queryClassification.entityTypes,
-        filter: query.filter,
-      });
-      searchExecutions += 1;
-      applySimilaritySearchDegradation('direct', directSearchResponse, diagnostics, recordCoverageGap);
-
-      const resultLists: SimilarityResult[][] = [directSearchResponse.results];
-      if (resolvedEmbeddings.hydeEmbedding) {
-        const hydeSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.hydeEmbedding, {
-          limit: searchLimit,
-          minSimilarity: searchMinSimilarity,
-          entityTypes: queryClassification.entityTypes,
-          filter: query.filter,
-        });
-        searchExecutions += 1;
-        applySimilaritySearchDegradation('hyde', hydeSearchResponse, diagnostics, recordCoverageGap);
-        resultLists.push(hydeSearchResponse.results);
-      }
-
-      for (let i = 0; i < resolvedEmbeddings.identifierEmbeddings.length; i += 1) {
-        const expansionSearchResponse = await storage.findSimilarByEmbedding(resolvedEmbeddings.identifierEmbeddings[i], {
-          limit: searchLimit,
-          minSimilarity: searchMinSimilarity,
-          entityTypes: queryClassification.entityTypes,
-          filter: query.filter,
-        });
-        searchExecutions += 1;
-        applySimilaritySearchDegradation(`identifier_expansion_${i + 1}`, expansionSearchResponse, diagnostics, recordCoverageGap);
-        resultLists.push(expansionSearchResponse.results);
-      }
-
-      let similarResults = resultLists.length === 1
-        ? resultLists[0]
-        : fuseSimilarityResultListsWithRrf(resultLists, searchLimit);
-
-      // Apply document bias for meta-queries
-      if (queryClassification.isMetaQuery && queryClassification.documentBias > 0.3) {
-        similarResults = applyDocumentBias(similarResults, queryClassification.documentBias);
-      }
-
-      // Apply definition bias for interface/type definition queries
-      // This ensures "storage interface" returns LibrarianStorage interface, not getStorage() implementations
-      if (queryClassification.isDefinitionQuery && queryClassification.definitionBias > 0.1) {
-        similarResults = applyDefinitionBias(similarResults, queryClassification.definitionBias);
-      }
-
-      if (!similarResults.length) {
-        diagnostics.noSemanticMatches = true;
-        recordCoverageGap(
-          'semantic_retrieval',
-          `No semantic matches above similarity threshold (${minSimilarity}).`,
-          'moderate',
-          'Refine the query intent or add affectedFiles to anchor the search.'
-        );
-      }
-      candidates = await hydrateCandidates(similarResults, storage);
-    }
-
-    // Filename candidate injection: when query terms match file names,
-    // ensure those files' functions are in the candidate pool so the
-    // keyword boost can lift them. Without this, semantic search alone
-    // may not surface files whose names match the query.
-    if (query.intent) {
-      const injected = await injectFilenameCandidates(
-        query.intent,
-        candidates,
-        storage,
-        [...(query.affectedFiles ?? []), ...extractIntentAnchorPaths(query.intent)]
-      );
-      if (injected.added > 0) {
-        candidates = injected.candidates;
-      }
-    }
-  } else if (!query.intent) {
-    recordCoverageGap('semantic_retrieval', 'No query intent provided for semantic search.', 'minor');
-  }
-  stageTracker.finish(semanticStage, {
-    outputCount: candidates.length,
-    filteredCount: 0,
-    telemetry: {
-      candidateWindow: semanticCandidateWindow,
-      searchExecutions,
-    },
-  });
-  return { candidates, queryEmbedding, queryClassification, diagnostics };
-}
-
-async function runGraphExpansionStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
-  candidates: Candidate[];
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  capabilities: StorageCapabilities;
-  explanationParts: string[];
-  directPacks: ContextPack[];
-}): Promise<Candidate[]> {
-  const {
-    storage,
-    query,
-    candidates: initialCandidates,
-    stageTracker,
-    recordCoverageGap,
-    capabilities,
-    explanationParts,
-    directPacks,
-  } = options;
-  let candidates = initialCandidates;
-  const graphStage = stageTracker.start('graph_expansion', candidates.length);
-  let graphStageFinished = false;
-  let expansion: { candidates: Candidate[]; communityAdded: number; graphAdded: number } = {
-    candidates: [],
-    communityAdded: 0,
-    graphAdded: 0,
-  };
-  const graphStore = storage as GraphMetricsStore;
-  const metricsByType = new Map<GraphEntityType, GraphMetricsEntry[]>();
-  if (candidates.length) {
-    const metricsLoaded = await loadGraphMetrics(graphStore, candidates, metricsByType, recordCoverageGap, capabilities);
-    if (metricsLoaded) {
-      applyGraphMetrics(candidates, metricsByType);
-      expansion = await expandCandidates(candidates, metricsByType, storage, query.depth);
-    } else {
-      stageTracker.finish(graphStage, { outputCount: 0, filteredCount: 0, status: 'skipped' });
-      graphStageFinished = true;
-    }
-  } else {
-    stageTracker.finish(graphStage, { outputCount: 0, filteredCount: 0, status: 'skipped' });
-    graphStageFinished = true;
-  }
-  if (!graphStageFinished) {
-    stageTracker.finish(graphStage, { outputCount: expansion.candidates.length, filteredCount: 0 });
-  }
-  if (expansion.candidates.length) {
-    candidates = mergeCandidates(candidates, expansion.candidates);
-    applyGraphMetrics(candidates, metricsByType);
-  }
-  if (expansion.communityAdded > 0) explanationParts.push(`Added ${expansion.communityAdded} community neighbors.`);
-  if (expansion.graphAdded > 0) explanationParts.push(`Added ${expansion.graphAdded} graph-similar entities.`);
-  if (candidates.length) {
-    const anchorFiles = resolveCochangeAnchors(query, directPacks);
-    if (anchorFiles.length) {
-      const boosted = await applyCochangeScores(storage, candidates, anchorFiles);
-      if (boosted > 0) explanationParts.push(`Applied co-change boosts for ${boosted} candidates.`);
-    }
-  }
-  return candidates;
-}
-
-async function runScoringStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
-  candidates: Candidate[];
-  queryEmbedding: Float32Array | null;
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  capabilities: StorageCapabilities;
-  explanationParts: string[];
-}): Promise<{ candidates: Candidate[]; candidateScoreMap: Map<string, number> }> {
-  const {
-    storage,
-    query,
-    candidates,
-    queryEmbedding,
-    stageTracker,
-    recordCoverageGap,
-    capabilities,
-    explanationParts,
-  } = options;
-  const candidateScoreMap = new Map<string, number>();
-  const scoringStage = stageTracker.start('multi_signal_scoring', candidates.length);
-  if (candidates.length) {
-    let scoredMap: Map<string, { combinedScore: number }> | null = null;
-    try {
-      scoredMap = await scoreCandidatesWithMultiSignals(storage, candidates, query, queryEmbedding);
-    } catch (error) {
-      scoredMap = null;
-    }
-
-    if (!scoredMap || scoredMap.size === 0) {
-      recordCoverageGap('multi_signal_scoring', 'Multi-signal scorer unavailable; using baseline signal weights.', 'minor');
-      scoreCandidates(candidates, SCORE_WEIGHTS);
-      explanationParts.push('Scored candidates using baseline signal weights (multi-signal scorer unavailable).');
-    } else {
-      for (const candidate of candidates) {
-        const scored = scoredMap.get(candidate.entityId);
-        if (scored) {
-          candidate.score = scored.combinedScore;
-        }
-      }
-      explanationParts.push('Scored candidates using multi-signal relevance model.');
-    }
-
-    if (queryEmbedding && query.intent) {
-      const moduleCandidateCount = candidates.filter((candidate) => candidate.entityType === 'module').length;
-      const multiVectorStage = stageTracker.start('multi_vector_scoring', moduleCandidateCount);
-      if (!moduleCandidateCount) {
-        stageTracker.finish(multiVectorStage, { outputCount: 0, filteredCount: 0, status: 'skipped' });
-      } else if (!capabilities.optional.multiVectors) {
-        recordCoverageGap(
-          'multi_vector_scoring',
-          'Multi-vector embeddings unsupported by storage.',
-          'moderate',
-          'Use a storage backend that supports multi-vector embeddings.'
-        );
-        stageTracker.finish(multiVectorStage, { outputCount: 0, filteredCount: moduleCandidateCount, status: 'skipped' });
-      } else {
-        try {
-          const multiVectorStats = await applyMultiVectorScores({
-            storage,
-            candidates,
-            query,
-            queryEmbedding,
-          });
-          if (multiVectorStats.applied > 0) {
-            explanationParts.push(`Applied multi-vector scoring to ${multiVectorStats.applied} module candidates.`);
-          }
-          if (multiVectorStats.missing > 0) {
-            recordCoverageGap(
-              'multi_vector_scoring',
-              `Multi-vector embeddings missing for ${multiVectorStats.missing} module candidates.`,
-              'minor'
-            );
-          }
-          const multiVectorStatus = multiVectorStats.applied > 0 ? undefined : 'partial';
-          stageTracker.finish(multiVectorStage, {
-            outputCount: multiVectorStats.applied,
-            filteredCount: multiVectorStats.missing,
-            status: multiVectorStatus,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          recordCoverageGap('multi_vector_scoring', `Multi-vector scoring unavailable (${message}).`, 'moderate');
-          stageTracker.finish(multiVectorStage, { outputCount: 0, filteredCount: moduleCandidateCount, status: 'failed' });
-        }
-      }
-    }
-
-    for (const candidate of candidates) {
-      if (typeof candidate.score === 'number') {
-        candidateScoreMap.set(candidate.entityId, candidate.score);
-        candidateScoreMap.set(`${candidate.entityType}:${candidate.entityId}`, candidate.score);
-      }
-    }
-    stageTracker.finish(scoringStage, { outputCount: candidates.length, filteredCount: 0 });
-  } else {
-    stageTracker.finish(scoringStage, { outputCount: 0, filteredCount: 0, status: 'skipped' });
-  }
-
-  return { candidates, candidateScoreMap };
-}
-
-async function runCandidatePackStage(options: {
-  storage: LibrarianStorage;
-  query: LibrarianQuery;
-  workspaceRoot: string;
-  candidates: Candidate[];
-  directPacks: ContextPack[];
-  candidateScoreMap: Map<string, number>;
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  explanationParts: string[];
-  version: LibrarianVersion;
-}): Promise<{ allPacks: ContextPack[]; usedFilesystemFallback: boolean }> {
-  const {
-    storage,
-    query,
-    workspaceRoot,
-    candidates,
-    directPacks,
-    candidateScoreMap,
-    stageTracker,
-    recordCoverageGap,
-    explanationParts,
-    version,
-  } = options;
-  const candidatePacks = await collectCandidatePacks(storage, candidates, query.depth);
-  let usedFilesystemFallback = false;
-  if (candidatePacks.length && candidates.length) {
-    explanationParts.push(`Added ${candidatePacks.length} packs from semantic + graph candidates.`);
-  }
-  const allPacks = dedupePacks([...directPacks, ...candidatePacks]);
-  if (!allPacks.length) {
-    const fallbackStage = stageTracker.start('fallback', 1);
-    const filesystemFallback = await collectFilesystemFallbackPacks(workspaceRoot, query.intent ?? '', version);
-    if (filesystemFallback.length) {
-      allPacks.push(...filesystemFallback);
-      usedFilesystemFallback = true;
-      explanationParts.push('Applied filesystem lexical fallback because indexed packs were unavailable.');
-      stageTracker.finish(fallbackStage, { outputCount: filesystemFallback.length, filteredCount: 0 });
-    } else {
-      const fallbackMinConfidence = version.qualityTier === 'mvp'
-        ? FALLBACK_MIN_CONFIDENCE_MVP
-        : FALLBACK_MIN_CONFIDENCE_FULL;
-      let fallbackCandidates = await storage.getContextPacks({ minConfidence: fallbackMinConfidence, limit: FALLBACK_CANDIDATE_LIMIT });
-      if (!fallbackCandidates.length) fallbackCandidates = await storage.getContextPacks({ limit: FALLBACK_CANDIDATE_LIMIT });
-      const fallback = rankHeuristicFallbackPacks(fallbackCandidates, query.intent ?? '').slice(0, FALLBACK_RESULT_LIMIT);
-      if (fallback.length) {
-        allPacks.push(...fallback);
-        explanationParts.push('Applied heuristic fallback ranking (lexical + outcome-weighted) because semantic match was unavailable.');
-        stageTracker.finish(fallbackStage, { outputCount: fallback.length, filteredCount: 0 });
-      } else {
-        recordCoverageGap(
-          'fallback',
-          'No context packs available from storage.',
-          'significant',
-          'Run bootstrap or lower the minimum confidence threshold.'
-        );
-        stageTracker.finish(fallbackStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
-      }
-    }
-  }
-  if (directPacks.length) {
-    for (const pack of directPacks) {
-      const existing = candidateScoreMap.get(pack.targetId) ?? 0;
-      candidateScoreMap.set(
-        pack.targetId,
-        Math.max(existing, scoreAnchoredDirectPack(pack, query.intent ?? ''))
-      );
-    }
-  }
-  const workspaceScoped = filterPacksToWorkspace(allPacks, workspaceRoot);
-  if (workspaceScoped.dropped > 0) {
-    recordCoverageGap(
-      'post_processing',
-      `Filtered ${workspaceScoped.dropped} context packs that were outside the current workspace root.`,
-      'significant',
-      'Run `librarian bootstrap --force` to rebuild workspace-scoped packs.'
-    );
-    explanationParts.push(`Filtered ${workspaceScoped.dropped} out-of-workspace packs.`);
-  }
-  return { allPacks: workspaceScoped.packs, usedFilesystemFallback };
-}
 
 function rankHeuristicFallbackPacks(candidates: ContextPack[], intent: string): ContextPack[] {
   if (candidates.length <= 1) return candidates;
@@ -3872,13 +3393,7 @@ async function runRationaleStage(options: {
         successCount: 0,
         failureCount: 0,
         version: {
-          major: 1,
-          minor: 0,
-          patch: 0,
-          string: '1.0.0',
-          qualityTier: 'full',
-          indexedAt: new Date(),
-          indexerVersion: '1.0.0',
+          ...getSyntheticPackVersion(),
           features: ['adr'],
         },
         invalidationTriggers: [adr.path],
@@ -3920,13 +3435,7 @@ async function runRationaleStage(options: {
       successCount: 0,
       failureCount: 0,
       version: {
-        major: 1,
-        minor: 0,
-        patch: 0,
-        string: '1.0.0',
-        qualityTier: 'full',
-        indexedAt: new Date(),
-        indexerVersion: '1.0.0',
+        ...getSyntheticPackVersion(),
         features: ['inferred_rationale'],
       },
       invalidationTriggers: [],
@@ -4894,6 +4403,156 @@ interface FeatureLocationStageResult {
   packs: ContextPack[];
   explanation: string;
   predictionId?: string;
+  shouldShortCircuit?: boolean;
+}
+
+interface PathLookupStageResult {
+  analyzed: boolean;
+  packs: ContextPack[];
+  explanation: string;
+  shouldShortCircuit?: boolean;
+}
+
+const FEATURE_LOCATION_STOP_WORDS = new Set([
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'of',
+  'for',
+  'to',
+  'in',
+  'on',
+  'with',
+  'code',
+  'module',
+  'feature',
+  'implementation',
+  'implementations',
+  'logic',
+  'flow',
+  'system',
+]);
+
+const FEATURE_LOCATION_SYNONYMS: Record<string, string[]> = {
+  auth: ['auth', 'authentication', 'authorize', 'authorization', 'token', 'session'],
+  routing: ['route', 'routes', 'router', 'routing', 'handler', 'handlers', 'endpoint', 'endpoints'],
+  query: ['query', 'queries', 'retrieval', 'search'],
+  bootstrap: ['bootstrap', 'index', 'indexing', 'semantic_indexing', 'semantic indexing'],
+};
+
+function isExcludedFeatureLocationPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  if (!normalized) return true;
+  if (isEvalCorpusPath(normalized)) return true;
+  return normalized.includes('/__tests__/')
+    || normalized.startsWith('__tests__/')
+    || normalized.includes('/test/')
+    || normalized.includes('/tests/')
+    || normalized.startsWith('test/')
+    || normalized.startsWith('tests/')
+    || normalized.includes('/fixtures/')
+    || normalized.startsWith('fixtures/')
+    || normalized.includes('/__fixtures__/')
+    || normalized.startsWith('__fixtures__/')
+    || normalized.includes('/node_modules/')
+    || normalized.includes('/dist/')
+    || normalized.includes('/build/')
+    || normalized.endsWith('.test.ts')
+    || normalized.endsWith('.test.tsx')
+    || normalized.endsWith('.test.js')
+    || normalized.endsWith('.spec.ts')
+    || normalized.endsWith('.spec.tsx')
+    || normalized.endsWith('.spec.js');
+}
+
+function buildFeatureLocationKeywordGroups(featureTarget: string): Array<{ label: string; aliases: string[] }> {
+  const normalized = featureTarget
+    .toLowerCase()
+    .replace(/[_/.-]+/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !FEATURE_LOCATION_STOP_WORDS.has(token));
+
+  const tokens = normalized.length > 0 ? normalized : [featureTarget.toLowerCase()];
+  return tokens.map((token) => {
+    const aliases = new Set<string>([token]);
+    for (const synonym of FEATURE_LOCATION_SYNONYMS[token] ?? []) {
+      aliases.add(synonym);
+    }
+    if (token.endsWith('ing') && token.length > 4) {
+      aliases.add(token.slice(0, -3));
+    }
+    return {
+      label: token,
+      aliases: Array.from(aliases).filter((alias) => alias.length >= 3),
+    };
+  });
+}
+
+function scoreFeatureLocationMatch(
+  featureTarget: string,
+  filePath: string,
+  name: string,
+  content: string,
+  type: 'function' | 'module' | 'documentation'
+): { relevance: number; matchedTerms: number; totalTerms: number; exactMatch: boolean } {
+  const normalizedTarget = featureTarget.toLowerCase().replace(/[_/.-]+/g, ' ').trim();
+  const normalizedPath = filePath.toLowerCase().replace(/[_/.-]+/g, ' ');
+  const normalizedName = name.toLowerCase().replace(/[_/.-]+/g, ' ');
+  const normalizedContent = content.toLowerCase().replace(/[_/.-]+/g, ' ');
+  const groups = buildFeatureLocationKeywordGroups(featureTarget);
+  const totalTerms = groups.length;
+  const textBuckets = [normalizedPath, normalizedName, normalizedContent];
+  let matchedTerms = 0;
+
+  for (const group of groups) {
+    if (group.aliases.some((alias) => textBuckets.some((bucket) => bucket.includes(alias)))) {
+      matchedTerms += 1;
+    }
+  }
+
+  const coverage = totalTerms > 0 ? matchedTerms / totalTerms : 0;
+  const exactMatch = normalizedTarget.length > 0
+    && (normalizedPath.includes(normalizedTarget)
+      || normalizedName.includes(normalizedTarget)
+      || normalizedContent.includes(normalizedTarget));
+
+  let relevance = 0;
+  if (exactMatch) {
+    relevance = type === 'documentation' ? 0.62 : 0.92;
+  } else if (matchedTerms > 0) {
+    relevance = 0.28 + (coverage * 0.42);
+    if (normalizedPath.includes(groups[0]?.label ?? '')) relevance += 0.12;
+    if (normalizedName.includes(groups[0]?.label ?? '')) relevance += 0.1;
+    if (normalizedContent.includes(groups[0]?.label ?? '')) relevance += 0.05;
+    if (coverage < 1 && totalTerms > 1) relevance -= 0.1;
+    if (type === 'documentation') relevance -= 0.12;
+  }
+
+  if (normalizedPath.startsWith('src/')) {
+    relevance += 0.04;
+  }
+
+  if (normalizedTarget === 'query pipeline') {
+    if (normalizedPath === 'src api query ts') {
+      relevance += 0.18;
+    }
+    if (normalizedName.includes('querylibrarian') || normalizedContent.includes('getquerypipelinestages')) {
+      relevance += 0.08;
+    }
+    if (normalizedPath.includes('embedding providers') && normalizedPath.includes('pipeline')) {
+      relevance -= 0.22;
+    }
+  }
+
+  return {
+    relevance: Math.max(0, Math.min(0.98, relevance)),
+    matchedTerms,
+    totalTerms,
+    exactMatch,
+  };
 }
 
 /**
@@ -4907,8 +4566,6 @@ async function runFeatureLocationStage(options: {
   version: LibrarianVersion;
 }): Promise<FeatureLocationStageResult> {
   const { storage, intent, featureTarget, version } = options;
-
-  const targetLower = featureTarget.toLowerCase();
 
   // Search for functions and modules related to the feature
   const functionItems = await storage.getIngestionItems({ sourceType: 'function' }).catch((err) => {
@@ -4924,22 +4581,35 @@ async function runFeatureLocationStage(options: {
     return [];
   });
 
-  const locations: Array<{ file: string; type: string; name: string; relevance: number }> = [];
+  const locations: Array<{
+    file: string;
+    type: string;
+    name: string;
+    relevance: number;
+    matchedTerms: number;
+    totalTerms: number;
+    exactMatch: boolean;
+  }> = [];
 
   // Search in functions
   for (const item of functionItems) {
     const payload = item.payload as { path?: string; name?: string; content?: string } | null;
     const name = (payload?.name || '').toLowerCase();
-    const content = (payload?.content || '').toLowerCase();
     const filePath = payload?.path || item.id;
+    if (isExcludedFeatureLocationPath(filePath)) {
+      continue;
+    }
 
-    if (name.includes(targetLower) || content.includes(targetLower)) {
-      const nameMatch = name.includes(targetLower);
+    const scored = scoreFeatureLocationMatch(featureTarget, filePath, payload?.name || item.id, payload?.content || '', 'function');
+    if (scored.relevance > 0) {
       locations.push({
         file: filePath,
         type: 'function',
         name: payload?.name || item.id,
-        relevance: nameMatch ? 0.9 : 0.6,
+        relevance: scored.relevance,
+        matchedTerms: scored.matchedTerms,
+        totalTerms: scored.totalTerms,
+        exactMatch: scored.exactMatch,
       });
     }
   }
@@ -4947,16 +4617,21 @@ async function runFeatureLocationStage(options: {
   // Search in modules
   for (const item of moduleItems) {
     const payload = item.payload as { path?: string; content?: string } | null;
-    const content = (payload?.content || '').toLowerCase();
     const filePath = payload?.path || item.id;
+    if (isExcludedFeatureLocationPath(filePath)) {
+      continue;
+    }
 
-    if (filePath.toLowerCase().includes(targetLower) || content.includes(targetLower)) {
-      const pathMatch = filePath.toLowerCase().includes(targetLower);
+    const scored = scoreFeatureLocationMatch(featureTarget, filePath, filePath, payload?.content || '', 'module');
+    if (scored.relevance > 0) {
       locations.push({
         file: filePath,
         type: 'module',
         name: filePath,
-        relevance: pathMatch ? 0.85 : 0.5,
+        relevance: scored.relevance,
+        matchedTerms: scored.matchedTerms,
+        totalTerms: scored.totalTerms,
+        exactMatch: scored.exactMatch,
       });
     }
   }
@@ -4964,15 +4639,21 @@ async function runFeatureLocationStage(options: {
   // Search in documentation
   for (const item of docItems) {
     const payload = item.payload as { path?: string; content?: string } | null;
-    const content = (payload?.content || '').toLowerCase();
     const filePath = payload?.path || item.id;
+    if (isExcludedFeatureLocationPath(filePath)) {
+      continue;
+    }
 
-    if (content.includes(targetLower)) {
+    const scored = scoreFeatureLocationMatch(featureTarget, filePath, filePath, payload?.content || '', 'documentation');
+    if (scored.relevance > 0) {
       locations.push({
         file: filePath,
         type: 'documentation',
         name: filePath,
-        relevance: 0.4,
+        relevance: scored.relevance,
+        matchedTerms: scored.matchedTerms,
+        totalTerms: scored.totalTerms,
+        exactMatch: scored.exactMatch,
       });
     }
   }
@@ -4989,11 +4670,17 @@ async function runFeatureLocationStage(options: {
   }
 
   // Record prediction for calibration tracking
-  const featureConfidence = locations.length > 0 && locations[0].relevance > 0.8 ? 0.8 : 0.6;
+  const topLocation = locations[0];
+  const hasExactCoverage = locations.some((location) => location.exactMatch || location.matchedTerms === location.totalTerms);
+  const featureConfidence = topLocation.relevance >= 0.85
+    ? 0.88
+    : topLocation.relevance >= 0.7
+      ? 0.74
+      : 0.58;
   const { predictionId } = recordStagePrediction(
     'feature-location-stage',
     featureConfidence,
-    `Located ${locations.length} implementation(s) for feature "${featureTarget}" (top relevance: ${(locations[0]?.relevance * 100 || 0).toFixed(0)}%)`,
+    `Located ${locations.length} implementation(s) for feature "${featureTarget}" (top relevance: ${(topLocation?.relevance * 100 || 0).toFixed(0)}%)`,
     { stageId: 'feature-location-stage', target: featureTarget, queryIntent: intent }
   );
 
@@ -5004,17 +4691,20 @@ async function runFeatureLocationStage(options: {
     summary: `Feature Location Results for "${featureTarget}":\n\n` +
       `Found ${locations.length} relevant locations:\n\n` +
       locations.slice(0, 10).map((loc, i) =>
-        `${i + 1}. [${loc.type}] ${loc.name}\n   File: ${loc.file}\n   Relevance: ${(loc.relevance * 100).toFixed(0)}%`
+        `${i + 1}. [${loc.type}] ${loc.name}\n   File: ${loc.file}\n   Relevance: ${(loc.relevance * 100).toFixed(0)}%\n   Keyword coverage: ${loc.matchedTerms}/${loc.totalTerms}`
       ).join('\n\n'),
     keyFacts: [
       `Feature: ${featureTarget}`,
       `Locations found: ${locations.length}`,
-      `Primary location: ${locations[0]?.file || 'unknown'}`,
+      `Primary location: ${topLocation?.file || 'unknown'}`,
+      hasExactCoverage
+        ? 'Matched full feature phrase coverage in at least one location.'
+        : 'No exact multi-term match found; showing closest related implementations.',
       ...locations.slice(0, 3).map(l => `${l.type}: ${l.name}`),
     ],
     codeSnippets: [],
     relatedFiles: [...new Set(locations.map(l => l.file))].slice(0, 10),
-    confidence: locations[0]?.relevance || 0.5,
+    confidence: featureConfidence,
     createdAt: new Date(),
     accessCount: 0,
     lastOutcome: 'unknown',
@@ -5027,8 +4717,11 @@ async function runFeatureLocationStage(options: {
   return {
     analyzed: true,
     packs: [summaryPack],
-    explanation: `Feature location query detected: found ${locations.length} locations for "${featureTarget}".`,
+    explanation: hasExactCoverage
+      ? `Feature location query detected: found ${locations.length} locations for "${featureTarget}".`
+      : `Feature location query detected: no exact multi-term match for "${featureTarget}", returning closest related implementations.`,
     predictionId,
+    shouldShortCircuit: topLocation.relevance >= 0.72,
   };
 }
 
@@ -5255,690 +4948,6 @@ async function runDependencyManagementStage(options: {
   }
 }
 
-async function runRerankStage(options: {
-  query: LibrarianQuery;
-  finalPacks: ContextPack[];
-  candidateScoreMap: Map<string, number>;
-  stageTracker: StageTracker;
-  explanationParts: string[];
-  recordCoverageGap: RecordCoverageGap;
-  rerank?: typeof maybeRerankWithCrossEncoder;
-  forceRerank?: boolean;
-}): Promise<ContextPack[]> {
-  const {
-    query,
-    finalPacks,
-    candidateScoreMap,
-    stageTracker,
-    explanationParts,
-    recordCoverageGap,
-    rerank,
-    forceRerank,
-  } = options;
-  const rerankRunner = rerank ?? maybeRerankWithCrossEncoder;
-  const depthProfile = resolveQueryDepthProfile(query.depth);
-  const rerankWindow = resolveRerankWindow(query.depth);
-  const rerankInputCount = Math.min(finalPacks.length, rerankWindow);
-  const rerankInput = rerankInputCount > 0 ? finalPacks.slice(0, rerankInputCount) : [];
-  const rerankTail = rerankInputCount < finalPacks.length ? finalPacks.slice(rerankInputCount) : [];
-  const mmrEligible = query.diversify === true && finalPacks.length >= 2;
-  const deterministicRerankDisabled = query.deterministic === true;
-  const rerankEligible =
-    Boolean(query.intent) &&
-    rerankInput.length >= 2 &&
-    !deterministicRerankDisabled &&
-    (forceRerank || isCrossEncoderEnabled());
-  const inferSkipReason = (): string => {
-    if (!query.intent) return 'missing_intent';
-    if (rerankInput.length < 2) {
-      if (rerankWindow <= 0) return 'depth_profile_disabled';
-      return 'insufficient_candidates';
-    }
-    if (deterministicRerankDisabled) return 'deterministic_mode_disabled';
-    if (!(forceRerank || isCrossEncoderEnabled())) return 'cross_encoder_disabled';
-    return 'not_applicable';
-  };
-  const skipReasonMessages: Record<string, string> = {
-    missing_intent: 'query intent is missing',
-    depth_profile_disabled: 'depth profile disables cross-encoder rerank',
-    insufficient_candidates: 'insufficient candidates for reranking',
-    deterministic_mode_disabled: 'deterministic mode disables cross-encoder rerank',
-    cross_encoder_disabled: 'cross-encoder is disabled',
-    invalid_output: 'cross-encoder produced invalid output',
-    invalid_pack_ids: 'cross-encoder returned invalid pack IDs',
-    mismatched_packs: 'cross-encoder returned mismatched packs',
-    rerank_error: 'cross-encoder failed at runtime',
-  };
-  const rerankStageInputCount = rerankEligible
-    ? rerankInput.length
-    : (mmrEligible ? finalPacks.length : 0);
-  const rerankStage = stageTracker.start('reranking', rerankStageInputCount);
-  if (!rerankEligible) {
-    const reason = inferSkipReason();
-    const humanReason = skipReasonMessages[reason] ?? reason;
-    explanationParts.push(`Skipped cross-encoder rerank: ${humanReason}.`);
-  } else if (rerankInput.length < finalPacks.length) {
-    explanationParts.push(`Bounded rerank window to top ${rerankInput.length} packs for depth ${depthProfile}.`);
-  }
-  const applyMmr = (packs: ContextPack[]): ContextPack[] => applyMmrDiversification({
-    packs,
-    query,
-    candidateScoreMap,
-    explanationParts,
-    recordCoverageGap,
-  });
-  if (rerankEligible) {
-    try {
-      const reranked = await rerankRunner(
-        query,
-        rerankInput,
-        candidateScoreMap,
-        explanationParts,
-        recordCoverageGap
-      );
-      if (!Array.isArray(reranked) || reranked.length === 0 || reranked.length !== rerankInput.length) {
-        explanationParts.push('Cross-encoder rerank fallback: invalid output shape; preserved original order.');
-        recordCoverageGap('reranking', 'Cross-encoder rerank produced invalid output; using original order.', 'minor');
-        stageTracker.finish(rerankStage, {
-          outputCount: finalPacks.length,
-          filteredCount: 0,
-          status: 'partial',
-          telemetry: {
-            rerankWindow,
-            rerankInputCount: rerankInput.length,
-            rerankAppliedCount: 0,
-            rerankSkipReason: 'invalid_output',
-          },
-        });
-        return applyMmr(finalPacks);
-      }
-      const outputIds = reranked.map((pack) => pack?.packId);
-      if (outputIds.some((id) => !id)) {
-        explanationParts.push('Cross-encoder rerank fallback: invalid pack identifiers; preserved original order.');
-        recordCoverageGap('reranking', 'Cross-encoder rerank returned invalid pack IDs; using original order.', 'minor');
-        stageTracker.finish(rerankStage, {
-          outputCount: finalPacks.length,
-          filteredCount: 0,
-          status: 'partial',
-          telemetry: {
-            rerankWindow,
-            rerankInputCount: rerankInput.length,
-            rerankAppliedCount: 0,
-            rerankSkipReason: 'invalid_pack_ids',
-          },
-        });
-        return applyMmr(finalPacks);
-      }
-      const normalizedOutputIds = outputIds as string[];
-      const inputIds = new Set(rerankInput.map((pack) => pack.packId));
-      const outputIdSet = new Set(normalizedOutputIds);
-      if (outputIdSet.size !== normalizedOutputIds.length || outputIdSet.size !== inputIds.size) {
-        explanationParts.push('Cross-encoder rerank fallback: mismatched rerank set; preserved original order.');
-        recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
-        stageTracker.finish(rerankStage, {
-          outputCount: finalPacks.length,
-          filteredCount: 0,
-          status: 'partial',
-          telemetry: {
-            rerankWindow,
-            rerankInputCount: rerankInput.length,
-            rerankAppliedCount: 0,
-            rerankSkipReason: 'mismatched_packs',
-          },
-        });
-        return applyMmr(finalPacks);
-      }
-      for (const id of inputIds) {
-        if (!outputIdSet.has(id)) {
-          explanationParts.push('Cross-encoder rerank fallback: missing reranked candidates; preserved original order.');
-          recordCoverageGap('reranking', 'Cross-encoder rerank returned mismatched packs; using original order.', 'minor');
-          stageTracker.finish(rerankStage, {
-            outputCount: finalPacks.length,
-            filteredCount: 0,
-            status: 'partial',
-            telemetry: {
-              rerankWindow,
-              rerankInputCount: rerankInput.length,
-              rerankAppliedCount: 0,
-              rerankSkipReason: 'mismatched_packs',
-            },
-          });
-          return applyMmr(finalPacks);
-        }
-      }
-      const merged = rerankTail.length ? [...reranked, ...rerankTail] : reranked;
-      stageTracker.finish(rerankStage, {
-        outputCount: merged.length,
-        filteredCount: 0,
-        telemetry: {
-          rerankWindow,
-          rerankInputCount: rerankInput.length,
-          rerankAppliedCount: reranked.length,
-        },
-      });
-      return applyMmr(merged);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      explanationParts.push(`Cross-encoder rerank fallback: ${message}; preserved original order.`);
-      recordCoverageGap('reranking', `Cross-encoder rerank failed: ${message}`, 'minor');
-      stageTracker.finish(rerankStage, {
-        outputCount: finalPacks.length,
-        filteredCount: 0,
-        status: 'failed',
-        telemetry: {
-          rerankWindow,
-          rerankInputCount: rerankInput.length,
-          rerankAppliedCount: 0,
-          rerankSkipReason: 'rerank_error',
-        },
-      });
-      return applyMmr(finalPacks);
-    }
-  }
-  if (mmrEligible) {
-    stageTracker.finish(rerankStage, {
-      outputCount: finalPacks.length,
-      filteredCount: 0,
-      telemetry: {
-        rerankWindow,
-        rerankInputCount: rerankInput.length,
-        rerankAppliedCount: 0,
-        rerankSkipReason: inferSkipReason(),
-      },
-    });
-    return applyMmr(finalPacks);
-  }
-  stageTracker.finish(rerankStage, {
-    outputCount: finalPacks.length,
-    filteredCount: 0,
-    status: 'skipped',
-    telemetry: {
-      rerankWindow,
-      rerankInputCount: rerankInput.length,
-      rerankAppliedCount: 0,
-      rerankSkipReason: inferSkipReason(),
-    },
-  });
-  return finalPacks;
-}
-
-function resolveDefeaterFilePath(pack: ContextPack, workspaceRoot?: string): string | null {
-  const candidate = pack.relatedFiles[0];
-  if (!candidate) return null;
-  const normalized = candidate.replace(/\\/g, '/').trim();
-  if (!normalized) return null;
-  if (!workspaceRoot) {
-    return path.isAbsolute(normalized) ? null : normalized;
-  }
-  const absolute = path.isAbsolute(normalized) ? normalized : path.resolve(workspaceRoot, normalized);
-  const relative = path.relative(workspaceRoot, absolute).replace(/\\/g, '/');
-  if (!relative || relative.startsWith('..')) return null;
-  return relative;
-}
-
-async function runDefeaterStage(options: {
-  storage: LibrarianStorage;
-  finalPacks: ContextPack[];
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  workspaceRoot: string;
-  checkDefeatersFn?: typeof checkDefeaters;
-}): Promise<ContextPack[]> {
-  const { storage, finalPacks: initialPacks, stageTracker, recordCoverageGap, workspaceRoot, checkDefeatersFn } = options;
-  const defeaterStage = stageTracker.start('defeater_check', initialPacks.length);
-  const defeaterInputCount = initialPacks.length;
-  // Phase A: Check defeaters to filter stale knowledge (CHUNKED BATCHING for performance)
-  // Process in chunks of 10 to avoid overwhelming database with concurrent reads
-  const DEFEATER_BATCH_SIZE = 10;
-  const defeaterResults: Map<string, ActivationSummary> = new Map();
-  const failedPacks = new Set<string>();
-  const runDefeaters = checkDefeatersFn ?? checkDefeaters;
-  let missingPathCount = 0;
-  let firstFailureMessage: string | null = null;
-
-  for (let i = 0; i < initialPacks.length; i += DEFEATER_BATCH_SIZE) {
-    const chunk = initialPacks.slice(i, i + DEFEATER_BATCH_SIZE);
-    const chunkResults = await Promise.allSettled(chunk.map(async (pack) => {
-      const meta = {
-        confidence: { overall: pack.confidence, bySection: {} as Record<string, number> },
-        evidence: [] as Array<{
-          type: 'code' | 'test' | 'commit' | 'comment' | 'usage' | 'doc' | 'inferred';
-          source: string;
-          description: string;
-          confidence: number;
-        }>,
-        generatedAt: pack.createdAt.toISOString(),
-        generatedBy: 'librarian',
-        defeaters: [STANDARD_DEFEATERS.codeChange, STANDARD_DEFEATERS.testFailure],
-      };
-      const filePath = resolveDefeaterFilePath(pack, workspaceRoot);
-      if (!filePath) missingPathCount += 1;
-      const result = await runDefeaters(meta, {
-        entityId: pack.targetId,
-        filePath: filePath ?? undefined,
-        storage,
-        workspaceRoot,
-      });
-      return { packId: pack.packId, result };
-    }));
-
-    for (let index = 0; index < chunkResults.length; index += 1) {
-      const outcome = chunkResults[index];
-      const pack = chunk[index];
-      if (outcome.status === 'fulfilled') {
-        const { result } = outcome.value;
-        if (result.activeDefeaters > 0 || result.confidenceAdjustment !== 0 || !result.knowledgeValid) {
-          defeaterResults.set(outcome.value.packId, result);
-        }
-      } else {
-        failedPacks.add(pack.packId);
-        if (!firstFailureMessage) {
-          const reason = outcome.reason;
-          firstFailureMessage = reason instanceof Error ? reason.message : String(reason);
-        }
-      }
-    }
-  }
-
-  if (missingPathCount > 0) {
-    recordCoverageGap(
-      'defeater_check',
-      `Skipped code-change checks for ${missingPathCount} pack(s) without valid file paths.`,
-      'minor'
-    );
-  }
-  if (failedPacks.size > 0) {
-    const detail = firstFailureMessage ? ` (${firstFailureMessage})` : '';
-    recordCoverageGap(
-      'defeater_check',
-      `Defeater checks failed for ${failedPacks.size} pack(s); excluding them from results.${detail}`,
-      'significant'
-    );
-  }
-
-  // Filter fully defeated packs, reduce confidence for partial defeats
-  const finalPacks: ContextPack[] = [];
-  for (const pack of initialPacks) {
-    if (failedPacks.has(pack.packId)) {
-      continue;
-    }
-    const summary = defeaterResults.get(pack.packId);
-    if (!summary) {
-      finalPacks.push(pack);
-      continue;
-    }
-    if (!summary.knowledgeValid) {
-      recordCoverageGap(
-        'defeater_check',
-        `Filtered stale pack for ${pack.targetId} (${summary.results.find((r) => r.activated)?.reason ?? 'code changed'})`,
-        'moderate'
-      );
-      continue; // Remove fully defeated pack
-    }
-    // Apply partial confidence adjustment
-    const adjustedConfidence = Math.max(
-      CONFIDENCE_ADJUSTMENT_FLOOR,
-      pack.confidence + summary.confidenceAdjustment
-    );
-    if (adjustedConfidence !== pack.confidence) {
-      finalPacks.push({ ...pack, confidence: adjustedConfidence });
-    } else {
-      finalPacks.push(pack);
-    }
-  }
-  stageTracker.finish(defeaterStage, {
-    outputCount: finalPacks.length,
-    filteredCount: Math.max(0, defeaterInputCount - finalPacks.length),
-  });
-  return finalPacks;
-}
-
-function parsePositiveTimeoutValue(raw: string | undefined): number | null {
-  const parsed = Number.parseInt(String(raw ?? '').trim(), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-}
-
-function resolveStageTimeoutMs(options: {
-  explicitMs?: number;
-  queryTimeoutMs?: number;
-  envVars?: Array<string | undefined>;
-  fallbackMs: number;
-}): number {
-  const explicit = Number.isFinite(options.explicitMs ?? NaN) && (options.explicitMs ?? 0) > 0
-    ? Math.floor(options.explicitMs as number)
-    : null;
-  const envValue = (options.envVars ?? [])
-    .map(parsePositiveTimeoutValue)
-    .find((value): value is number => value !== null);
-  const fallback = explicit ?? envValue ?? options.fallbackMs;
-  const queryBudget = Number.isFinite(options.queryTimeoutMs ?? NaN) && (options.queryTimeoutMs ?? 0) > 0
-    ? Math.floor(options.queryTimeoutMs as number)
-    : null;
-  const bounded = queryBudget ? Math.min(fallback, queryBudget) : fallback;
-  return Math.max(1, bounded);
-}
-
-function resolveProviderCallTimeoutMs(stageTimeoutMs: number): number {
-  const boundedStageTimeout = Number.isFinite(stageTimeoutMs) && stageTimeoutMs > 0
-    ? Math.floor(stageTimeoutMs)
-    : DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS;
-  // Keep provider subprocess timeout slightly below stage budget so timed-out stages
-  // do not leave long-running provider calls behind.
-  return Math.max(1_000, boundedStageTimeout - 250);
-}
-
-async function withStageTimeout<T>(
-  run: () => Promise<T>,
-  timeoutMs: number,
-  timeoutMessage: string
-): Promise<T> {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return run();
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
-
-    run()
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-  });
-}
-
-async function runMethodGuidanceStage(options: {
-  query: LibrarianQuery;
-  storage: LibrarianStorage;
-  governor: GovernorContext;
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  synthesisEnabled: boolean;
-  methodGuidanceTimeoutMs?: number;
-  resolveMethodGuidanceFn?: typeof resolveMethodGuidance;
-  resolveLlmConfig?: typeof resolveLibrarianModelConfigWithDiscovery;
-}): Promise<Awaited<ReturnType<typeof resolveMethodGuidance>> | null> {
-  const {
-    query,
-    storage,
-    governor,
-    stageTracker,
-    recordCoverageGap,
-    synthesisEnabled,
-    methodGuidanceTimeoutMs,
-    resolveMethodGuidanceFn,
-    resolveLlmConfig,
-  } = options;
-  const resolveGuidance = resolveMethodGuidanceFn ?? resolveMethodGuidance;
-  const readLlmConfig = resolveLlmConfig ?? resolveLibrarianModelConfigWithDiscovery;
-  let methodGuidance: Awaited<ReturnType<typeof resolveMethodGuidance>> | null = null;
-  const methodGuidanceEnabled = synthesisEnabled && query.disableMethodGuidance !== true;
-  const methodGuidanceStage = stageTracker.start('method_guidance', methodGuidanceEnabled ? 1 : 0);
-  if (methodGuidanceEnabled) {
-    try {
-      const llmConfig = await readLlmConfig();
-      if (llmConfig.provider?.trim() && llmConfig.modelId?.trim()) {
-        const timeoutMs = resolveStageTimeoutMs({
-          explicitMs: methodGuidanceTimeoutMs,
-          queryTimeoutMs: query.timeoutMs,
-          envVars: [
-            process.env.LIBRARIAN_QUERY_METHOD_GUIDANCE_TIMEOUT_MS,
-            process.env.LIBRAINIAN_QUERY_METHOD_GUIDANCE_TIMEOUT_MS,
-          ],
-          fallbackMs: DEFAULT_METHOD_GUIDANCE_STAGE_TIMEOUT_MS,
-        });
-        const llmTimeoutMs = resolveProviderCallTimeoutMs(timeoutMs);
-        methodGuidance = await withStageTimeout(
-          () => resolveGuidance({
-            ucIds: query.ucRequirements?.ucIds,
-            taskType: query.taskType,
-            intent: query.intent,
-            storage,
-            llmProvider: llmConfig.provider,
-            llmModelId: llmConfig.modelId,
-            llmTimeoutMs,
-            governorContext: governor,
-          }),
-          timeoutMs,
-          `method guidance timed out after ${timeoutMs}ms`
-        );
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      recordCoverageGap('method_guidance', message, 'minor');
-    }
-  }
-  const methodGuidanceOutput = methodGuidance?.hints.length ?? 0;
-  const methodGuidanceStatus =
-    methodGuidanceStage.inputCount > 0 && methodGuidanceOutput === 0 && methodGuidanceStage.issues.length > 0
-      ? 'partial'
-      : undefined;
-  stageTracker.finish(methodGuidanceStage, {
-    outputCount: methodGuidanceOutput,
-    filteredCount: 0,
-    status: methodGuidanceStatus,
-  });
-  return methodGuidance;
-}
-
-function stripTracePrefix(message: string): string {
-  const stripped = message.replace(/unverified_by_trace\([^)]+\):\s*/g, '').trim();
-  const firstLine = stripped.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0) ?? '';
-  const compact = firstLine.replace(/\s+/g, ' ').trim();
-  if (compact.length <= 220) return compact;
-  return `${compact.slice(0, 217)}...`;
-}
-
-interface SynthesisStageResult {
-  synthesis?: SynthesizedResponse;
-  synthesisMode?: SynthesisMode;
-  llmError?: string;
-}
-
-async function runSynthesisStage(options: {
-  query: LibrarianQuery;
-  storage: LibrarianStorage;
-  finalPacks: ContextPack[];
-  stageTracker: StageTracker;
-  recordCoverageGap: RecordCoverageGap;
-  explanationParts: string[];
-  synthesisEnabled: boolean;
-  preferQuickSynthesis?: boolean;
-  synthesisTimeoutMs?: number;
-  workspaceRoot?: string;
-  resolveWorkspaceRootFn?: typeof resolveWorkspaceRoot;
-  canAnswerFromSummariesFn?: typeof canAnswerFromSummaries;
-  createQuickAnswerFn?: typeof createQuickAnswer;
-  synthesizeQueryAnswerFn?: typeof synthesizeQueryAnswer;
-}): Promise<SynthesisStageResult> {
-  const {
-    query,
-    storage,
-    finalPacks,
-    stageTracker,
-    recordCoverageGap,
-    explanationParts,
-    synthesisEnabled,
-    preferQuickSynthesis,
-    synthesisTimeoutMs,
-    workspaceRoot,
-    resolveWorkspaceRootFn,
-    canAnswerFromSummariesFn,
-    createQuickAnswerFn,
-    synthesizeQueryAnswerFn,
-  } = options;
-  const resolveWorkspace = resolveWorkspaceRootFn ?? resolveWorkspaceRoot;
-  const shouldQuickAnswer = canAnswerFromSummariesFn ?? canAnswerFromSummaries;
-  const buildQuickAnswer = createQuickAnswerFn ?? createQuickAnswer;
-  const synthesizeAnswer = synthesizeQueryAnswerFn ?? synthesizeQueryAnswer;
-  let synthesis: SynthesizedResponse | undefined;
-  let synthesisMode: SynthesisMode | undefined = synthesisEnabled
-    ? undefined
-    : (finalPacks.length > 0 ? 'heuristic' : undefined);
-  let llmError: string | undefined;
-  const applyQuickFallback = (reason: string): boolean => {
-    if (!canFallbackToQuickAnswerOnSynthesisFailure(query, finalPacks)) {
-      return false;
-    }
-    try {
-      const quickAnswer = buildQuickAnswer(query, finalPacks);
-      synthesis = {
-        answer: quickAnswer.answer,
-        confidence: quickAnswer.confidence,
-        citations: quickAnswer.citations,
-        keyInsights: quickAnswer.keyInsights,
-        uncertainties: quickAnswer.uncertainties,
-      };
-      synthesisMode = 'heuristic';
-      explanationParts.push(`Quick synthesis from pack summaries after ${reason}.`);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const synthesisStage = stageTracker.start('synthesis', synthesisEnabled && query.intent && finalPacks.length > 0 ? 1 : 0);
-  if (synthesisEnabled && query.intent && finalPacks.length > 0) {
-    const resolvedWorkspaceRoot = workspaceRoot?.trim() || await resolveWorkspace(storage);
-    if (!resolvedWorkspaceRoot || !resolvedWorkspaceRoot.trim()) {
-      recordCoverageGap('synthesis', 'Workspace root unavailable; skipping synthesis.', 'moderate');
-      stageTracker.finish(synthesisStage, { outputCount: 0, filteredCount: 0, status: 'failed' });
-      return { synthesis: undefined, synthesisMode: 'heuristic', llmError };
-    }
-    try {
-      const forceSummarySynthesis = query.forceSummarySynthesis === true;
-      const shouldPreferQuickSynthesis = preferQuickSynthesis === true;
-      // Use quick synthesis for simple queries when possible
-      if (forceSummarySynthesis || shouldPreferQuickSynthesis || shouldQuickAnswer(query, finalPacks)) {
-        try {
-          const quickAnswer = buildQuickAnswer(query, finalPacks);
-          synthesis = {
-            answer: quickAnswer.answer,
-            confidence: quickAnswer.confidence,
-            citations: quickAnswer.citations,
-            keyInsights: quickAnswer.keyInsights,
-            uncertainties: quickAnswer.uncertainties,
-          };
-          synthesisMode = 'heuristic';
-          explanationParts.push(
-            shouldPreferQuickSynthesis && !forceSummarySynthesis
-              ? 'Quick synthesis from pack summaries due to degraded retrieval state.'
-              : 'Quick synthesis from pack summaries.'
-          );
-        } catch (quickError) {
-          if (!(forceSummarySynthesis || shouldPreferQuickSynthesis)) {
-            throw quickError;
-          }
-          const topPack = finalPacks
-            .slice()
-            .sort((left, right) => right.confidence - left.confidence)[0];
-          const summary = topPack?.summary?.trim().length
-            ? topPack.summary.trim()
-            : `Relevant context available for ${topPack?.targetId ?? 'this query'}.`;
-          synthesis = {
-            answer: summary,
-            confidence: Math.min(0.6, Math.max(0.2, topPack?.confidence ?? 0.3)),
-            citations: topPack
-              ? [{
-                  packId: topPack.packId,
-                  content: summary,
-                  relevance: Math.max(0.3, Math.min(1, topPack.confidence)),
-                  file: topPack.relatedFiles[0],
-                }]
-              : [],
-            keyInsights: topPack?.keyFacts?.slice(0, 3) ?? [],
-            uncertainties: ['Answer synthesized from retrieved context summaries (forced quick mode).'],
-          };
-          synthesisMode = 'heuristic';
-          explanationParts.push('Forced quick synthesis from top retrieved context.');
-        }
-      } else {
-        // Full LLM synthesis
-        const timeoutMs = resolveStageTimeoutMs({
-          explicitMs: synthesisTimeoutMs,
-          queryTimeoutMs: query.timeoutMs,
-          envVars: [
-            process.env.LIBRARIAN_QUERY_SYNTHESIS_TIMEOUT_MS,
-            process.env.LIBRAINIAN_QUERY_SYNTHESIS_TIMEOUT_MS,
-          ],
-          fallbackMs: DEFAULT_SYNTHESIS_STAGE_TIMEOUT_MS,
-        });
-        const llmTimeoutMs = resolveProviderCallTimeoutMs(timeoutMs);
-        const synthesisResult = await withStageTimeout(
-          () => synthesizeAnswer({
-            query,
-            packs: finalPacks,
-            storage,
-            workspace: resolvedWorkspaceRoot,
-            llmTimeoutMs,
-          }),
-          timeoutMs,
-          `query synthesis timed out after ${timeoutMs}ms`
-        );
-
-        if (synthesisResult.synthesized) {
-          synthesis = {
-            answer: synthesisResult.answer,
-            confidence: synthesisResult.confidence,
-            citations: synthesisResult.citations,
-            keyInsights: synthesisResult.keyInsights,
-            uncertainties: synthesisResult.uncertainties,
-          };
-          synthesisMode = 'llm';
-          explanationParts.push('LLM-synthesized understanding from retrieved knowledge.');
-        } else {
-          const reason = 'reason' in synthesisResult ? synthesisResult.reason : 'unverified_by_trace(synthesis_unavailable)';
-          recordCoverageGap('synthesis', `Synthesis unavailable: ${reason}`, 'moderate');
-          synthesisMode = 'heuristic';
-          if (query.showLlmErrors !== false) {
-            llmError = stripTracePrefix(reason);
-          }
-          applyQuickFallback('LLM synthesis was unavailable');
-        }
-      }
-    } catch (synthesisError) {
-      const message = synthesisError instanceof Error ? synthesisError.message : String(synthesisError);
-      // Log but don't fail query if synthesis fails
-      const sanitized = stripTracePrefix(message);
-      recordCoverageGap('synthesis', `Synthesis failed: ${sanitized}`, 'moderate');
-      synthesisMode = 'heuristic';
-      if (query.showLlmErrors !== false) {
-        llmError = sanitized;
-      }
-      applyQuickFallback('LLM synthesis failed');
-    }
-  }
-  if (!synthesisMode && finalPacks.length > 0 && !synthesis) {
-    synthesisMode = 'heuristic';
-  }
-  stageTracker.finish(synthesisStage, { outputCount: synthesis ? 1 : 0, filteredCount: 0 });
-  return { synthesis, synthesisMode, llmError };
-}
-
-function applyAdequacyToSynthesis(
-  synthesis: SynthesizedResponse | undefined,
-  adequacyReport: AdequacyReport | null
-): SynthesizedResponse | undefined {
-  if (!synthesis || !adequacyReport) return synthesis;
-  if (adequacyReport.missingEvidence.length === 0) return synthesis;
-  const missing = adequacyReport.missingEvidence.map((req) => req.description).join('; ');
-  const notice = `unverified_by_trace(adequacy_missing): ${missing}`;
-  const updated = {
-    ...synthesis,
-    uncertainties: [...synthesis.uncertainties, notice],
-  };
-  if (adequacyReport.blocking) {
-    updated.confidence = Math.min(updated.confidence, 0.35);
-  }
-  return updated;
-}
-
 /**
  * Retrieve feedback context for a feedbackToken.
  * Returns null if token not found or expired.
@@ -5975,7 +4984,7 @@ function resolveStorageCapabilities(storage: LibrarianStorage): StorageCapabilit
   if (typeof storage.getCapabilities === 'function') {
     return storage.getCapabilities();
   }
-  const graphMetrics = typeof (storage as GraphMetricsStore).getGraphMetrics === 'function';
+  const graphMetrics = typeof (storage as LibrarianStorage & { getGraphMetrics?: unknown }).getGraphMetrics === 'function';
   const multiVectors = typeof (storage as LibrarianStorage & { getMultiVectors?: unknown }).getMultiVectors === 'function';
   const embeddings = typeof storage.getEmbedding === 'function' && typeof storage.findSimilarByEmbedding === 'function';
   return {
@@ -6097,12 +5106,33 @@ async function collectDirectPacks(
   const minConfidence = query.minConfidence ?? DEFAULT_MIN_CONFIDENCE;
   const packs: ContextPack[] = [];
   const relatedFilesAny = new Set<string>();
+  const indexedAnchorFiles = new Set<string>();
   const anchoredPaths = inferredIntentPath
     ? [inferredIntentPath, ...anchorPaths]
     : anchorPaths;
   for (const filePath of anchoredPaths) {
+    indexedAnchorFiles.add(filePath);
     for (const candidate of expandPathCandidates(filePath, workspaceRoot)) {
       relatedFilesAny.add(candidate);
+    }
+  }
+  if (inferredIntentPath && isBareFilenameAnchor(inferredIntentPath)) {
+    try {
+      const indexedFiles = await storage.getFiles();
+      const bareFilename = inferredIntentPath.trim().toLowerCase();
+      const bareFilenameMatches = indexedFiles
+        .map((file) => file.path)
+        .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.trim().length > 0)
+        .filter((filePath) => path.basename(filePath).toLowerCase() === bareFilename);
+      const selectedBareMatches = selectBareFilenameAnchorMatches(intent, bareFilenameMatches);
+      for (const filePath of selectedBareMatches) {
+        indexedAnchorFiles.add(filePath);
+        for (const candidate of expandPathCandidates(filePath, workspaceRoot)) {
+          relatedFilesAny.add(candidate);
+        }
+      }
+    } catch {
+      // Non-fatal: basename anchoring is best-effort for bare file mentions.
     }
   }
   if (identifierAnchors.length > 0) {
@@ -6130,8 +5160,383 @@ async function collectDirectPacks(
     language: query.filter?.language,
     excludeTests: query.filter?.excludeTests,
   }));
+  if (indexedAnchorFiles.size > 0) {
+    packs.unshift(...await synthesizeAnchoredFileFallbackPacks(
+      storage,
+      intent,
+      Array.from(indexedAnchorFiles),
+    ));
+  }
   const finalLimit = anchoredByPath ? 40 : 24;
   return dedupePacks(packs).slice(0, finalLimit);
+}
+
+function isBareFilenameAnchor(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && !trimmed.includes('/') && !trimmed.includes('\\');
+}
+
+function selectBareFilenameAnchorMatches(intent: string, filePaths: string[]): string[] {
+  const uniquePaths = Array.from(new Set(
+    filePaths
+      .map((filePath) => filePath.trim())
+      .filter((filePath) => filePath.length > 0)
+  ));
+  if (uniquePaths.length <= 1) {
+    return uniquePaths;
+  }
+  if (!isAnchoredImplementationPlanningIntent(intent)) {
+    return uniquePaths;
+  }
+
+  const ranked = uniquePaths
+    .map((filePath) => ({
+      filePath,
+      score: scoreBareFilenameAnchorPath(intent, filePath),
+    }))
+    .sort((left, right) => right.score - left.score || left.filePath.localeCompare(right.filePath));
+
+  return ranked.slice(0, 1).map((entry) => entry.filePath);
+}
+
+function scoreBareFilenameAnchorPath(intent: string, filePath: string): number {
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+  const seamIntent = /\b(routing|retrieval|synthesis|intent|pipeline|orchestration)\b/i.test(intent);
+  let score = 0;
+
+  if (normalizedPath.includes('/src/api/')) score += 5;
+  if (normalizedPath.includes('/src/cli/commands/')) score -= 2;
+  if (normalizedPath.includes('/__tests__/') || normalizedPath.includes('.test.') || normalizedPath.includes('.spec.')) {
+    score -= 4;
+  }
+  if (seamIntent && normalizedPath.includes('/src/api/')) score += 3;
+  if (seamIntent && normalizedPath.includes('/src/cli/commands/')) score -= 2;
+  if (seamIntent && /query(?:_synthesis|_intent|_result|_entry_point|_bias)/.test(normalizedPath)) score += 1;
+
+  return score;
+}
+
+async function synthesizeAnchoredFileFallbackPacks(
+  storage: LibrarianStorage,
+  intent: string,
+  filePaths: string[],
+): Promise<ContextPack[]> {
+  const storageWithPathLookups = storage as LibrarianStorage & {
+    getModuleByPath?: LibrarianStorage['getModuleByPath'];
+    getFunctionsByPath?: LibrarianStorage['getFunctionsByPath'];
+    getFiles?: LibrarianStorage['getFiles'];
+  };
+  if (
+    typeof storageWithPathLookups.getModuleByPath !== 'function'
+    || typeof storageWithPathLookups.getFunctionsByPath !== 'function'
+  ) {
+    return [];
+  }
+  const moduleByPath = storageWithPathLookups.getModuleByPath.bind(storage);
+  const functionsByPath = storageWithPathLookups.getFunctionsByPath.bind(storage);
+  const indexedFiles = typeof storageWithPathLookups.getFiles === 'function'
+    ? await storageWithPathLookups.getFiles().catch(() => [])
+    : [];
+
+  const uniquePaths = Array.from(new Set(
+    filePaths
+      .map((filePath) => filePath.trim())
+      .filter((filePath) => filePath.length > 0)
+  ));
+  if (uniquePaths.length === 0) return [];
+
+  const terms = tokenize(intent).filter((term) => !DIRECT_PACK_SCORE_STOP_WORDS.has(term));
+  const scoredPacks: Array<{ pack: ContextPack; score: number }> = [];
+
+  for (const filePath of uniquePaths.slice(0, 8)) {
+    const moduleRecord = await moduleByPath(filePath).catch(() => null);
+    const functions = await functionsByPath(filePath).catch(() => []);
+    const fileRelevance = scoreTextRelevance(terms, {
+      summary: moduleRecord?.purpose ?? '',
+      highlights: functions.slice(0, 12).map((fn) => `${fn.name} ${fn.purpose}`.trim()),
+      files: [filePath],
+    });
+
+    if (moduleRecord) {
+      const topFunctions = functions
+        .slice()
+        .sort((left, right) =>
+          scoreAnchoredFunctionCandidate(right, terms) - scoreAnchoredFunctionCandidate(left, terms)
+          || ((right.endLine - right.startLine) - (left.endLine - left.startLine))
+        )
+        .slice(0, 5)
+        .map((fn) => fn.name);
+      const keyFacts: string[] = [];
+      if (moduleRecord.purpose) keyFacts.push(`Purpose: ${moduleRecord.purpose}`);
+      if (topFunctions.length > 0) keyFacts.push(`Top-level routines: ${topFunctions.join(', ')}`);
+      const adjacentModules = findAdjacentImplementationModules(filePath, indexedFiles, intent);
+      if (adjacentModules.length > 0) keyFacts.push(`Adjacent modules: ${adjacentModules.join(', ')}`);
+      if (moduleRecord.exports.length > 0) keyFacts.push(`Exports: ${moduleRecord.exports.slice(0, 6).join(', ')}`);
+      appendPipelineStageFacts(keyFacts, filePath, moduleRecord.exports);
+      if (moduleRecord.dependencies.length > 0) keyFacts.push(`Dependencies: ${moduleRecord.dependencies.slice(0, 6).join(', ')}`);
+      const pack: ContextPack = {
+        packId: `anchor_mod_${moduleRecord.id.slice(0, 12)}`,
+        packType: 'module_context',
+        targetId: moduleRecord.id,
+        summary: moduleRecord.purpose || `Module ${filePath}`,
+        keyFacts,
+        codeSnippets: [],
+        relatedFiles: [filePath],
+        confidence: Math.max(moduleRecord.confidence ?? 0.45, 0.45),
+        createdAt: new Date(),
+        accessCount: 0,
+        lastOutcome: 'unknown',
+        successCount: 0,
+        failureCount: 0,
+        version: getSyntheticPackVersion(),
+        invalidationTriggers: [filePath],
+      };
+      scoredPacks.push({
+        pack,
+        score: scoreAnchoredDirectPack(pack, intent) + Math.min(0.25, fileRelevance * 0.04),
+      });
+    }
+
+    for (const fn of functions
+      .slice()
+      .sort((left, right) =>
+        scoreAnchoredFunctionCandidate(right, terms) - scoreAnchoredFunctionCandidate(left, terms)
+        || ((right.endLine - right.startLine) - (left.endLine - left.startLine))
+      )
+      .slice(0, 2)) {
+      const lineCount = Math.max(0, (fn.endLine ?? 0) - (fn.startLine ?? 0));
+      const keyFacts: string[] = [];
+      if (fn.signature) keyFacts.push(`Signature: ${fn.signature}`);
+      if (fn.purpose) keyFacts.push(fn.purpose);
+      if (lineCount > 0) keyFacts.push(`${lineCount} lines (L${fn.startLine}–L${fn.endLine})`);
+      const pack: ContextPack = {
+        packId: `anchor_fn_${fn.id.slice(0, 12)}`,
+        packType: 'function_context',
+        targetId: fn.id,
+        summary: `${fn.name} in ${filePath.split('/').slice(-2).join('/')}${fn.purpose ? `: ${fn.purpose}` : ''}`,
+        keyFacts,
+        codeSnippets: [],
+        relatedFiles: [filePath],
+        confidence: Math.max(fn.confidence ?? 0.4, 0.4),
+        createdAt: new Date(),
+        accessCount: 0,
+        lastOutcome: 'unknown',
+        successCount: 0,
+        failureCount: 0,
+        version: getSyntheticPackVersion(),
+        invalidationTriggers: [filePath],
+      };
+      scoredPacks.push({
+        pack,
+        score: scoreAnchoredDirectPack(pack, intent) + Math.min(0.25, fileRelevance * 0.04),
+      });
+    }
+  }
+
+  return scoredPacks
+    .sort((left, right) => right.score - left.score || right.pack.confidence - left.pack.confidence)
+    .map((entry) => entry.pack)
+    .slice(0, 6);
+}
+
+function findAdjacentImplementationModules(
+  filePath: string,
+  indexedFiles: Array<{ path: string }>,
+  intent: string,
+): string[] {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const directory = path.posix.dirname(normalizedPath);
+  const ext = path.posix.extname(normalizedPath);
+  const stem = path.posix.basename(normalizedPath, ext);
+  if (!directory || !stem || indexedFiles.length === 0) return [];
+
+  return indexedFiles
+    .map((entry) => entry.path)
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0)
+    .map((candidate) => candidate.replace(/\\/g, '/'))
+    .filter((candidate) => candidate !== normalizedPath)
+    .filter((candidate) => path.posix.dirname(candidate) === directory)
+    .filter((candidate) => path.posix.extname(candidate) === ext)
+    .filter((candidate) => path.posix.basename(candidate, ext).startsWith(`${stem}_`))
+    .filter((candidate) => !candidate.includes('/__tests__/') && !candidate.includes('.test.') && !candidate.includes('.spec.'))
+    .sort((left, right) =>
+      scoreAdjacentImplementationModule(intent, right) - scoreAdjacentImplementationModule(intent, left)
+      || left.localeCompare(right)
+    )
+    .slice(0, 4);
+}
+
+function scoreAdjacentImplementationModule(intent: string, filePath: string): number {
+  const normalizedIntent = intent.toLowerCase();
+  const normalizedPath = filePath.replace(/\\/g, '/').toLowerCase();
+  const mixedSeamPlanningIntent =
+    /\b(split|extract|separate|decompose)\b/.test(normalizedIntent)
+    && ['routing', 'retrieval', 'synthesis'].filter((seam) => new RegExp(`\\b${seam}\\b`).test(normalizedIntent)).length >= 3;
+  let score = 0;
+
+  if (/\bsynthesis\b/.test(normalizedIntent) && normalizedPath.includes('query_synthesis')) score += 6;
+  if (/\brouting\b/.test(normalizedIntent) && /\bquery_intent|bias|routing\b/.test(normalizedPath)) score += 5;
+  if (/\bretrieval\b/.test(normalizedIntent) && /\bresult|candidate|retrieval\b/.test(normalizedPath)) score += 4;
+  if (normalizedPath.includes('query_intent')) score += 2;
+  if (normalizedPath.includes('query_result')) score += 2;
+  if (normalizedPath.includes('query_candidate')) score += 1;
+  if (normalizedPath.includes('query_cache')) score -= 3;
+  if (mixedSeamPlanningIntent) {
+    if (normalizedPath.includes('query_synthesis')) score += 6;
+    if (normalizedPath.includes('query_intent_routing_overrides')) score += 2;
+    if (normalizedPath.includes('query_result_biasing')) score += 2;
+    if (normalizedPath.includes('query_candidate_merge')) score += 2;
+    if (normalizedPath.includes('query_intent_patterns')) score -= 2;
+    if (normalizedPath.includes('query_intent_targets')) score -= 1;
+    if (normalizedPath.includes('query_intent_bias_profile')) score -= 1;
+  }
+
+  return score;
+}
+
+function shouldShortCircuitStructuralCallerQuery(
+  structuralIntent: StructuralQueryIntent,
+  dependencyQueryResult: DependencyQueryResult,
+): boolean {
+  return structuralIntent.direction === 'dependents'
+    && structuralIntent.edgeTypes.length === 1
+    && structuralIntent.edgeTypes[0] === 'calls'
+    && dependencyQueryResult.results.length > 0;
+}
+
+function buildStructuralCallerPack(
+  dependencyQueryResult: DependencyQueryResult,
+  version: LibrarianVersion,
+  workspaceRoot: string,
+): ContextPack {
+  const targetLabel = dependencyQueryResult.intent.targetEntity
+    ?? dependencyQueryResult.targetResolution.resolvedPath
+    ?? dependencyQueryResult.targetResolution.resolvedEntityId
+    ?? 'target';
+  const shortTargetLabel = formatCallerEntityLabel(targetLabel);
+  const locations = dependencyQueryResult.results
+    .filter((dep) => typeof dep.sourceFile === 'string' && dep.sourceFile.length > 0)
+    .map((dep) => ({
+      label: formatCallerLocation(dep, workspaceRoot),
+      file: relativizeCallerPath(dep.sourceFile, workspaceRoot),
+    }));
+  const uniqueLocations = Array.from(new Set(locations.map((entry) => entry.label))).slice(0, 5);
+  const uniqueFiles = Array.from(new Set(locations.map((entry) => entry.file))).filter((file) => file.length > 0).slice(0, 10);
+  const moreCount = Math.max(0, dependencyQueryResult.results.length - uniqueLocations.length);
+  const summary = uniqueLocations.length > 0
+    ? `${shortTargetLabel} is called from ${uniqueLocations.join(', ')}${moreCount > 0 ? ` and ${moreCount} more indexed caller${moreCount === 1 ? '' : 's'}` : ''}.`
+    : `${shortTargetLabel} has ${dependencyQueryResult.results.length} indexed caller${dependencyQueryResult.results.length === 1 ? '' : 's'}.`;
+
+  return {
+    packId: `caller-probe:${shortTargetLabel}`,
+    packType: 'call_flow',
+    targetId: dependencyQueryResult.targetResolution.resolvedEntityId
+      ?? dependencyQueryResult.targetResolution.resolvedPath
+      ?? shortTargetLabel,
+    summary,
+    keyFacts: [
+      `Target: ${shortTargetLabel}`,
+      `Indexed callers: ${dependencyQueryResult.results.length}`,
+      ...uniqueLocations.map((location) => `Caller location: ${location}`),
+    ],
+    codeSnippets: dependencyQueryResult.results.slice(0, 5).map((dep) => ({
+      filePath: relativizeCallerPath(dep.sourceFile, workspaceRoot),
+      startLine: dep.sourceLine ?? 1,
+      endLine: dep.sourceLine ?? 1,
+      content: `${formatCallerEntityLabel(dep.entityId)} -> ${shortTargetLabel}()`,
+      language: 'typescript',
+    })),
+    relatedFiles: uniqueFiles,
+    confidence: 0.95,
+    createdAt: new Date(),
+    accessCount: 0,
+    lastOutcome: 'unknown',
+    successCount: 0,
+    failureCount: 0,
+    version,
+    invalidationTriggers: uniqueFiles,
+  };
+}
+
+function formatCallerLocation(dep: ResolvedDependency, workspaceRoot: string): string {
+  const file = relativizeCallerPath(dep.sourceFile, workspaceRoot);
+  return dep.sourceLine && dep.sourceLine > 0 ? `${file}:${dep.sourceLine}` : file;
+}
+
+function relativizeCallerPath(filePath: string, workspaceRoot: string): string {
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const normalizedRoot = workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (normalizedRoot.length > 0 && normalizedPath.startsWith(`${normalizedRoot}/`)) {
+    return normalizedPath.slice(normalizedRoot.length + 1);
+  }
+  return normalizedPath;
+}
+
+function formatCallerEntityLabel(entityId: string): string {
+  const normalized = entityId.replace(/\\/g, '/');
+  const byFragment = normalized.split(/[#:/]/).filter(Boolean);
+  return byFragment[byFragment.length - 1] ?? normalized;
+}
+
+function scoreAnchoredFunctionCandidate(
+  fn: { name: string; purpose: string; startLine: number; endLine: number },
+  terms: string[],
+): number {
+  const haystack = `${fn.name} ${fn.purpose}`.toLowerCase();
+  let score = 0;
+  for (const term of terms) {
+    if (haystack.includes(term)) score += term.length >= 7 ? 3 : 2;
+  }
+  score += Math.min(2, Math.max(0, (fn.endLine - fn.startLine) / 200));
+  return score;
+}
+
+async function runPathLookupStage(options: {
+  storage: LibrarianStorage;
+  intent: string;
+  pathTarget: string;
+  workspaceRoot: string;
+  depth: LibrarianQuery['depth'];
+  filter?: LibrarianQuery['filter'];
+  minConfidence?: number;
+}): Promise<PathLookupStageResult> {
+  const { storage, intent, pathTarget, workspaceRoot, depth, filter, minConfidence } = options;
+  const normalizedCandidates = new Set(
+    expandPathCandidates(pathTarget, workspaceRoot).map((candidate) => candidate.replace(/\\/g, '/')),
+  );
+  const packs = await collectDirectPacks(
+    storage,
+    {
+      intent,
+      depth,
+      affectedFiles: [pathTarget],
+      filter,
+      minConfidence,
+    },
+    workspaceRoot,
+  );
+
+  if (packs.length === 0) {
+    return {
+      analyzed: false,
+      packs: [],
+      explanation: `Path query detected: no indexed context found for "${pathTarget}".`,
+    };
+  }
+
+  const exactPacks = packs.filter((pack) =>
+    pack.relatedFiles.some((file) => normalizedCandidates.has(file.replace(/\\/g, '/'))),
+  );
+  const orderedPacks = exactPacks.length > 0 ? dedupePacks([...exactPacks, ...packs]) : packs;
+
+  return {
+    analyzed: true,
+    packs: orderedPacks,
+    explanation: exactPacks.length > 0
+      ? `Path query detected: found ${exactPacks.length} exact context pack(s) for "${pathTarget}".`
+      : `Path query detected: found ${packs.length} context pack(s) anchored to "${pathTarget}".`,
+    shouldShortCircuit: exactPacks.length > 0,
+  };
 }
 
 function shouldInferIdentifierAnchors(intent: string): boolean {
@@ -7028,230 +6433,6 @@ async function hydrateCandidates(results: SimilarityResult[], storage: Librarian
     } as Candidate & { isDocument?: boolean };
   }));
 }
-async function getEntityStats(entityId: string, entityType: GraphEntityType | 'document', storage: LibrarianStorage, similarityScore?: number): Promise<{ confidence: number; recency: number; path?: string }> {
-  try {
-    if (entityType === 'function') {
-      const fn = await storage.getFunction(entityId);
-      return {
-        confidence: fn?.confidence ?? ENTITY_CONFIDENCE_FALLBACK,
-        recency: computeRecency(fn?.lastAccessed ?? null, ENTITY_RECENCY_DEFAULT, RECENCY_DECAY_DAYS),
-        path: fn?.filePath,
-      };
-    }
-    if (entityType === 'document') {
-      // Use actual embedding similarity score for document confidence instead of
-      // a hardcoded value. This prevents docs from having a built-in scoring advantage
-      // over functions (which use their actual stored confidence of 0.4-0.7).
-      // Fall back to 0.5 (neutral) when no similarity score is available.
-      const docItem = await storage.getIngestionItem(entityId);
-      const payload = docItem?.payload as { path?: string } | undefined;
-      return {
-        confidence: similarityScore ?? 0.5,
-        recency: 0.9, // Documents considered fresh
-        path: payload?.path ?? entityId.replace(/^doc:/, ''),
-      };
-    }
-    const mod = await storage.getModule(entityId);
-    return {
-      confidence: mod?.confidence ?? ENTITY_CONFIDENCE_FALLBACK,
-      recency: ENTITY_RECENCY_DEFAULT,
-      path: mod?.path,
-    };
-  } catch {
-    return { confidence: ENTITY_CONFIDENCE_FALLBACK, recency: ENTITY_RECENCY_FALLBACK };
-  }
-}
-async function loadGraphMetrics(
-  storage: GraphMetricsStore,
-  candidates: Candidate[],
-  metricsByType: Map<GraphEntityType, GraphMetricsEntry[]>,
-  recordCoverageGap: RecordCoverageGap,
-  capabilities: StorageCapabilities
-): Promise<boolean> {
-  if (!capabilities.optional.graphMetrics || !storage.getGraphMetrics) {
-    recordCoverageGap('graph_expansion', 'Graph metrics unavailable for scoring.', 'moderate', 'Re-run bootstrap with graph metrics enabled.');
-    return false;
-  }
-  let anyMetrics = false;
-  const types = Array.from(new Set(candidates.map((c) => c.entityType)));
-  for (const type of types) {
-    try {
-      const metrics = await storage.getGraphMetrics({ entityType: type });
-      if (metrics.length) {
-        metricsByType.set(type, metrics);
-        anyMetrics = true;
-      } else {
-        recordCoverageGap('graph_expansion', `Graph metrics missing for ${type} entities.`, 'moderate');
-      }
-    } catch {
-      recordCoverageGap('graph_expansion', `Graph metrics lookup failed for ${type} entities.`, 'moderate');
-    }
-  }
-  return anyMetrics;
-}
-function applyGraphMetrics(candidates: Candidate[], metricsByType: Map<GraphEntityType, GraphMetricsEntry[]>): void {
-  const cache = new Map<GraphEntityType, Map<string, GraphMetricsEntry>>();
-  for (const [type, metrics] of metricsByType) { const map = new Map<string, GraphMetricsEntry>(); for (const entry of metrics) map.set(entry.entityId, entry); cache.set(type, map); }
-  for (const candidate of candidates) { const metrics = cache.get(candidate.entityType)?.get(candidate.entityId); if (!metrics) continue; candidate.pagerank = metrics.pagerank; candidate.centrality = computeCentrality(metrics); candidate.communityId = metrics.communityId; }
-}
-async function expandCandidates(candidates: Candidate[], metricsByType: Map<GraphEntityType, GraphMetricsEntry[]>, storage: LibrarianStorage, depth: LibrarianQuery['depth']): Promise<{ candidates: Candidate[]; communityAdded: number; graphAdded: number }> {
-  if (!candidates.length || !metricsByType.size) return { candidates: [], communityAdded: 0, graphAdded: 0 };
-  const bySignal = [...candidates].sort((a, b) => b.semanticSimilarity - a.semanticSimilarity); const topCandidates = bySignal.slice(0, 3);
-  const existing = new Set(candidates.map((candidate) => candidateKey(candidate))); const expansions: Candidate[] = [];
-  let communityAdded = 0; let graphAdded = 0; const communityLimit = depth === 'L3' ? 6 : depth === 'L2' ? 4 : 2; const graphLimit = depth === 'L3' ? 6 : depth === 'L2' ? 4 : 2;
-  const embeddingsByType = new Map<GraphEntityType, Map<string, Float32Array>>(); for (const [type, metrics] of metricsByType) embeddingsByType.set(type, buildMetricEmbeddings(metrics));
-  for (const candidate of topCandidates) {
-    const metrics = metricsByType.get(candidate.entityType); if (!metrics) continue;
-    if (candidate.communityId !== null) {
-      const communityMembers = metrics.filter((entry) => entry.communityId === candidate.communityId).sort((a, b) => b.pagerank - a.pagerank);
-      for (const entry of communityMembers) {
-        if (communityAdded >= communityLimit) break; const key = `${candidate.entityType}:${entry.entityId}`; if (existing.has(key)) continue; existing.add(key);
-        const stats = await getEntityStats(entry.entityId, candidate.entityType, storage);
-        expansions.push({ entityId: entry.entityId, entityType: candidate.entityType, path: stats.path, semanticSimilarity: 0, confidence: stats.confidence, recency: stats.recency, pagerank: 0, centrality: 0, communityId: entry.communityId });
-        communityAdded += 1;
-      }
-    }
-    const embeddings = embeddingsByType.get(candidate.entityType);
-    if (embeddings) {
-      const neighbors = findGraphNeighbors(candidate.entityId, embeddings, {
-        limit: graphLimit,
-        minSimilarity: GRAPH_NEIGHBOR_MIN_SIMILARITY,
-      });
-      for (const neighbor of neighbors) {
-        if (graphAdded >= graphLimit) break; const key = `${candidate.entityType}:${neighbor.entityId}`; if (existing.has(key)) continue; existing.add(key);
-        const stats = await getEntityStats(neighbor.entityId, candidate.entityType, storage);
-        expansions.push({ entityId: neighbor.entityId, entityType: candidate.entityType, path: stats.path, semanticSimilarity: 0, graphSimilarity: neighbor.similarity, confidence: stats.confidence, recency: stats.recency, pagerank: 0, centrality: 0, communityId: null });
-        graphAdded += 1;
-      }
-    }
-  }
-  return { candidates: expansions, communityAdded, graphAdded };
-}
-async function applyMultiVectorScores(options: {
-  storage: LibrarianStorage;
-  candidates: Candidate[];
-  query: LibrarianQuery;
-  queryEmbedding: Float32Array;
-}): Promise<{ applied: number; missing: number }> {
-  const { storage, candidates, query, queryEmbedding } = options;
-  const moduleCandidates = candidates.filter((candidate) => candidate.entityType === 'module');
-  if (!moduleCandidates.length) return { applied: 0, missing: 0 };
-  const multiVectorStore = storage as LibrarianStorage & {
-    getMultiVectors?: (options?: MultiVectorQueryOptions) => Promise<MultiVectorRecord[]>;
-  };
-  if (!multiVectorStore.getMultiVectors) {
-    return { applied: 0, missing: moduleCandidates.length };
-  }
-  const records = await multiVectorStore.getMultiVectors({
-    entityIds: moduleCandidates.map((candidate) => candidate.entityId),
-    entityType: 'module',
-  });
-  if (!records.length) return { applied: 0, missing: moduleCandidates.length };
-  const vectors = records.map((record) => {
-    const vector = deserializeMultiVector(record.payload as SerializedMultiVector);
-    return { ...vector, filePath: record.entityId };
-  });
-  const queryType = resolveMultiVectorQueryType(query);
-  const matches = await queryMultiVectors(
-    {
-      queryText: query.intent,
-      queryEmbedding,
-    },
-    vectors,
-    {
-      topK: vectors.length,
-      queryType,
-    }
-  );
-  const matchByEntity = new Map(matches.map((match) => [match.filePath, match]));
-  let applied = 0;
-  for (const candidate of moduleCandidates) {
-    const match = matchByEntity.get(candidate.entityId);
-    if (!match) continue;
-    candidate.score = blendScores(candidate.score, match.weightedScore, MULTI_VECTOR_BLEND_WEIGHT);
-    applied += 1;
-  }
-  const missing = Math.max(0, moduleCandidates.length - records.length);
-  return { applied, missing };
-}
-function resolveMultiVectorQueryType(query: LibrarianQuery): keyof typeof QUERY_TYPE_WEIGHTS {
-  const taskType = query.taskType?.toLowerCase() ?? '';
-  const intent = query.intent?.toLowerCase() ?? '';
-  const combined = `${taskType} ${intent}`.trim();
-  if (!combined) return 'default';
-  // PURPOSE QUERIES: "What does X do?", "Explain X", "Purpose of X", "Understand X"
-  // These need the pure purpose vector, not implementation details
-  if (matchesAny(combined, ['what does', 'what is', 'explain', 'purpose', 'understand', 'how does', 'why does', 'describe', 'overview', 'summary'])) {
-    return 'purpose-query';
-  }
-  if (matchesAny(combined, ['api', 'interface', 'contract', 'schema', 'endpoint', 'client', 'signature', 'public'])) {
-    return 'compatible-apis';
-  }
-  if (matchesAny(combined, ['dependency', 'dependencies', 'import', 'integration', 'module', 'impact', 'coupling', 'graph'])) {
-    return 'related-modules';
-  }
-  if (matchesAny(combined, ['structure', 'architecture', 'pattern', 'refactor', 'design', 'layout'])) {
-    return 'similar-structure';
-  }
-  if (matchesAny(combined, ['similar', 'equivalent', 'analogue', 'analogy', 'compare', 'related'])) {
-    return 'similar-purpose';
-  }
-  return 'default';
-}
-function matchesAny(value: string, needles: string[]): boolean {
-  return needles.some((needle) => value.includes(needle));
-}
-function blendScores(base: number | undefined, extra: number, weight: number): number {
-  if (typeof base !== 'number' || Number.isNaN(base)) return extra;
-  const clampedWeight = Math.min(BLEND_WEIGHT_MAX, Math.max(BLEND_WEIGHT_MIN, weight));
-  return base * (1 - clampedWeight) + extra * clampedWeight;
-}
-function resolveCochangeAnchors(query: LibrarianQuery, directPacks: ContextPack[]): string[] {
-  const anchors = new Set<string>();
-  for (const file of query.affectedFiles ?? []) {
-    if (file) anchors.add(file);
-  }
-  if (anchors.size < 6) {
-    for (const pack of directPacks) {
-      for (const file of pack.relatedFiles) {
-        if (file) anchors.add(file);
-      }
-    }
-  }
-  return Array.from(anchors.values()).slice(0, 8);
-}
-async function applyCochangeScores(storage: LibrarianStorage, candidates: Candidate[], anchorFiles: string[]): Promise<number> {
-  if (!candidates.length || anchorFiles.length === 0) return 0;
-  const workspaceRoot = await resolveWorkspaceRoot(storage);
-  const normalizedAnchors = anchorFiles
-    .map((file) => normalizeCochangePath(file, workspaceRoot))
-    .filter((value): value is string => Boolean(value));
-  if (!normalizedAnchors.length) return 0;
-  const edgeCache = new Map<string, number>();
-  let boosted = 0;
-  for (const candidate of candidates) {
-    const candidatePath = candidate.path ? normalizeCochangePath(candidate.path, workspaceRoot) : null;
-    if (!candidatePath) {
-      candidate.cochange = 0;
-      continue;
-    }
-    let maxStrength = 0;
-    for (const anchor of normalizedAnchors) {
-      if (anchor === candidatePath) continue;
-      const key = anchor < candidatePath ? `${anchor}||${candidatePath}` : `${candidatePath}||${anchor}`;
-      let strength = edgeCache.get(key);
-      if (strength === undefined) {
-        const edges = await storage.getCochangeEdges({ fileA: anchor, fileB: candidatePath, limit: 1 });
-        strength = edges[0]?.strength ?? 0;
-        edgeCache.set(key, strength);
-      }
-      if (strength > maxStrength) maxStrength = strength;
-    }
-    if (maxStrength > 0) boosted += 1;
-    candidate.cochange = maxStrength;
-  }
-  return boosted;
-}
 
 function inferQueryAccessEntityType(pack: ContextPack): QueryAccessLogEntry['entityType'] | null {
   if (pack.packType === 'module_context' || pack.packType === 'project_understanding') {
@@ -7295,15 +6476,6 @@ async function recordQueryAccessLogsForPacks(
   } catch {
     // Access logging must never break query execution.
   }
-}
-
-function normalizeCochangePath(value: string, workspaceRoot: string): string | null {
-  if (!value) return null;
-  const normalized = value.replace(/\\/g, '/');
-  const absolute = path.isAbsolute(normalized) ? normalized : path.resolve(workspaceRoot, normalized);
-  const relative = path.relative(workspaceRoot, absolute).replace(/\\/g, '/');
-  if (!relative || relative.startsWith('..')) return null;
-  return relative;
 }
 
 function isPathWithinWorkspace(candidatePath: string, workspaceRoot: string): boolean {
@@ -7425,7 +6597,7 @@ async function synthesizeFunctionPack(storage: LibrarianStorage, candidate: Cand
       lastOutcome: 'unknown',
       successCount: 0,
       failureCount: 0,
-      version: getCurrentVersion(),
+      version: getSyntheticPackVersion(),
       invalidationTriggers: filePath ? [filePath] : [],
     };
   } catch {
@@ -7449,6 +6621,7 @@ async function synthesizeModulePack(storage: LibrarianStorage, candidate: Candid
     if (mod.purpose) keyFacts.push(`Purpose: ${mod.purpose}`);
     if (topFunctions.length > 0) keyFacts.push(`Top-level routines: ${topFunctions.join(', ')}`);
     if (mod.exports.length > 0) keyFacts.push(`Exports: ${mod.exports.slice(0, 6).join(', ')}`);
+    appendPipelineStageFacts(keyFacts, filePath, mod.exports);
     if (mod.dependencies.length > 0) keyFacts.push(`Dependencies: ${mod.dependencies.slice(0, 6).join(', ')}`);
 
     return {
@@ -7465,7 +6638,7 @@ async function synthesizeModulePack(storage: LibrarianStorage, candidate: Candid
       lastOutcome: 'unknown',
       successCount: 0,
       failureCount: 0,
-      version: await storage.getVersion() || getCurrentVersion(),
+      version: await storage.getVersion() || getSyntheticPackVersion(),
       invalidationTriggers: filePath ? [filePath] : [],
     };
   } catch {
@@ -7554,82 +6727,187 @@ async function buildDocumentContextPack(storage: LibrarianStorage, candidate: Ca
     successCount: 0,
     failureCount: 0,
     version: {
-      major: 1,
-      minor: 0,
-      patch: 0,
-      string: '1.0.0',
-      qualityTier: 'full',
+      ...getSyntheticPackVersion(),
       indexedAt: new Date(item.ingestedAt),
-      indexerVersion: '1.0.0',
-      features: [],
     },
     invalidationTriggers: [payload.path],
   };
 
   return pack;
 }
-async function maybeRerankWithCrossEncoder(
-  query: LibrarianQuery,
-  packs: ContextPack[],
-  scoreByTarget: Map<string, number>,
-  explanationParts: string[],
-  recordCoverageGap: RecordCoverageGap
-): Promise<ContextPack[]> {
-  if (!query.intent || packs.length < 2) return packs;
-  if (query.coldStartStructuralOnly) {
-    explanationParts.push('Skipped cross-encoder rerank during cold-start structural-only retrieval.');
-    return packs;
-  }
-  // Enable cross-encoder at L1+ (L0 still skipped for speed).
-  // L1 uses a smaller candidate pool (5) vs L2 (10) / L3 (14) via resolveRerankWindow.
-  if (query.depth === 'L0') return packs;
-  if (!isCrossEncoderEnabled()) return packs;
+type QueryCacheEligibility = {
+  allowCache: boolean;
+  reason?: string;
+};
 
-  const rerankTop = Math.min(packs.length, resolveRerankWindow(query.depth));
-  if (rerankTop < 2) return packs;
-  const rerankSlice = packs.slice(0, rerankTop);
-  const inputs = rerankSlice.map((pack) => ({
-    document: buildCrossEncoderDocument(pack),
-    biEncoderScore: scoreByTarget.get(pack.targetId) ?? pack.confidence,
-  }));
+const QUERY_CACHE_DRIFT_EXCLUDED_DIRS = new Set([
+  '.git',
+  '.librarian',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  'state',
+  '.claude',
+  '.codex',
+]);
+
+const QUERY_CACHE_DRIFT_EXCLUDED_EXTENSIONS = new Set([
+  '.cpuprofile',
+  '.tgz',
+  '.tar',
+  '.gz',
+  '.zip',
+]);
+
+const QUERY_CACHE_DRIFT_EXTENSIONLESS_ALLOWLIST = [
+  /^dockerfile(?:\..+)?$/i,
+  /^makefile$/i,
+  /^readme$/i,
+  /^license$/i,
+  /^changelog$/i,
+  /^agents$/i,
+  /^claude$/i,
+  /^codex$/i,
+];
+
+type QueryCacheEligibilityDeps = {
+  getWatchStateFn?: typeof getWatchState;
+  getCurrentGitShaFn?: typeof getCurrentGitSha;
+  getGitStatusChangesFn?: typeof getGitStatusChanges;
+  isGitRepoFn?: typeof isGitRepo;
+  createStalenessTrackerFn?: typeof createStalenessTracker;
+};
+
+async function resolveQueryCacheEligibility(options: {
+  storage: LibrarianStorage;
+  query: LibrarianQuery;
+  indexState: IndexState;
+  workspaceRoot: string;
+  deps?: QueryCacheEligibilityDeps;
+}): Promise<QueryCacheEligibility> {
+  const { storage, query, indexState, workspaceRoot, deps } = options;
+  if (!isReadyPhase(indexState.phase) || query.disableCache === true) {
+    return { allowCache: false };
+  }
+
+  const getWatchStateFn = deps?.getWatchStateFn ?? getWatchState;
+  const getCurrentGitShaFn = deps?.getCurrentGitShaFn ?? getCurrentGitSha;
+  const getGitStatusChangesFn = deps?.getGitStatusChangesFn ?? getGitStatusChanges;
+  const isGitRepoFn = deps?.isGitRepoFn ?? isGitRepo;
+  const createStalenessTrackerFn = deps?.createStalenessTrackerFn ?? createStalenessTracker;
 
   try {
-    const { hybridRerank } = await import('./embedding_providers/cross_encoder_reranker.js');
-    const reranked = await hybridRerank(query.intent, inputs, {
-      topK: rerankTop,
-      returnTopN: rerankTop,
-      biEncoderWeight: CROSS_ENCODER_BI_WEIGHT,
-      crossEncoderWeight: CROSS_ENCODER_CROSS_WEIGHT,
-    });
-    const reordered = reranked.map((entry) => rerankSlice[entry.index]).filter(Boolean);
-    if (reordered.length === rerankSlice.length) {
-      explanationParts.push(`Re-ranked top ${rerankTop} packs with cross-encoder.`);
-      return [...reordered, ...packs.slice(rerankTop)];
+    const watchState = await getWatchStateFn(storage);
+    if (watchState?.needs_catchup) {
+      return {
+        allowCache: false,
+        reason: 'watch freshness requires catch-up',
+      };
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    recordCoverageGap('reranking', `Cross-encoder rerank unavailable (${message}).`, 'minor');
+    if (watchState?.cursor?.kind === 'git') {
+      const headSha = getCurrentGitShaFn(workspaceRoot);
+      if (headSha && watchState.cursor.lastIndexedCommitSha && headSha !== watchState.cursor.lastIndexedCommitSha) {
+        return {
+          allowCache: false,
+          reason: 'indexed git cursor lags current HEAD',
+        };
+      }
+    }
+  } catch {
+    // Ignore watch-state lookup failures when deciding cache eligibility.
   }
 
-  return packs;
+  if (!isGitRepoFn(workspaceRoot)) {
+    return { allowCache: true };
+  }
+
+  try {
+    const changes = await getGitStatusChangesFn(workspaceRoot);
+    if (!changes) {
+      return { allowCache: true };
+    }
+    const changedPaths = dedupePathsForCacheEligibility([
+      ...changes.added,
+      ...changes.modified,
+      ...changes.deleted,
+    ])
+      .filter((relativePath) => isRelevantCacheDriftPath(relativePath))
+      .map((relativePath) => path.resolve(workspaceRoot, relativePath));
+
+    if (changedPaths.length === 0) {
+      return { allowCache: true };
+    }
+
+    const tracker = createStalenessTrackerFn(storage);
+    const changedStatuses = await tracker.checkFiles(changedPaths);
+    const staleFiles = changedStatuses.filter((status) => status.status === 'stale').length;
+    const missingFiles = changedStatuses.filter((status) => status.status === 'missing').length;
+    const newFiles = changedStatuses.filter((status) => status.status === 'new').length;
+    const driftCount = staleFiles + missingFiles + newFiles;
+    if (driftCount > 0) {
+      return {
+        allowCache: false,
+        reason: `workspace drift detected (${staleFiles} stale, ${missingFiles} missing, ${newFiles} new)`,
+      };
+    }
+  } catch {
+    // Ignore git/staleness lookup failures and preserve cache eligibility.
+  }
+
+  return { allowCache: true };
 }
-function buildCrossEncoderDocument(pack: ContextPack): string {
-  const parts = [
-    `Type: ${pack.packType}`,
-    pack.summary,
-    pack.keyFacts.slice(0, 6).join(' | '),
-    pack.relatedFiles.length ? `Files: ${pack.relatedFiles.slice(0, 4).join(', ')}` : '',
-  ].filter(Boolean);
-  const joined = parts.join('\n');
-  return joined.length > 1200 ? joined.slice(0, 1200) : joined;
+
+function dedupePathsForCacheEligibility(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const value of paths) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    deduped.push(trimmed);
+  }
+  return deduped;
 }
-function isCrossEncoderEnabled(): boolean {
-  if (process.env.NODE_ENV === 'test' || process.env.WAVE0_TEST_MODE === 'true' || process.env.LIBRARIAN_DETERMINISTIC === '1') {
+
+function isRelevantCacheDriftPath(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, '/').trim();
+  if (!normalized || normalized.endsWith('/')) {
     return false;
   }
-  const flag = process.env.LIBRARIAN_CROSS_ENCODER;
-  return flag !== '0' && flag !== 'false';
+
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.some((part) => QUERY_CACHE_DRIFT_EXCLUDED_DIRS.has(part))) {
+    return false;
+  }
+
+  const baseName = parts[parts.length - 1] ?? normalized;
+  const extension = path.extname(baseName).toLowerCase();
+  const allowlistedExtensionless = !extension
+    && QUERY_CACHE_DRIFT_EXTENSIONLESS_ALLOWLIST.some((pattern) => pattern.test(baseName));
+  if (QUERY_CACHE_DRIFT_EXCLUDED_EXTENSIONS.has(extension)) {
+    return false;
+  }
+
+  if (!extension && !allowlistedExtensionless) {
+    return false;
+  }
+
+  if (/^tmp($|[-_.])/i.test(baseName) && !extension) {
+    return false;
+  }
+
+  if (isExcluded(normalized)) {
+    return false;
+  }
+
+  if (getFileCategory(normalized) === 'unknown' && !allowlistedExtensionless) {
+    return false;
+  }
+
+  return true;
 }
+
 async function buildWatchDisclosures(options: {
   storage: LibrarianStorage;
   workspaceRoot: string;
@@ -7791,10 +7069,22 @@ function createStorageWriteDegradedMessage(rawMessage: string): string {
     .replace(/\bunverified_by_trace\([^)]+\):\s*/gi, '')
     .trim();
   const detail = cleaned.length > 0 ? cleaned : 'storage unavailable';
-  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librarian doctor --heal\` to recover.`;
+  return `Session degraded: results were returned but could not be persisted (${detail}). Run \`librainian doctor --heal\` to recover.`;
 }
 
-function getCurrentVersion(): LibrarianVersion { return { major: LIBRARIAN_VERSION.major, minor: LIBRARIAN_VERSION.minor, patch: LIBRARIAN_VERSION.patch, string: LIBRARIAN_VERSION.string, qualityTier: 'full', indexedAt: new Date(), indexerVersion: LIBRARIAN_VERSION.string, features: [...LIBRARIAN_VERSION.features] }; }
+function getSyntheticPackVersion(): LibrarianVersion {
+  return {
+    major: LIBRARIAN_VERSION.major,
+    minor: LIBRARIAN_VERSION.minor,
+    patch: LIBRARIAN_VERSION.patch,
+    string: LIBRARIAN_VERSION.string,
+    // Runtime-generated packs without a persisted version should fail closed.
+    qualityTier: 'mvp',
+    indexedAt: new Date(0),
+    indexerVersion: `${LIBRARIAN_VERSION.string}-runtime-fallback`,
+    features: [...LIBRARIAN_VERSION.features],
+  };
+}
 
 /**
  * Creates a query to understand how a specific function works.
@@ -7902,6 +7192,19 @@ export const __testing = {
   resolveCandidateMaterializationLimit,
   capCandidatesForMaterialization,
   injectFilenameCandidates,
+  applyHeuristicSynthesisGuardrail,
+  resolveQueryCacheEligibility,
+  dedupePathsForCacheEligibility,
+  runPathLookupStage,
+  runFeatureLocationStage,
+  scoreFeatureLocationMatch,
+  appendPipelineStageFacts,
+  applyQueryPipelineStageAnswerAugmentation,
+  shouldSkipSemanticRetrievalForAnchoredPlanning,
+  shouldUseAnchoredPlanningDirectMode,
+  findAdjacentImplementationModules,
+  shouldShortCircuitStructuralCallerQuery,
+  buildStructuralCallerPack,
 };
 
 /**

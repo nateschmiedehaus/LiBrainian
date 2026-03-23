@@ -1,6 +1,11 @@
 # MCP Constructions Guide
 
-`list_constructions` and `invoke_construction` expose LiBrainian constructions as a self-describing MCP API surface.
+This is a source-checkout maintainer guide for the deferred constructions MCP surface.
+`list_constructions`, `invoke_construction`, and `describe_construction` are not part of the
+default public 0.2.x MCP golden path. They are only exposed when maintainer mode is enabled.
+
+Do not treat this page as current public package documentation. For the stable public MCP surface,
+use the golden-path tools documented in [docs/integrations/mcp.md](/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/docs/integrations/mcp.md).
 
 ## What You Get
 

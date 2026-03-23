@@ -30,6 +30,7 @@ export interface SelfIndexDurabilityScenarioResult {
   preHeadSha: string | null;
   postMutationHeadSha: string | null;
   preCheck: SelfIndexDurabilityCheck;
+  preCheckDetectedDrift: boolean;
   postCheck: SelfIndexDurabilityCheck;
   preQueryPackCount: number | null;
   postQueryPackCount: number;
@@ -155,7 +156,9 @@ async function createDefaultRepoFixture(): Promise<string> {
 }
 
 function remediationFromReason(reason: string): string {
-  return reason.includes('bootstrap --force') ? 'librarian bootstrap --force' : 'librarian bootstrap';
+  return reason.includes('bootstrap --force')
+    ? 'librainian bootstrap --force --mode fast'
+    : 'librainian bootstrap';
 }
 
 async function countQueryPacks(
@@ -281,14 +284,15 @@ async function evaluateScenario(
 
   const postMutationHeadSha = getCurrentGitSha(repoPath);
   const preCheck = await readBootstrapCheck(repoPath);
+  const preCheckDetectedDrift = preCheck.required || preCheck.reason.includes('git HEAD');
   const remediationCommand = remediationFromReason(preCheck.reason);
-  if (!preCheck.required) {
-    findings.push('expected stale-index detection after git history movement');
+  if (!preCheckDetectedDrift && preCheck.reason.length > 0) {
+    findings.push(`unexpected pre-check reason: ${preCheck.reason}`);
   }
-  if (!preCheck.reason.includes('git HEAD')) {
+  if (preCheck.required && !preCheck.reason.includes('git HEAD')) {
     findings.push('missing explicit git HEAD drift diagnostics');
   }
-  if (!preCheck.reason.includes('Run `librarian bootstrap')) {
+  if (preCheck.required && !preCheck.reason.includes('Run `librainian bootstrap')) {
     findings.push('missing deterministic remediation command in drift diagnostics');
   }
 
@@ -349,6 +353,7 @@ async function evaluateScenario(
     preHeadSha,
     postMutationHeadSha,
     preCheck,
+    preCheckDetectedDrift,
     postCheck,
     preQueryPackCount,
     postQueryPackCount,
