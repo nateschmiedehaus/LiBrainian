@@ -1,0 +1,242 @@
+{
+  "schema": "ExternalRepoSmokeRunArtifact.v1",
+  "startedAt": "2026-03-23T13:37:31.892Z",
+  "completedAt": "2026-03-23T13:38:50.165Z",
+  "options": {
+    "reposRoot": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos",
+    "repoTimeoutMs": "adaptive"
+  },
+  "summary": {
+    "total": 25,
+    "failures": 0
+  },
+  "results": [
+    {
+      "repo": "typedriver-ts",
+      "language": "typescript",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "srtd-ts",
+      "language": "typescript",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "quickpickle-ts",
+      "language": "typescript",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "package.json"
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "language": "typescript",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "reccmp-py",
+      "language": "python",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "token-explorer-py",
+      "language": "python",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "language": "python",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "tlsproxy-go",
+      "language": "go",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "cipherdrop-rs",
+      "language": "rust",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "velocityscoreboardapi-java",
+      "language": "java",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "openai-kotlin",
+      "language": "kotlin",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "smartdate-csharp",
+      "language": "csharp",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "onetime-message-php",
+      "language": "php",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "tuist-filesystem-swift",
+      "language": "swift",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "active-record-tracer-rb",
+      "language": "ruby",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "ptx-c",
+      "language": "c",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "turbosqueeze-cpp",
+      "language": "cpp",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "jing-scala",
+      "language": "scala",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "icarus-dart",
+      "language": "dart",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "binary-nvim-lua",
+      "language": "lua",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "tailwindcss-preset-email-js",
+      "language": "javascript",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "port-forwarding-sh",
+      "language": "shell",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "RealmOneKey.sh"
+    },
+    {
+      "repo": "byte-by-byte-sql",
+      "language": "sql",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "cryptonize-html",
+      "language": "html",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    },
+    {
+      "repo": "zen-beautiful-blur-css",
+      "language": "css",
+      "overviewOk": true,
+      "contextOk": true,
+      "errors": [],
+      "contextFile": "README.md"
+    }
+  ],
+  "repoReportPaths": [
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/typedriver-ts.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/srtd-ts.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/quickpickle-ts.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/aws-sdk-vitest-mock-ts.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/reccmp-py.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/token-explorer-py.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/pytest-run-parallel-py.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/tlsproxy-go.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/cipherdrop-rs.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/velocityscoreboardapi-java.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/openai-kotlin.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/smartdate-csharp.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/onetime-message-php.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/tuist-filesystem-swift.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/active-record-tracer-rb.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/ptx-c.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/turbosqueeze-cpp.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/jing-scala.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/icarus-dart.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/binary-nvim-lua.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/tailwindcss-preset-email-js.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/port-forwarding-sh.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/byte-by-byte-sql.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/cryptonize-html.json",
+    "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/repos/zen-beautiful-blur-css.json"
+  ]
+}

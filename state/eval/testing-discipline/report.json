@@ -1,0 +1,77 @@
+{
+  "schema": "TestingDisciplineReport.v1",
+  "generatedAt": "2026-03-23T13:38:51.564Z",
+  "summary": {
+    "totalChecks": 8,
+    "passedChecks": 8,
+    "failedBlockingChecks": 0,
+    "warningChecks": 0
+  },
+  "checks": [
+    {
+      "id": "td_01_use_case_release_profile",
+      "title": "Use-case review uses real-release evidence settings",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "schema=AgenticUseCaseReviewReport.v1; profile=release; selectionMode=probabilistic; reposRoot=/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos",
+      "expected": "AgenticUseCaseReviewReport.v1 with evidenceProfile=release, selectionMode=balanced|probabilistic, and real external reposRoot"
+    },
+    {
+      "id": "td_02_use_case_breadth_and_quality",
+      "title": "Use-case review clears breadth and quality thresholds",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "repos=8; passRate=1.000; evidenceRate=1.000; usefulSummaryRate=1.000; strictFailureShare=0.000",
+      "expected": "repos>=4; passRate>=0.75; evidenceRate>=0.90; usefulSummaryRate>=0.80; strictFailureShare<=0.00"
+    },
+    {
+      "id": "td_03_use_case_progression_integrity",
+      "title": "Use-case progression is dependency-safe",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "enabled=true; prerequisitePassRate=1.000; targetPassRate=1.000; targetDependencyReadyShare=1.000",
+      "expected": "enabled=true; prerequisitePassRate>=0.75; targetPassRate>=0.75; targetDependencyReadyShare>=1.00"
+    },
+    {
+      "id": "td_04_live_fire_objective_coverage",
+      "title": "Live-fire evidence is objective, strict, and sufficiently broad",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "schema=LiveFireTrialReport.v1; gatesPassed=true; protocol=objective; strictObjective=true; includeSmoke=true; totalRuns=4; llmModes=disabled,optional; reposRoot=eval-corpus/external-repos",
+      "expected": "LiveFireTrialReport.v1 with gates.passed=true, protocol=objective, strictObjective=true, includeSmoke=true, totalRuns>=2, optional llm mode, and reposRoot matching the use-case corpus"
+    },
+    {
+      "id": "td_05_release_artifacts_have_no_strict_markers",
+      "title": "Release evidence contains no fallback/retry/degraded markers",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "useCaseMarkers=false; liveFireMarkers=false; smokeMarkers=false",
+      "expected": "No strict failure markers in use-case, live-fire, or external-smoke artifacts"
+    },
+    {
+      "id": "td_06_external_smoke_cross_language",
+      "title": "External smoke covers a language-diverse real corpus",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "schema=ExternalRepoSmokeRunArtifact.v1; total=25; resultCount=25; languages=20; reposRoot=/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos",
+      "expected": "ExternalRepoSmokeRunArtifact.v1 with reposRoot matching use-case corpus, repo coverage>=3, and language coverage>=3"
+    },
+    {
+      "id": "td_07_external_smoke_zero_failures",
+      "title": "External smoke runs are clean",
+      "severity": "blocking",
+      "passed": true,
+      "observed": "failures=0; dirtyRuns=0",
+      "expected": "summary.failures=0 and every smoke result has overviewOk/contextOk=true with no errors"
+    },
+    {
+      "id": "td_08_constructable_auto_adaptation",
+      "title": "Constructable auto-detection adapts across multiple languages",
+      "severity": "warning",
+      "passed": true,
+      "observed": "languages=3; reposWithConstructables=6; samples=6",
+      "expected": "languages>=3 and reposWithConstructables>=3"
+    }
+  ],
+  "passed": true
+}

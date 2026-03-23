@@ -66,10 +66,10 @@ jobs:
         continue-on-error: true
         run: npm run test:e2e:dev-truth
 
-      - name: Canonical publish-grade agentic gate
-        id: strict_release_gate
+      - name: Publish-grade evidence gate
+        id: publish_evidence_gate
         continue-on-error: true
-        run: npm run test:agentic:strict
+        run: npm run eval:publish-gate
 
       - name: In-repo acceptance E2E gate
         id: acceptance_gate
@@ -85,8 +85,8 @@ jobs:
             echo "::error::Development-truth tarball reality gate failed."
             failed=1
           fi
-          if [ "${{ steps.strict_release_gate.outcome }}" != "success" ]; then
-            echo "::error::Canonical publish-grade agentic gate failed."
+          if [ "${{ steps.publish_evidence_gate.outcome }}" != "success" ]; then
+            echo "::error::Publish-grade evidence gate failed."
             failed=1
           fi
           if [ "${{ steps.acceptance_gate.outcome }}" != "success" ]; then

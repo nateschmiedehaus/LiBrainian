@@ -1,0 +1,48 @@
+{
+  "schema": "LiveFireLatestPointer.v1",
+  "createdAt": "2026-03-23T13:37:30.232Z",
+  "profile": "hardcore",
+  "artifactRoot": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs",
+  "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/report.json",
+  "options": {
+    "llmModes": [
+      "disabled",
+      "optional"
+    ],
+    "includeSmoke": true,
+    "strictObjective": true
+  },
+  "gates": {
+    "passed": true,
+    "reasons": [],
+    "classifiedReasons": [],
+    "severityCounts": {
+      "blocking": 0,
+      "quality": 0,
+      "sample_size": 0,
+      "dependency": 0,
+      "informational": 0
+    },
+    "categoryCounts": {
+      "execution": 0,
+      "objective": 0,
+      "measurement": 0,
+      "dependency": 0,
+      "sample_size": 0,
+      "quality": 0,
+      "context": 0,
+      "other": 0
+    }
+  },
+  "aggregate": {
+    "totalRuns": 4,
+    "passingRuns": 4,
+    "passRate": 1,
+    "meanJourneyPassRate": 1,
+    "meanRetrievedContextRate": 1,
+    "meanBlockingValidationRate": 0,
+    "meanSmokePassRate": 1,
+    "reasonCounts": {},
+    "failedRepos": []
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "TestingTrackerReport.v1",
+  "generatedAt": "2026-03-23T13:38:51.985Z",
+  "artifacts": [
+    {
+      "id": "useCase",
+      "present": true,
+      "path": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-results/agentic-use-case-review.json"
+    },
+    {
+      "id": "liveFire",
+      "present": true,
+      "path": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/report.json"
+    },
+    {
+      "id": "smoke",
+      "present": true,
+      "path": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/smoke/external/all-repos/report.json"
+    },
+    {
+      "id": "testingDiscipline",
+      "present": true,
+      "path": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/testing-discipline/report.json"
+    }
+  ],
+  "flaws": [
+    {
+      "id": "use_case_release_evidence",
+      "title": "Use-case release evidence",
+      "status": "fixed",
+      "evidence": "present=true; gatePassed=true"
+    },
+    {
+      "id": "live_fire_gate",
+      "title": "Live-fire gate",
+      "status": "fixed",
+      "evidence": "present=true; gatesPassed=true"
+    },
+    {
+      "id": "external_smoke_reliability",
+      "title": "External smoke reliability",
+      "status": "fixed",
+      "evidence": "present=true; failures=0"
+    },
+    {
+      "id": "testing_discipline_gate",
+      "title": "Testing discipline gate",
+      "status": "fixed",
+      "evidence": "present=true; passed=true"
+    }
+  ],
+  "summary": {
+    "fixedCount": 4,
+    "openCount": 0,
+    "unknownCount": 0,
+    "publishReady": true
+  }
+}

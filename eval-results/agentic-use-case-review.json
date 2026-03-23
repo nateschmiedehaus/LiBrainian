@@ -1,0 +1,6084 @@
+{
+  "schema": "AgenticUseCaseReviewReport.v1",
+  "createdAt": "2026-03-23T13:34:31.715Z",
+  "options": {
+    "reposRoot": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos",
+    "matrixPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/docs/archive/USE_CASE_MATRIX.md",
+    "maxRepos": 8,
+    "maxUseCases": 120,
+    "ucStart": 1,
+    "ucEnd": 310,
+    "selectionMode": "probabilistic",
+    "evidenceProfile": "release",
+    "uncertaintyHistoryPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-results/agentic-use-case-review.json",
+    "progressivePrerequisites": true,
+    "deterministicQueries": false,
+    "explorationIntentsPerRepo": 3,
+    "initTimeoutMs": 300000,
+    "queryTimeoutMs": 180000,
+    "maxRunsPerRepo": 15,
+    "forceProviderProbe": true
+  },
+  "selectedUseCases": [
+    {
+      "id": "UC-001",
+      "domain": "Orientation",
+      "need": "Inventory files, languages, build tools",
+      "dependencies": []
+    },
+    {
+      "id": "UC-002",
+      "domain": "Orientation",
+      "need": "Identify repo entry points and main commands",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-003",
+      "domain": "Orientation",
+      "need": "Produce domain glossary from code and docs",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-004",
+      "domain": "Orientation",
+      "need": "Detect primary runtime environments and targets",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-005",
+      "domain": "Orientation",
+      "need": "Enumerate external services and dependencies",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-006",
+      "domain": "Orientation",
+      "need": "Map build/test entrypoints and scripts",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-007",
+      "domain": "Orientation",
+      "need": "Identify data stores and schema locations",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-008",
+      "domain": "Orientation",
+      "need": "Locate configuration sources and overrides",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-009",
+      "domain": "Orientation",
+      "need": "Detect critical paths and business flows",
+      "dependencies": [
+        "UC-002",
+        "UC-003"
+      ]
+    },
+    {
+      "id": "UC-010",
+      "domain": "Orientation",
+      "need": "Summarize repository purpose and scope",
+      "dependencies": [
+        "UC-003"
+      ]
+    },
+    {
+      "id": "UC-011",
+      "domain": "Architecture",
+      "need": "Produce component/module map",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-012",
+      "domain": "Architecture",
+      "need": "Generate call graph and dependency graph",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-013",
+      "domain": "Architecture",
+      "need": "Identify cross-cutting concerns (auth, logging)",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-014",
+      "domain": "Architecture",
+      "need": "Map dataflow across components",
+      "dependencies": [
+        "UC-011",
+        "UC-012"
+      ]
+    },
+    {
+      "id": "UC-015",
+      "domain": "Architecture",
+      "need": "Document system boundaries and interfaces",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-016",
+      "domain": "Architecture",
+      "need": "Classify architectural styles and constraints",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-017",
+      "domain": "Architecture",
+      "need": "Identify architectural risks and debt",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-018",
+      "domain": "Architecture",
+      "need": "Map runtime topology (services, queues, jobs)",
+      "dependencies": [
+        "UC-005",
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-019",
+      "domain": "Architecture",
+      "need": "Align code structure to domain model",
+      "dependencies": [
+        "UC-003",
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-020",
+      "domain": "Architecture",
+      "need": "Provide architecture decision history",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-021",
+      "domain": "Ownership",
+      "need": "Identify code owners and maintainers",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-022",
+      "domain": "Ownership",
+      "need": "Map teams to components and domains",
+      "dependencies": [
+        "UC-021",
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-023",
+      "domain": "Ownership",
+      "need": "Detect orphaned or unowned areas",
+      "dependencies": [
+        "UC-021"
+      ]
+    },
+    {
+      "id": "UC-024",
+      "domain": "Ownership",
+      "need": "Identify review paths and approval rules",
+      "dependencies": [
+        "UC-021"
+      ]
+    },
+    {
+      "id": "UC-025",
+      "domain": "Ownership",
+      "need": "Map on-call and escalation paths",
+      "dependencies": [
+        "UC-021"
+      ]
+    },
+    {
+      "id": "UC-026",
+      "domain": "Ownership",
+      "need": "Track expertise hotspots (subject matter)",
+      "dependencies": [
+        "UC-021",
+        "UC-003"
+      ]
+    },
+    {
+      "id": "UC-027",
+      "domain": "Ownership",
+      "need": "Identify code stewardship risks",
+      "dependencies": [
+        "UC-022"
+      ]
+    },
+    {
+      "id": "UC-028",
+      "domain": "Ownership",
+      "need": "Determine compliance ownership boundaries",
+      "dependencies": [
+        "UC-022"
+      ]
+    },
+    {
+      "id": "UC-029",
+      "domain": "Ownership",
+      "need": "Map vendor and third-party ownership",
+      "dependencies": [
+        "UC-005"
+      ]
+    },
+    {
+      "id": "UC-030",
+      "domain": "Ownership",
+      "need": "Establish ownership change history",
+      "dependencies": [
+        "UC-021"
+      ]
+    },
+    {
+      "id": "UC-031",
+      "domain": "Navigation",
+      "need": "Find canonical entrypoint for a feature",
+      "dependencies": [
+        "UC-002"
+      ]
+    },
+    {
+      "id": "UC-032",
+      "domain": "Navigation",
+      "need": "Locate definition and usage of a symbol",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-033",
+      "domain": "Navigation",
+      "need": "Discover where config is consumed",
+      "dependencies": [
+        "UC-008"
+      ]
+    },
+    {
+      "id": "UC-034",
+      "domain": "Navigation",
+      "need": "Identify which files implement a behavior",
+      "dependencies": [
+        "UC-031"
+      ]
+    },
+    {
+      "id": "UC-035",
+      "domain": "Navigation",
+      "need": "Locate tests covering a behavior",
+      "dependencies": [
+        "UC-034"
+      ]
+    },
+    {
+      "id": "UC-036",
+      "domain": "Navigation",
+      "need": "Surface cross-language integrations",
+      "dependencies": [
+        "UC-001",
+        "UC-005"
+      ]
+    },
+    {
+      "id": "UC-037",
+      "domain": "Navigation",
+      "need": "Find where errors are handled for a flow",
+      "dependencies": [
+        "UC-034"
+      ]
+    },
+    {
+      "id": "UC-038",
+      "domain": "Navigation",
+      "need": "Identify key extension points or plugins",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-039",
+      "domain": "Navigation",
+      "need": "Map feature flags to code paths",
+      "dependencies": [
+        "UC-008"
+      ]
+    },
+    {
+      "id": "UC-040",
+      "domain": "Navigation",
+      "need": "Locate performance hotspots in code",
+      "dependencies": [
+        "UC-034"
+      ]
+    },
+    {
+      "id": "UC-041",
+      "domain": "Impact",
+      "need": "Determine files impacted by a change",
+      "dependencies": [
+        "UC-012"
+      ]
+    },
+    {
+      "id": "UC-042",
+      "domain": "Impact",
+      "need": "Predict test impact of a code change",
+      "dependencies": [
+        "UC-041",
+        "UC-035"
+      ]
+    },
+    {
+      "id": "UC-043",
+      "domain": "Impact",
+      "need": "Identify downstream services impacted",
+      "dependencies": [
+        "UC-018"
+      ]
+    },
+    {
+      "id": "UC-044",
+      "domain": "Impact",
+      "need": "Estimate API contract breakage risk",
+      "dependencies": [
+        "UC-012"
+      ]
+    },
+    {
+      "id": "UC-045",
+      "domain": "Impact",
+      "need": "Determine data migration requirements",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-046",
+      "domain": "Impact",
+      "need": "Identify security impact of changes",
+      "dependencies": [
+        "UC-101"
+      ]
+    },
+    {
+      "id": "UC-047",
+      "domain": "Impact",
+      "need": "Estimate performance impact of change",
+      "dependencies": [
+        "UC-091"
+      ]
+    },
+    {
+      "id": "UC-048",
+      "domain": "Impact",
+      "need": "Determine observability updates needed",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-049",
+      "domain": "Impact",
+      "need": "Identify user-facing behavior changes",
+      "dependencies": [
+        "UC-034"
+      ]
+    },
+    {
+      "id": "UC-050",
+      "domain": "Impact",
+      "need": "Determine rollback strategy dependencies",
+      "dependencies": [
+        "UC-151"
+      ]
+    },
+    {
+      "id": "UC-051",
+      "domain": "Behavior",
+      "need": "Explain a function or module behavior",
+      "dependencies": [
+        "UC-032"
+      ]
+    },
+    {
+      "id": "UC-052",
+      "domain": "Behavior",
+      "need": "Explain complex control flow and branches",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-053",
+      "domain": "Behavior",
+      "need": "Identify invariants and preconditions",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-054",
+      "domain": "Behavior",
+      "need": "Explain error handling strategy",
+      "dependencies": [
+        "UC-037"
+      ]
+    },
+    {
+      "id": "UC-055",
+      "domain": "Behavior",
+      "need": "Explain concurrency model and locking",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-056",
+      "domain": "Behavior",
+      "need": "Summarize state transitions for a feature",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-057",
+      "domain": "Behavior",
+      "need": "Identify side effects and external calls",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-058",
+      "domain": "Behavior",
+      "need": "Clarify failure modes and fallbacks",
+      "dependencies": [
+        "UC-051"
+      ]
+    },
+    {
+      "id": "UC-059",
+      "domain": "Behavior",
+      "need": "Explain integration behavior across modules",
+      "dependencies": [
+        "UC-012"
+      ]
+    },
+    {
+      "id": "UC-060",
+      "domain": "Behavior",
+      "need": "Explain behavior at runtime vs build time",
+      "dependencies": [
+        "UC-002"
+      ]
+    },
+    {
+      "id": "UC-061",
+      "domain": "Data",
+      "need": "Identify schema sources and versions",
+      "dependencies": [
+        "UC-007"
+      ]
+    },
+    {
+      "id": "UC-062",
+      "domain": "Data",
+      "need": "Explain data model entities and relations",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-063",
+      "domain": "Data",
+      "need": "Map data ownership and stewardship",
+      "dependencies": [
+        "UC-021",
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-064",
+      "domain": "Data",
+      "need": "Identify data lineage across pipeline",
+      "dependencies": [
+        "UC-062"
+      ]
+    },
+    {
+      "id": "UC-065",
+      "domain": "Data",
+      "need": "Determine data validation rules",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-066",
+      "domain": "Data",
+      "need": "Identify data retention and deletion rules",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-067",
+      "domain": "Data",
+      "need": "Explain migration strategy and backfill",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-068",
+      "domain": "Data",
+      "need": "Identify data quality risks",
+      "dependencies": [
+        "UC-064"
+      ]
+    },
+    {
+      "id": "UC-069",
+      "domain": "Data",
+      "need": "Map analytics and reporting outputs",
+      "dependencies": [
+        "UC-064"
+      ]
+    },
+    {
+      "id": "UC-070",
+      "domain": "Data",
+      "need": "Identify PII/PHI locations and handling",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-071",
+      "domain": "Build/Test",
+      "need": "Identify build steps and artifacts",
+      "dependencies": [
+        "UC-006"
+      ]
+    },
+    {
+      "id": "UC-072",
+      "domain": "Build/Test",
+      "need": "Map test suites to components",
+      "dependencies": [
+        "UC-035"
+      ]
+    },
+    {
+      "id": "UC-073",
+      "domain": "Build/Test",
+      "need": "Identify test gaps by coverage and risk",
+      "dependencies": [
+        "UC-072"
+      ]
+    },
+    {
+      "id": "UC-074",
+      "domain": "Build/Test",
+      "need": "Explain CI pipeline stages",
+      "dependencies": [
+        "UC-071"
+      ]
+    },
+    {
+      "id": "UC-075",
+      "domain": "Build/Test",
+      "need": "Identify flaky tests and causes",
+      "dependencies": [
+        "UC-072"
+      ]
+    },
+    {
+      "id": "UC-076",
+      "domain": "Build/Test",
+      "need": "Recommend test additions for changes",
+      "dependencies": [
+        "UC-042"
+      ]
+    },
+    {
+      "id": "UC-077",
+      "domain": "Build/Test",
+      "need": "Map build caches and invalidation rules",
+      "dependencies": [
+        "UC-071"
+      ]
+    },
+    {
+      "id": "UC-078",
+      "domain": "Build/Test",
+      "need": "Identify build reproducibility risks",
+      "dependencies": [
+        "UC-071"
+      ]
+    },
+    {
+      "id": "UC-079",
+      "domain": "Build/Test",
+      "need": "Explain test data management",
+      "dependencies": [
+        "UC-072"
+      ]
+    },
+    {
+      "id": "UC-080",
+      "domain": "Build/Test",
+      "need": "Identify E2E test coverage for scenarios",
+      "dependencies": [
+        "UC-035"
+      ]
+    },
+    {
+      "id": "UC-081",
+      "domain": "Runtime",
+      "need": "Identify logging, metrics, and tracing coverage",
+      "dependencies": [
+        "UC-011",
+        "UC-018"
+      ]
+    },
+    {
+      "id": "UC-082",
+      "domain": "Runtime",
+      "need": "Map SLOs, SLIs, and health checks",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-083",
+      "domain": "Runtime",
+      "need": "Locate dashboards and observability views",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-084",
+      "domain": "Runtime",
+      "need": "Explain alert routing and escalation",
+      "dependencies": [
+        "UC-082",
+        "UC-025"
+      ]
+    },
+    {
+      "id": "UC-085",
+      "domain": "Runtime",
+      "need": "Link runtime errors to code owners",
+      "dependencies": [
+        "UC-081",
+        "UC-021"
+      ]
+    },
+    {
+      "id": "UC-086",
+      "domain": "Runtime",
+      "need": "Determine resource usage by component",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-087",
+      "domain": "Runtime",
+      "need": "Trace request flow end-to-end",
+      "dependencies": [
+        "UC-018",
+        "UC-031"
+      ]
+    },
+    {
+      "id": "UC-088",
+      "domain": "Runtime",
+      "need": "Identify background jobs and schedules",
+      "dependencies": [
+        "UC-018"
+      ]
+    },
+    {
+      "id": "UC-089",
+      "domain": "Runtime",
+      "need": "Map feature usage analytics",
+      "dependencies": [
+        "UC-064"
+      ]
+    },
+    {
+      "id": "UC-090",
+      "domain": "Runtime",
+      "need": "Detect observability coverage gaps",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-091",
+      "domain": "Performance",
+      "need": "Identify performance budgets and targets",
+      "dependencies": [
+        "UC-082"
+      ]
+    },
+    {
+      "id": "UC-092",
+      "domain": "Performance",
+      "need": "Locate bottlenecks in critical paths",
+      "dependencies": [
+        "UC-087"
+      ]
+    },
+    {
+      "id": "UC-093",
+      "domain": "Performance",
+      "need": "Explain memory usage drivers",
+      "dependencies": [
+        "UC-086"
+      ]
+    },
+    {
+      "id": "UC-094",
+      "domain": "Performance",
+      "need": "Explain latency distribution and variance",
+      "dependencies": [
+        "UC-087"
+      ]
+    },
+    {
+      "id": "UC-095",
+      "domain": "Performance",
+      "need": "Determine throughput limits and ceilings",
+      "dependencies": [
+        "UC-091"
+      ]
+    },
+    {
+      "id": "UC-096",
+      "domain": "Performance",
+      "need": "Document caching strategy and layers",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-097",
+      "domain": "Performance",
+      "need": "Identify query optimization targets",
+      "dependencies": [
+        "UC-062"
+      ]
+    },
+    {
+      "id": "UC-098",
+      "domain": "Performance",
+      "need": "Explain concurrency and scaling constraints",
+      "dependencies": [
+        "UC-055",
+        "UC-018"
+      ]
+    },
+    {
+      "id": "UC-099",
+      "domain": "Performance",
+      "need": "Map load test scenarios to system paths",
+      "dependencies": [
+        "UC-080"
+      ]
+    },
+    {
+      "id": "UC-100",
+      "domain": "Performance",
+      "need": "Predict regression risk for performance",
+      "dependencies": [
+        "UC-047"
+      ]
+    },
+    {
+      "id": "UC-101",
+      "domain": "Security",
+      "need": "Produce a threat model by component",
+      "dependencies": [
+        "UC-011",
+        "UC-018"
+      ]
+    },
+    {
+      "id": "UC-102",
+      "domain": "Security",
+      "need": "Explain authentication and authorization flow",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-103",
+      "domain": "Security",
+      "need": "Identify secrets storage and access paths",
+      "dependencies": [
+        "UC-008"
+      ]
+    },
+    {
+      "id": "UC-104",
+      "domain": "Security",
+      "need": "Map input validation boundaries",
+      "dependencies": [
+        "UC-034"
+      ]
+    },
+    {
+      "id": "UC-105",
+      "domain": "Security",
+      "need": "Identify dependency vulnerabilities",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-106",
+      "domain": "Security",
+      "need": "Document encryption at rest and in transit",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-107",
+      "domain": "Security",
+      "need": "Assess audit logging coverage",
+      "dependencies": [
+        "UC-081"
+      ]
+    },
+    {
+      "id": "UC-108",
+      "domain": "Security",
+      "need": "Map least privilege boundaries",
+      "dependencies": [
+        "UC-102"
+      ]
+    },
+    {
+      "id": "UC-109",
+      "domain": "Security",
+      "need": "Identify security testing gaps",
+      "dependencies": [
+        "UC-101",
+        "UC-072"
+      ]
+    },
+    {
+      "id": "UC-110",
+      "domain": "Security",
+      "need": "Prepare security incident response playbook",
+      "dependencies": [
+        "UC-101",
+        "UC-084"
+      ]
+    },
+    {
+      "id": "UC-111",
+      "domain": "Compliance",
+      "need": "Map compliance requirements to code areas",
+      "dependencies": [
+        "UC-011"
+      ]
+    },
+    {
+      "id": "UC-112",
+      "domain": "Compliance",
+      "need": "Identify data residency and locality rules",
+      "dependencies": [
+        "UC-061"
+      ]
+    },
+    {
+      "id": "UC-113",
+      "domain": "Compliance",
+      "need": "Map data retention and records policies",
+      "dependencies": [
+        "UC-066"
+      ]
+    },
+    {
+      "id": "UC-114",
+      "domain": "Compliance",
+      "need": "Verify open-source license obligations",
+      "dependencies": [
+        "UC-001"
+      ]
+    },
+    {
+      "id": "UC-115",
+      "domain": "Compliance",
+      "need": "Identify policy enforcement mechanisms",
+      "dependencies": [
+        "UC-111"
+      ]
+    },
+    {
+      "id": "UC-116",
+      "domain": "Compliance",
+      "need": "Explain access review and approvals",
+      "dependencies": [
+        "UC-108"
+      ]
+    },
+    {
+      "id": "UC-117",
+      "domain": "Compliance",
+      "need": "Determine change management gates",
+      "dependencies": [
+        "UC-074"
+      ]
+    },
+    {
+      "id": "UC-118",
+      "domain": "Compliance",
+      "need": "Perform privacy impact assessment",
+      "dependencies": [
+        "UC-070"
+      ]
+    },
+    {
+      "id": "UC-119",
+      "domain": "Compliance",
+      "need": "Gather regulatory audit evidence",
+      "dependencies": [
+        "UC-111"
+      ]
+    },
+    {
+      "id": "UC-120",
+      "domain": "Compliance",
+      "need": "Maintain governance risk register",
+      "dependencies": [
+        "UC-117"
+      ]
+    }
+  ],
+  "plannedUseCases": [
+    {
+      "id": "UC-151",
+      "domain": "Impact",
+      "need": "Prerequisite for UC-050",
+      "dependencies": [],
+      "stepKind": "prerequisite",
+      "requiredByTargets": [
+        "UC-050"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-001",
+      "domain": "Orientation",
+      "need": "Inventory files, languages, build tools",
+      "dependencies": [],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-001"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-002",
+      "domain": "Orientation",
+      "need": "Identify repo entry points and main commands",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-002"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-003",
+      "domain": "Orientation",
+      "need": "Produce domain glossary from code and docs",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-003"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-004",
+      "domain": "Orientation",
+      "need": "Detect primary runtime environments and targets",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-004"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-005",
+      "domain": "Orientation",
+      "need": "Enumerate external services and dependencies",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-005"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-006",
+      "domain": "Orientation",
+      "need": "Map build/test entrypoints and scripts",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-006"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-007",
+      "domain": "Orientation",
+      "need": "Identify data stores and schema locations",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-007"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-008",
+      "domain": "Orientation",
+      "need": "Locate configuration sources and overrides",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-008"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-009",
+      "domain": "Orientation",
+      "need": "Detect critical paths and business flows",
+      "dependencies": [
+        "UC-002",
+        "UC-003"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-009"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-010",
+      "domain": "Orientation",
+      "need": "Summarize repository purpose and scope",
+      "dependencies": [
+        "UC-003"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-010"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-011",
+      "domain": "Architecture",
+      "need": "Produce component/module map",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-011"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-012",
+      "domain": "Architecture",
+      "need": "Generate call graph and dependency graph",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-012"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-013",
+      "domain": "Architecture",
+      "need": "Identify cross-cutting concerns (auth, logging)",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-013"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-014",
+      "domain": "Architecture",
+      "need": "Map dataflow across components",
+      "dependencies": [
+        "UC-011",
+        "UC-012"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-014"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-015",
+      "domain": "Architecture",
+      "need": "Document system boundaries and interfaces",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-015"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-016",
+      "domain": "Architecture",
+      "need": "Classify architectural styles and constraints",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-016"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-017",
+      "domain": "Architecture",
+      "need": "Identify architectural risks and debt",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-017"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-018",
+      "domain": "Architecture",
+      "need": "Map runtime topology (services, queues, jobs)",
+      "dependencies": [
+        "UC-005",
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-018"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-019",
+      "domain": "Architecture",
+      "need": "Align code structure to domain model",
+      "dependencies": [
+        "UC-003",
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-019"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-020",
+      "domain": "Architecture",
+      "need": "Provide architecture decision history",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-020"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-021",
+      "domain": "Ownership",
+      "need": "Identify code owners and maintainers",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-021"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-022",
+      "domain": "Ownership",
+      "need": "Map teams to components and domains",
+      "dependencies": [
+        "UC-021",
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-022"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-023",
+      "domain": "Ownership",
+      "need": "Detect orphaned or unowned areas",
+      "dependencies": [
+        "UC-021"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-023"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-024",
+      "domain": "Ownership",
+      "need": "Identify review paths and approval rules",
+      "dependencies": [
+        "UC-021"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-024"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-025",
+      "domain": "Ownership",
+      "need": "Map on-call and escalation paths",
+      "dependencies": [
+        "UC-021"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-025"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-026",
+      "domain": "Ownership",
+      "need": "Track expertise hotspots (subject matter)",
+      "dependencies": [
+        "UC-021",
+        "UC-003"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-026"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-027",
+      "domain": "Ownership",
+      "need": "Identify code stewardship risks",
+      "dependencies": [
+        "UC-022"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-027"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-028",
+      "domain": "Ownership",
+      "need": "Determine compliance ownership boundaries",
+      "dependencies": [
+        "UC-022"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-028"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-029",
+      "domain": "Ownership",
+      "need": "Map vendor and third-party ownership",
+      "dependencies": [
+        "UC-005"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-029"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-030",
+      "domain": "Ownership",
+      "need": "Establish ownership change history",
+      "dependencies": [
+        "UC-021"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-030"
+      ],
+      "layer": "L0"
+    },
+    {
+      "id": "UC-031",
+      "domain": "Navigation",
+      "need": "Find canonical entrypoint for a feature",
+      "dependencies": [
+        "UC-002"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-031"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-032",
+      "domain": "Navigation",
+      "need": "Locate definition and usage of a symbol",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-032"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-033",
+      "domain": "Navigation",
+      "need": "Discover where config is consumed",
+      "dependencies": [
+        "UC-008"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-033"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-034",
+      "domain": "Navigation",
+      "need": "Identify which files implement a behavior",
+      "dependencies": [
+        "UC-031"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-034"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-035",
+      "domain": "Navigation",
+      "need": "Locate tests covering a behavior",
+      "dependencies": [
+        "UC-034"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-035"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-036",
+      "domain": "Navigation",
+      "need": "Surface cross-language integrations",
+      "dependencies": [
+        "UC-001",
+        "UC-005"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-036"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-037",
+      "domain": "Navigation",
+      "need": "Find where errors are handled for a flow",
+      "dependencies": [
+        "UC-034"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-037"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-038",
+      "domain": "Navigation",
+      "need": "Identify key extension points or plugins",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-038"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-039",
+      "domain": "Navigation",
+      "need": "Map feature flags to code paths",
+      "dependencies": [
+        "UC-008"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-039"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-040",
+      "domain": "Navigation",
+      "need": "Locate performance hotspots in code",
+      "dependencies": [
+        "UC-034"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-040"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-041",
+      "domain": "Impact",
+      "need": "Determine files impacted by a change",
+      "dependencies": [
+        "UC-012"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-041"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-042",
+      "domain": "Impact",
+      "need": "Predict test impact of a code change",
+      "dependencies": [
+        "UC-041",
+        "UC-035"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-042"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-043",
+      "domain": "Impact",
+      "need": "Identify downstream services impacted",
+      "dependencies": [
+        "UC-018"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-043"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-044",
+      "domain": "Impact",
+      "need": "Estimate API contract breakage risk",
+      "dependencies": [
+        "UC-012"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-044"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-049",
+      "domain": "Impact",
+      "need": "Identify user-facing behavior changes",
+      "dependencies": [
+        "UC-034"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-049"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-050",
+      "domain": "Impact",
+      "need": "Determine rollback strategy dependencies",
+      "dependencies": [
+        "UC-151"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-050"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-051",
+      "domain": "Behavior",
+      "need": "Explain a function or module behavior",
+      "dependencies": [
+        "UC-032"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-051"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-052",
+      "domain": "Behavior",
+      "need": "Explain complex control flow and branches",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-052"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-053",
+      "domain": "Behavior",
+      "need": "Identify invariants and preconditions",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-053"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-054",
+      "domain": "Behavior",
+      "need": "Explain error handling strategy",
+      "dependencies": [
+        "UC-037"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-054"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-055",
+      "domain": "Behavior",
+      "need": "Explain concurrency model and locking",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-055"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-056",
+      "domain": "Behavior",
+      "need": "Summarize state transitions for a feature",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-056"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-057",
+      "domain": "Behavior",
+      "need": "Identify side effects and external calls",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-057"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-058",
+      "domain": "Behavior",
+      "need": "Clarify failure modes and fallbacks",
+      "dependencies": [
+        "UC-051"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-058"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-059",
+      "domain": "Behavior",
+      "need": "Explain integration behavior across modules",
+      "dependencies": [
+        "UC-012"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-059"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-060",
+      "domain": "Behavior",
+      "need": "Explain behavior at runtime vs build time",
+      "dependencies": [
+        "UC-002"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-060"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-061",
+      "domain": "Data",
+      "need": "Identify schema sources and versions",
+      "dependencies": [
+        "UC-007"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-061"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-045",
+      "domain": "Impact",
+      "need": "Determine data migration requirements",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-045"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-062",
+      "domain": "Data",
+      "need": "Explain data model entities and relations",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-062"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-063",
+      "domain": "Data",
+      "need": "Map data ownership and stewardship",
+      "dependencies": [
+        "UC-021",
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-063"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-064",
+      "domain": "Data",
+      "need": "Identify data lineage across pipeline",
+      "dependencies": [
+        "UC-062"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-064"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-065",
+      "domain": "Data",
+      "need": "Determine data validation rules",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-065"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-066",
+      "domain": "Data",
+      "need": "Identify data retention and deletion rules",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-066"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-067",
+      "domain": "Data",
+      "need": "Explain migration strategy and backfill",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-067"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-068",
+      "domain": "Data",
+      "need": "Identify data quality risks",
+      "dependencies": [
+        "UC-064"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-068"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-069",
+      "domain": "Data",
+      "need": "Map analytics and reporting outputs",
+      "dependencies": [
+        "UC-064"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-069"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-070",
+      "domain": "Data",
+      "need": "Identify PII/PHI locations and handling",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-070"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-071",
+      "domain": "Build/Test",
+      "need": "Identify build steps and artifacts",
+      "dependencies": [
+        "UC-006"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-071"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-072",
+      "domain": "Build/Test",
+      "need": "Map test suites to components",
+      "dependencies": [
+        "UC-035"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-072"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-073",
+      "domain": "Build/Test",
+      "need": "Identify test gaps by coverage and risk",
+      "dependencies": [
+        "UC-072"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-073"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-074",
+      "domain": "Build/Test",
+      "need": "Explain CI pipeline stages",
+      "dependencies": [
+        "UC-071"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-074"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-075",
+      "domain": "Build/Test",
+      "need": "Identify flaky tests and causes",
+      "dependencies": [
+        "UC-072"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-075"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-076",
+      "domain": "Build/Test",
+      "need": "Recommend test additions for changes",
+      "dependencies": [
+        "UC-042"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-076"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-077",
+      "domain": "Build/Test",
+      "need": "Map build caches and invalidation rules",
+      "dependencies": [
+        "UC-071"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-077"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-078",
+      "domain": "Build/Test",
+      "need": "Identify build reproducibility risks",
+      "dependencies": [
+        "UC-071"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-078"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-079",
+      "domain": "Build/Test",
+      "need": "Explain test data management",
+      "dependencies": [
+        "UC-072"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-079"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-080",
+      "domain": "Build/Test",
+      "need": "Identify E2E test coverage for scenarios",
+      "dependencies": [
+        "UC-035"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-080"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-081",
+      "domain": "Runtime",
+      "need": "Identify logging, metrics, and tracing coverage",
+      "dependencies": [
+        "UC-011",
+        "UC-018"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-081"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-048",
+      "domain": "Impact",
+      "need": "Determine observability updates needed",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-048"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-082",
+      "domain": "Runtime",
+      "need": "Map SLOs, SLIs, and health checks",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-082"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-083",
+      "domain": "Runtime",
+      "need": "Locate dashboards and observability views",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-083"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-084",
+      "domain": "Runtime",
+      "need": "Explain alert routing and escalation",
+      "dependencies": [
+        "UC-082",
+        "UC-025"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-084"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-085",
+      "domain": "Runtime",
+      "need": "Link runtime errors to code owners",
+      "dependencies": [
+        "UC-081",
+        "UC-021"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-085"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-086",
+      "domain": "Runtime",
+      "need": "Determine resource usage by component",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-086"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-087",
+      "domain": "Runtime",
+      "need": "Trace request flow end-to-end",
+      "dependencies": [
+        "UC-018",
+        "UC-031"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-087"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-088",
+      "domain": "Runtime",
+      "need": "Identify background jobs and schedules",
+      "dependencies": [
+        "UC-018"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-088"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-089",
+      "domain": "Runtime",
+      "need": "Map feature usage analytics",
+      "dependencies": [
+        "UC-064"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-089"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-090",
+      "domain": "Runtime",
+      "need": "Detect observability coverage gaps",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-090"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-091",
+      "domain": "Performance",
+      "need": "Identify performance budgets and targets",
+      "dependencies": [
+        "UC-082"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-091"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-047",
+      "domain": "Impact",
+      "need": "Estimate performance impact of change",
+      "dependencies": [
+        "UC-091"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-047"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-092",
+      "domain": "Performance",
+      "need": "Locate bottlenecks in critical paths",
+      "dependencies": [
+        "UC-087"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-092"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-093",
+      "domain": "Performance",
+      "need": "Explain memory usage drivers",
+      "dependencies": [
+        "UC-086"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-093"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-094",
+      "domain": "Performance",
+      "need": "Explain latency distribution and variance",
+      "dependencies": [
+        "UC-087"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-094"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-095",
+      "domain": "Performance",
+      "need": "Determine throughput limits and ceilings",
+      "dependencies": [
+        "UC-091"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-095"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-096",
+      "domain": "Performance",
+      "need": "Document caching strategy and layers",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-096"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-097",
+      "domain": "Performance",
+      "need": "Identify query optimization targets",
+      "dependencies": [
+        "UC-062"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-097"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-098",
+      "domain": "Performance",
+      "need": "Explain concurrency and scaling constraints",
+      "dependencies": [
+        "UC-055",
+        "UC-018"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-098"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-099",
+      "domain": "Performance",
+      "need": "Map load test scenarios to system paths",
+      "dependencies": [
+        "UC-080"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-099"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-100",
+      "domain": "Performance",
+      "need": "Predict regression risk for performance",
+      "dependencies": [
+        "UC-047"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-100"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-101",
+      "domain": "Security",
+      "need": "Produce a threat model by component",
+      "dependencies": [
+        "UC-011",
+        "UC-018"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-101"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-046",
+      "domain": "Impact",
+      "need": "Identify security impact of changes",
+      "dependencies": [
+        "UC-101"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-046"
+      ],
+      "layer": "L1"
+    },
+    {
+      "id": "UC-102",
+      "domain": "Security",
+      "need": "Explain authentication and authorization flow",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-102"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-103",
+      "domain": "Security",
+      "need": "Identify secrets storage and access paths",
+      "dependencies": [
+        "UC-008"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-103"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-104",
+      "domain": "Security",
+      "need": "Map input validation boundaries",
+      "dependencies": [
+        "UC-034"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-104"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-105",
+      "domain": "Security",
+      "need": "Identify dependency vulnerabilities",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-105"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-106",
+      "domain": "Security",
+      "need": "Document encryption at rest and in transit",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-106"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-107",
+      "domain": "Security",
+      "need": "Assess audit logging coverage",
+      "dependencies": [
+        "UC-081"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-107"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-108",
+      "domain": "Security",
+      "need": "Map least privilege boundaries",
+      "dependencies": [
+        "UC-102"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-108"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-109",
+      "domain": "Security",
+      "need": "Identify security testing gaps",
+      "dependencies": [
+        "UC-101",
+        "UC-072"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-109"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-110",
+      "domain": "Security",
+      "need": "Prepare security incident response playbook",
+      "dependencies": [
+        "UC-101",
+        "UC-084"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-110"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-111",
+      "domain": "Compliance",
+      "need": "Map compliance requirements to code areas",
+      "dependencies": [
+        "UC-011"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-111"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-112",
+      "domain": "Compliance",
+      "need": "Identify data residency and locality rules",
+      "dependencies": [
+        "UC-061"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-112"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-113",
+      "domain": "Compliance",
+      "need": "Map data retention and records policies",
+      "dependencies": [
+        "UC-066"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-113"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-114",
+      "domain": "Compliance",
+      "need": "Verify open-source license obligations",
+      "dependencies": [
+        "UC-001"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-114"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-115",
+      "domain": "Compliance",
+      "need": "Identify policy enforcement mechanisms",
+      "dependencies": [
+        "UC-111"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-115"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-116",
+      "domain": "Compliance",
+      "need": "Explain access review and approvals",
+      "dependencies": [
+        "UC-108"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-116"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-117",
+      "domain": "Compliance",
+      "need": "Determine change management gates",
+      "dependencies": [
+        "UC-074"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-117"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-118",
+      "domain": "Compliance",
+      "need": "Perform privacy impact assessment",
+      "dependencies": [
+        "UC-070"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-118"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-119",
+      "domain": "Compliance",
+      "need": "Gather regulatory audit evidence",
+      "dependencies": [
+        "UC-111"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-119"
+      ],
+      "layer": "L2"
+    },
+    {
+      "id": "UC-120",
+      "domain": "Compliance",
+      "need": "Maintain governance risk register",
+      "dependencies": [
+        "UC-117"
+      ],
+      "stepKind": "target",
+      "requiredByTargets": [
+        "UC-120"
+      ],
+      "layer": "L2"
+    }
+  ],
+  "results": [
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-001",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-001: Inventory files, languages, build tools? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.28507142857142853,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-002",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-002: Identify repo entry points and main commands? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 18,
+      "evidenceCount": 20,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5459428738016379,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-003",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-003: Produce domain glossary from code and docs? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.43609711964621545,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-004",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-004: Detect primary runtime environments and targets? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2993571428571429,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-005",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-005: Enumerate external services and dependencies? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2872692307692308,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-006",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-006: Map build/test entrypoints and scripts? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 17,
+      "evidenceCount": 18,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5324330923992077,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-007",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-007: Identify data stores and schema locations? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2608128078817734,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-008",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-008: Locate configuration sources and overrides? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2872692307692308,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-009",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-009: Detect critical paths and business flows? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.43609711964621545,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-010",
+      "domain": "Orientation",
+      "intent": "What is the evidence-grounded implementation context for UC-010: Summarize repository purpose and scope? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3203717948717949,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-011",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Produce component/module map? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.45439777324098674,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-012",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-012: Generate call graph and dependency graph? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2872692307692308,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-013",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-013: Identify cross-cutting concerns (auth, logging)? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.2965,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-014",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-014: Map dataflow across components? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4367507144174573,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "typedriver-ts",
+      "useCaseId": "UC-015",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-015: Document system boundaries and interfaces? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4367507144174573,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-001",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-001: Prerequisite for UC-021? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-003",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-003: Prerequisite for UC-026? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-005",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-005: Prerequisite for UC-029? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-011",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Prerequisite for UC-022? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-016",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-016: Classify architectural styles and constraints? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-017",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-017: Identify architectural risks and debt? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-018",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-018: Map runtime topology (services, queues, jobs)? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-019",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-019: Align code structure to domain model? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 14,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.36890811965811965,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-020",
+      "domain": "Architecture",
+      "intent": "What is the evidence-grounded implementation context for UC-020: Provide architecture decision history? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-021",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-021: Identify code owners and maintainers? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-022",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-022: Map teams to components and domains? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-023",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-023: Detect orphaned or unowned areas? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-024",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-024: Identify review paths and approval rules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-025",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-025: Map on-call and escalation paths? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-026",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-026: Track expertise hotspots (subject matter)? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-027",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-027: Identify code stewardship risks? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-028",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-028: Determine compliance ownership boundaries? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-029",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-029: Map vendor and third-party ownership? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "srtd-ts",
+      "useCaseId": "UC-030",
+      "domain": "Ownership",
+      "intent": "What is the evidence-grounded implementation context for UC-030: Establish ownership change history? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 5,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22698113207547171,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-001",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-001: Prerequisite for UC-036? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-002",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-002: Prerequisite for UC-031? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-005",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-005: Prerequisite for UC-036? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-008",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-008: Prerequisite for UC-039? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-011",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Prerequisite for UC-038? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-012",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-012: Prerequisite for UC-044? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-018",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-018: Prerequisite for UC-043? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-061",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-061: Prerequisite for UC-045? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-031",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-031: Find canonical entrypoint for a feature? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 16,
+      "evidenceCount": 16,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5496308317189033,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-032",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-032: Locate definition and usage of a symbol? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-033",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-033: Discover where config is consumed? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-034",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-034: Identify which files implement a behavior? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-035",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-035: Locate tests covering a behavior? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.23008064516129031,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-036",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-036: Surface cross-language integrations? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-037",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-037: Find where errors are handled for a flow? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-038",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-038: Identify key extension points or plugins? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3154915473810443,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-039",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-039: Map feature flags to code paths? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.28181818181818186,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-040",
+      "domain": "Navigation",
+      "intent": "What is the evidence-grounded implementation context for UC-040: Locate performance hotspots in code? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-041",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-041: Determine files impacted by a change? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-042",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-042: Predict test impact of a code change? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.23008064516129031,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-043",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-043: Identify downstream services impacted? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-044",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-044: Estimate API contract breakage risk? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.28181818181818186,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "quickpickle-ts",
+      "useCaseId": "UC-045",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-045: Determine data migration requirements? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.23008064516129031,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-002",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-002: Prerequisite for UC-060? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-012",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-012: Prerequisite for UC-059? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-032",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-032: Prerequisite for UC-051? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-034",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-034: Prerequisite for UC-049? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-037",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-037: Prerequisite for UC-054? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-081",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-081: Prerequisite for UC-048? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-091",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-091: Prerequisite for UC-047? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-101",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-101: Prerequisite for UC-046? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5050100139324277,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-151",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-151: Prerequisite for UC-050? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48088616587406097,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-046",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-046: Identify security impact of changes? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 8,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.44418580325425616,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-047",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-047: Estimate performance impact of change? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4808606556352252,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-048",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-048: Determine observability updates needed? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4649175872876333,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-049",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-049: Identify user-facing behavior changes? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.507438542938543,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-050",
+      "domain": "Impact",
+      "intent": "What is the evidence-grounded implementation context for UC-050: Determine rollback strategy dependencies? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48874014052696646,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-051",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-051: Explain a function or module behavior? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4990546378908448,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-052",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-052: Explain complex control flow and branches? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.47114590613380125,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-053",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-053: Identify invariants and preconditions? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.4770982870861822,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-054",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-054: Explain error handling strategy? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 11,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22738636363636364,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-055",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-055: Explain concurrency model and locking? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.473893158881054,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-056",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-056: Summarize state transitions for a feature? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.48911381443731483,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-057",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-057: Identify side effects and external calls? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5100903865260372,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-058",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-058: Clarify failure modes and fallbacks? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5079730396220159,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-059",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-059: Explain integration behavior across modules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.49444606979551364,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "aws-sdk-vitest-mock-ts",
+      "useCaseId": "UC-060",
+      "domain": "Behavior",
+      "intent": "What is the evidence-grounded implementation context for UC-060: Explain behavior at runtime vs build time? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 4,
+      "evidenceCount": 10,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5150792147667148,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-006",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-006: Prerequisite for UC-071? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-007",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-007: Prerequisite for UC-061? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-021",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-021: Prerequisite for UC-063? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-035",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-035: Prerequisite for UC-072? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-061",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-061: Identify schema sources and versions? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-062",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-062: Explain data model entities and relations? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3380952380952381,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-063",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-063: Map data ownership and stewardship? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3397628084975137,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-064",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-064: Identify data lineage across pipeline? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.17142857142857143,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-065",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-065: Determine data validation rules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3397628065680727,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-066",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-066: Identify data retention and deletion rules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3380952380952381,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-067",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-067: Explain migration strategy and backfill? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-068",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-068: Identify data quality risks? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3397628032823216,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-069",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-069: Map analytics and reporting outputs? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-070",
+      "domain": "Data",
+      "intent": "What is the evidence-grounded implementation context for UC-070: Identify PII/PHI locations and handling? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-071",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-071: Identify build steps and artifacts? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-072",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-072: Map test suites to components? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-073",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-073: Identify test gaps by coverage and risk? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-074",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-074: Explain CI pipeline stages? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.1,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "reccmp-py",
+      "useCaseId": "UC-075",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-075: Identify flaky tests and causes? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-011",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Prerequisite for UC-081? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-018",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-018: Prerequisite for UC-088? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-021",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-021: Prerequisite for UC-085? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-025",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-025: Prerequisite for UC-084? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-031",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-031: Prerequisite for UC-087? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-035",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-035: Prerequisite for UC-080? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-042",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-042: Prerequisite for UC-076? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-064",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-064: Prerequisite for UC-089? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-071",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-071: Prerequisite for UC-078? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-072",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-072: Prerequisite for UC-079? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-076",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-076: Recommend test additions for changes? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-077",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-077: Map build caches and invalidation rules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-078",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-078: Identify build reproducibility risks? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-079",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-079: Explain test data management? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-080",
+      "domain": "Build/Test",
+      "intent": "What is the evidence-grounded implementation context for UC-080: Identify E2E test coverage for scenarios? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 7,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5929047872706279,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-081",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-081: Identify logging, metrics, and tracing coverage? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-082",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-082: Map SLOs, SLIs, and health checks? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-083",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-083: Locate dashboards and observability views? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-084",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-084: Explain alert routing and escalation? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-085",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-085: Link runtime errors to code owners? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-086",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-086: Determine resource usage by component? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-087",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-087: Trace request flow end-to-end? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-088",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-088: Identify background jobs and schedules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-089",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-089: Map feature usage analytics? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "token-explorer-py",
+      "useCaseId": "UC-090",
+      "domain": "Runtime",
+      "intent": "What is the evidence-grounded implementation context for UC-090: Detect observability coverage gaps? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-001",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-001: Prerequisite for UC-105? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-008",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-008: Prerequisite for UC-103? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-011",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Prerequisite for UC-102? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-018",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-018: Prerequisite for UC-101? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-034",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-034: Prerequisite for UC-104? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-047",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-047: Prerequisite for UC-100? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-055",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-055: Prerequisite for UC-098? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-062",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-062: Prerequisite for UC-097? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-080",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-080: Prerequisite for UC-099? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-082",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-082: Prerequisite for UC-091? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-086",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-086: Prerequisite for UC-093? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-087",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-087: Prerequisite for UC-094? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3222222222222222,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-091",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-091: Identify performance budgets and targets? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-092",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-092: Locate bottlenecks in critical paths? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-093",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-093: Explain memory usage drivers? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-094",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-094: Explain latency distribution and variance? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-095",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-095: Determine throughput limits and ceilings? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-096",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-096: Document caching strategy and layers? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-097",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-097: Identify query optimization targets? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-098",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-098: Explain concurrency and scaling constraints? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-099",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-099: Map load test scenarios to system paths? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.32727272727272727,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-100",
+      "domain": "Performance",
+      "intent": "What is the evidence-grounded implementation context for UC-100: Predict regression risk for performance? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-101",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-101: Produce a threat model by component? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-102",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-102: Explain authentication and authorization flow? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-103",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-103: Identify secrets storage and access paths? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.29047619047619044,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-104",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-104: Map input validation boundaries? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.30000000000000004,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "pytest-run-parallel-py",
+      "useCaseId": "UC-105",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-105: Identify dependency vulnerabilities? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 1,
+      "evidenceCount": 2,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.31052631578947365,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-001",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-001: Prerequisite for UC-114? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-011",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-011: Prerequisite for UC-111? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-061",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-061: Prerequisite for UC-112? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-066",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-066: Prerequisite for UC-113? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-070",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-070: Prerequisite for UC-118? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-072",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-072: Prerequisite for UC-109? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-074",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-074: Prerequisite for UC-117? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-081",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-081: Prerequisite for UC-107? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-084",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-084: Prerequisite for UC-110? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-101",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-101: Prerequisite for UC-110? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-102",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-102: Prerequisite for UC-108? Include concrete file references.",
+      "stepKind": "prerequisite",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3970951745014245,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-106",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-106: Document encryption at rest and in transit? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-107",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-107: Assess audit logging coverage? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-108",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-108: Map least privilege boundaries? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-109",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-109: Identify security testing gaps? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 7,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.5093899614877875,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-110",
+      "domain": "Security",
+      "intent": "What is the evidence-grounded implementation context for UC-110: Prepare security incident response playbook? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 2,
+      "evidenceCount": 4,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.22828125000000002,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-111",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-111: Map compliance requirements to code areas? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39286237026862025,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-112",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-112: Identify data residency and locality rules? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39286237026862025,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-113",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-113: Map data retention and records policies? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39286237026862025,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-114",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-114: Verify open-source license obligations? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39286237026862025,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-115",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-115: Identify policy enforcement mechanisms? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-116",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-116: Explain access review and approvals? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-117",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-117: Determine change management gates? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-118",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-118: Perform privacy impact assessment? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-119",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-119: Gather regulatory audit evidence? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.3955357203103913,
+      "strictSignals": [],
+      "errors": []
+    },
+    {
+      "repo": "tlsproxy-go",
+      "useCaseId": "UC-120",
+      "domain": "Compliance",
+      "intent": "What is the evidence-grounded implementation context for UC-120: Maintain governance risk register? Include concrete file references.",
+      "stepKind": "target",
+      "success": true,
+      "dependencyReady": true,
+      "missingPrerequisites": [],
+      "packCount": 3,
+      "evidenceCount": 6,
+      "hasUsefulSummary": true,
+      "totalConfidence": 0.39413221153846156,
+      "strictSignals": [],
+      "errors": []
+    }
+  ],
+  "exploration": {
+    "findings": [
+      {
+        "repo": "typedriver-ts",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5451361778309473,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/guard/standard-json-schema.ts, filesystem:src/guard/standard-json-schema.ts, src/guard/standard-schema.ts, filesystem:src/guard/standard-schema.ts. Key signals: Matched terms: and; Exports: IsStandardJsonSchemaV1; Exports: IsStandardSchemaV1.",
+        "citations": [
+          {
+            "file": "src/guard/standard-json-schema.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "typedriver-ts",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.545136177835621,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/guard/standard-json-schema.ts, filesystem:src/guard/standard-json-schema.ts, src/guard/standard-schema.ts, filesystem:src/guard/standard-schema.ts. Key signals: Matched terms: for, include, and; Exports: IsStandardJsonSchemaV1; Exports: IsStandardSchemaV1.",
+        "citations": [
+          {
+            "file": "src/guard/standard-json-schema.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "typedriver-ts",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5223219633977252,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/guard/json-schema.ts, filesystem:src/guard/json-schema.ts, src/guard/standard-json-schema.ts, filesystem:src/guard/standard-json-schema.ts. Key signals: Matched terms: and, tests; Exports: IsJsonSchema; Matched terms: and.",
+        "citations": [
+          {
+            "file": "src/guard/json-schema.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "srtd-ts",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.599999999989712,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/commands/watch.ts, filesystem:src/commands/watch.ts, src/services/Orchestrator.ts, filesystem:src/services/Orchestrator.ts. Key signals: Matched terms: and, top, matters; Exports: stackResults, statusToEventType, NeedsBuildReason, getBuildReason, RenderScreenOptions, renderScreen; Matched terms: and, top, each.",
+        "citations": [
+          {
+            "file": "src/commands/watch.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "srtd-ts",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 10,
+        "evidenceCount": 54,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.6468164747501185,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/utils/schemas.ts, src/commands/watch.ts, src/output/ndjsonOutput.js, src/services/Orchestrator.js. Key signals: Purpose: Module schemas exporting formatZodErrors, validateBuildLog, ValidationWarning...; Exports functions: formatZodErrors, validateBuildLog; Exports types: ValidationWarning, TemplateBuildStateSchema, TemplateBuildState, BuildLogSchema (+4 more).",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/srtd-ts/src/utils/schemas.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "srtd-ts",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5872301461652605,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/utils/getNextTimestamp.ts, filesystem:src/utils/getNextTimestamp.ts, src/services/MigrationBuilder.ts, filesystem:src/services/MigrationBuilder.ts. Key signals: Matched terms: next, and; Exports: TimestampResult, getNextTimestamp; Matched terms: next, would, and.",
+        "citations": [
+          {
+            "file": "src/utils/getNextTimestamp.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "quickpickle-ts",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 3,
+        "evidenceCount": 7,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5591437976437976,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/render.ts, src/tags.ts, src/models/DataTable.ts. Key signals: Purpose: This function \"explodes\" any tags in the \"explodeTags\" setting and returns all possible; Returns: string[][]; Purpose: Compares two lists of tags and returns the ones that are shared by both,.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/quickpickle-ts/packages/main/src/render.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "quickpickle-ts",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 9,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5924874393624393,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/render.ts, src/tags.ts, src/models/DataTable.ts, src/world.ts. Key signals: Purpose: This function \"explodes\" any tags in the \"explodeTags\" setting and returns all possible; Returns: string[][]; Purpose: Compares two lists of tags and returns the ones that are shared by both,.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/quickpickle-ts/packages/main/src/render.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "quickpickle-ts",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5623435936628964,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/PlaywrightWorld.ts, src/render.ts, src/tags.ts, src/models/DataTable.ts. Key signals: Purpose: Sets a value on a form element based on its type (select, checkbox/radio, or other input); Returns: unknown; Purpose: This function \"explodes\" any tags in the \"explodeTags\" setting and returns all possible.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/quickpickle-ts/packages/playwright/src/PlaywrightWorld.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "aws-sdk-vitest-mock-ts",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.6603854497619401,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/lib/mock-client.ts, filesystem:src/lib/mock-client.ts, src/lib/mock-client-lifecycle.spec.ts, filesystem:src/lib/mock-client-lifecycle.spec.ts. Key signals: Matched terms: and, concrete, each; Exports: setGlobalDebug, StructuralCommand, CommandConstructor, CommandInputType, CommandOutputType, AnyClient; Matched terms: and, functional, each.",
+        "citations": [
+          {
+            "file": "src/lib/mock-client.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "aws-sdk-vitest-mock-ts",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 24,
+        "evidenceCount": 48,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5251570375051647,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/lib/mock-client.ts, src/lib/utils/aws-errors.js, src/lib/utils/debug-logger.js, src/lib/utils/file-helpers.js. Key signals: Overview of 37 entry points in this codebase; Keywords: entry point, entry points, main, start, how to use, getting started, api, cli, factory, overview; Kind: dependency root.",
+        "citations": []
+      },
+      {
+        "repo": "aws-sdk-vitest-mock-ts",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 13,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5734125039466301,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in src/lib/mock-client.ts, filesystem:src/lib/mock-client.ts, src/lib/mock-client-pagination.spec.ts, filesystem:src/lib/mock-client-pagination.spec.ts. Key signals: Matched terms: you, next, and, concrete, tests; Exports: setGlobalDebug, StructuralCommand, CommandConstructor, CommandInputType, CommandOutputType, AnyClient; Matched terms: you, and, interfaces.",
+        "citations": [
+          {
+            "file": "src/lib/mock-client.ts",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "reccmp-py",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 11,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.41553120925705933,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.\" confidently from heuristic retrieval alone. Inspect /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_tools_aggregate.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/reccmp/ghidra/importer/ghidra_helper.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "reccmp-py",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 3,
+        "evidenceCount": 6,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.38165375091850307,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.\" confidently from heuristic retrieval alone. Inspect /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/reccmp/ghidra/importer/ghidra_helper.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/reccmp/compare/asm/fixes.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "reccmp-py",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 5,
+        "evidenceCount": 9,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.4227980658867675,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.\" confidently from heuristic retrieval alone. Inspect /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_tools_aggregate.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/reccmp/ghidra/importer/ghidra_helper.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/reccmp-py/tests/test_sequence_match_pins.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "token-explorer-py",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 9,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.4412061511857708,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.\" confidently from heuristic retrieval alone. Inspect /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_explorer.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/src/simpleguide.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/src/explorer.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_explorer.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "token-explorer-py",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 9,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.33973680015674507,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.\" confidently from heuristic retrieval alone. Inspect /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_simpleguide.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_explorer.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/src/simpleguide.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_simpleguide.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "token-explorer-py",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 3,
+        "evidenceCount": 4,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.6978741007957631,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in tests/test_simpleguide.py, tests/test_explorer.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/main.py. Key signals: Impact radius: No direct dependents (isolated module).",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/token-explorer-py/tests/test_simpleguide.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "pytest-run-parallel-py",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 7,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.2972991913994867,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.\" confidently from heuristic retrieval alone. Inspect README.md, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_thread_index.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_tmp_path.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_thread_index.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "pytest-run-parallel-py",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 7,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.2910491913994867,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.\" confidently from heuristic retrieval alone. Inspect README.md, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_thread_index.py, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_tmp_path.py directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_thread_index.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "pytest-run-parallel-py",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 7,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.6058888888888888,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in tests/test_thread_index.py, tests/test_tmp_path.py, tests/test_cpu_detection.py, tests/test_thread_unsafe_detection.py. Key signals: Description: A simple pytest plugin to run tests concurrently; Main features: Global CLI flags:, `--parallel-threads` to run a test suite in parallel, `--iterations` to run multiple times in each thread, `--skip-thread-unsafe` to skip running tests marked as or, `--mark-warnings-as-unsafe` and `--mark-ctypes-as-unsafe`; Architecture: This plugin is *not* an alternative to [pytest-xdist](https://pytest-xdist.readthedocs.io/) and does not run all of the tests in a test suite simultaneously in a thread pool. Instead, it runs many instances of the same test in a thread pool. It is only useful as a tool to do multithreaded stress tes.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/pytest-run-parallel-py/tests/test_thread_index.py",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "tlsproxy-go",
+        "intent": "Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 8,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.44025200320512814,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Explore this repository naturally and identify the top likely functional or reliability risks. Cite concrete files and why each risk matters.\" confidently from heuristic retrieval alone. Inspect README.md, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/headers.go directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "tlsproxy-go",
+        "intent": "Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.",
+        "success": true,
+        "packCount": 4,
+        "evidenceCount": 8,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.44025200320512814,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Results are too scattered to answer \"Identify areas that feel suboptimal for real agent productivity in this repository. Include concrete friction points and evidence-backed fixes.\" confidently from heuristic retrieval alone. Inspect README.md, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/headers.go directly.",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go",
+            "line": null
+          }
+        ]
+      },
+      {
+        "repo": "tlsproxy-go",
+        "intent": "If you had to prioritize high-impact improvements next, what would they be and why? Cite concrete files, tests, or interfaces.",
+        "success": true,
+        "packCount": 6,
+        "evidenceCount": 7,
+        "hasUsefulSummary": true,
+        "totalConfidence": 0.5699524524524524,
+        "strictSignals": [],
+        "errors": [],
+        "summary": "Relevant implementation is concentrated in /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/headers.go, README.md, /Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/http.go. Key signals: Description: HTTP proxy with per-request uTLS fingerprint mimicry and upstream proxy tunneling. Currently WIP.; Impact radius: No direct dependents (isolated module).",
+        "citations": [
+          {
+            "file": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos/tlsproxy-go/config.go",
+            "line": null
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "enabled": true,
+      "intentsPerRepo": 3,
+      "totalRuns": 24,
+      "successRate": 1,
+      "usefulSummaryRate": 1,
+      "evidenceRate": 1,
+      "strictFailureShare": 0,
+      "uniqueReposCovered": 8,
+      "byRepo": {
+        "typedriver-ts": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "srtd-ts": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "quickpickle-ts": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "aws-sdk-vitest-mock-ts": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "reccmp-py": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "token-explorer-py": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "pytest-run-parallel-py": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        },
+        "tlsproxy-go": {
+          "runs": 3,
+          "successes": 3,
+          "usefulSummaries": 3,
+          "evidenceBearing": 3,
+          "strictFailures": 0
+        }
+      }
+    }
+  },
+  "summary": {
+    "totalRuns": 178,
+    "passedRuns": 178,
+    "passRate": 1,
+    "evidenceRate": 1,
+    "usefulSummaryRate": 1,
+    "strictFailureShare": 0,
+    "uniqueRepos": 8,
+    "uniqueUseCases": 120,
+    "byDomain": {
+      "Orientation": {
+        "runs": 10,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Architecture": {
+        "runs": 10,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Ownership": {
+        "runs": 14,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Navigation": {
+        "runs": 15,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Impact": {
+        "runs": 18,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Behavior": {
+        "runs": 14,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Build/Test": {
+        "runs": 16,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Data": {
+        "runs": 12,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Runtime": {
+        "runs": 16,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Security": {
+        "runs": 20,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Performance": {
+        "runs": 17,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      },
+      "Compliance": {
+        "runs": 16,
+        "passRate": 1,
+        "evidenceRate": 1,
+        "usefulSummaryRate": 1
+      }
+    },
+    "progression": {
+      "enabled": true,
+      "prerequisiteUseCases": 1,
+      "targetUseCases": 120,
+      "totalPlannedUseCases": 121,
+      "prerequisiteRuns": 58,
+      "prerequisitePassRate": 1,
+      "targetRuns": 120,
+      "targetPassRate": 1,
+      "targetDependencyReadyShare": 1,
+      "byLayer": {
+        "L0": {
+          "runs": 56,
+          "passRate": 1
+        },
+        "L1": {
+          "runs": 40,
+          "passRate": 1
+        },
+        "L2": {
+          "runs": 82,
+          "passRate": 1
+        },
+        "L3": {
+          "runs": 0,
+          "passRate": 0
+        },
+        "L4": {
+          "runs": 0,
+          "passRate": 0
+        },
+        "unknown": {
+          "runs": 0,
+          "passRate": 0
+        }
+      }
+    }
+  },
+  "gate": {
+    "passed": true,
+    "reasons": [],
+    "thresholds": {
+      "minPassRate": 0.75,
+      "minEvidenceRate": 0.9,
+      "minUsefulSummaryRate": 0.8,
+      "maxStrictFailureShare": 0,
+      "minPrerequisitePassRate": 0.75,
+      "minTargetPassRate": 0.75,
+      "minTargetDependencyReadyShare": 1
+    }
+  },
+  "artifacts": {
+    "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release",
+    "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/report.json",
+    "repoReportPaths": [
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/typedriver-ts.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/srtd-ts.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/quickpickle-ts.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/aws-sdk-vitest-mock-ts.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/reccmp-py.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/token-explorer-py.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/pytest-run-parallel-py.json",
+      "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/use-case-review/release/repos/tlsproxy-go.json"
+    ]
+  }
+}
