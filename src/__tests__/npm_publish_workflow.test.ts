@@ -20,6 +20,9 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('npm run release:pack');
     expect(workflow).toContain('npm run public:pack');
     expect(workflow).toContain('Enforce E2E gate outcomes');
+    expect(workflow).toContain('steps.reality_dev_truth.conclusion');
+    expect(workflow).toContain('steps.publish_evidence_gate.conclusion');
+    expect(workflow).toContain('steps.acceptance_gate.conclusion');
     expect(workflow).toContain('continue-on-error: true');
     expect(workflow).toContain('npm run test:e2e:dev-truth');
     expect(workflow).toContain('Publish-grade evidence gate');
