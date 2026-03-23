@@ -1,0 +1,254 @@
+{
+  "schema": "LiveFireTrialReport.v1",
+  "createdAt": "2026-03-23T13:37:30.232Z",
+  "options": {
+    "reposRoot": "eval-corpus/external-repos",
+    "rounds": 2,
+    "maxRepos": 6,
+    "llmModes": [
+      "disabled",
+      "optional"
+    ],
+    "deterministic": true,
+    "protocol": "objective",
+    "strictObjective": true,
+    "includeSmoke": true,
+    "minJourneyPassRate": 1,
+    "minRetrievedContextRate": 0.98,
+    "maxBlockingValidationRate": 0,
+    "journeyTimeoutMs": 180000,
+    "smokeTimeoutMs": 180000,
+    "artifactRoot": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs"
+  },
+  "runs": [
+    {
+      "round": 1,
+      "llmMode": "disabled",
+      "journey": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "retrievedContextRate": 1,
+        "blockingValidationRate": 0,
+        "providerPrerequisiteFailures": 0,
+        "validationPrerequisiteFailures": 0,
+        "unverifiedTraceErrors": 0,
+        "fallbackContextSelections": 0,
+        "failedRepos": []
+      },
+      "smoke": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "failedRepos": []
+      },
+      "journeyArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/journey/round-1-disabled/repos/token-explorer-py.json"
+        ]
+      },
+      "smokeArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/repos/token-explorer-py.json"
+        ],
+        "progressPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-disabled/smoke/round-1-disabled/progress.json"
+      },
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "round": 1,
+      "llmMode": "optional",
+      "journey": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "retrievedContextRate": 1,
+        "blockingValidationRate": 0,
+        "providerPrerequisiteFailures": 0,
+        "validationPrerequisiteFailures": 0,
+        "unverifiedTraceErrors": 0,
+        "fallbackContextSelections": 0,
+        "failedRepos": []
+      },
+      "smoke": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "failedRepos": []
+      },
+      "journeyArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/journey/round-1-optional/repos/token-explorer-py.json"
+        ]
+      },
+      "smokeArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/repos/token-explorer-py.json"
+        ],
+        "progressPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-1/llm-optional/smoke/round-1-optional/progress.json"
+      },
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "round": 2,
+      "llmMode": "disabled",
+      "journey": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "retrievedContextRate": 1,
+        "blockingValidationRate": 0,
+        "providerPrerequisiteFailures": 0,
+        "validationPrerequisiteFailures": 0,
+        "unverifiedTraceErrors": 0,
+        "fallbackContextSelections": 0,
+        "failedRepos": []
+      },
+      "smoke": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "failedRepos": []
+      },
+      "journeyArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/journey/round-2-disabled/repos/token-explorer-py.json"
+        ]
+      },
+      "smokeArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/repos/token-explorer-py.json"
+        ],
+        "progressPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-disabled/smoke/round-2-disabled/progress.json"
+      },
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "round": 2,
+      "llmMode": "optional",
+      "journey": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "retrievedContextRate": 1,
+        "blockingValidationRate": 0,
+        "providerPrerequisiteFailures": 0,
+        "validationPrerequisiteFailures": 0,
+        "unverifiedTraceErrors": 0,
+        "fallbackContextSelections": 0,
+        "failedRepos": []
+      },
+      "smoke": {
+        "total": 6,
+        "failures": 0,
+        "passRate": 1,
+        "failedRepos": []
+      },
+      "journeyArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/journey/round-2-optional/repos/token-explorer-py.json"
+        ]
+      },
+      "smokeArtifacts": {
+        "root": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional",
+        "reportPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/report.json",
+        "repoReportPaths": [
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/typedriver-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/srtd-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/quickpickle-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/aws-sdk-vitest-mock-ts.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/reccmp-py.json",
+          "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/repos/token-explorer-py.json"
+        ],
+        "progressPath": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/state/eval/live-fire/hardcore/runs/round-2/llm-optional/smoke/round-2-optional/progress.json"
+      },
+      "passed": true,
+      "reasons": []
+    }
+  ],
+  "aggregate": {
+    "totalRuns": 4,
+    "passingRuns": 4,
+    "passRate": 1,
+    "meanJourneyPassRate": 1,
+    "meanRetrievedContextRate": 1,
+    "meanBlockingValidationRate": 0,
+    "meanSmokePassRate": 1,
+    "reasonCounts": {},
+    "failedRepos": []
+  },
+  "gates": {
+    "passed": true,
+    "reasons": [],
+    "classifiedReasons": [],
+    "severityCounts": {
+      "blocking": 0,
+      "quality": 0,
+      "sample_size": 0,
+      "dependency": 0,
+      "informational": 0
+    },
+    "categoryCounts": {
+      "execution": 0,
+      "objective": 0,
+      "measurement": 0,
+      "dependency": 0,
+      "sample_size": 0,
+      "quality": 0,
+      "context": 0,
+      "other": 0
+    }
+  }
+}
