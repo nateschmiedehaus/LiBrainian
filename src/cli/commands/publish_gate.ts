@@ -159,6 +159,41 @@ function normalizeAbsolutePath(value: string): string {
   return path.resolve(value);
 }
 
+function pathSegments(value: string): string[] {
+  return path.normalize(value)
+    .split(path.sep)
+    .filter((segment) => segment.length > 0);
+}
+
+function pathHasSuffix(value: string, expectedSuffix: string): boolean {
+  const actualSegments = pathSegments(value);
+  const suffixSegments = pathSegments(expectedSuffix);
+  if (suffixSegments.length === 0 || actualSegments.length < suffixSegments.length) {
+    return false;
+  }
+  return suffixSegments.every((segment, index) => actualSegments[actualSegments.length - suffixSegments.length + index] === segment);
+}
+
+function resolvePortableWorkspacePath(candidate: string, workspace: string, expectedRelativePath: string): string {
+  const expectedAbsolutePath = path.resolve(workspace, expectedRelativePath);
+  if (!path.isAbsolute(candidate)) {
+    return path.resolve(workspace, candidate);
+  }
+  if (normalizeAbsolutePath(candidate) === normalizeAbsolutePath(expectedAbsolutePath)) {
+    return expectedAbsolutePath;
+  }
+  if (pathHasSuffix(candidate, expectedRelativePath)) {
+    return expectedAbsolutePath;
+  }
+  return candidate;
+}
+
+function matchesExpectedWorkspacePath(candidate: string, workspace: string, expectedRelativePath: string): boolean {
+  const expectedAbsolutePath = path.resolve(workspace, expectedRelativePath);
+  return normalizeAbsolutePath(resolvePortableWorkspacePath(candidate, workspace, expectedRelativePath))
+    === normalizeAbsolutePath(expectedAbsolutePath);
+}
+
 function normalizeMetricName(metric: string): string {
   return metric.trim().toLowerCase();
 }
@@ -471,7 +506,7 @@ async function collectReleaseSignals(input: {
             };
           }
           const resolvedReportPath = path.isAbsolute(pointer.reportPath)
-            ? pointer.reportPath
+            ? resolvePortableWorkspacePath(pointer.reportPath, input.workspace, path.join('state', 'eval', 'live-fire', 'hardcore', 'report.json'))
             : path.resolve(path.dirname(liveFirePointerPath), pointer.reportPath);
           let reportRaw = '';
           try {
@@ -515,7 +550,7 @@ async function collectReleaseSignals(input: {
           };
         }
         const reposRoot = report?.options?.reposRoot;
-        if (typeof reposRoot !== 'string' || normalizeAbsolutePath(reposRoot) !== normalizeAbsolutePath(expectedReposRoot)) {
+        if (typeof reposRoot !== 'string' || !matchesExpectedWorkspacePath(reposRoot, input.workspace, path.join('eval-corpus', 'external-repos'))) {
           return {
             ok: false,
             message: `Live-fire reposRoot is not the real external corpus (${reposRoot ?? 'missing'})`,
@@ -654,7 +689,7 @@ async function collectReleaseSignals(input: {
           };
         }
         const reposRoot = report?.options?.reposRoot;
-        if (typeof reposRoot !== 'string' || normalizeAbsolutePath(reposRoot) !== normalizeAbsolutePath(expectedReposRoot)) {
+        if (typeof reposRoot !== 'string' || !matchesExpectedWorkspacePath(reposRoot, input.workspace, path.join('eval-corpus', 'external-repos'))) {
           return {
             ok: false,
             message: `Use-case review reposRoot is not the real external corpus (${reposRoot ?? 'missing'})`,
@@ -859,7 +894,7 @@ async function collectReleaseSignals(input: {
           };
         }
         const reposRoot = report?.options?.reposRoot;
-        if (typeof reposRoot !== 'string' || normalizeAbsolutePath(reposRoot) !== normalizeAbsolutePath(expectedReposRoot)) {
+        if (typeof reposRoot !== 'string' || !matchesExpectedWorkspacePath(reposRoot, input.workspace, path.join('eval-corpus', 'external-repos'))) {
           return {
             ok: false,
             message: `External smoke reposRoot is not the real external corpus (${reposRoot ?? 'missing'})`,

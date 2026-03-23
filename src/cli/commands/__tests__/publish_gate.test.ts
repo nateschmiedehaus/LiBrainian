@@ -396,4 +396,58 @@ describe('publish gate', () => {
     };
     expect(report.blockers.some((item) => item.id === 'release.agentic_use_case_review')).toBe(true);
   });
+
+  it('accepts release evidence generated from a different absolute workspace root', async () => {
+    const fixtures = await writeReleaseFixtures(workspace);
+    const foreignWorkspace = path.join(path.sep, 'foreign', 'workspace', 'librarian');
+    const foreignReposRoot = path.join(foreignWorkspace, 'eval-corpus', 'external-repos');
+
+    await writeFile(
+      fixtures.liveFirePointerPath,
+      JSON.stringify({
+        schema: 'LiveFireLatestPointer.v1',
+        reportPath: path.join(foreignWorkspace, 'state', 'eval', 'live-fire', 'hardcore', 'report.json'),
+      }, null, 2),
+      'utf8',
+    );
+    await writeFile(
+      fixtures.useCaseReportPath,
+      JSON.stringify(createUseCaseReport(foreignReposRoot), null, 2),
+      'utf8',
+    );
+    await writeFile(
+      fixtures.smokeReportPath,
+      JSON.stringify(createSmokeReport(foreignReposRoot), null, 2),
+      'utf8',
+    );
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await publishGateCommand({
+      workspace,
+      args: [],
+      rawArgs: [
+        'publish-gate',
+        '--json',
+        '--gates-file', fixtures.gatesPath,
+        '--status-file', fixtures.statusPath,
+        '--live-fire-pointer', fixtures.liveFirePointerPath,
+        '--use-case-report', fixtures.useCaseReportPath,
+        '--smoke-report', fixtures.smokeReportPath,
+        '--testing-discipline-report', fixtures.testingDisciplineReportPath,
+        '--testing-tracker-report', fixtures.testingTrackerReportPath,
+        '--conversation-insights-file', fixtures.conversationInsightsPath,
+      ],
+    });
+
+    expect(consoleSpy).toHaveBeenCalled();
+    expect(process.exitCode).toBe(0);
+
+    const latestPath = path.join(workspace, 'state', 'eval', 'publish-gate', 'latest.json');
+    const report = JSON.parse(await readFile(latestPath, 'utf8')) as {
+      passed: boolean;
+      blockers: Array<{ id: string; message: string }>;
+    };
+    expect(report.passed).toBe(true);
+    expect(report.blockers).toHaveLength(0);
+  });
 });
