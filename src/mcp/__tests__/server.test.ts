@@ -247,7 +247,7 @@ describe('MCP Server', () => {
         description?: string;
       }>;
 
-      expect(advertisedTools.length).toBeGreaterThanOrEqual(10);
+      expect(advertisedTools.length).toBeGreaterThanOrEqual(9);
       for (const tool of advertisedTools) {
         expect(tool.description).toBeDefined();
         expect(tool.description).toMatch(/Use(?: this)? when/i);
@@ -266,7 +266,7 @@ describe('MCP Server', () => {
 
       expect(names).toContain('describe_capabilities');
       expect(names).toContain('run_health_check');
-      expect(names).toContain('query_codebase');
+      expect(names).not.toContain('query_codebase');
       expect(names).not.toContain('system_contract');
       expect(names).not.toContain('diagnose_self');
       expect(names).not.toContain('compile_technique_composition');

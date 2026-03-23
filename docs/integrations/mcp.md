@@ -43,7 +43,7 @@ Use MCP when your coding agent needs tool-style access to LiBrainian context dur
 
 Public golden-path tools are intentionally narrow: `query`, `get_context_pack`, `find_symbol`,
 `find_usages`, `get_change_impact`, `get_repo_map`, `explain_function`,
-`describe_capabilities`, `run_health_check`, and `query_codebase`.
+`describe_capabilities`, and `run_health_check`.
 Experimental construction-management tools are source-checkout maintainer surfaces and are not advertised by default in `0.2.x`.
 
 ## Troubleshooting

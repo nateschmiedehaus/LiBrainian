@@ -11,7 +11,6 @@ describe('github readiness docs', () => {
     expect(fs.existsSync(path.join(root, '.github', 'CODEOWNERS'))).toBe(true);
     expect(fs.existsSync(path.join(root, '.github', 'ISSUE_TEMPLATE', 'config.yml'))).toBe(true);
     expect(fs.existsSync(path.join(root, '.github', 'actions', 'librainian', 'action.yml'))).toBe(true);
-    expect(fs.existsSync(path.join(root, '.github', 'workflows', 'librainian-action-dogfood.yml'))).toBe(true);
   });
 
   it('links governance docs from README', () => {
@@ -108,21 +107,6 @@ describe('github readiness docs', () => {
         file !== 'eval-corpus/external-repos/manifest.json'
     );
     expect(trackedEvalRepoExtras).toEqual([]);
-  });
-
-  it('pins dogfood workflow action watchdog policy', () => {
-    const workflowPath = path.join(
-      process.cwd(),
-      '.github',
-      'workflows',
-      'librainian-action-dogfood.yml'
-    );
-    const workflow = fs.readFileSync(workflowPath, 'utf8');
-
-    expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('LIBRAINIAN_ACTION_STALL_TIMEOUT_SECONDS: 600');
-    expect(workflow).toContain('LIBRAINIAN_ACTION_HARD_TIMEOUT_SECONDS: 1080');
-    expect(workflow).toContain('LIBRAINIAN_ACTION_HEARTBEAT_INTERVAL_SECONDS: 15');
   });
 
   it('defines action-level bootstrap watchdog defaults', () => {

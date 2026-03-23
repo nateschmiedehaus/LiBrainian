@@ -4901,11 +4901,10 @@ export class LiBrainianMCPServer {
             runId,
             watching: existingWorkspace.watching,
             get_started: {
-              constructionsQuickstart: 'docs/constructions/quickstart.md',
-              constructionsOperatorGuide: 'docs/constructions/operators.md',
-              constructionsCookbook: 'docs/constructions/cookbook.md',
-              constructionsTesting: 'docs/constructions/testing.md',
-              cliListConstructions: 'npx librainian constructions list',
+              startHere: 'docs/START_HERE.md',
+              mcpSetup: 'docs/mcp-setup.md',
+              cliStatus: 'npx librainian status --json',
+              cliQuery: 'npx librainian query "How does this module work?"',
             },
           };
         }
@@ -4993,11 +4992,10 @@ export class LiBrainianMCPServer {
           debounceMs: actuallyWatching ? debounceMs : undefined,
         },
         get_started: {
-          constructionsQuickstart: 'docs/constructions/quickstart.md',
-          constructionsOperatorGuide: 'docs/constructions/operators.md',
-          constructionsCookbook: 'docs/constructions/cookbook.md',
-          constructionsTesting: 'docs/constructions/testing.md',
-          cliListConstructions: 'npx librainian constructions list',
+          startHere: 'docs/START_HERE.md',
+          mcpSetup: 'docs/mcp-setup.md',
+          cliStatus: 'npx librainian status --json',
+          cliQuery: 'npx librainian query "How does this module work?"',
         },
       };
     } catch (error) {

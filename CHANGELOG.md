@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-03-23
+
+### Fixed
+- Removed internal patrol, cadence, dogfood, and agent-control workflows from the active GitHub Actions surface so the public repo only advertises reviewer-facing CI and official release publication.
+- Narrowed the public MCP golden path by removing composition-backed querying from the advertised tool list and replacing bootstrap follow-up hints with supported first-run docs and commands.
+- Removed deferred OpenClaw and constructions docs from the active public documentation set and tightened integration/feature docs so they point to shipped first-release surfaces only.
+
 ## [0.2.3] - 2026-03-23
 
 ### Fixed

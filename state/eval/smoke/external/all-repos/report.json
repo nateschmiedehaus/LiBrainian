@@ -1,7 +1,7 @@
 {
   "schema": "ExternalRepoSmokeRunArtifact.v1",
-  "startedAt": "2026-03-23T13:37:31.892Z",
-  "completedAt": "2026-03-23T13:38:50.165Z",
+  "startedAt": "2026-03-23T15:49:58.433Z",
+  "completedAt": "2026-03-23T15:51:25.934Z",
   "options": {
     "reposRoot": "/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/eval-corpus/external-repos",
     "repoTimeoutMs": "adaptive"

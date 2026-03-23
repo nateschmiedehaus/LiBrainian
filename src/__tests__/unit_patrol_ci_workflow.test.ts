@@ -18,17 +18,8 @@ describe('unit patrol CI integration', () => {
     expect(script).toContain('src/constructions/processes/__tests__/self_index_gate.test.ts');
   });
 
-  it('defines required unit-patrol workflow for PR review and manual maintainer runs', () => {
+  it('keeps unit patrol out of the public github workflow surface', () => {
     const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'unit-patrol.yml');
-    expect(fs.existsSync(workflowPath)).toBe(true);
-    const workflow = fs.readFileSync(workflowPath, 'utf8');
-
-    expect(workflow).toContain('name: unit-patrol');
-    expect(workflow).toContain('pull_request:');
-    expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).toContain('timeout-minutes: 15');
-    expect(workflow).toContain('LIBRARIAN_LLM_PROVIDER: disabled');
-    expect(workflow).toContain('LIBRARIAN_EMBEDDING_PROVIDER: xenova');
-    expect(workflow).toContain('npm run test:unit-patrol');
+    expect(fs.existsSync(workflowPath)).toBe(false);
   });
 });

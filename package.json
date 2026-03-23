@@ -1,6 +1,6 @@
 {
   "name": "librainian",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Codebase knowledge and intelligence for coding agents: semantic indexing, confidence-calibrated retrieval, quality gates, and self-healing onboarding.",
   "author": "Nate Schmiedehaus",
   "license": "MIT",

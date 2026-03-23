@@ -85,7 +85,7 @@ export async function collectFeatureRegistry(workspaceRoot: string): Promise<Fea
       description: 'Call/import/usage graph and symbol relationship traversal.',
       requiresConfig: !hasIndex,
       configHint: hasIndex ? undefined : 'Requires bootstrap to materialize graph data.',
-      docs: 'docs/librarian/API.md',
+      docs: 'docs/README.md',
     },
     {
       id: 'semantic_search',

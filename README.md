@@ -347,7 +347,7 @@ steps:
       artifact-name: librainian-index
 ```
 
-This repository dogfoods the action in `.github/workflows/librainian-action-dogfood.yml`.
+The composite action is published as part of the repository contract; maintainer-only release validation for it happens outside the public Actions surface.
 
 ## Release Provenance
 

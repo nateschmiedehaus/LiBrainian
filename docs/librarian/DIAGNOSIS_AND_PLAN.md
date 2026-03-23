@@ -394,9 +394,9 @@ This document is the rationale, not the plan. The plan is issues #854-#869 on Gi
 - Zero reverts — failures hidden as new fix() commits
 
 ### CI Reality
-- Only `ci.yml` and `unit-patrol.yml` actually gate PRs
-- `e2e-cadence.yml` runs LLM evaluations on every push (expensive, should be nightly)
-- `agent-patrol.yml` runs every 6 hours (informational, correct)
+- Public GitHub automation is intentionally narrowed to `ci.yml` for PR validation and `publish-npm.yml` for official releases
+- Patrol, e2e cadence, and autonomous agent workflows were retired from the active default-branch workflow surface
+- Heavy evaluation remains a maintainer-only source-checkout release procedure, not a public GitHub Actions lane
 - Estimated API cost: $1,000-3,000+/month for project with zero revenue/users
 
 ### AGENTS.md Bloat

@@ -14,13 +14,11 @@ describe('unit patrol universal adaptation/proof workflow', () => {
     expect(script).toContain('unit-patrol-universal-proof.json');
   });
 
-  it('wires publish-readiness CI to run universal demos and validate proof bundle', () => {
+  it('keeps universal demos available as maintainer scripts instead of public github workflows', () => {
     const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'ci.yml');
     const workflow = fs.readFileSync(workflowPath, 'utf8');
-    expect(workflow).toContain('Unit patrol universal demonstrations');
-    expect(workflow).toContain('npm run eval:unit-patrol:universal');
-    expect(workflow).toContain('Validate unit patrol universal proof bundle');
-    expect(workflow).toContain('node scripts/operational-proof-ci-gate.mjs --bundle state/patrol/unit-patrol-universal-proof.json');
+    expect(workflow).not.toContain('eval:unit-patrol:universal');
+    expect(workflow).not.toContain('unit-patrol-universal-proof.json');
   });
 
   it('documents onboarding path for adding new domain/task mappings', () => {

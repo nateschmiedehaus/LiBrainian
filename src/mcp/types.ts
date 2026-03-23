@@ -47,7 +47,6 @@ export const MCP_GOLDEN_PATH_TOOLS = [
   'get_repo_map',
   'describe_capabilities',
   'run_health_check',
-  'query_codebase',
 ] as const;
 export const DEFAULT_MCP_SERVER_INSTRUCTIONS = 'Use mcp__librainian__query for cross-file understanding, mcp__librainian__get_context_pack before multi-file edits, mcp__librainian__find_symbol or mcp__librainian__find_usages for exact symbol tracing, mcp__librainian__get_change_impact before risky edits, and reserve Grep for exact literal string matching.';
 

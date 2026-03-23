@@ -87,37 +87,15 @@ Do NOT assume subagents can call `mcp__librainian__*` tools.
 - Manual fallback artifacts treated as launch proof
 - “Pass with caveats” when strict markers exist
 
-## Autonomous Agent Coordination Protocol
+## Maintainer Automation Note
 
-LiBrainian uses a GitHub-native autonomous development system.
-Three independent workflows coordinate via issue labels:
+The historical autonomous GitHub workflow stack is no longer part of the public default-branch contract.
+The active public workflow surface is intentionally narrow:
 
-### Workflows
-| Workflow | Schedule | Role |
-|----------|----------|------|
-| `agent-work.yml` | Every 3h | Finds ready issues, implements, creates PR |
-| `agent-verify.yml` | Every 3h (offset) | Independently verifies worker PRs |
-| `agent-reality.yml` | On push to main | Post-merge quality snapshot |
+- `ci.yml` for reviewer-facing pull request validation
+- `publish-npm.yml` for official tagged release publication
 
-### Issue Label State Machine
-```
-ready + agent:actionable → agent:claimed → verify:pending → verify:pass → merged
-                                                          → verify:fail → ready (reopened)
-```
-
-### Evidence Protocol
-Every agent posts structured evidence as issue comments with hidden metadata:
-```html
-<!-- agent_evidence = {“v”:1,”issue”:N,”role”:”worker|verifier”,”verdict”:”pass|fail”} -->
-```
-Downstream agents parse these to assess upstream trust.
-
-### Rules for Agents Working on Issues
-1. Read the full issue body and acceptance criteria before starting
-2. Make focused, minimal changes — do not refactor surrounding code
-3. Run `npm run build` and relevant tests before committing
-4. Post evidence with actual command output, not claims
-5. The agent that implements NEVER verifies its own work
+Maintainer-only automation and evaluation flows remain source-checkout procedures, not active public GitHub workflows.
 
 ### Curating the Backlog
 Run `node scripts/curate-agent-backlog.mjs` to label actionable issues.

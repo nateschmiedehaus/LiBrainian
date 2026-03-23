@@ -65,7 +65,7 @@ Why: agents need a stable contract for fast judgment without losing access to th
 
 ## Public MCP Surface (2026-03-23)
 
-LiBrainian's advertised public MCP surface is the 10-tool golden path defined in `src/mcp/types.ts`.
+LiBrainian's advertised public MCP surface is the 9-tool golden path defined in `src/mcp/types.ts`.
 Internal tools are intentionally omitted from default `tools/list`.
 
 | Tool | Use for |
@@ -79,7 +79,6 @@ Internal tools are intentionally omitted from default `tools/list`.
 | `get_repo_map` | Fast repository orientation |
 | `describe_capabilities` | Discover the stable public tool contract |
 | `run_health_check` | Diagnose index and environment readiness |
-| `query_codebase` | Composition-backed codebase querying on the public surface |
 
 ## Public Surface Rules
 

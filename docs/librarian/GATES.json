@@ -738,7 +738,7 @@
       "layer": 5,
       "status": "fail",
       "lastRun": "2026-01-26",
-      "evidence": "eval:ci script runs eval-corpus with lexical baseline, compares against eval-corpus/baseline.json, and writes eval-corpus/results.json; GitHub workflow eval.yml runs on push/PR with regression thresholds",
+      "evidence": "eval:ci script runs eval-corpus with lexical baseline, compares against eval-corpus/baseline.json, and writes eval-corpus/results.json; public GitHub CI no longer runs this lane, which is now maintainer-only release evidence.",
       "target": "Nightly eval with regression detection",
       "spec": "specs/track-eval-infrastructure.md#e2",
       "dependsOn": [

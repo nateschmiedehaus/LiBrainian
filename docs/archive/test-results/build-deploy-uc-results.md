@@ -20,7 +20,7 @@
 ## Actual Build/Deploy Infrastructure in Repository
 
 ### 1. GitHub Actions Workflow
-**File:** `.github/workflows/eval.yml`
+**File:** Historical `.github/workflows/eval.yml` (retired from the active default-branch workflow surface)
 - CI pipeline for evaluation corpus
 - Runs on push and pull_request
 - Uses Node.js 20, npm ci, runs `npm run eval:ci`
@@ -101,7 +101,7 @@
 7. `printPreflightReport()` in checks.ts - UNRELATED
 
 **Expected Files NOT Found:**
-- `.github/workflows/eval.yml` (THE ACTUAL CI/CD WORKFLOW)
+- Historical `.github/workflows/eval.yml` (was the CI/CD workflow at the time of this archived review)
 
 **Assessment:** FAIL - Completely missed the GitHub Actions workflow file. Matched "pipeline" to embedding pipeline instead of CI pipeline.
 
@@ -157,7 +157,7 @@
 
 **Expected Files NOT Found:**
 - `package.json` (contains "release" script and version number)
-- `.github/workflows/eval.yml` (part of release quality gates)
+- Historical `.github/workflows/eval.yml` (was part of release quality gates when this archive note was written)
 
 **Assessment:** PARTIAL - Found versioning utility but missed release configuration.
 

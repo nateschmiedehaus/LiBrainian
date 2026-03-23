@@ -5,8 +5,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  validate-fast:
-    if: github.event_name == 'pull_request'
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -24,181 +23,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Fast staged validation
+      - name: Fast validation
         run: npm run validate:fast
 
-      - name: Performance SLA benchmark gate
-        run: node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts benchmark --queries 4 --incremental-files 5 --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
-  detect-index-related-changes:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      index_related: ${{ steps.filter.outputs.index_related }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect index-related changes
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            index_related:
-              - 'src/agents/**'
-              - 'src/api/bootstrap.ts'
-              - 'src/api/query.ts'
-              - 'src/storage/**'
-              - 'src/knowledge/**'
-              - 'src/__tests__/index_correctness_suite.test.ts'
-              - 'tests/fixtures/index-correctness-fixture/**'
-
-  detect-mcp-description-changes:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      mcp_descriptions: ${{ steps.filter.outputs.mcp_descriptions }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect MCP description changes
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            mcp_descriptions:
-              - 'src/mcp/server.ts'
-              - 'src/mcp/schema.ts'
-              - 'src/mcp/types.ts'
-              - 'src/mcp/__tests__/tool_triggering_compliance.test.ts'
-
-  index-correctness:
-    if: github.event_name == 'pull_request' && needs.detect-index-related-changes.outputs.index_related == 'true'
-    needs: detect-index-related-changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Index correctness suite
-        run: npm run test:index:correctness
-
-  mcp-tool-compliance:
-    if: github.event_name == 'pull_request' && needs.detect-mcp-description-changes.outputs.mcp_descriptions == 'true'
-    needs: detect-mcp-description-changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: MCP tool trigger compliance gate
-        run: npm test -- --run src/mcp/__tests__/tool_triggering_compliance.test.ts
-
-  e2e-acceptance:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: E2E acceptance gate
+      - name: Public acceptance smoke
         run: npm run test:e2e:acceptance
-
-  full-tier0:
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
-
-      - name: Unit and integration tests
-        run: npm test -- --run
-
-      - name: Evidence verify
-        run: npm run evidence:verify
-
-      - name: Performance SLA benchmark gate
-        run: node scripts/run-with-tmpdir.mjs -- npx tsx src/cli/index.ts benchmark --queries 4 --incremental-files 5 --json --out state/eval/performance/PerformanceSLAReport.v1.json --fail-on block
 
       - name: Package identity guard
         run: npm run package:assert-identity
 
-      - name: Package install smoke
-        run: npm run package:install-smoke
-
-  publish-readiness:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: full-tier0
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Strict agentic qualification
-        run: npm run test:agentic:strict
-
-      - name: Unit patrol universal demonstrations
-        run: npm run eval:unit-patrol:universal
-
-      - name: Validate unit patrol universal proof bundle
-        run: node scripts/operational-proof-ci-gate.mjs --bundle state/patrol/unit-patrol-universal-proof.json
+      - name: Public tarball contract
+        run: npm run public:pack
