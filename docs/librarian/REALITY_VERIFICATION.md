@@ -27,9 +27,9 @@ The T0.5 reality smoke test (#854) must pass. This validates that the CLI starts
 
 | Type | Description | Example |
 |------|-------------|---------|
-| **(a) Patrol observation** | Agent Patrol run exercising the specific feature | `patrol-run-YYYY-MM-DD.json` showing feature tested |
-| **(b) Manual CLI test** | Command + actual output pasted in closing comment | `$ librainian query "error handling"` + full output |
-| **(c) T1 predetermined test** | Predetermined-model test covering the fixed behavior path | `query_pipeline.test.ts::should return results for known topic` |
+| **(a) Manual CLI/runtime test** | Command + actual output pasted in closing comment | `$ librainian query "error handling"` + full output |
+| **(b) T1 predetermined test** | Predetermined-model test covering the fixed behavior path | `query_pipeline.test.ts::should return results for known topic` |
+| **(c) Smoke/strict qualification artifact** | Linked report or run output from the relevant public release lane | `state/eval/smoke/.../report.json` or strict run output |
 
 ---
 

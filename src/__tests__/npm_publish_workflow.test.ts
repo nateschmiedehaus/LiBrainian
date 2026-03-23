@@ -16,6 +16,9 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('types:');
     expect(workflow).toContain('published');
     expect(workflow).toContain('packages: write');
+    expect(workflow).toContain('actions: write');
+    expect(workflow).toContain('actions/checkout@v5');
+    expect(workflow).toContain('actions/setup-node@v6');
     expect(workflow).toContain('npm run evidence:verify');
     expect(workflow).toContain('npm run release:pack');
     expect(workflow).toContain('npm run public:pack');
@@ -37,6 +40,7 @@ describe('npm publish workflow', () => {
     expect(workflow).toContain('Trusted publishing failed (likely npm trusted publisher not configured for this repo/workflow).');
     expect(workflow).toContain('npm run release:github-packages');
     expect(workflow).toContain('Enforce npm publish success');
+    expect(workflow).toContain('scripts/prune-github-action-runs.mjs');
     expect(workflow).toContain('https://npm.pkg.github.com');
   });
 });

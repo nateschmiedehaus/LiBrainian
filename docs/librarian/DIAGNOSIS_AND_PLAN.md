@@ -199,9 +199,9 @@ For M0 issues, closure requires ALL of:
 2. `npm test` passes (T0)
 3. T0.5 reality smoke test passes (#854)
 4. At least ONE of:
-   - Patrol observation on the specific feature
-   - Manual CLI test with documented command + output pasted in issue comment
+   - Manual CLI/runtime test with documented command + output pasted in issue comment
    - T1 predetermined model test covering the fix path
+   - Smoke/strict qualification artifact covering the fix path
 'Tests pass' alone is explicitly NOT sufficient.
 
 ### PHASE 2: M0/M1 Process Reform (Week 2-3)

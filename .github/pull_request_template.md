@@ -59,8 +59,8 @@ Required for changes touching retrieval, query, embedding, scoring, indexing, or
 
 Required for runtime-affecting changes (retrieval, provider/runtime, constructions, diagnostics).
 
-- [ ] Patrol artifact link:
-- [ ] Transcript excerpt:
+- [ ] Runtime evidence link or pasted command output:
+- [ ] Transcript excerpt or failure snippet:
 - [ ] Post-fix comparison:
 
 ## Screenshots (if applicable)
@@ -75,14 +75,14 @@ See [REALITY_VERIFICATION.md](../docs/librarian/REALITY_VERIFICATION.md) for the
 - [ ] T0 passes: `npm test` — link CI run or paste output
 - [ ] T0.5 passes: T0.5 reality smoke test result — link or paste
 - [ ] Reality evidence (check one):
-  - [ ] **(a)** Patrol observation — link to `patrol-run-*.json` showing this feature tested
-  - [ ] **(b)** Manual CLI test — paste command + actual output below
-  - [ ] **(c)** T1 predetermined test — name the test that specifically covers the fix path
+  - [ ] **(a)** Manual CLI or runtime test — paste command + actual output below
+  - [ ] **(b)** T1 predetermined test — name the test that specifically covers the fix path
+  - [ ] **(c)** Strict qualification or smoke artifact — link the exact report/run
 
 **Reality evidence artifact:**
 
 ```
-(paste command + output, or link patrol report, or name T1 test)
+(paste command + output, or link strict/smoke report, or name T1 test)
 ```
 
 > "Tests pass" alone does not satisfy closure. At least one reality evidence artifact is required.

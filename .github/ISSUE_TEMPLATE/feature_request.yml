@@ -111,10 +111,10 @@ body:
     id: baseline_runtime_evidence
     attributes:
       label: Baseline runtime evidence
-      description: Link patrol artifacts/transcript excerpts and metrics that show present runtime behavior.
+      description: Link or paste concrete command output, transcripts, logs, screenshots, or metrics that show present runtime behavior.
       placeholder: |
-        - Artifact: state/patrol/patrol-run-...
-        - Transcript: state/patrol/transcripts/...
+        - Command: npx librainian quickstart
+        - Output / transcript excerpt:
         - Runtime observations:
     validations:
       required: true
@@ -125,7 +125,7 @@ body:
       description: Define measurable runtime probes this feature must pass.
       placeholder: |
         - `npm run validate:reality` passes
-        - Patrol comparison shows reduced critical findings for the target class
+        - Runtime comparison shows reduced critical findings for the target class
         - No contradictions across status/doctor/provider surfaces
     validations:
       required: true
@@ -133,8 +133,8 @@ body:
     id: post_fix_verification_artifact
     attributes:
       label: Post-fix verification artifact
-      description: Provide expected post-fix artifact path for validation and closure.
-      placeholder: state/patrol/patrol-run-<label>-post-feature.json
+      description: Provide the expected post-fix report, run URL, command transcript, or artifact path for validation and closure.
+      placeholder: state/eval/<lane>/report.json
     validations:
       required: true
   - type: textarea
@@ -154,8 +154,8 @@ body:
       label: affected-files
       description: List concrete files expected to change. Use one path per line.
       placeholder: |
-        src/constructions/processes/patrol_process.ts
         src/cli/commands/status.ts
+        src/cli/commands/quickstart.ts
     validations:
       required: true
   - type: dropdown

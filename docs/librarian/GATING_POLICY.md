@@ -59,7 +59,7 @@ Use this template before starting the next milestone:
 - Evidence summary:
   - typecheck status
   - required issue-quality-analysis coverage
-  - reality/patrol artifacts
+  - reality artifacts (manual runtime output, smoke reports, or strict qualification reports)
 - Risks and residual unknowns
 - Decision: `GO` or `NO-GO`
 - Approver: `<human>`

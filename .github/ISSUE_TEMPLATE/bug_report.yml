@@ -162,10 +162,10 @@ body:
     id: baseline_runtime_evidence
     attributes:
       label: Baseline runtime evidence
-      description: Link or paste patrol artifact paths, transcript excerpts, and metrics showing current reality before the fix.
+      description: Link or paste concrete command output, transcripts, logs, screenshots, and metrics showing current reality before the fix.
       placeholder: |
-        - Artifact: state/patrol/patrol-run-...
-        - Transcript: state/patrol/transcripts/...
+        - Command: npx librainian query "Where is authentication enforced?"
+        - Output / transcript excerpt:
         - Key runtime metrics/failures:
     validations:
       required: true
@@ -177,15 +177,15 @@ body:
       placeholder: |
         - `npm run validate:reality` passes
         - Query smoke probe exits 0 with no error payload
-        - Post-fix patrol no longer reproduces this failure class
+        - Post-fix runtime probe no longer reproduces this failure class
     validations:
       required: true
   - type: input
     id: post_fix_verification_artifact
     attributes:
       label: Post-fix verification artifact
-      description: Provide expected post-fix artifact path for closure verification.
-      placeholder: state/patrol/patrol-run-<label>-post-fix.json
+      description: Provide the expected post-fix report, run URL, command transcript, or artifact path for closure verification.
+      placeholder: state/eval/<lane>/report.json
     validations:
       required: true
   - type: textarea

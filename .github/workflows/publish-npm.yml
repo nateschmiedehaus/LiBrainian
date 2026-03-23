@@ -26,6 +26,7 @@ permissions:
   contents: read
   id-token: write
   packages: write
+  actions: write
 
 concurrency:
   group: npm-publish
@@ -37,10 +38,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -119,10 +120,10 @@ jobs:
     environment: npm-publish
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -238,6 +239,21 @@ jobs:
           echo "::error::Unknown npm auth mode: $mode"
           exit 1
 
+      - name: Prune stale action history
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/prune-github-action-runs.mjs \
+            --repo "$GITHUB_REPOSITORY" \
+            --current-sha "$GITHUB_SHA" \
+            --keep-workflow ci \
+            --keep-workflow npm-publish \
+            --prune-workflow "Agent Work Loop" \
+            --prune-workflow "Agent Verify Loop" \
+            --prune-workflow "Agent Patrol" \
+            --prune-workflow "e2e-cadence"
+
   publish-manual:
     if: github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: verify
@@ -246,10 +262,10 @@ jobs:
     environment: npm-publish
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -367,3 +383,18 @@ jobs:
           fi
           echo "::error::Unknown npm auth mode: $mode"
           exit 1
+
+      - name: Prune stale action history
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/prune-github-action-runs.mjs \
+            --repo "$GITHUB_REPOSITORY" \
+            --current-sha "$GITHUB_SHA" \
+            --keep-workflow ci \
+            --keep-workflow npm-publish \
+            --prune-workflow "Agent Work Loop" \
+            --prune-workflow "Agent Verify Loop" \
+            --prune-workflow "Agent Patrol" \
+            --prune-workflow "e2e-cadence"

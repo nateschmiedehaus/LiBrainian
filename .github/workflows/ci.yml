@@ -1,8 +1,14 @@
 name: ci
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -10,12 +16,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -34,3 +40,33 @@ jobs:
 
       - name: Public tarball contract
         run: npm run public:pack
+
+  prune-history:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Prune stale action history
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/prune-github-action-runs.mjs \
+            --repo "$GITHUB_REPOSITORY" \
+            --current-sha "$GITHUB_SHA" \
+            --keep-workflow ci \
+            --keep-workflow npm-publish \
+            --prune-workflow "Agent Work Loop" \
+            --prune-workflow "Agent Verify Loop" \
+            --prune-workflow "Agent Patrol" \
+            --prune-workflow "e2e-cadence"

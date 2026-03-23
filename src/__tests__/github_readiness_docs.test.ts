@@ -44,7 +44,7 @@ describe('github readiness docs', () => {
     const templatePath = path.join(process.cwd(), '.github', 'pull_request_template.md');
     const template = fs.readFileSync(templatePath, 'utf8');
     expect(template).toContain('## Runtime Reality Evidence');
-    expect(template).toContain('Patrol artifact link');
+    expect(template).toContain('Runtime evidence link or pasted command output');
     expect(template).toContain('Transcript excerpt');
     expect(template).toContain('Post-fix comparison');
   });
