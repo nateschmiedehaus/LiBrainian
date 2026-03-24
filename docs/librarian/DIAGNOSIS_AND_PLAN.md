@@ -220,32 +220,21 @@ For M0 issues, closure requires ALL of:
 | #865 | Embedding Model Evaluation | L 3-5 days | #854, #866 |
 | #867 | Dead Code Removal (~200K lines) | XL 1-2 weeks | #859, #858 |
 
-### Existing Issues to Address (by Phase)
+### Existing Issues to Address (historical snapshot)
 
-**Phase 0/1 — M0 completion (14 open issues)**:
-- #662: Embedding truncation (THE #1 blocker — closed but problem persists, must reopen)
-- #819, #826: EBOOTSTRAP_FAILED in hooks/bootstrap
-- #813: Clean-clone bootstrap blocks dogfood
-- #809: Pathological retrieval in eval
-- #782: CLI flag swallowing (ship-blocking)
-- #775: Sub-LLM defaults to Claude in nested sessions (ship-blocking)
-- #774: Orphaned bootstrap contention (ship-blocking)
-- #716: Invalid eval corpus (ship-blocking)
-- #666: Hallucinated package methods (ship-blocking)
-- #735: Build failure in constructions/index.ts
-- #701: security.riskScore always 0
-- #699: tribalKnowledge from rare patterns only
-- #663: Stale AUC 1.0 claim
+This section is no longer the authoritative milestone queue.
 
-**Phase 2 — M1 construction integrity (10 active bugs)**:
-- #718: Decompose query.ts (7,096 lines) — prerequisite to all retrieval improvement
-- #745: Construction smoke gate 85% failure rate
-- #709: api_indexer never wired to knowledge graph
-- #708: safety_violation event never emitted
-- #707: Contract.consumers never populated (critical for safety checker)
-- #845, #844, #840: Query stall/lock/timeout bugs
-- #843: npm package misses patrol_calibration module
-- #832: Hook runtime coupling
+As of 2026-03-24, the authoritative roadmap lives in GitHub milestones plus
+[MILESTONE_BRIEF.md](/Volumes/BigSSD4/nathanielschmiedehaus/Documents/software/librarian/docs/librarian/MILESTONE_BRIEF.md).
+The lists below were accurate for an earlier recovery phase but are now stale in
+three important ways:
+- `#707` and `#709` are already closed
+- M0 still contains synthetic management-wrapper pollution that should not drive execution
+- external-repo testing moved the remaining blockers toward impact analysis, actionability truth, and provider/runtime trust
+
+Current active milestone themes:
+- M0: `#888`, `#908`, `#910`, `#912`, `#716`, `#850`, and the minimal remaining MCP-surface trust work
+- M1: `#718`, `#745`, `#666`, and externally validated proof that LiBrainian is safe and useful on real repos
 
 ### Full Dependency Graph
 
